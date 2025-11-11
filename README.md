@@ -1,5 +1,6 @@
 <div align="center">
-  <img src="echo-logo-full.svg" alt="Echo Logo" width="200" style="margin-top: 30px;">
+  <div style="height: 30px;"></div>
+  <img src="echo-logo-full.svg" alt="Echo Logo" width="200">
 </div>
 
 # Echo
