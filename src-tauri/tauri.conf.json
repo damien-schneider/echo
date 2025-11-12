@@ -75,9 +75,9 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEJBQjcyMDk1MjA2NjAxRjkKUldUNUFXWWdsU0MzdXRRZi8zYzhqV2FaNUVDbDd2Rk5VM1IvWWowVXdmRFNKQ1BrMXF5RFFsLy8K",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI5NTJDOEY3ODlGNUE1MzMKUldRenBmV0o5OGhTdVNSMlR2WmlZeVVIaStCaEZQMlJiRVNwdHZ2WU1ZZGp4Z3JzanFxVzVmdkIK",
       "endpoints": [
-        "https://github.com/cjpais/Handy/releases/latest/download/latest.json"
+        "https://github.com/damien-schneider/echo/releases/latest/download/latest.json"
       ]
     },
     "sql": {
