@@ -70,7 +70,7 @@ jobs:
       # TODO: Setup windows signing
       # sign-binaries: true
       sign-binaries: ${{ !contains(matrix.platform, 'windows') }}
-      asset-prefix: "handy"
+      asset-prefix: "echo"
       upload-artifacts: false
       release-id: ${{ needs.create-release.outputs.release-id }}
     secrets: inherit

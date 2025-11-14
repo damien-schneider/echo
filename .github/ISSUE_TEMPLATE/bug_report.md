@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Create a report to help us improve Handy
+about: Create a report to help us improve Echo
 title: '[BUG] '
 labels: ['bug']
 assignees: ''

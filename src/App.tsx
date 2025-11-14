@@ -90,7 +90,7 @@ function App() {
         data-tauri-drag-region
       >
         <Spinner className="size-8" />
-        <p className="text-sm">Loading Handy...</p>
+        <p className="text-sm">Loading Echo...</p>
       </div>
     );
   }

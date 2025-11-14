@@ -139,7 +139,7 @@ impl SoundTheme {
     }
 }
 
-/* still handy for composing the initial JSON in the store ------------- */
+/* still echo for composing the initial JSON in the store ------------- */
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AppSettings {
     pub bindings: HashMap<String, ShortcutBinding>,

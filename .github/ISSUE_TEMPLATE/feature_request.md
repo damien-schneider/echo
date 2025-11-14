@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest an idea or new feature for Handy
+about: Suggest an idea or new feature for Echo
 title: ''
 labels: []
 assignees: ''
@@ -8,7 +8,7 @@ assignees: ''
 
 ## 🎯 Feature Requests Go in Discussions!
 
-Thanks for your interest in improving Handy! 
+Thanks for your interest in improving Echo! 
 
 **Please post feature requests in our [Discussions tab](https://github.com/damien-schneider/echo/discussions) instead of opening an issue.**
 

@@ -34,7 +34,7 @@ jobs:
       # TODO: Setup windows signing
       # sign-binaries: true
       sign-binaries: ${{ !contains(matrix.platform, 'windows') }}
-      asset-prefix: "handy-test"
+      asset-prefix: "echo-test"
       upload-artifacts: true
       is-debug-build: ${{ contains(matrix.args, '--debug') }}
     secrets: inherit
