@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import "./App.css";
 import AccessibilityPermissions from "./components/AccessibilityPermissions";
@@ -8,6 +8,7 @@ import Onboarding from "./components/onboarding";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { useSettings } from "./hooks/useSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
@@ -19,7 +20,8 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [currentSection, setCurrentSection] =
     useState<SidebarSection>("general");
-  const { settings, updateSetting } = useSettings();
+  const { settings, updateSetting, isLoading } = useSettings();
+  const hasSignaledReady = useRef(false);
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -65,6 +67,33 @@ function App() {
     // Transition to main app - user has started a download
     setShowOnboarding(false);
   };
+
+  const isCheckingOnboarding = showOnboarding === null;
+  const isInitializing = isLoading || isCheckingOnboarding;
+
+  useEffect(() => {
+    if (!isInitializing && !hasSignaledReady.current) {
+      invoke("mark_frontend_ready")
+        .then(() => {
+          hasSignaledReady.current = true;
+        })
+        .catch((error) => {
+          console.error("Failed to notify startup readiness", error);
+        });
+    }
+  }, [isInitializing]);
+
+  if (isInitializing) {
+    return (
+      <div
+        className="h-screen w-full flex flex-col items-center justify-center gap-3 text-muted-foreground"
+        data-tauri-drag-region
+      >
+        <Spinner className="size-8" />
+        <p className="text-sm">Loading Handy...</p>
+      </div>
+    );
+  }
 
   if (showOnboarding) {
     return <Onboarding onModelSelected={handleModelSelected} />;

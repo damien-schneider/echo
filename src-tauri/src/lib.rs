@@ -8,6 +8,7 @@ mod managers;
 mod overlay;
 mod settings;
 mod shortcut;
+mod startup;
 mod tray;
 mod utils;
 
@@ -182,9 +183,12 @@ pub fn run() {
             Some(vec![]),
         ))
         .manage(Mutex::new(ShortcutToggleStates::default()))
+        .manage(Mutex::new(startup::StartupState::default()))
         .setup(move |app| {
             let settings = settings::get_settings(&app.handle());
             let app_handle = app.handle().clone();
+
+            startup::set_start_hidden(&app_handle, settings.start_hidden);
 
             initialize_core_logic(&app_handle);
 
@@ -202,13 +206,7 @@ pub fn run() {
                 let _ = apply_vibrancy(&main_window, NSVisualEffectMaterial::UnderWindowBackground, None, None);
             }
 
-            // Show main window only if not starting hidden
-            if !settings.start_hidden {
-                if let Some(main_window) = app_handle.get_webview_window("main") {
-                    main_window.show().unwrap();
-                    main_window.set_focus().unwrap();
-                }
-            }
+            startup::mark_backend_ready(&app_handle);
 
             Ok(())
         })
@@ -266,6 +264,7 @@ pub fn run() {
             shortcut::register_escape_shortcut,
             shortcut::unregister_escape_shortcut,
             trigger_update_check,
+            startup::mark_frontend_ready,
             commands::cancel_operation,
             commands::get_app_dir_path,
             commands::models::get_available_models,

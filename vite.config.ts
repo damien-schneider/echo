@@ -7,7 +7,7 @@ const host = process.env.TAURI_DEV_HOST;
 // https://vitejs.dev/config/
 export default defineConfig(async () => ({
   plugins: [react(), tailwindcss()],
-resolve: {
+  resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
     },
@@ -18,6 +18,7 @@ resolve: {
       input: {
         main: resolve(__dirname, "index.html"),
         overlay: resolve(__dirname, "src/overlay/index.html"),
+        "startup-loading-screen": resolve(__dirname, "startup-loading-screen.html"),
       },
     },
   },
