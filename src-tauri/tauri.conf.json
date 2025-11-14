@@ -35,7 +35,6 @@
         "maximizable": false,
         "decorations": false,
         "visible": true,
-        "alwaysOnTop": true,
         "center": true,
         "transparent": true,
         "hiddenTitle": true,

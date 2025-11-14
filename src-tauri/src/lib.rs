@@ -16,6 +16,7 @@ use managers::audio::AudioRecordingManager;
 use managers::history::HistoryManager;
 use managers::model::ModelManager;
 use managers::transcription::TranscriptionManager;
+use startup::show_main_window;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
@@ -32,28 +33,6 @@ struct ShortcutToggleStates {
 }
 
 type ManagedToggleState = Mutex<ShortcutToggleStates>;
-
-fn show_main_window(app: &AppHandle) {
-    if let Some(main_window) = app.get_webview_window("main") {
-        // First, ensure the window is visible
-        if let Err(e) = main_window.show() {
-            eprintln!("Failed to show window: {}", e);
-        }
-        // Then, bring it to the front and give it focus
-        if let Err(e) = main_window.set_focus() {
-            eprintln!("Failed to focus window: {}", e);
-        }
-        // Optional: On macOS, ensure the app becomes active if it was an accessory
-        #[cfg(target_os = "macos")]
-        {
-            if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
-                eprintln!("Failed to set activation policy to Regular: {}", e);
-            }
-        }
-    } else {
-        eprintln!("Main window not found.");
-    }
-}
 
 fn initialize_core_logic(app_handle: &AppHandle) {
     // First, initialize the managers

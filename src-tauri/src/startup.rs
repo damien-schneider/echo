@@ -1,4 +1,12 @@
 use std::sync::Mutex;
+#[cfg(target_os = "macos")]
+use std::time::Duration;
+#[cfg(target_os = "macos")]
+use tokio::time;
+#[cfg(target_os = "macos")]
+// 200ms balances UI responsiveness with allowing the splash screen to fully close
+// before resetting window elevation. Adjust with caution.
+const MACOS_WINDOW_FOREGROUND_DELAY_MS: u64 = 200;
 use tauri::{AppHandle, Manager, State};
 
 #[derive(Default)]
@@ -11,22 +19,43 @@ pub struct StartupState {
 
 pub type ManagedStartupState = Mutex<StartupState>;
 
-fn show_main_window(app: &AppHandle) {
+pub fn show_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
-        // First, ensure the window is visible
-        if let Err(e) = main_window.show() {
-            eprintln!("Failed to show window: {}", e);
-        }
-        // Then, bring it to the front and give it focus
-        if let Err(e) = main_window.set_focus() {
-            eprintln!("Failed to focus window: {}", e);
-        }
-        // Optional: On macOS, ensure the app becomes active if it was an accessory
         #[cfg(target_os = "macos")]
         {
             if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
                 eprintln!("Failed to set activation policy to Regular: {}", e);
             }
+            // Temporarily keep the window on top to fight macOS z-order jumps
+            if let Err(e) = main_window.set_always_on_top(true) {
+                eprintln!("Failed to elevate window temporarily: {}", e);
+            }
+        }
+
+        if let Err(e) = main_window.show() {
+            eprintln!("Failed to show window: {}", e);
+        }
+
+        if let Err(e) = main_window.set_focus() {
+            eprintln!("Failed to focus window: {}", e);
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            let app_handle = app.clone();
+            let window_label = main_window.label().to_string();
+            tauri::async_runtime::spawn(async move {
+                // Delay ensures the splash window finishes closing before we drop elevation
+                time::sleep(Duration::from_millis(MACOS_WINDOW_FOREGROUND_DELAY_MS)).await;
+                if let Some(window) = app_handle.get_webview_window(&window_label) {
+                    if let Err(e) = window.set_always_on_top(false) {
+                        eprintln!("Failed to reset always_on_top: {}", e);
+                    }
+                    if let Err(e) = window.set_focus() {
+                        eprintln!("Failed to refocus window after elevation reset: {}", e);
+                    }
+                }
+            });
         }
     } else {
         eprintln!("Main window not found.");
@@ -36,9 +65,11 @@ fn show_main_window(app: &AppHandle) {
 fn finish_startup_if_ready(app: &AppHandle, state: &mut StartupState) {
     if state.frontend_ready && state.backend_ready && !state.finished {
         state.finished = true;
+
         if let Some(splash_window) = app.get_webview_window("startup-loading-screen") {
             let _ = splash_window.close();
         }
+
         if !state.start_hidden {
             show_main_window(app);
         }
