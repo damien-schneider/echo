@@ -8,8 +8,8 @@ use crate::settings::ShortcutBinding;
 use crate::settings::{
     self, get_settings, ClipboardHandling, LLMPrompt, OverlayPosition, PasteMethod, SoundTheme,
 };
-use crate::ManagedToggleState;
 use crate::utils;
+use crate::ManagedToggleState;
 
 pub fn init_shortcuts(app: &AppHandle) {
     let settings = settings::load_or_create_app_settings(app);
@@ -19,7 +19,10 @@ pub fn init_shortcuts(app: &AppHandle) {
     for (_id, binding) in settings.bindings {
         // Skip bindings that don't have corresponding actions
         if !ACTION_MAP.contains_key(&binding.id) {
-            eprintln!("Skipping binding '{}' - no action defined in ACTION_MAP", binding.id);
+            eprintln!(
+                "Skipping binding '{}' - no action defined in ACTION_MAP",
+                binding.id
+            );
             continue;
         }
         if let Err(e) = _register_shortcut(app, binding) {
@@ -84,11 +87,13 @@ pub fn unregister_escape_shortcut(app: AppHandle) -> Result<(), String> {
 
     // Only unregister if it's currently registered
     if app.global_shortcut().is_registered(escape_shortcut) {
-        app.global_shortcut().unregister(escape_shortcut).map_err(|e| {
-            let error_msg = format!("Failed to unregister escape shortcut: {}", e);
-            eprintln!("{}", error_msg);
-            error_msg
-        })?;
+        app.global_shortcut()
+            .unregister(escape_shortcut)
+            .map_err(|e| {
+                let error_msg = format!("Failed to unregister escape shortcut: {}", e);
+                eprintln!("{}", error_msg);
+                error_msg
+            })?;
     }
 
     Ok(())
@@ -590,10 +595,7 @@ async fn fetch_models_manual(
         "HTTP-Referer",
         reqwest::header::HeaderValue::from_static("https://github.com/damien-schneider/echo"),
     );
-    headers.insert(
-        "X-Title",
-        reqwest::header::HeaderValue::from_static("Echo"),
-    );
+    headers.insert("X-Title", reqwest::header::HeaderValue::from_static("Echo"));
 
     // Add provider-specific headers
     if provider.id == "anthropic" {

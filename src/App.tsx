@@ -1,14 +1,16 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
+import { type as getOsType } from "@tauri-apps/plugin-os";
 import { Toaster } from "sonner";
 import "./App.css";
-import AccessibilityPermissions from "./components/AccessibilityPermissions";
+import {AccessibilityPermissions} from "./components/accessibility-permissions";
 import Footer from "./components/footer";
 import Onboarding from "./components/onboarding";
-import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
+import { Sidemenu, SidebarSection, SECTIONS_CONFIG } from "./components/sidemenu";
 import { useSettings } from "./hooks/useSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
@@ -22,6 +24,14 @@ function App() {
     useState<SidebarSection>("general");
   const { settings, updateSetting, isLoading } = useSettings();
   const hasSignaledReady = useRef(false);
+  const [shouldUseSolidBackground, setShouldUseSolidBackground] = useState(
+    () => {
+      if (typeof navigator === "undefined") {
+        return true;
+      }
+      return !navigator.userAgent.includes("Mac OS X");
+    },
+  );
 
   useEffect(() => {
     checkOnboardingStatus();
@@ -72,6 +82,16 @@ function App() {
   const isInitializing = isLoading || isCheckingOnboarding;
 
   useEffect(() => {
+    try {
+      const osType = getOsType();
+      setShouldUseSolidBackground(osType !== "macos");
+    } catch (error) {
+      console.error("Failed to detect platform for vibrancy", error);
+      setShouldUseSolidBackground(true);
+    }
+  }, []);
+
+  useEffect(() => {
     if (!isInitializing && !hasSignaledReady.current) {
       invoke("mark_frontend_ready")
         .then(() => {
@@ -99,8 +119,13 @@ function App() {
     return <Onboarding onModelSelected={handleModelSelected} />;
   }
 
+
+
   return (
-    <div className="h-screen flex flex-col" data-tauri-drag-region>
+    <div className={cn(
+    "h-screen flex flex-col",
+    shouldUseSolidBackground ? "bg-background text-foreground": "bg-background/80",
+  )} data-tauri-drag-region>
       <Toaster />
       {/* Draggable header region */}
       <div
@@ -109,7 +134,7 @@ function App() {
       />
       {/* Main content area that takes remaining space */}
       <div className="flex-1 flex overflow-hidden" data-tauri-drag-region>
-        <Sidebar
+        <Sidemenu
           activeSection={currentSection}
           onSectionChange={setCurrentSection}
         />

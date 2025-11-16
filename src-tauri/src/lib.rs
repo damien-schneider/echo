@@ -11,6 +11,7 @@ mod shortcut;
 mod startup;
 mod tray;
 mod utils;
+mod window_effects;
 
 use managers::audio::AudioRecordingManager;
 use managers::history::HistoryManager;
@@ -171,18 +172,8 @@ pub fn run() {
 
             initialize_core_logic(&app_handle);
 
-            // Apply macOS vibrancy effect
-            #[cfg(target_os = "macos")]
             if let Some(main_window) = app_handle.get_webview_window("main") {
-                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-                let _ = apply_vibrancy(&main_window, NSVisualEffectMaterial::UnderWindowBackground, None, None);
-            }
-
-            // Apply macOS vibrancy effect
-            #[cfg(target_os = "macos")]
-            if let Some(main_window) = app_handle.get_webview_window("main") {
-                use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
-                let _ = apply_vibrancy(&main_window, NSVisualEffectMaterial::UnderWindowBackground, None, None);
+                window_effects::apply_window_effects(&main_window);
             }
 
             startup::mark_backend_ready(&app_handle);

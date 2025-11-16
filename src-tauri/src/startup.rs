@@ -86,10 +86,7 @@ pub fn mark_backend_ready(app: &AppHandle) {
 }
 
 pub fn set_start_hidden(app: &AppHandle, start_hidden: bool) {
-    if let Ok(mut startup_state) = app
-        .state::<ManagedStartupState>()
-        .lock()
-    {
+    if let Ok(mut startup_state) = app.state::<ManagedStartupState>().lock() {
         startup_state.start_hidden = start_hidden;
     }
 }

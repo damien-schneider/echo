@@ -13,7 +13,7 @@ interface ButtonConfig {
   className: string;
 }
 
-const AccessibilityPermissions: React.FC = () => {
+export const AccessibilityPermissions = () => {
   const [hasAccessibility, setHasAccessibility] = useState<boolean>(false);
   const [permissionState, setPermissionState] =
     useState<PermissionState>("request");
@@ -93,5 +93,3 @@ const AccessibilityPermissions: React.FC = () => {
     </div>
   );
 };
-
-export default AccessibilityPermissions;

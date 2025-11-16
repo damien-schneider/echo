@@ -87,15 +87,14 @@ export const SECTIONS_CONFIG = {
   },
 } as const satisfies Record<string, SectionConfig>;
 
-interface SidebarProps {
+export const Sidemenu = ({
+  activeSection,
+  onSectionChange,
+}: {
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
 }
-
-export const Sidebar: React.FC<SidebarProps> = ({
-  activeSection,
-  onSectionChange,
-}) => {
+) => {
   const { settings } = useSettings();
   const [isCollapsed, setIsCollapsed] = useAtom(sidebarCollapsedAtom);
 
