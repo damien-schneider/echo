@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useSettings } from "../../../hooks/useSettings";
-import { useSettingsStore } from "../../../stores/settingsStore";
+import { useSettingsStore } from "../../../stores/settings-store";
 import type { PostProcessProvider } from "../../../lib/types";
 import type { ModelOption } from "./types";
 
@@ -44,7 +44,7 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     postProcessModelOptions,
   } = useSettings();
 
-  const enabled = settings?.post_process_enabled || false;
+  const enabled = settings?.beta_features_enabled || false;
 
   // Settings are guaranteed to have providers after migration
   const providers = settings?.post_process_providers || [];

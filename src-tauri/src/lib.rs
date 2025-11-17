@@ -11,6 +11,7 @@ mod shortcut;
 mod startup;
 mod tray;
 mod utils;
+mod logging;
 mod window_effects;
 
 use managers::audio::AudioRecordingManager;
@@ -135,7 +136,8 @@ fn trigger_update_check(app: AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::init();
+    logging::init();
+    logging::set_debug_logging(false);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -166,6 +168,7 @@ pub fn run() {
         .manage(Mutex::new(startup::StartupState::default()))
         .setup(move |app| {
             let settings = settings::get_settings(&app.handle());
+            logging::set_debug_logging(settings.debug_logging_enabled);
             let app_handle = app.handle().clone();
 
             startup::set_start_hidden(&app_handle, settings.start_hidden);
@@ -214,10 +217,11 @@ pub fn run() {
             shortcut::change_selected_language_setting,
             shortcut::change_overlay_position_setting,
             shortcut::change_debug_mode_setting,
+            shortcut::change_beta_features_setting,
+            shortcut::change_debug_logging_setting,
             shortcut::change_word_correction_threshold_setting,
             shortcut::change_paste_method_setting,
             shortcut::change_clipboard_handling_setting,
-            shortcut::change_post_process_enabled_setting,
             shortcut::change_post_process_base_url_setting,
             shortcut::change_post_process_api_key_setting,
             shortcut::change_post_process_model_setting,

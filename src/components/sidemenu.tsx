@@ -1,5 +1,5 @@
 import React from "react";
-import { Cog, FlaskConical, History, Info, Sparkles, PanelLeft } from "lucide-react";
+import { Cog, FlaskConical, History, Info, Sparkles, PanelLeft, Beaker } from "lucide-react";
 import { useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import EchoLogo from "./icons/echo-logo";
@@ -11,6 +11,7 @@ import {
   DebugSettings,
   AboutSettings,
   PostProcessingSettings,
+  ExperimentsSettings,
 } from "./settings";
 import {
   Tooltip,
@@ -61,11 +62,17 @@ export const SECTIONS_CONFIG = {
     component: AdvancedSettings,
     enabled: () => true,
   },
+  experiments: {
+    label: "Experiments",
+    icon: Sparkles,
+    component: ExperimentsSettings,
+    enabled: () => true,
+  },
   postprocessing: {
     label: "Post Process",
-    icon: Sparkles,
+    icon: Beaker,
     component: PostProcessingSettings,
-    enabled: (settings) => settings?.post_process_enabled ?? false,
+    enabled: (settings) => settings?.beta_features_enabled ?? false,
   },
   history: {
     label: "History",

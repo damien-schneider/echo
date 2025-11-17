@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { ModelInfo } from "../../lib/types";
-import ModelCard from "./ModelCard";
+import ModelCard from "./model-card";
 import EchoLogo from "../icons/echo-logo";
 
 interface OnboardingProps {

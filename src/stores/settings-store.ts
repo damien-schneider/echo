@@ -61,6 +61,8 @@ const DEFAULT_SETTINGS: Partial<Settings> = {
   selected_language: "auto",
   overlay_position: "bottom",
   debug_mode: false,
+  beta_features_enabled: false,
+  debug_logging_enabled: false,
   custom_words: [],
   history_limit: 5,
   mute_while_recording: false,
@@ -104,6 +106,10 @@ const settingUpdaters: {
     invoke("change_overlay_position_setting", { position: value }),
   debug_mode: (value) =>
     invoke("change_debug_mode_setting", { enabled: value }),
+  beta_features_enabled: (value) =>
+    invoke("change_beta_features_setting", { enabled: value }),
+  debug_logging_enabled: (value) =>
+    invoke("change_debug_logging_setting", { enabled: value }),
   custom_words: (value) => invoke("update_custom_words", { words: value }),
   word_correction_threshold: (value) =>
     invoke("change_word_correction_threshold_setting", { threshold: value }),
@@ -112,8 +118,6 @@ const settingUpdaters: {
   clipboard_handling: (value) =>
     invoke("change_clipboard_handling_setting", { handling: value }),
   history_limit: (value) => invoke("update_history_limit", { limit: value }),
-  post_process_enabled: (value) =>
-    invoke("change_post_process_enabled_setting", { enabled: value }),
   post_process_selected_prompt_id: (value) =>
     invoke("set_post_process_selected_prompt", { id: value }),
   mute_while_recording: (value) =>
@@ -164,7 +168,7 @@ export const useSettingsStore = create<SettingsStore>()(
           ]);
 
         // Merge all settings
-        const mergedSettings: Settings = {
+        let mergedSettings: Settings = {
           ...settings,
           always_on_microphone:
             microphoneMode.status === "fulfilled"
@@ -179,6 +183,13 @@ export const useSettingsStore = create<SettingsStore>()(
               ? (selectedOutputDevice.value as string)
               : "Default",
         };
+
+        if (import.meta.env.DEV && !mergedSettings.debug_mode) {
+          mergedSettings = {
+            ...mergedSettings,
+            debug_mode: true,
+          };
+        }
 
         set({ settings: mergedSettings, isLoading: false });
       } catch (error) {

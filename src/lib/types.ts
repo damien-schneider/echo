@@ -81,13 +81,14 @@ export const SettingsSchema = z.object({
   selected_language: z.string(),
   overlay_position: OverlayPositionSchema,
   debug_mode: z.boolean(),
+  beta_features_enabled: z.boolean().optional().default(false),
+  debug_logging_enabled: z.boolean().optional().default(false),
   custom_words: z.array(z.string()).optional().default([]),
   model_unload_timeout: ModelUnloadTimeoutSchema.optional().default("never"),
   word_correction_threshold: z.number().optional().default(0.18),
   history_limit: z.number().optional().default(5),
   paste_method: PasteMethodSchema.optional().default("ctrl_v"),
   clipboard_handling: ClipboardHandlingSchema.optional().default("dont_modify"),
-  post_process_enabled: z.boolean().optional().default(false),
   post_process_provider_id: z.string().optional().default("openai"),
   post_process_providers: z
     .array(PostProcessProviderSchema)

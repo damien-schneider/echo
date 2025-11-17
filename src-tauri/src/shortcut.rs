@@ -378,10 +378,19 @@ pub fn change_clipboard_handling_setting(app: AppHandle, handling: String) -> Re
 }
 
 #[tauri::command]
-pub fn change_post_process_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+pub fn change_beta_features_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
-    settings.post_process_enabled = enabled;
+    settings.beta_features_enabled = enabled;
     settings::write_settings(&app, settings);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn change_debug_logging_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.debug_logging_enabled = enabled;
+    settings::write_settings(&app, settings);
+    crate::logging::set_debug_logging(enabled);
     Ok(())
 }
 

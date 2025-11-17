@@ -4,7 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { Button } from "../../ui/Button";
-import { AppDataDirectory } from "../AppDataDirectory";
+import { AppDataDirectory } from "../app-data-directory";
 
 export const AboutSettings: React.FC = () => {
   const [version, setVersion] = useState("");

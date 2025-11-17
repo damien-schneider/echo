@@ -3,8 +3,8 @@ import { Bell } from "lucide-react";
 import { Switch } from "../ui/switch";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
-import { VolumeSlider } from "./VolumeSlider";
-import { SoundPicker } from "./SoundPicker";
+import { VolumeSlider } from "./volume-slider";
+import { SoundPicker } from "./sound-picker";
 
 interface AudioFeedbackProps {
   descriptionMode?: "inline" | "tooltip";

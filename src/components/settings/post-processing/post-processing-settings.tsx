@@ -9,11 +9,11 @@ import { Input } from "../../ui/Input";
 import { NativeSelect, NativeSelectOption } from "../../ui/native-select";
 import { Textarea } from "../../ui/Textarea";
 
-import { ProviderSelect } from "../PostProcessingSettingsApi/ProviderSelect";
-import { BaseUrlField } from "../PostProcessingSettingsApi/BaseUrlField";
-import { ApiKeyField } from "../PostProcessingSettingsApi/ApiKeyField";
-import { ModelSelect } from "../PostProcessingSettingsApi/ModelSelect";
-import { usePostProcessProviderState } from "../PostProcessingSettingsApi/usePostProcessProviderState";
+import { ProviderSelect } from "../post-processing-settings-api/provider-select";
+import { BaseUrlField } from "../post-processing-settings-api/base-url-field";
+import { ApiKeyField } from "../post-processing-settings-api/api-key-field";
+import { ModelSelect } from "../post-processing-settings-api/model-select";
+import { usePostProcessProviderState } from "../post-processing-settings-api/use-post-process-provider-state";
 import { useSettings } from "../../../hooks/useSettings";
 import type { LLMPrompt } from "../../../lib/types";
 
@@ -31,8 +31,8 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
   if (!state.enabled) {
     return (
       <DisabledNotice>
-        Post processing is currently disabled. Enable it in Debug settings to
-        configure.
+        Post processing is available only for beta features. Enable beta mode in
+        the Experiments section to configure providers.
       </DisabledNotice>
     );
   }
@@ -139,14 +139,14 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
   );
 };
 
-const PostProcessingSettingsPromptsComponent: React.FC = () => {
+const PostProcessingSettingsPromptsComponent = () => {
   const { getSetting, updateSetting, isUpdating, refreshSettings } =
     useSettings();
   const [isCreating, setIsCreating] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftText, setDraftText] = useState("");
 
-  const enabled = getSetting("post_process_enabled") || false;
+  const betaEnabled = getSetting("beta_features_enabled") ?? false;
   const prompts = getSetting("post_process_prompts") || [];
   const selectedPromptId = getSetting("post_process_selected_prompt_id") || "";
   const selectedPrompt =
@@ -235,11 +235,11 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
     setDraftText("");
   };
 
-  if (!enabled) {
+  if (!betaEnabled) {
     return (
       <DisabledNotice>
-        Post processing is currently disabled. Enable it in Debug settings to
-        configure.
+        Post processing is available only for beta features. Enable beta mode in
+        the Experiments section to configure prompts.
       </DisabledNotice>
     );
   }

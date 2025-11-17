@@ -3,7 +3,7 @@ import { Button } from "../ui/Button";
 import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 import { PlayIcon } from "lucide-react";
 import { SettingContainer } from "../ui/SettingContainer";
-import { useSettingsStore } from "../../stores/settingsStore";
+import { useSettingsStore } from "../../stores/settings-store";
 import { useSettings } from "../../hooks/useSettings";
 
 interface SoundPickerProps {

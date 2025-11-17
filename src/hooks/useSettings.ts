@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useSettingsStore } from "../stores/settingsStore";
+import { useSettingsStore } from "../stores/settings-store";
 import { Settings, AudioDevice } from "../lib/types";
 
 interface UseSettingsReturn {

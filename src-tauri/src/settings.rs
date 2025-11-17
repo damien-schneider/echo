@@ -169,6 +169,10 @@ pub struct AppSettings {
     pub overlay_position: OverlayPosition,
     #[serde(default = "default_debug_mode")]
     pub debug_mode: bool,
+    #[serde(default = "default_beta_features_enabled")]
+    pub beta_features_enabled: bool,
+    #[serde(default = "default_debug_logging_enabled")]
+    pub debug_logging_enabled: bool,
     #[serde(default)]
     pub custom_words: Vec<String>,
     #[serde(default)]
@@ -181,8 +185,6 @@ pub struct AppSettings {
     pub paste_method: PasteMethod,
     #[serde(default)]
     pub clipboard_handling: ClipboardHandling,
-    #[serde(default = "default_post_process_enabled")]
-    pub post_process_enabled: bool,
     #[serde(default = "default_post_process_provider_id")]
     pub post_process_provider_id: String,
     #[serde(default = "default_post_process_providers")]
@@ -250,12 +252,16 @@ fn default_sound_theme() -> SoundTheme {
     SoundTheme::Marimba
 }
 
-fn default_post_process_enabled() -> bool {
+fn default_post_process_provider_id() -> String {
+    "openai".to_string()
+}
+
+fn default_beta_features_enabled() -> bool {
     false
 }
 
-fn default_post_process_provider_id() -> String {
-    "openai".to_string()
+fn default_debug_logging_enabled() -> bool {
+    false
 }
 
 fn default_post_process_providers() -> Vec<PostProcessProvider> {
@@ -355,13 +361,14 @@ pub fn get_default_settings() -> AppSettings {
         selected_language: "auto".to_string(),
         overlay_position: OverlayPosition::Bottom,
         debug_mode: false,
+        beta_features_enabled: default_beta_features_enabled(),
+        debug_logging_enabled: default_debug_logging_enabled(),
         custom_words: Vec::new(),
         model_unload_timeout: ModelUnloadTimeout::Never,
         word_correction_threshold: default_word_correction_threshold(),
         history_limit: default_history_limit(),
         paste_method: PasteMethod::default(),
         clipboard_handling: ClipboardHandling::default(),
-        post_process_enabled: default_post_process_enabled(),
         post_process_provider_id: default_post_process_provider_id(),
         post_process_providers: default_post_process_providers(),
         post_process_api_keys: default_post_process_api_keys(),
@@ -395,6 +402,25 @@ impl AppSettings {
     }
 }
 
+fn apply_settings_migrations_from_raw(
+    settings: &mut AppSettings,
+    raw_settings: Option<&serde_json::Value>,
+) -> bool {
+    let mut updated = false;
+
+    if !settings.beta_features_enabled {
+        if let Some(true) = raw_settings
+            .and_then(|value| value.get("post_process_enabled"))
+            .and_then(|value| value.as_bool())
+        {
+            settings.beta_features_enabled = true;
+            updated = true;
+        }
+    }
+
+    updated
+}
+
 pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
     // Initialize store
     let store = app
@@ -403,9 +429,14 @@ pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
 
     let settings = if let Some(settings_value) = store.get("settings") {
         // Parse the entire settings object
-        match serde_json::from_value::<AppSettings>(settings_value) {
-            Ok(settings) => {
+        match serde_json::from_value::<AppSettings>(settings_value.clone()) {
+            Ok(mut settings) => {
+                #[cfg(debug_assertions)]
                 println!("Found existing settings: {:?}", settings);
+                if apply_settings_migrations_from_raw(&mut settings, Some(&settings_value)) {
+                    store
+                        .set("settings", serde_json::to_value(&settings).unwrap());
+                }
                 settings
             }
             Err(e) => {
@@ -431,11 +462,20 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
         .expect("Failed to initialize store");
 
     if let Some(settings_value) = store.get("settings") {
-        serde_json::from_value::<AppSettings>(settings_value).unwrap_or_else(|_| {
-            let default_settings = get_default_settings();
-            store.set("settings", serde_json::to_value(&default_settings).unwrap());
-            default_settings
-        })
+        match serde_json::from_value::<AppSettings>(settings_value.clone()) {
+            Ok(mut settings) => {
+                if apply_settings_migrations_from_raw(&mut settings, Some(&settings_value)) {
+                    store
+                        .set("settings", serde_json::to_value(&settings).unwrap());
+                }
+                settings
+            }
+            Err(_) => {
+                let default_settings = get_default_settings();
+                store.set("settings", serde_json::to_value(&default_settings).unwrap());
+                default_settings
+            }
+        }
     } else {
         let default_settings = get_default_settings();
         store.set("settings", serde_json::to_value(&default_settings).unwrap());

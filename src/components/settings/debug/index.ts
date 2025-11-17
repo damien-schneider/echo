@@ -1,1 +1,1 @@
-export { WordCorrectionThreshold } from "./WordCorrectionThreshold";
+export { WordCorrectionThreshold } from "./word-correction-threshold";

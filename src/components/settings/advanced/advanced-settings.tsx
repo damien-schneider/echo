@@ -1,13 +1,13 @@
 import React from "react";
-import { ShowOverlay } from "../ShowOverlay";
-import { TranslateToEnglish } from "../TranslateToEnglish";
-import { ModelUnloadTimeoutSetting } from "../ModelUnloadTimeout";
-import { CustomWords } from "../CustomWords";
+import { ShowOverlay } from "../show-overlay";
+import { TranslateToEnglish } from "../translate-to-english";
+import { ModelUnloadTimeoutSetting } from "../model-unload-timeout";
+import { CustomWords } from "../custom-words";
 import { SettingsGroup } from "../../ui/SettingsGroup";
-import { StartHidden } from "../StartHidden";
-import { AutostartToggle } from "../AutostartToggle";
-import { PasteMethodSetting } from "../PasteMethod";
-import { ClipboardHandlingSetting } from "../ClipboardHandling";
+import { StartHidden } from "../start-hidden";
+import { AutostartToggle } from "../autostart-toggle";
+import { PasteMethodSetting } from "../paste-method";
+import { ClipboardHandlingSetting } from "../clipboard-handling";
 
 export const AdvancedSettings: React.FC = () => {
   return (

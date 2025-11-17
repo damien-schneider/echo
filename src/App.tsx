@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
-import { type as getOsType } from "@tauri-apps/plugin-os";
 import { Toaster } from "sonner";
 import "./App.css";
 import {AccessibilityPermissions} from "./components/accessibility-permissions";
@@ -11,6 +10,7 @@ import { useSettings } from "./hooks/useSettings";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
+import { getNormalizedOsPlatform } from "@/lib/os";
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
@@ -24,15 +24,7 @@ function App() {
     useState<SidebarSection>("general");
   const { settings, updateSetting, isLoading } = useSettings();
   const hasSignaledReady = useRef(false);
-  const [shouldUseSolidBackground, setShouldUseSolidBackground] = useState(
-    () => {
-      if (typeof navigator === "undefined") {
-        return true;
-      }
-      return !navigator.userAgent.includes("Mac OS X");
-    },
-  );
-
+  const osPlatform = getNormalizedOsPlatform();
   useEffect(() => {
     checkOnboardingStatus();
   }, []);
@@ -82,16 +74,6 @@ function App() {
   const isInitializing = isLoading || isCheckingOnboarding;
 
   useEffect(() => {
-    try {
-      const osType = getOsType();
-      setShouldUseSolidBackground(osType !== "macos");
-    } catch (error) {
-      console.error("Failed to detect platform for vibrancy", error);
-      setShouldUseSolidBackground(true);
-    }
-  }, []);
-
-  useEffect(() => {
     if (!isInitializing && !hasSignaledReady.current) {
       invoke("mark_frontend_ready")
         .then(() => {
@@ -120,11 +102,11 @@ function App() {
   }
 
 
-
   return (
     <div className={cn(
     "h-screen flex flex-col",
-    shouldUseSolidBackground ? "bg-background text-foreground": "bg-background/80",
+    osPlatform === "linux" && "bg-background",
+    osPlatform === "mac" && "bg-background/80 rounded-[26px]"
   )} data-tauri-drag-region>
       <Toaster />
       {/* Draggable header region */}

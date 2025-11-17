@@ -31,7 +31,7 @@ async fn maybe_post_process_transcription(
     settings: &AppSettings,
     transcription: &str,
 ) -> Option<String> {
-    if !settings.post_process_enabled {
+    if !settings.beta_features_enabled {
         return None;
     }
 

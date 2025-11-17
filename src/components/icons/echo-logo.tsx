@@ -1,5 +1,5 @@
-import React, { ComponentProps } from 'react'
-import { cn } from '@/lib/utils'
+import type { ComponentProps } from "react";
+import { cn } from "@/lib/utils";
 
   export default function EchoLogo({width, height, className, variant = "sm", ...props}: ComponentProps<"svg"> & {variant?: "sm" | "full"}) {
     if (variant === "sm") {

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ModelInfo } from "../../lib/types";
 import ModelDropdown from "./model-dropdown";
-import DownloadProgressDisplay from "./DownloadProgressDisplay";
+import DownloadProgressDisplay from "./download-progress-display";
 
 interface ModelStateEvent {
   event_type: string;
