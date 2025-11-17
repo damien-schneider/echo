@@ -197,6 +197,15 @@ jobs:
         if: ${{ contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64') }}
         run: bun install --cpu=arm64
 
+      - name: Cache Turborepo outputs
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ inputs.platform }}-${{ inputs.target }}-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ inputs.platform }}-${{ inputs.target }}-
+            turbo-${{ runner.os }}-
+
       - name: rustup install target
         if: ${{ inputs.target != '' && !contains(inputs.target, 'unknown-linux-gnu') && !contains(inputs.target, 'x86_64-pc-windows-msvc') }}
         run: rustup target add ${{ inputs.target }}

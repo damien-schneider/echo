@@ -22,9 +22,9 @@ CMAKE_POLICY_VERSION_MINIMUM=3.5 bun run tauri dev
 bun run tauri build
 
 # Frontend only development
-bun run dev        # Start Vite dev server
-bun run build      # Build frontend (TypeScript + Vite)
-bun run preview    # Preview built frontend
+bun run dev         # Start Vite dev server
+bun run pipeline    # Turbo build (type-check + Vite)
+bun run preview     # Preview built frontend
 ```
 
 **Model Setup (Required for Development):**

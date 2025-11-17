@@ -50,7 +50,15 @@ The process is entirely local:
 
 ### Development Setup
 
-For detailed build instructions including platform-specific requirements, see [BUILD.md](BUILD.md).
+For detailed build instructions including platform-specific requirements, see [BUILD.md](BUILD.md). The most common commands are:
+
+```bash
+bun install          # Install dependencies
+bun run tauri dev    # Run the full desktop app
+bun run pipeline     # Turborepo check-types + Vite build (used for CI and releases)
+```
+
+`bun run pipeline` is a thin wrapper around `turbo run check-types build`, so it benefits from Turborepo's caching both locally and in CI.
 
 ## Architecture
 
