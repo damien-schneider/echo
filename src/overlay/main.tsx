@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import RecordingOverlay from "./RecordingOverlay";
+import RecordingOverlay from "./recording-overlay";
 import { ThemeProvider } from "../providers";
 import "../App.css"
 

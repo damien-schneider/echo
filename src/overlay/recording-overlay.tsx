@@ -1,9 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import React, { useEffect, useState } from "react";
-import { XCircle, XIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { XIcon } from "lucide-react";
 import { LiveWaveform } from "@/components/ui/live-waveform";
-import "./RecordingOverlay.css";
+import "./recording-overlay.css";
 import { cn } from "@/lib/utils";
 import { useHotkeys } from 'react-hotkeys-hook'
 import { Button } from "@/components/ui/Button";
@@ -12,7 +12,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useTheme } from "@/providers";
 type OverlayState = "recording" | "transcribing";
 
-const RecordingOverlay: React.FC = () => {
+const RecordingOverlay = () => {
   const [isVisible, setIsVisible] = useState(false);
   const [state, setState] = useState<OverlayState>("recording");
   const [deviceId, setDeviceId] = useState<string | undefined>();
@@ -84,7 +84,7 @@ const RecordingOverlay: React.FC = () => {
     <AnimatePresence mode="wait">
       {isVisible && (
         <motion.div 
-          className={cn("bg-background justify-center px-1 items-center flex border border-foreground/10 rounded-lg relative")}
+          className={cn("bg-background justify-center px-1 items-center flex border border-foreground/10 rounded-xl relative")}
           style={{
             height: `${OVERLAY_HEIGHT}px`,
             width: `${OVERLAY_WIDTH}px`,
@@ -160,7 +160,7 @@ const RecordingOverlay: React.FC = () => {
 
           {state === "recording" && (
             <Button
-            className="absolute top-px right-px"
+            className="absolute rounded-full top-px right-px"
               variant="ghost"
               size="icon-2xs"
               onClick={() => {
