@@ -1,6 +1,4 @@
-import { useEffect } from "react";
 import { useSettings } from "../../../hooks/useSettings";
-import { useSettingsStore } from "../../../stores/settings-store";
 import type { PostProcessProvider } from "../../../lib/types";
 import type { ModelOption } from "./types";
 
