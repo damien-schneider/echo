@@ -9,8 +9,7 @@ interface AutostartToggleProps {
   grouped?: boolean;
 }
 
-export const AutostartToggle: React.FC<AutostartToggleProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+export const AutostartToggle = ({ descriptionMode = "tooltip", grouped = false }: AutostartToggleProps) => {
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
     const autostartEnabled = getSetting("autostart_enabled") ?? false;
@@ -30,5 +29,4 @@ export const AutostartToggle: React.FC<AutostartToggleProps> = React.memo(
         />
       </SettingContainer>
     );
-  },
-);
+  };

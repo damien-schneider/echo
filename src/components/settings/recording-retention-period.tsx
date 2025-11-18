@@ -9,8 +9,7 @@ interface RecordingRetentionPeriodProps {
   grouped?: boolean;
 }
 
-export const RecordingRetentionPeriodSelector: React.FC<RecordingRetentionPeriodProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+export const RecordingRetentionPeriodSelector = ({ descriptionMode = "tooltip", grouped = false }: RecordingRetentionPeriodProps) => {
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
     const selectedRetentionPeriod =
@@ -58,7 +57,6 @@ export const RecordingRetentionPeriodSelector: React.FC<RecordingRetentionPeriod
         </Select>
       </SettingContainer>
     );
-  },
-);
+};
 
 RecordingRetentionPeriodSelector.displayName = "RecordingRetentionPeriodSelector";

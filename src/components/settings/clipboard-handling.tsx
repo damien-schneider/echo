@@ -15,10 +15,7 @@ const clipboardHandlingOptions = [
   { value: "copy_to_clipboard", label: "Copy to Clipboard" },
 ];
 
-export const ClipboardHandlingSetting: React.FC<ClipboardHandlingProps> = React.memo(({
-  descriptionMode = "tooltip",
-  grouped = false,
-}) => {
+export const ClipboardHandlingSetting = ({ descriptionMode = "tooltip", grouped = false }: ClipboardHandlingProps) => {
   const { getSetting, updateSetting, isUpdating } = useSettings();
 
   const selectedHandling = (getSetting("clipboard_handling") ||
@@ -47,4 +44,4 @@ export const ClipboardHandlingSetting: React.FC<ClipboardHandlingProps> = React.
       </NativeSelect>
     </SettingContainer>
   );
-});
+};

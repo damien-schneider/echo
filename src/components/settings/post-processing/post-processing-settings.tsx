@@ -139,7 +139,7 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
   );
 };
 
-const PostProcessingSettingsPromptsComponent = () => {
+const PostProcessingSettingsPromptsComponent: React.FC = () => {
   const { getSetting, updateSetting, isUpdating, refreshSettings } =
     useSettings();
   const [isCreating, setIsCreating] = useState(false);
@@ -396,14 +396,11 @@ const PostProcessingSettingsPromptsComponent = () => {
   );
 };
 
-export const PostProcessingSettingsApi = React.memo(
-  PostProcessingSettingsApiComponent,
-);
+export const PostProcessingSettingsApi = PostProcessingSettingsApiComponent;
 PostProcessingSettingsApi.displayName = "PostProcessingSettingsApi";
 
-export const PostProcessingSettingsPrompts = React.memo(
-  PostProcessingSettingsPromptsComponent,
-);
+export const PostProcessingSettingsPrompts =
+  PostProcessingSettingsPromptsComponent;
 PostProcessingSettingsPrompts.displayName = "PostProcessingSettingsPrompts";
 
 export const PostProcessingSettings: React.FC = () => {

@@ -9,10 +9,7 @@ interface StartHiddenProps {
   grouped?: boolean;
 }
 
-export const StartHidden: React.FC<StartHiddenProps> = React.memo(({ 
-  descriptionMode = "tooltip",
-  grouped = false,
-}) => {
+export const StartHidden = ({ descriptionMode = "tooltip", grouped = false }: StartHiddenProps) => {
   const { getSetting, updateSetting, isUpdating } = useSettings();
 
   const startHidden = getSetting("start_hidden") ?? false;
@@ -33,4 +30,4 @@ export const StartHidden: React.FC<StartHiddenProps> = React.memo(({
       />
     </SettingContainer>
   );
-});
+};

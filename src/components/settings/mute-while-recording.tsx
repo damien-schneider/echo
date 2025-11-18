@@ -8,8 +8,7 @@ interface MuteWhileRecordingToggleProps {
   grouped?: boolean;
 }
 
-export const MuteWhileRecording: React.FC<MuteWhileRecordingToggleProps> =
-  React.memo(({ descriptionMode = "tooltip", grouped = false }) => {
+export const MuteWhileRecording = ({ descriptionMode = "tooltip", grouped = false }: MuteWhileRecordingToggleProps) => {
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
     const muteEnabled = getSetting("mute_while_recording") ?? false;
@@ -28,4 +27,4 @@ export const MuteWhileRecording: React.FC<MuteWhileRecordingToggleProps> =
         />
       </SettingContainer>
     );
-  });
+  };

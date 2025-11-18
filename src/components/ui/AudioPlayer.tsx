@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Play, Pause } from "lucide-react";
 
 interface AudioPlayerProps {
@@ -16,7 +16,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement>(null);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const dragTimeRef = useRef<number>(0);
 
   // Use refs to avoid stale closures in animation loop
@@ -32,24 +32,28 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     isDraggingRef.current = isDragging;
   }, [isDragging]);
 
-  // Stable animation loop with no dependencies
-  const tick = useCallback(() => {
-    if (audioRef.current && !isDraggingRef.current) {
-      const time = audioRef.current.currentTime;
-      setCurrentTime(time);
-    }
+  // Stable animation loop via ref to avoid re-creating function
+  const tickRef = useRef<() => void>(() => {});
 
-    if (isPlayingRef.current) {
-      animationRef.current = requestAnimationFrame(tick);
-    }
-  }, []); // Empty dependency array is key!
+  useEffect(() => {
+    tickRef.current = () => {
+      if (audioRef.current && !isDraggingRef.current) {
+        const time = audioRef.current.currentTime;
+        setCurrentTime(time);
+      }
+
+      if (isPlayingRef.current) {
+        animationRef.current = requestAnimationFrame(tickRef.current);
+      }
+    };
+  }, []);
 
   // Manage animation loop lifecycle
   useEffect(() => {
     if (isPlaying && !isDragging) {
       // Only start if not already running
       if (!animationRef.current) {
-        animationRef.current = requestAnimationFrame(tick);
+        animationRef.current = requestAnimationFrame(tickRef.current);
       }
     } else {
       // Stop animation loop
@@ -65,7 +69,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         animationRef.current = undefined;
       }
     };
-  }, [isPlaying, isDragging, tick]);
+  }, [isPlaying, isDragging]);
 
   // Audio event handlers
   useEffect(() => {
@@ -99,15 +103,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, []);
 
   // Global drag handlers
-  const handleMouseUp = useCallback(() => {
-    if (isDragging) {
+  const handleMouseUp = () => {
+    if (isDraggingRef.current) {
       setIsDragging(false);
       if (audioRef.current) {
         audioRef.current.currentTime = dragTimeRef.current;
         setCurrentTime(dragTimeRef.current);
       }
     }
-  }, [isDragging]);
+  };
 
   useEffect(() => {
     if (isDragging) {
@@ -119,7 +123,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         document.removeEventListener("touchend", handleMouseUp);
       };
     }
-  }, [isDragging, handleMouseUp]);
+  }, [isDragging]);
 
   const togglePlay = async () => {
     const audio = audioRef.current;

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { Timer } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { useSettings } from "../../hooks/useSettings";
@@ -45,9 +45,7 @@ export const ModelUnloadTimeoutSetting: React.FC<ModelUnloadTimeoutProps> = ({
 
   const currentValue = getSetting("model_unload_timeout") ?? "never";
 
-  const options = useMemo(() => {
-    return settings?.debug_mode === true ? debugTimeoutOptions : timeoutOptions;
-  }, [settings]);
+  const options = settings?.debug_mode === true ? debugTimeoutOptions : timeoutOptions;
 
   return (
     <SettingContainer

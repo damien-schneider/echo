@@ -8,10 +8,7 @@ interface AlwaysOnMicrophoneProps {
   grouped?: boolean;
 }
 
-export const AlwaysOnMicrophone: React.FC<AlwaysOnMicrophoneProps> = React.memo(({
-  descriptionMode = "tooltip",
-  grouped = false,
-}) => {
+export const AlwaysOnMicrophone = ({ descriptionMode = "tooltip", grouped = false }: AlwaysOnMicrophoneProps) => {
   const { getSetting, updateSetting, isUpdating } = useSettings();
 
   const alwaysOnMode = getSetting("always_on_microphone") || false;
@@ -30,4 +27,4 @@ export const AlwaysOnMicrophone: React.FC<AlwaysOnMicrophoneProps> = React.memo(
       />
     </SettingContainer>
   );
-});
+};

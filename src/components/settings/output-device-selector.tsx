@@ -11,9 +11,7 @@ interface OutputDeviceSelectorProps {
   disabled?: boolean;
 }
 
-export const OutputDeviceSelector: React.FC<OutputDeviceSelectorProps> =
-  React.memo(
-    ({ descriptionMode = "tooltip", grouped = false, disabled = false }) => {
+export const OutputDeviceSelector = ({ descriptionMode = "tooltip", grouped = false, disabled = false }: OutputDeviceSelectorProps) => {
       const {
         getSetting,
         updateSetting,
@@ -82,5 +80,4 @@ export const OutputDeviceSelector: React.FC<OutputDeviceSelectorProps> =
           </div>
         </SettingContainer>
       );
-    },
-  );
+    };

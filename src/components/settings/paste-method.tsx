@@ -28,8 +28,7 @@ const getPasteMethodOptions = (osType: string) => {
   return baseOptions;
 };
 
-export const PasteMethodSetting: React.FC<PasteMethodProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+export const PasteMethodSetting = ({ descriptionMode = "tooltip", grouped = false }: PasteMethodProps) => {
     const { getSetting, updateSetting, isUpdating } = useSettings();
     const [osType, setOsType] = useState<string>("unknown");
 
@@ -66,5 +65,4 @@ export const PasteMethodSetting: React.FC<PasteMethodProps> = React.memo(
         </NativeSelect>
       </SettingContainer>
     );
-  },
-);
+  }

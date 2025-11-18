@@ -13,23 +13,26 @@ interface ProviderSelectProps {
   disabled?: boolean;
 }
 
-export const ProviderSelect: React.FC<ProviderSelectProps> = React.memo(
-  ({ options, value, onChange, disabled }) => {
-    return (
-      <NativeSelect
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className="flex-1"
-      >
-        {options.map((option) => (
-          <NativeSelectOption key={option.value} value={option.value}>
-            {option.label}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
-    );
-  },
-);
+export const ProviderSelect: React.FC<ProviderSelectProps> = ({
+  options,
+  value,
+  onChange,
+  disabled,
+}) => {
+  return (
+    <NativeSelect
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="flex-1"
+    >
+      {options.map((option) => (
+        <NativeSelectOption key={option.value} value={option.value}>
+          {option.label}
+        </NativeSelectOption>
+      ))}
+    </NativeSelect>
+  );
+};
 
 ProviderSelect.displayName = "ProviderSelect";

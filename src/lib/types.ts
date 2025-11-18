@@ -107,11 +107,11 @@ export const SettingsSchema = z.object({
     .optional()
     .default([]),
   post_process_api_keys: z
-    .record(z.string())
+    .record(z.string(), z.string())
     .optional()
     .default({}),
   post_process_models: z
-    .record(z.string())
+    .record(z.string(), z.string())
     .optional()
     .default({}),
   post_process_prompts: z.array(LLMPromptSchema).optional().default([]),

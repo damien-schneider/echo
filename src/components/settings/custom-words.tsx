@@ -11,8 +11,7 @@ interface CustomWordsProps {
   grouped?: boolean;
 }
 
-export const CustomWords: React.FC<CustomWordsProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+export const CustomWords = ({ descriptionMode = "tooltip", grouped = false }: CustomWordsProps) => {
     const { getSetting, updateSetting, isUpdating } = useSettings();
     const [newWord, setNewWord] = useState("");
     const customWords = getSetting("custom_words") || [];
@@ -102,5 +101,4 @@ export const CustomWords: React.FC<CustomWordsProps> = React.memo(
         )}
       </>
     );
-  },
-);
+  };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, ComponentProps } from "react";
+import React, { useState, useEffect, ComponentProps } from "react";
 import { AudioPlayer } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
 import { Copy, Star, Check, Trash2, FolderOpen } from "lucide-react";
@@ -19,7 +19,7 @@ export const HistorySettings: React.FC = () => {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadHistoryEntries = useCallback(async () => {
+  const loadHistoryEntries = async () => {
     try {
       const entries = await invoke<HistoryEntry[]>("get_history_entries");
       setHistoryEntries(entries);
@@ -28,7 +28,7 @@ export const HistorySettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     loadHistoryEntries();
@@ -51,7 +51,7 @@ export const HistorySettings: React.FC = () => {
         }
       });
     };
-  }, [loadHistoryEntries]);
+  }, []);
 
   const toggleSaved = async (id: number) => {
     try {

@@ -16,10 +16,7 @@ const overlayOptions = [
   { value: "top", label: "Top" },
 ];
 
-export const ShowOverlay: React.FC<ShowOverlayProps> = React.memo(({
-  descriptionMode = "tooltip",
-  grouped = false,
-}) => {
+export const ShowOverlay = ({ descriptionMode = "tooltip", grouped = false }: ShowOverlayProps) => {
   const { getSetting, updateSetting, isUpdating } = useSettings();
 
   const selectedPosition = (getSetting("overlay_position") ||
@@ -48,4 +45,4 @@ export const ShowOverlay: React.FC<ShowOverlayProps> = React.memo(({
       </NativeSelect>
     </SettingContainer>
   );
-});
+};

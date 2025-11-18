@@ -10,10 +10,7 @@ interface MicrophoneSelectorProps {
   grouped?: boolean;
 }
 
-export const MicrophoneSelector: React.FC<MicrophoneSelectorProps> = React.memo(({
-  descriptionMode = "tooltip",
-  grouped = false,
-}) => {
+export const MicrophoneSelector = ({ descriptionMode = "tooltip", grouped = false }: MicrophoneSelectorProps) => {
   const {
     getSetting,
     updateSetting,
@@ -70,4 +67,4 @@ export const MicrophoneSelector: React.FC<MicrophoneSelectorProps> = React.memo(
       </div>
     </SettingContainer>
   );
-});
+};

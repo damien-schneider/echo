@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect } from "react";
 import { Languages } from "lucide-react";
 import { listen } from "@tauri-apps/api/event";
 import { Switch } from "../ui/switch";
@@ -17,8 +17,7 @@ const unsupportedTranslationModels = [
   "turbo",
 ];
 
-export const TranslateToEnglish: React.FC<TranslateToEnglishProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+export const TranslateToEnglish = ({ descriptionMode = "tooltip", grouped = false }: TranslateToEnglishProps) => {
     const { getSetting, updateSetting, isUpdating } = useSettings();
     const { currentModel, loadCurrentModel, models } = useModels();
 
@@ -26,16 +25,12 @@ export const TranslateToEnglish: React.FC<TranslateToEnglishProps> = React.memo(
     const isDisabledTranslation =
       unsupportedTranslationModels.includes(currentModel);
 
-    const description = useMemo(() => {
-      if (isDisabledTranslation) {
-        const currentModelDisplayName = models.find(
-          (model) => model.id === currentModel,
-        )?.name;
-        return `Translation is not supported by the ${currentModelDisplayName} model.`;
-      }
+    let description = "Automatically translate speech from other languages to English during transcription.";
 
-      return "Automatically translate speech from other languages to English during transcription.";
-    }, [models, currentModel, isDisabledTranslation]);
+    if (isDisabledTranslation) {
+      const currentModelDisplayName = models.find((model) => model.id === currentModel)?.name;
+      description = `Translation is not supported by the ${currentModelDisplayName} model.`;
+    }
 
     // Listen for model state changes to update UI reactively
     useEffect(() => {
@@ -64,5 +59,4 @@ export const TranslateToEnglish: React.FC<TranslateToEnglishProps> = React.memo(
         />
       </SettingContainer>
     );
-  },
-);
+  };

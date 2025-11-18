@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useSettings } from "../../../hooks/useSettings";
 import { useSettingsStore } from "../../../stores/settings-store";
 import type { PostProcessProvider } from "../../../lib/types";
@@ -49,92 +49,65 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
   // Settings are guaranteed to have providers after migration
   const providers = settings?.post_process_providers || [];
 
-  const selectedProviderId = useMemo(() => {
-    return settings?.post_process_provider_id || providers[0]?.id || "openai";
-  }, [providers, settings?.post_process_provider_id]);
+  const selectedProviderId = settings?.post_process_provider_id || providers[0]?.id || "openai";
 
-  const selectedProvider = useMemo(() => {
-    return (
-      providers.find((provider) => provider.id === selectedProviderId) ||
-      providers[0]
-    );
-  }, [providers, selectedProviderId]);
+  const selectedProvider = providers.find((provider) => provider.id === selectedProviderId) || providers[0];
 
   // Use settings directly as single source of truth
   const baseUrl = selectedProvider?.base_url ?? "";
-  const apiKey = settings?.post_process_api_keys?.[selectedProviderId] ?? "";
-  const model = settings?.post_process_models?.[selectedProviderId] ?? "";
+  const apiKey = (settings?.post_process_api_keys?.[selectedProviderId] ?? "") as string;
+  const model = (settings?.post_process_models?.[selectedProviderId] ?? "") as string;
 
-  const providerOptions = useMemo<DropdownOption[]>(() => {
-    return providers.map((provider) => ({
-      value: provider.id,
-      label: provider.label,
-    }));
-  }, [providers]);
+  const providerOptions: DropdownOption[] = providers.map((provider) => ({
+    value: provider.id,
+    label: provider.label,
+  }));
 
-  const handleProviderSelect = useCallback(
-    (providerId: string) => {
-      if (providerId !== selectedProviderId) {
-        void setPostProcessProvider(providerId);
-      }
-    },
-    [selectedProviderId, setPostProcessProvider],
-  );
+  const handleProviderSelect = (providerId: string) => {
+    if (providerId !== selectedProviderId) {
+      void setPostProcessProvider(providerId);
+    }
+  };
 
-  const handleBaseUrlChange = useCallback(
-    (value: string) => {
-      if (!selectedProvider || !selectedProvider.allow_base_url_edit) {
-        return;
-      }
-      const trimmed = value.trim();
-      if (trimmed && trimmed !== baseUrl) {
-        void updatePostProcessBaseUrl(selectedProvider.id, trimmed);
-      }
-    },
-    [selectedProvider, baseUrl, updatePostProcessBaseUrl],
-  );
+  const handleBaseUrlChange = (value: string) => {
+    if (!selectedProvider || !selectedProvider.allow_base_url_edit) {
+      return;
+    }
+    const trimmed = value.trim();
+    if (trimmed && trimmed !== baseUrl) {
+      void updatePostProcessBaseUrl(selectedProvider.id, trimmed);
+    }
+  };
 
-  const handleApiKeyChange = useCallback(
-    (value: string) => {
-      const trimmed = value.trim();
-      if (trimmed !== apiKey) {
-        void updatePostProcessApiKey(selectedProviderId, trimmed);
-      }
-    },
-    [apiKey, selectedProviderId, updatePostProcessApiKey],
-  );
+  const handleApiKeyChange = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed !== apiKey) {
+      void updatePostProcessApiKey(selectedProviderId, trimmed);
+    }
+  };
 
-  const handleModelChange = useCallback(
-    (value: string) => {
-      const trimmed = value.trim();
-      if (trimmed !== model) {
-        void updatePostProcessModel(selectedProviderId, trimmed);
-      }
-    },
-    [model, selectedProviderId, updatePostProcessModel],
-  );
+  const handleModelChange = (value: string) => {
+    const trimmed = value.trim();
+    if (trimmed !== model) {
+      void updatePostProcessModel(selectedProviderId, trimmed);
+    }
+  };
 
-  const handleModelSelect = useCallback(
-    (value: string) => {
-      void updatePostProcessModel(selectedProviderId, value.trim());
-    },
-    [selectedProviderId, updatePostProcessModel],
-  );
+  const handleModelSelect = (value: string) => {
+    void updatePostProcessModel(selectedProviderId, value.trim());
+  };
 
-  const handleModelCreate = useCallback(
-    (value: string) => {
-      void updatePostProcessModel(selectedProviderId, value);
-    },
-    [selectedProviderId, updatePostProcessModel],
-  );
+  const handleModelCreate = (value: string) => {
+    void updatePostProcessModel(selectedProviderId, value);
+  };
 
-  const handleRefreshModels = useCallback(() => {
+  const handleRefreshModels = () => {
     void fetchPostProcessModels(selectedProviderId);
-  }, [fetchPostProcessModels, selectedProviderId]);
+  };
 
   const availableModelsRaw = postProcessModelOptions[selectedProviderId] || [];
 
-  const modelOptions = useMemo<ModelOption[]>(() => {
+  const modelOptions: ModelOption[] = (() => {
     const seen = new Set<string>();
     const options: ModelOption[] = [];
 
@@ -154,7 +127,7 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     upsert(model);
 
     return options;
-  }, [availableModelsRaw, model]);
+  })();
 
   const isBaseUrlUpdating = isUpdating(
     `post_process_base_url:${selectedProviderId}`,
