@@ -163,9 +163,50 @@ impl AudioRecordingManager {
         // Always-on?  Open immediately.
         if matches!(mode, MicrophoneMode::AlwaysOn) {
             manager.start_microphone_stream()?;
+        } else {
+            // Pre-load the VAD model in the background to prevent freeze on first record
+            let manager_clone = manager.clone();
+            std::thread::spawn(move || {
+                if let Err(e) = manager_clone.preload_recorder() {
+                    log::warn!("Failed to preload audio recorder: {}", e);
+                }
+            });
         }
 
         Ok(manager)
+    }
+
+    fn preload_recorder(&self) -> Result<(), anyhow::Error> {
+        // Check if already loaded to avoid unnecessary work
+        if self.recorder.lock().unwrap().is_some() {
+            return Ok(());
+        }
+
+        let vad_path = self
+            .app_handle
+            .path()
+            .resolve(
+                "resources/models/silero_vad_v4.onnx",
+                tauri::path::BaseDirectory::Resource,
+            )
+            .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {}", e))?;
+
+        debug!("Preloading VAD model from {:?}", vad_path);
+
+        // Create recorder (this loads the heavy VAD model)
+        let recorder = create_audio_recorder(
+            vad_path.to_str().unwrap(),
+            &self.app_handle,
+        )?;
+
+        // Store it if not already set by start_microphone_stream
+        let mut recorder_guard = self.recorder.lock().unwrap();
+        if recorder_guard.is_none() {
+            *recorder_guard = Some(recorder);
+            debug!("Audio recorder preloaded successfully");
+        }
+
+        Ok(())
     }
 
     /* ---------- helper methods --------------------------------------------- */

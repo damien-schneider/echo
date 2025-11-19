@@ -1,10 +1,11 @@
 use rustfft::{num_complex::Complex32, Fft, FftPlanner};
 use std::sync::Arc;
 
-const DB_MIN: f32 = -55.0;
-const DB_MAX: f32 = -8.0;
-const GAIN: f32 = 1.3;
-const CURVE_POWER: f32 = 0.7;
+const DB_MIN: f32 = -90.0; // Match AnalyserNode minDecibels default
+const DB_MAX: f32 = -30.0; // Match AnalyserNode maxDecibels default
+const GAIN: f32 = 1.2;     // Slight boost to overall levels
+const CURVE_POWER: f32 = 0.7; // Gentle compression to make low volume more visible
+const SMOOTHING: f32 = 0.8; // Match AnalyserNode default smoothingTimeConstant
 
 pub struct AudioVisualiser {
     fft: Arc<dyn Fft<f32>>,
@@ -12,6 +13,7 @@ pub struct AudioVisualiser {
     bucket_ranges: Vec<(usize, usize)>,
     fft_input: Vec<Complex32>,
     noise_floor: Vec<f32>,
+    prev_buckets: Vec<f32>,
     buffer: Vec<f32>,
     window_size: usize,
     buckets: usize,
@@ -43,9 +45,9 @@ impl AudioVisualiser {
         let mut bucket_ranges = Vec::with_capacity(buckets);
 
         for b in 0..buckets {
-            // Use logarithmic spacing for better perceptual representation
-            let log_start = (b as f32 / buckets as f32).powi(2);
-            let log_end = ((b + 1) as f32 / buckets as f32).powi(2);
+            // Use linear spacing to match original implementation
+            let log_start = b as f32 / buckets as f32;
+            let log_end = (b + 1) as f32 / buckets as f32;
 
             let start_hz = freq_min + (freq_max - freq_min) * log_start;
             let end_hz = freq_min + (freq_max - freq_min) * log_end;
@@ -71,6 +73,7 @@ impl AudioVisualiser {
             bucket_ranges,
             fft_input: vec![Complex32::new(0.0, 0.0); window_size],
             noise_floor: vec![-40.0; buckets], // Initialize to reasonable noise floor
+            prev_buckets: vec![0.0; buckets],
             buffer: Vec::with_capacity(window_size * 2),
             window_size,
             buckets,
@@ -122,25 +125,21 @@ impl AudioVisualiser {
             let db = if avg_power > 1e-12 {
                 20.0 * (avg_power.sqrt() / self.window_size as f32).log10()
             } else {
-                -80.0 // Very low floor for zero power
+                -100.0 // Very low floor for zero power
             };
-
-            // Only update noise floor when signal is quiet (below current floor + 10dB)
-            if db < self.noise_floor[bucket_idx] + 10.0 {
-                const NOISE_ALPHA: f32 = 0.001; // Very slow adaptation
-                self.noise_floor[bucket_idx] =
-                    NOISE_ALPHA * db + (1.0 - NOISE_ALPHA) * self.noise_floor[bucket_idx];
-            }
 
             // Map configurable dB range to 0-1 with gain and curve shaping
             let normalized = ((db - DB_MIN) / (DB_MAX - DB_MIN)).clamp(0.0, 1.0);
-            buckets[bucket_idx] = (normalized * GAIN).powf(CURVE_POWER).clamp(0.0, 1.0);
+            
+            // Exact replication of AnalyserNode behavior: Linear mapping
+            let target_value = (normalized * GAIN).powf(CURVE_POWER).clamp(0.0, 1.0);
+            
+            // Apply temporal smoothing
+            buckets[bucket_idx] = self.prev_buckets[bucket_idx] * SMOOTHING + target_value * (1.0 - SMOOTHING);
         }
-
-        // Apply light smoothing to reduce jitter
-        for i in 1..buckets.len() - 1 {
-            buckets[i] = buckets[i] * 0.7 + buckets[i - 1] * 0.15 + buckets[i + 1] * 0.15;
-        }
+        
+        // Update previous buckets
+        self.prev_buckets = buckets.clone();
 
         // Clear processed samples from buffer
         self.buffer.clear();
@@ -152,5 +151,6 @@ impl AudioVisualiser {
         self.buffer.clear();
         // Reset noise floor to initial values
         self.noise_floor.fill(-40.0);
+        self.prev_buckets.fill(0.0);
     }
 }

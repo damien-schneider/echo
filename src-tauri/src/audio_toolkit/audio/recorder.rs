@@ -240,14 +240,14 @@ fn run_consumer(
     let mut recording = false;
 
     // ---------- spectrum visualisation setup ---------------------------- //
-    const BUCKETS: usize = 16;
+    const BUCKETS: usize = 64;
     const WINDOW_SIZE: usize = 512;
     let mut visualizer = AudioVisualiser::new(
         in_sample_rate,
         WINDOW_SIZE,
         BUCKETS,
-        400.0,  // vocal_min_hz
-        4000.0, // vocal_max_hz
+        400.0,  // 5% of Nyquist (8kHz)
+        3200.0, // 40% of Nyquist (8kHz) - Matches original TS implementation
     );
 
     fn handle_frame(

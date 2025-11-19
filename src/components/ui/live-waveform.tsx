@@ -22,6 +22,8 @@ export type LiveWaveformProps = HTMLAttributes<HTMLDivElement> & {
   onError?: (error: Error) => void
   onStreamReady?: (stream: MediaStream) => void
   onStreamEnd?: () => void
+  audioLevels?: number[]
+  disableInternalAudio?: boolean
 }
 
 export const LiveWaveform = ({
@@ -44,6 +46,8 @@ export const LiveWaveform = ({
   onError,
   onStreamReady,
   onStreamEnd,
+  audioLevels = [],
+  disableInternalAudio = false,
   className,
   ...props
 }: LiveWaveformProps) => {
@@ -62,6 +66,12 @@ export const LiveWaveform = ({
   const needsRedrawRef = useRef(true)
   const gradientCacheRef = useRef<CanvasGradient | null>(null)
   const lastWidthRef = useRef(0)
+  const audioLevelsRef = useRef(audioLevels)
+  const targetBarsRef = useRef<number[]>([])
+
+  useEffect(() => {
+    audioLevelsRef.current = audioLevels
+  }, [audioLevels])
 
   const heightStyle = typeof height === "number" ? `${height}px` : height
 
@@ -246,6 +256,8 @@ export const LiveWaveform = ({
       return
     }
 
+    if (disableInternalAudio) return
+
     const setupMicrophone = async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
@@ -335,70 +347,68 @@ export const LiveWaveform = ({
       if (active && currentTime - lastUpdateRef.current > updateRate) {
         lastUpdateRef.current = currentTime
 
-        if (analyserRef.current) {
-          const dataArray = new Uint8Array(
-            analyserRef.current.frequencyBinCount
-          )
-          analyserRef.current.getByteFrequencyData(dataArray)
+        if (mode === "static") {
+          const barCount = Math.floor(rect.width / (barWidth + barGap))
+          const halfCount = Math.floor(barCount / 2)
+          const sourceData = audioLevelsRef.current
+          const newTargetBars: number[] = []
 
-          if (mode === "static") {
-            // For static mode, update bars in place
-            const startFreq = Math.floor(dataArray.length * 0.05)
-            const endFreq = Math.floor(dataArray.length * 0.4)
-            const relevantData = dataArray.slice(startFreq, endFreq)
-
-            const barCount = Math.floor(rect.width / (barWidth + barGap))
-            const halfCount = Math.floor(barCount / 2)
-            const newBars: number[] = []
-
-            // Mirror the data for symmetric display
-            for (let i = halfCount - 1; i >= 0; i--) {
-              const dataIndex = Math.floor(
-                (i / halfCount) * relevantData.length
-              )
-              const value = Math.min(
-                1,
-                (relevantData[dataIndex] / 255) * sensitivity
-              )
-              newBars.push(Math.max(0.05, value))
-            }
-
-            for (let i = 0; i < halfCount; i++) {
-              const dataIndex = Math.floor(
-                (i / halfCount) * relevantData.length
-              )
-              const value = Math.min(
-                1,
-                (relevantData[dataIndex] / 255) * sensitivity
-              )
-              newBars.push(Math.max(0.05, value))
-            }
-
-            staticBarsRef.current = newBars
-            lastActiveDataRef.current = newBars
-          } else {
-            // Scrolling mode - original behavior
-            let sum = 0
-            const startFreq = Math.floor(dataArray.length * 0.05)
-            const endFreq = Math.floor(dataArray.length * 0.4)
-            const relevantData = dataArray.slice(startFreq, endFreq)
-
-            for (let i = 0; i < relevantData.length; i++) {
-              sum += relevantData[i]
-            }
-            const average = (sum / relevantData.length / 255) * sensitivity
-
-            // Add to history
-            historyRef.current.push(Math.min(1, Math.max(0.05, average)))
-            lastActiveDataRef.current = [...historyRef.current]
-
-            // Maintain history size
-            if (historyRef.current.length > historySize) {
-              historyRef.current.shift()
-            }
+          // Mirror the data for symmetric display
+          for (let i = halfCount - 1; i >= 0; i--) {
+            const normalizedIndex = (i / halfCount) * (sourceData.length - 1)
+            const indexFloor = Math.floor(normalizedIndex)
+            const indexCeil = Math.ceil(normalizedIndex)
+            const fraction = normalizedIndex - indexFloor
+            
+            const valueFloor = sourceData[indexFloor] || 0
+            const valueCeil = sourceData[indexCeil] || 0
+            const value = (valueFloor * (1 - fraction) + valueCeil * fraction) * sensitivity
+            
+            newTargetBars.push(Math.max(0.02, Math.min(1, value)))
           }
-          needsRedrawRef.current = true
+
+          for (let i = 0; i < halfCount; i++) {
+            const normalizedIndex = (i / halfCount) * (sourceData.length - 1)
+            const indexFloor = Math.floor(normalizedIndex)
+            const indexCeil = Math.ceil(normalizedIndex)
+            const fraction = normalizedIndex - indexFloor
+            
+            const valueFloor = sourceData[indexFloor] || 0
+            const valueCeil = sourceData[indexCeil] || 0
+            const value = (valueFloor * (1 - fraction) + valueCeil * fraction) * sensitivity
+            
+            newTargetBars.push(Math.max(0.02, Math.min(1, value)))
+          }
+
+          targetBarsRef.current = newTargetBars
+
+          // Initialize if size changed
+          if (staticBarsRef.current.length !== newTargetBars.length) {
+            staticBarsRef.current = new Array(newTargetBars.length).fill(0.02)
+          }
+
+          // Direct assignment since backend handles smoothing
+          staticBarsRef.current = newTargetBars
+          lastActiveDataRef.current = staticBarsRef.current
+        } else {
+          // Scrolling mode - use average of current levels
+          const sourceData = audioLevelsRef.current
+          let sum = 0
+          for (let i = 0; i < sourceData.length; i++) {
+            sum += sourceData[i]
+          }
+          const average = sourceData.length > 0 ? (sum / sourceData.length) * sensitivity : 0
+
+          // Add to history
+          historyRef.current.push(Math.min(1, Math.max(0.05, average)))
+          lastActiveDataRef.current = [...historyRef.current]
+
+          // Maintain history size
+          if (historyRef.current.length > historySize) {
+            historyRef.current.shift()
+          }
         }
+        needsRedrawRef.current = true
       }
 
       // Only redraw if needed
