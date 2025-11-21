@@ -25,4 +25,7 @@ export default defineConfig(({ mode }) => ({
   nitro: {
     preset: 'node-server',
   },
+  ssr: {
+    noExternal: ['react-reconciler', '@react-three/fiber'],
+  },
 }))
