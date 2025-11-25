@@ -1,19 +1,10 @@
 import React, { useState, useEffect, ComponentProps } from "react";
-import { AudioPlayer } from "../../ui/AudioPlayer";
-import { Button } from "../../ui/Button";
-import { Copy, Star, Check, Trash2, FolderOpen } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { FolderOpen } from "lucide-react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { cn } from "@/lib/utils";
-
-interface HistoryEntry {
-  id: number;
-  file_name: string;
-  timestamp: number;
-  saved: boolean;
-  title: string;
-  transcription_text: string;
-}
+import { HistoryEntryComponent, type HistoryEntry } from "./history-entry-component";
 
 export const HistorySettings: React.FC = () => {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
@@ -107,7 +98,7 @@ export const HistorySettings: React.FC = () => {
         </div>
         <OpenRecordingsButton onClick={openRecordingsFolder} />
       </div>
-      <div className="bg-background border border-border/20 rounded-lg overflow-hidden">
+      <div>
         {content}
       </div>
     </div>
@@ -154,97 +145,6 @@ export const HistorySettings: React.FC = () => {
     </div>
   );
 };
-
-interface HistoryEntryProps {
-  entry: HistoryEntry;
-  onToggleSaved: () => void;
-  onCopyText: () => void;
-  getAudioUrl: (fileName: string) => Promise<string | null>;
-  deleteAudio: (id: number) => Promise<void>;
-}
-
-const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
-  entry,
-  onToggleSaved,
-  onCopyText,
-  getAudioUrl,
-  deleteAudio,
-}) => {
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [showCopied, setShowCopied] = useState(false);
-
-  useEffect(() => {
-    const loadAudio = async () => {
-      const url = await getAudioUrl(entry.file_name);
-      setAudioUrl(url);
-    };
-    loadAudio();
-  }, [entry.file_name, getAudioUrl]);
-
-  const handleCopyText = () => {
-    onCopyText();
-    setShowCopied(true);
-    setTimeout(() => setShowCopied(false), 2000);
-  };
-
-  const handleDeleteEntry = async () => {
-    try {
-      await deleteAudio(entry.id);
-    } catch (error) {
-      console.error("Failed to delete entry:", error);
-      alert("Failed to delete entry. Please try again.");
-    }
-  };
-
-  return (
-    <div className="px-4 py-4 flex flex-col gap-3">
-      <div className="flex justify-between items-center">
-        <p className="text-sm font-medium">{entry.title}</p>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={handleCopyText}
-            className="text-text/50 hover:text-brand  hover:border-brand transition-colors cursor-pointer"
-            title="Copy transcription to clipboard"
-          >
-            {showCopied ? (
-              <Check width={16} height={16} />
-            ) : (
-              <Copy width={16} height={16} />
-            )}
-          </button>
-          <button
-            onClick={onToggleSaved}
-            className={`p-2 rounded  transition-colors cursor-pointer ${
-              entry.saved
-                ? "text-brand hover:text-brand/80"
-                : "text-text/50 hover:text-brand"
-            }`}
-            title={entry.saved ? "Remove from saved" : "Save transcription"}
-          >
-            <Star
-              width={16}
-              height={16}
-              fill={entry.saved ? "currentColor" : "none"}
-            />
-          </button>
-          <button
-            onClick={handleDeleteEntry}
-            className="text-text/50 hover:text-brand transition-colors cursor-pointer"
-            title="Delete entry"
-          >
-            <Trash2 width={16} height={16} />
-          </button>
-        </div>
-      </div>
-      <p className="italic text-text/90 text-sm pb-2">
-        {entry.transcription_text}
-      </p>
-      {audioUrl && <AudioPlayer src={audioUrl} className="w-full" />}
-    </div>
-  );
-};
-
-
 
 const OpenRecordingsButton = ({ onClick, className, ...props }: ComponentProps<"button">) => (
   <Button
