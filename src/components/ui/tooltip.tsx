@@ -1,7 +1,8 @@
-import * as React from "react"
-import * as TooltipPrimitive from "@radix-ui/react-tooltip"
+
+import {Tooltip as TooltipPrimitive }  from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { ComponentProps } from "react"
 
 const TooltipProvider = TooltipPrimitive.Provider
 
@@ -13,7 +14,7 @@ const TooltipContent = ({
   className,
   sideOffset = 4,
   ...props
-}: React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>) => (
+}: ComponentProps<typeof TooltipPrimitive.Content>) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
       sideOffset={sideOffset}

@@ -1,7 +1,7 @@
 import React from "react";
-import { SettingContainer } from "../../ui/SettingContainer";
-import { Select, SelectItem, SelectTrigger, SelectValue, SelectContent } from "../../ui/Select";
-import { useSettings } from "../../../hooks/use-settings";
+import { SettingContainer } from "@/components/ui/SettingContainer";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { useSettings } from "@/hooks/use-settings";
 
 const LOG_LEVEL_OPTIONS = [
   { value: "1", label: "Error" },
@@ -26,8 +26,8 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
 
   const selectedValue = currentLevel.toString();
 
-  const handleSelect = async (value: string) => {
-    const parsed = Number.parseInt(value, 10);
+  const handleSelect = async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const parsed = Number.parseInt(event.target.value, 10);
     if (Number.isNaN(parsed) || parsed === currentLevel) return;
     try {
       await updateSetting("log_level", parsed as unknown as number);
@@ -45,18 +45,17 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
       layout="horizontal"
     >
       <div className="space-y-1">
-        <Select value={selectedValue} onValueChange={handleSelect} disabled={!settings || isLevelUpdating}>
-          <SelectTrigger>
-              <SelectValue placeholder="Select" />
-            </SelectTrigger>
-            <SelectContent>
-              {LOG_LEVEL_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </SelectItem>
-            ))}
-            </SelectContent>
-        </Select>
+        <NativeSelect
+          value={selectedValue}
+          onChange={handleSelect}
+          disabled={!settings || isLevelUpdating}
+        >
+          {LOG_LEVEL_OPTIONS.map((opt) => (
+            <NativeSelectOption key={opt.value} value={opt.value}>
+              {opt.label}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
       </div>
     </SettingContainer>
   );

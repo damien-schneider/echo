@@ -7,9 +7,10 @@ interface WordCorrectionThresholdProps {
   grouped?: boolean;
 }
 
-export const WordCorrectionThreshold: React.FC<
-  WordCorrectionThresholdProps
-> = ({ descriptionMode = "tooltip", grouped = false }) => {
+export const WordCorrectionThreshold: React.FC<WordCorrectionThresholdProps> = ({
+  descriptionMode = "tooltip",
+  grouped = false,
+}) => {
   const { settings, updateSetting } = useSettings();
 
   const handleThresholdChange = (value: number) => {
@@ -22,10 +23,11 @@ export const WordCorrectionThreshold: React.FC<
       onChange={handleThresholdChange}
       min={0.0}
       max={1.0}
-      label="Word Correction Threshold"
-      description="Controls how aggressively custom words are applied. Lower values mean fewer corrections will be made, higher values mean more corrections. Range: 0 (least aggressive) to 1 (most aggressive)."
+      label="Correction Threshold"
+      description="Controls how aggressively custom words are applied. Lower values mean fewer corrections will be made, higher values mean more corrections."
       descriptionMode={descriptionMode}
       grouped={grouped}
+      formatValue={(v) => v.toFixed(2)}
     />
   );
 };

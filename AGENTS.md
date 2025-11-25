@@ -104,3 +104,11 @@ Settings are stored using Tauri's store plugin with reactive updates:
 ### Single Instance Architecture
 
 The app enforces single instance behavior - launching when already running brings the settings window to front rather than creating a new process.
+
+## Coding Conventions
+
+### Import Paths
+
+Always use absolute import paths with the `@/` alias instead of relative paths in TypeScript/React files:
+- ✅ `import { Button } from "@/components/ui/Button"`
+- ❌ `import { Button } from "../ui/Button"`

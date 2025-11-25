@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
-import { SettingContainer } from "../ui/SettingContainer";
-import { Button } from "../ui/Button";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import { SettingContainer } from "@/components/ui/SettingContainer";
+import { Button } from "@/components/ui/Button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RotateCcw, RefreshCw, Laptop2 } from "lucide-react";
-import { useSettings } from "../../hooks/use-settings";
+import { useSettings } from "@/hooks/use-settings";
 
 interface ClamshellMicrophoneSelectorProps {
   descriptionMode?: "inline" | "tooltip";
@@ -89,24 +91,37 @@ export const ClamshellMicrophoneSelector: React.FC<ClamshellMicrophoneSelectorPr
             </NativeSelectOption>
           ))}
         </NativeSelect>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleReset}
-          disabled={isUpdating("clamshell_microphone") || isLoading}
-          title="Reset to default"
-        >
-          <RotateCcw className="w-5 h-5" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={refreshAudioDevices}
-          disabled={isLoading}
-          title="Refresh devices"
-        >
-          <RefreshCw className="w-5 h-5" />
-        </Button>
+        <TooltipProvider>
+
+        <ButtonGroup className="">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleReset}
+                disabled={isUpdating("clamshell_microphone") || isLoading}
+              >
+                <RotateCcw className="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Reset to default</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={refreshAudioDevices}
+                disabled={isLoading}
+              >
+                <RefreshCw className="w-5 h-5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Refresh devices</TooltipContent>
+          </Tooltip>
+        </ButtonGroup>
+        </TooltipProvider>
       </div>
     </SettingContainer>
   );

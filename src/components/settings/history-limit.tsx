@@ -1,6 +1,6 @@
 import React from "react";
 import { useSettings } from "../../hooks/use-settings";
-import { Input } from "../ui/Input";
+import { InputGroup, InputGroupInputNumber } from "../ui/input-group";
 import { SettingContainer } from "../ui/SettingContainer";
 
 interface HistoryLimitProps {
@@ -23,6 +23,18 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
     }
   };
 
+  const handleIncrement = () => {
+    if (historyLimit < 1000) {
+      updateSetting("history_limit", historyLimit + 1);
+    }
+  };
+
+  const handleDecrement = () => {
+    if (historyLimit > 0) {
+      updateSetting("history_limit", historyLimit - 1);
+    }
+  };
+
   return (
     <SettingContainer
       title="History Limit"
@@ -31,18 +43,19 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
       grouped={grouped}
       layout="horizontal"
     >
-      <div className="flex items-center space-x-2">
-        <Input
-          type="number"
-          min="0"
-          max="1000"
+      <InputGroup className="w-auto">
+        <InputGroupInputNumber
+          min={0}
+          max={1000}
           value={historyLimit}
           onChange={handleChange}
           disabled={isUpdating("history_limit")}
-          className="w-20"
+          className="w-16"
+          onIncrement={handleIncrement}
+          onDecrement={handleDecrement}
+          suffix="entries"
         />
-        <span className="text-sm text-text">entries</span>
-      </div>
+      </InputGroup>
     </SettingContainer>
   );
 };

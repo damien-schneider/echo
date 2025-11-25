@@ -2,7 +2,7 @@ import React from "react";
 import { useSettings } from "../../hooks/use-settings";
 import { RecordingRetentionPeriod } from "../../lib/types";
 import { SettingContainer } from "../ui/SettingContainer";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/Select";
+import { NativeSelect, NativeSelectOption } from "../ui/native-select";
 
 interface RecordingRetentionPeriodProps {
   descriptionMode?: "inline" | "tooltip";
@@ -39,22 +39,18 @@ export const RecordingRetentionPeriodSelector = ({ descriptionMode = "tooltip", 
         descriptionMode={descriptionMode}
         grouped={grouped}
       >
-        <Select
+        <NativeSelect
           value={selectedRetentionPeriod}
-          onValueChange={(value) => handleRetentionPeriodSelect(value as RecordingRetentionPeriod)}
+          onChange={(e) => handleRetentionPeriodSelect(e.target.value as RecordingRetentionPeriod)}
           disabled={isUpdating("recording_retention_period")}
+          className="w-full md:w-72"
         >
-          <SelectTrigger className="w-full md:w-72">
-            <SelectValue placeholder="Select retention period..." />
-          </SelectTrigger>
-          <SelectContent>
-            {retentionOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          {retentionOptions.map((option) => (
+            <NativeSelectOption key={option.value} value={option.value}>
+              {option.label}
+            </NativeSelectOption>
+          ))}
+        </NativeSelect>
       </SettingContainer>
     );
 };

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/Button"
 import { Input } from "@/components/ui/Input"
 import { Textarea } from "@/components/ui/Textarea"
+import { MinusIcon, PlusIcon } from "lucide-react"
 
 function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -12,7 +13,7 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="input-group"
       role="group"
       className={cn(
-        "group/input-group border-input dark:bg-input/30 shadow-xs relative flex w-full items-center rounded-md border outline-none transition-[color,box-shadow]",
+        "group/input-group border-input dark:bg-input/30 shadow-xs relative flex w-full items-center rounded-md border outline-none transition-[color,box-shadow] overflow-hidden",
         "h-9 has-[>textarea]:h-auto",
 
         // Variants based on alignment.
@@ -158,11 +159,71 @@ function InputGroupTextarea({
   )
 }
 
+
+type InputGroupInputNumberProps = Omit<
+  React.ComponentProps<"input">,
+  "type"
+> & {
+  onIncrement?: () => void;
+  onDecrement?: () => void;
+  suffix?: React.ReactNode;
+};
+
+function InputGroupInputNumber({
+  className,
+  onIncrement,
+  onDecrement,
+  disabled,
+  suffix,
+  ...props
+}: InputGroupInputNumberProps) {
+  return (
+    <>
+      <Input
+        type="number"
+        data-slot="input-group-control"
+        disabled={disabled}
+        className={cn(
+          "flex-1 rounded-none border-0 bg-transparent pr-0 shadow-none focus-visible:ring-0 dark:bg-transparent",
+          className,
+        )}
+        {...props}
+      />
+      {suffix && (
+        <span className="flex items-center text-sm text-muted-foreground pr-2">
+          {suffix}
+        </span>
+      )}
+      <div className="-my-px -mr-px flex flex-col self-stretch border-border border-l">
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={disabled}
+          className="flex w-6 flex-1 cursor-pointer items-center justify-center border-border border-b text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+          onClick={onIncrement}
+        >
+          <PlusIcon className="size-3" />
+        </button>
+        <button
+          type="button"
+          tabIndex={-1}
+          disabled={disabled}
+          className="flex w-6 flex-1 cursor-pointer items-center justify-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
+          onClick={onDecrement}
+        >
+          <MinusIcon className="size-3" />
+        </button>
+      </div>
+    </>
+  );
+}
+
 export {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupText,
   InputGroupInput,
+  InputGroupInputNumber,
   InputGroupTextarea,
 }

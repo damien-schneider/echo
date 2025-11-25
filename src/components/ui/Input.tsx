@@ -1,7 +1,6 @@
-import * as React from "react"
-
 import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
+import { ComponentProps } from "react";
 
 const inputVariants = cva(
   "flex h-9 w-full rounded-md bg-transparent px-3 py-1 text-base shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground   disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
@@ -20,17 +19,23 @@ const inputVariants = cva(
 )
 
 export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement>,
+  extends ComponentProps<"input">,
     VariantProps<typeof inputVariants> {}
 
-const Input = ({ className, type, variant, ...props }: InputProps) => (
-  <input
-    type={type}
-    className={cn(inputVariants({ variant }), className)}
-    {...props}
-  />
-)
-
-Input.displayName = "Input"
+function Input({ className, type, variant, ...props }: InputProps) {
+  return (
+    <input
+      type={type}
+      data-slot="input"
+      className={cn(
+        inputVariants({ variant }),
+        type === "number" &&
+          "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
 
 export { Input, inputVariants }
