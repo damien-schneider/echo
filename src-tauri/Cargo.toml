@@ -1,6 +1,6 @@
 [package]
 name = "echo"
-version = "0.0.4"
+version = "0.0.5"
 description = "Echo"
 authors = ["Damien Schneider <damien-schneider>"]
 edition = "2021"
