@@ -92,9 +92,6 @@
       "endpoints": [
         "https://github.com/damien-schneider/echo/releases/latest/download/latest.json"
       ]
-    },
-    "sql": {
-      "preload": ["sqlite:history.db"]
     }
   }
 }

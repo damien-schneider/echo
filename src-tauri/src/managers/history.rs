@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use chrono::{DateTime, Local, Utc};
 use log::{debug, error};
 use rusqlite::{params, Connection, OptionalExtension};
@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_sql::{Migration, MigrationKind};
 
+use super::database;
 use crate::audio_toolkit::save_wav_file;
 use crate::settings::RecordingRetentionPeriod;
 
@@ -42,57 +42,22 @@ impl HistoryManager {
             debug!("Created recordings directory: {:?}", recordings_dir);
         }
 
+        // Initialize database schema and run migrations
+        database::initialize_database(&db_path)
+            .context("Failed to initialize history database")?;
+
         let manager = Self {
             app_handle: app_handle.clone(),
             recordings_dir,
             db_path,
         };
 
-        // Initialize database
-        manager.init_database()?;
-
         Ok(manager)
     }
 
-    pub fn get_migrations() -> Vec<Migration> {
-        vec![
-            Migration {
-                version: 1,
-                description: "create_transcription_history_table",
-                sql: "CREATE TABLE IF NOT EXISTS transcription_history (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL,
-                    timestamp INTEGER NOT NULL,
-                    saved BOOLEAN NOT NULL DEFAULT 0,
-                    title TEXT NOT NULL,
-                    transcription_text TEXT NOT NULL
-                );",
-                kind: MigrationKind::Up,
-            },
-            Migration {
-                version: 2,
-                description: "add_post_processed_text_column",
-                sql: "ALTER TABLE transcription_history ADD COLUMN post_processed_text TEXT;",
-                kind: MigrationKind::Up,
-            },
-            Migration {
-                version: 3,
-                description: "add_post_process_prompt_column",
-                sql: "ALTER TABLE transcription_history ADD COLUMN post_process_prompt TEXT;",
-                kind: MigrationKind::Up,
-            },
-        ]
-    }
-
-    fn init_database(&self) -> Result<()> {
-        // Database initialization and migrations are handled by tauri-plugin-sql
-        // via the preload configuration in tauri.conf.json
-        debug!("Database path: {:?}", self.db_path);
-        Ok(())
-    }
-
     fn get_connection(&self) -> Result<Connection> {
-        Ok(Connection::open(&self.db_path)?)
+        Connection::open(&self.db_path)
+            .with_context(|| format!("Failed to open database at {:?}", self.db_path))
     }
 
     /// Save a transcription to history (both database and WAV file)
