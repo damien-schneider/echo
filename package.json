@@ -16,7 +16,8 @@
     "pipeline": "bun run check-types && bun run build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "prepare": "husky"
+    "prepare": "husky",
+    "version": "bun ./scripts/bump-version.ts"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.16",
