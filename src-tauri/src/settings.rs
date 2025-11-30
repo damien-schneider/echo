@@ -476,6 +476,21 @@ fn apply_settings_migrations_from_raw(
         updated = true;
     }
 
+    // Migration: Remove invalid bindings that don't have corresponding actions
+    // This cleans up stale bindings like 'cancel' from older versions
+    let valid_binding_ids = ["transcribe", "test"];
+    let original_count = settings.bindings.len();
+    settings.bindings.retain(|id, _| {
+        let is_valid = valid_binding_ids.contains(&id.as_str());
+        if !is_valid {
+            warn!("Removing stale binding '{}' from settings (no corresponding action)", id);
+        }
+        is_valid
+    });
+    if settings.bindings.len() != original_count {
+        updated = true;
+    }
+
     updated
 }
 

@@ -1,4 +1,5 @@
 use crate::managers::history::{HistoryEntry, HistoryManager};
+use crate::managers::transcription::TranscriptionManager;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
@@ -47,6 +48,42 @@ pub async fn delete_history_entry(
         .delete_entry(id)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn retranscribe_history_entry(
+    _app: AppHandle,
+    history_manager: State<'_, Arc<HistoryManager>>,
+    transcription_manager: State<'_, Arc<TranscriptionManager>>,
+    id: i64,
+) -> Result<String, String> {
+    // Get the history entry to find the audio file
+    let entry = history_manager
+        .get_entry_by_id(id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("History entry not found: {}", id))?;
+
+    // Load audio samples from the WAV file
+    let audio_samples = history_manager
+        .load_audio_for_entry(&entry.file_name)
+        .map_err(|e| format!("Failed to load audio file: {}", e))?;
+
+    // Ensure model is loaded
+    transcription_manager.initiate_model_load();
+
+    // Transcribe the audio
+    let new_transcription = transcription_manager
+        .transcribe(audio_samples)
+        .map_err(|e| format!("Transcription failed: {}", e))?;
+
+    // Update the history entry with the new transcription
+    history_manager
+        .retranscribe_entry(id, new_transcription.clone())
+        .await
+        .map_err(|e| format!("Failed to update history entry: {}", e))?;
+
+    Ok(new_transcription)
 }
 
 #[tauri::command]

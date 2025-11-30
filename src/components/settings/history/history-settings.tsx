@@ -86,6 +86,15 @@ export const HistorySettings: React.FC = () => {
     }
   };
 
+  const retranscribeEntry = async (id: number) => {
+    try {
+      await invoke("retranscribe_history_entry", { id });
+    } catch (error) {
+      console.error("Failed to retranscribe entry:", error);
+      throw error;
+    }
+  };
+
   const openRecordingsFolder = async () => {
     try {
       await invoke("open_recordings_folder");
@@ -143,6 +152,7 @@ export const HistorySettings: React.FC = () => {
               getAudioUrl={getAudioUrl}
               key={entry.id}
               onCopyText={() => copyToClipboard(entry.transcription_text)}
+              onRetranscribe={retranscribeEntry}
               onToggleSaved={() => toggleSaved(entry.id)}
             />
           ))}

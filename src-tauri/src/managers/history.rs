@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::database;
-use crate::audio_toolkit::save_wav_file;
+use crate::audio_toolkit::{load_wav_file, save_wav_file};
 use crate::settings::RecordingRetentionPeriod;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -343,5 +343,31 @@ impl HistoryManager {
         } else {
             format!("Recording {}", timestamp)
         }
+    }
+
+    /// Retranscribe a history entry using its stored audio file
+    pub async fn retranscribe_entry(&self, id: i64, new_transcription: String) -> Result<()> {
+        let conn = self.get_connection()?;
+
+        // Update the transcription text in the database
+        conn.execute(
+            "UPDATE transcription_history SET transcription_text = ?1, post_processed_text = NULL, post_process_prompt = NULL WHERE id = ?2",
+            params![new_transcription, id],
+        )?;
+
+        debug!("Retranscribed history entry with id: {}", id);
+
+        // Emit history updated event
+        if let Err(e) = self.app_handle.emit("history-updated", ()) {
+            error!("Failed to emit history-updated event: {}", e);
+        }
+
+        Ok(())
+    }
+
+    /// Load audio samples from a history entry's WAV file
+    pub fn load_audio_for_entry(&self, file_name: &str) -> Result<Vec<f32>> {
+        let file_path = self.get_audio_file_path(file_name);
+        load_wav_file(&file_path)
     }
 }

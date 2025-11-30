@@ -1,7 +1,38 @@
-use anyhow::Result;
-use hound::{WavSpec, WavWriter};
+use anyhow::{Context, Result};
+use hound::{WavReader, WavSpec, WavWriter};
 use log::debug;
 use std::path::Path;
+
+/// Load audio samples from a WAV file
+pub fn load_wav_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
+    let reader = WavReader::open(file_path.as_ref())
+        .with_context(|| format!("Failed to open WAV file: {:?}", file_path.as_ref()))?;
+
+    let spec = reader.spec();
+
+    // Read samples and convert to f32
+    let samples: Vec<f32> = match spec.sample_format {
+        hound::SampleFormat::Int => {
+            let max_value = (1 << (spec.bits_per_sample - 1)) as f32;
+            reader
+                .into_samples::<i32>()
+                .filter_map(|s| s.ok())
+                .map(|s| s as f32 / max_value)
+                .collect()
+        }
+        hound::SampleFormat::Float => reader
+            .into_samples::<f32>()
+            .filter_map(|s| s.ok())
+            .collect(),
+    };
+
+    debug!(
+        "Loaded WAV file: {:?} with {} samples",
+        file_path.as_ref(),
+        samples.len()
+    );
+    Ok(samples)
+}
 
 /// Save audio samples as a WAV file
 pub async fn save_wav_file<P: AsRef<Path>>(file_path: P, samples: &[f32]) -> Result<()> {
