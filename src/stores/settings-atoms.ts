@@ -88,6 +88,10 @@ const settingUpdaters: {
     invoke("set_post_process_selected_prompt", { id: value }),
   mute_while_recording: (value) =>
     invoke("change_mute_while_recording_setting", { enabled: value }),
+  input_tracking_enabled: (value) =>
+    invoke("change_input_tracking_setting", { enabled: value }),
+  input_tracking_excluded_apps: (value) =>
+    invoke("change_input_tracking_excluded_apps", { apps: value }),
 };
 
 // State Atoms

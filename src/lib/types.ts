@@ -120,6 +120,8 @@ export const SettingsSchema = z.object({
   post_process_prompts: z.array(LLMPromptSchema).optional().default([]),
   post_process_selected_prompt_id: z.string().nullable().optional(),
   mute_while_recording: z.boolean().optional().default(false),
+  input_tracking_enabled: z.boolean().optional().default(false),
+  input_tracking_excluded_apps: z.array(z.string()).optional().default([]),
 });
 
 export const BindingResponseSchema = z.object({

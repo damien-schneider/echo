@@ -3,6 +3,8 @@ import { useSettings } from "../../../hooks/use-settings";
 import { SettingContainer } from "../../ui/SettingContainer";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { Switch } from "../../ui/switch";
+import { InputTrackingExcludedApps } from "../input-tracking-excluded-apps";
+import { InputTrackingToggle } from "../input-tracking-toggle";
 
 export const ExperimentsSettings: React.FC = () => {
   const { getSetting, updateSetting, isUpdating } = useSettings();
@@ -42,6 +44,10 @@ export const ExperimentsSettings: React.FC = () => {
             }
           />
         </SettingContainer>
+
+        <InputTrackingToggle descriptionMode="tooltip" grouped={true} />
+
+        <InputTrackingExcludedApps grouped={true} />
       </SettingsGroup>
     </div>
   );

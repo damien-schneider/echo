@@ -19,6 +19,7 @@ mod window_effects;
 
 use managers::audio::AudioRecordingManager;
 use managers::history::HistoryManager;
+use managers::input_tracker::InputTrackerManager;
 use managers::model::ModelManager;
 use managers::transcription::TranscriptionManager;
 use startup::show_main_window;
@@ -60,11 +61,29 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     let history_manager =
         Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
 
+    // Initialize input tracker manager
+    let input_tracker_manager = Arc::new(Mutex::new(
+        InputTrackerManager::new(app_handle).expect("Failed to initialize input tracker manager"),
+    ));
+
     // Add managers to Tauri's managed state
     app_handle.manage(recording_manager.clone());
     app_handle.manage(model_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    app_handle.manage(input_tracker_manager.clone());
+
+    // Start input tracker if enabled in settings
+    {
+        let settings = settings::get_settings(app_handle);
+        if settings.input_tracking_enabled {
+            if let Ok(mut tracker) = input_tracker_manager.lock() {
+                if let Err(e) = tracker.start(app_handle.clone()) {
+                    log::error!("Failed to start input tracker: {}", e);
+                }
+            }
+        }
+    }
 
     // Initialize the shortcuts
     shortcut::init_shortcuts(app_handle);
@@ -199,6 +218,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -310,6 +330,8 @@ pub fn run() {
             shortcut::suspend_binding,
             shortcut::resume_binding,
             shortcut::change_mute_while_recording_setting,
+            shortcut::change_input_tracking_setting,
+            shortcut::change_input_tracking_excluded_apps,
             shortcut::register_escape_shortcut,
             shortcut::unregister_escape_shortcut,
             trigger_update_check,
@@ -352,8 +374,11 @@ pub fn run() {
             commands::history::delete_history_entry,
             commands::history::retranscribe_history_entry,
             commands::history::update_history_limit,
-            commands::history::update_recording_retention_period
-            ,
+            commands::history::update_recording_retention_period,
+            commands::input_tracking::get_input_entries,
+            commands::input_tracking::delete_input_entry,
+            commands::input_tracking::clear_all_input_entries,
+            commands::input_tracking::get_installed_apps,
             commands::get_log_dir_path,
             commands::open_log_dir,
             commands::set_log_level

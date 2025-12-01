@@ -14,6 +14,8 @@ export { ExperimentsSettings } from "./experiments/experiments-settings";
 export { GeneralSettings } from "./general/general-settings";
 export { HistorySettings } from "./history/history-settings";
 export { HistoryLimit } from "./history-limit";
+export { InputTrackingExcludedApps } from "./input-tracking-excluded-apps";
+export { InputTrackingToggle } from "./input-tracking-toggle";
 // Individual setting components
 export { MicrophoneSelector } from "./microphone-selector";
 export { ModelUnloadTimeoutSetting } from "./model-unload-timeout";

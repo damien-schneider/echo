@@ -17,7 +17,7 @@ use rusqlite::Connection;
 use std::path::Path;
 
 /// Current schema version. Increment this when adding new migrations.
-const CURRENT_SCHEMA_VERSION: u32 = 3;
+const CURRENT_SCHEMA_VERSION: u32 = 4;
 
 /// A database migration with version and SQL statement.
 struct Migration {
@@ -51,6 +51,21 @@ const MIGRATIONS: &[Migration] = &[
         version: 3,
         description: "add_post_process_prompt_column",
         sql: "ALTER TABLE transcription_history ADD COLUMN post_process_prompt TEXT",
+    },
+    Migration {
+        version: 4,
+        description: "create_input_entries_table",
+        sql: "CREATE TABLE input_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_name TEXT NOT NULL,
+            app_bundle_id TEXT,
+            window_title TEXT,
+            content TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            duration_ms INTEGER DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_input_entries_timestamp ON input_entries(timestamp);
+        CREATE INDEX IF NOT EXISTS idx_input_entries_app ON input_entries(app_bundle_id)",
     },
 ];
 
@@ -195,13 +210,16 @@ fn detect_schema_version(conn: &Connection) -> Result<u32> {
         return Ok(0);
     }
 
-    // Check for columns added in later migrations
+    // Check for tables/columns added in later migrations
+    let has_input_entries = check_table_exists(conn, "input_entries")?;
     let has_post_process_prompt =
         check_column_exists(conn, "transcription_history", "post_process_prompt")?;
     let has_post_processed_text =
         check_column_exists(conn, "transcription_history", "post_processed_text")?;
 
-    if has_post_process_prompt {
+    if has_input_entries {
+        Ok(4)
+    } else if has_post_process_prompt {
         Ok(3)
     } else if has_post_processed_text {
         Ok(2)
