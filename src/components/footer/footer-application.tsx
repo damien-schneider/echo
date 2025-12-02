@@ -23,12 +23,10 @@ const Footer = () => {
 
   return (
     <div
-      className="flex items-center justify-between border-border/20 border-t px-4 py-3 text-text/60 text-xs"
+      className="flex items-center justify-between border-border/20 border-t py-1.5 pr-3 pl-1.5 text-text/60 text-xs"
       data-tauri-drag-region
     >
-      <div className="flex items-center gap-2">
-        <AboutDialog />
-      </div>
+      <AboutDialog />
 
       {/* Update Status */}
       <div className="flex items-center gap-1">

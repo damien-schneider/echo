@@ -2,7 +2,7 @@ import { Github } from "lucide-react";
 import EchoLogo from "@/components/icons/echo-logo";
 import { Button } from "@/components/ui/button";
 
-interface FooterProps {
+type FooterProps = {
   logo?: React.ReactNode;
   brandName: string;
   showBrandName?: boolean;
@@ -23,7 +23,7 @@ interface FooterProps {
     text: string;
     license?: string;
   };
-}
+};
 
 export function Footer({
   logo,

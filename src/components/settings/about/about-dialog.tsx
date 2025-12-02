@@ -75,12 +75,12 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
       <DialogTrigger asChild>
         {trigger ?? (
           <Button
-            className="h-8 w-8"
-            size="icon"
+            className="rounded-lg"
+            size="icon-sm"
             title="About Echo"
             variant="ghost"
           >
-            <Info className="h-4 w-4" />
+            <Info className="size-4" />
           </Button>
         )}
       </DialogTrigger>
