@@ -91,45 +91,25 @@ export const InputTrackingExcludedApps = ({
   }
 
   return (
-    <SettingContainer
-      description="Select applications where input tracking should be disabled (e.g., code editors, password managers)"
-      descriptionMode={descriptionMode}
-      grouped={grouped}
-      icon={<Ban className="h-4 w-4" />}
-      title="Excluded Applications"
-    >
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap gap-1">
-          {excludedApps.map((bundleId) => (
-            <Badge
-              className="flex items-center gap-1"
-              key={bundleId}
-              variant="secondary"
-            >
-              {getAppName(bundleId)}
-              <button
-                className="ml-1 rounded-full hover:bg-muted"
-                onClick={() => removeApp(bundleId)}
-                type="button"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </Badge>
-          ))}
-        </div>
-
+    <>
+      <SettingContainer
+        description="Select applications where input tracking should be disabled (e.g., code editors, password managers)"
+        descriptionMode={descriptionMode}
+        grouped={grouped}
+        icon={<Ban className="h-4 w-4" />}
+        title="Excluded Applications"
+      >
         <Popover onOpenChange={handleOpenChange} open={open}>
           <PopoverTrigger asChild>
             <Button
               disabled={isUpdating("input_tracking_excluded_apps")}
-              size="sm"
               variant="outline"
             >
-              <Plus className="mr-1 h-3 w-3" />
+              <Plus className="mr-1.5 h-4 w-4" />
               Add App
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-[300px] p-0">
+          <PopoverContent align="end" className="w-[300px] p-0">
             <Command>
               <CommandInput placeholder="Search applications..." />
               <CommandList>
@@ -169,7 +149,35 @@ export const InputTrackingExcludedApps = ({
             </Command>
           </PopoverContent>
         </Popover>
-      </div>
-    </SettingContainer>
+      </SettingContainer>
+      {excludedApps.length > 0 && (
+        <div
+          className={`p-2 px-4 ${grouped ? "" : "rounded-lg border border-border/20"}`}
+        >
+          <div className="flex flex-wrap gap-1.5">
+            {excludedApps.map((bundleId) => (
+              <Badge
+                className="flex items-center gap-1 pr-1"
+                key={bundleId}
+                variant="secondary"
+              >
+                <span className="max-w-[150px] truncate">
+                  {getAppName(bundleId)}
+                </span>
+                <button
+                  aria-label={`Remove ${getAppName(bundleId)}`}
+                  className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20"
+                  disabled={isUpdating("input_tracking_excluded_apps")}
+                  onClick={() => removeApp(bundleId)}
+                  type="button"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
   );
 };

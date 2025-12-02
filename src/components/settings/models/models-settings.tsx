@@ -256,22 +256,30 @@ export const ModelsSettings = () => {
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl pb-20">
+    <div className="mx-auto w-full max-w-3xl space-y-16 pb-20">
       {/* Status Header */}
-      <div className="flex items-center justify-between rounded-lg border border-border/20 bg-card px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div
-            className={`h-3 w-3 rounded-full ${getStatusColor(modelStatus)}`}
-          />
-          <div>
-            <p className="font-medium text-sm">{getStatusLabel(modelStatus)}</p>
-            {currentModelId && (
-              <p className="text-muted-foreground text-xs">
-                Current:{" "}
-                {availableModels.find((m) => m.id === currentModelId)?.name ??
-                  currentModelId}
+
+      <div className="space-y-3">
+        <h2 className="px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+          Current Model Status
+        </h2>
+        <div className="flex items-center justify-between rounded-lg border border-border/20 bg-card px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div
+              className={`h-3 w-3 rounded-full ${getStatusColor(modelStatus)}`}
+            />
+            <div>
+              <p className="font-medium text-sm">
+                {getStatusLabel(modelStatus)}
               </p>
-            )}
+              {currentModelId && (
+                <p className="text-muted-foreground text-xs">
+                  Current:{" "}
+                  {availableModels.find((m) => m.id === currentModelId)?.name ??
+                    currentModelId}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </div>
