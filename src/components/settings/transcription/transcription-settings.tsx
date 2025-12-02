@@ -3,10 +3,7 @@ import { useSettings } from "@/hooks/use-settings";
 import { CustomWords } from "../custom-words";
 import { LanguageSelector } from "../language-selector";
 import { ModelUnloadTimeoutSetting } from "../model-unload-timeout";
-import {
-  PostProcessingSettingsApi,
-  PostProcessingSettingsPrompts,
-} from "../post-processing/post-processing-settings";
+import { PostProcessingSettingsPrompts } from "../post-processing/post-processing-settings";
 import { TranslateToEnglish } from "../translate-to-english";
 
 export const TranscriptionSettings = () => {
@@ -26,8 +23,10 @@ export const TranscriptionSettings = () => {
       </CollapsibleSettingsGroup>
 
       {betaEnabled && (
-        <CollapsibleSettingsGroup defaultOpen={true} title="Post Processing">
-          <PostProcessingSettingsApi />
+        <CollapsibleSettingsGroup
+          defaultOpen={true}
+          title="Post Processing Prompts"
+        >
           <PostProcessingSettingsPrompts />
         </CollapsibleSettingsGroup>
       )}
