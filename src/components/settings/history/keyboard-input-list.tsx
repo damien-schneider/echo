@@ -1,12 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Keyboard, Trash2 } from "lucide-react";
-import type React from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { type InputEntry, KeyboardInputEntry } from "./keyboard-input-entry";
 
-export const KeyboardInputList: React.FC = () => {
+export const KeyboardInputList = () => {
   const [entries, setEntries] = useState<InputEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirmClearAll, setConfirmClearAll] = useState(false);

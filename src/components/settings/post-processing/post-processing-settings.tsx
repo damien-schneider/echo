@@ -1,25 +1,28 @@
 import { invoke } from "@tauri-apps/api/core";
 import { PlusIcon, RefreshCcw, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useSettings } from "../../../hooks/use-settings";
-import type { LLMPrompt } from "../../../lib/types";
-import { Button } from "../../ui/Button";
-import { Input } from "../../ui/Input";
-import { NativeSelect, NativeSelectOption } from "../../ui/native-select";
-import { SettingContainer } from "../../ui/SettingContainer";
-import { SettingsGroup } from "../../ui/SettingsGroup";
-import { Textarea } from "../../ui/Textarea";
+import { MarkdownEditor } from "@/components/editor/markdown-editor";
+import { ApiKeyField } from "@/components/settings/post-processing-settings-api/api-key-field";
+import { BaseUrlField } from "@/components/settings/post-processing-settings-api/base-url-field";
+import { ModelSelect } from "@/components/settings/post-processing-settings-api/model-select";
+import { ProviderSelect } from "@/components/settings/post-processing-settings-api/provider-select";
+import { usePostProcessProviderState } from "@/components/settings/post-processing-settings-api/use-post-process-provider-state";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import {
+  NativeSelect,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
+import { SettingContainer } from "@/components/ui/SettingContainer";
+import { SettingsGroup } from "@/components/ui/SettingsGroup";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "../../ui/tooltip";
-import { ApiKeyField } from "../post-processing-settings-api/api-key-field";
-import { BaseUrlField } from "../post-processing-settings-api/base-url-field";
-import { ModelSelect } from "../post-processing-settings-api/model-select";
-import { ProviderSelect } from "../post-processing-settings-api/provider-select";
-import { usePostProcessProviderState } from "../post-processing-settings-api/use-post-process-provider-state";
+} from "@/components/ui/tooltip";
+import { useSettings } from "@/hooks/use-settings";
+import type { LLMPrompt } from "@/lib/types";
 
 const DisabledNotice = ({ children }: { children: React.ReactNode }) => (
   <div className="rounded-lg border border-border/20 bg-muted/5 p-4 text-center">
@@ -27,7 +30,7 @@ const DisabledNotice = ({ children }: { children: React.ReactNode }) => (
   </div>
 );
 
-const PostProcessingSettingsApiComponent: React.FC = () => {
+const PostProcessingSettingsApiComponent = () => {
   const state = usePostProcessProviderState();
   const [localBaseUrl, setLocalBaseUrl] = useState(state.baseUrl);
 
@@ -202,7 +205,7 @@ const PostProcessingSettingsApiComponent: React.FC = () => {
   );
 };
 
-const PostProcessingSettingsPromptsComponent: React.FC = () => {
+const PostProcessingSettingsPromptsComponent = () => {
   const { getSetting, updateSetting, isUpdating, refreshSettings } =
     useSettings();
   const [isCreating, setIsCreating] = useState(false);
@@ -369,13 +372,21 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
             </div>
 
             <div className="flex flex-col space-y-2">
-              <label className="font-semibold text-sm">
-                Prompt Instructions
-              </label>
-              <Textarea
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-sm">
+                  Prompt Instructions
+                </label>
+                <p className="text-muted-foreground text-xs">
+                  Write the instructions to run after transcription.
+                </p>
+              </div>
+              <MarkdownEditor
                 className="min-h-32"
-                onChange={(e) => setDraftText(e.target.value)}
-                placeholder="Write the instructions to run after transcription. Example: Improve grammar and clarity for the following text: ${output}"
+                onChange={setDraftText}
+                placeholder="Start typing..."
+                showDragHandle={false}
+                showSlashMenu={true}
+                showToolbar={true}
                 value={draftText}
               />
               <p className="text-muted-foreground/70 text-xs">
@@ -430,12 +441,20 @@ const PostProcessingSettingsPromptsComponent: React.FC = () => {
             </div>
 
             <div className="flex flex-col space-y-2">
-              <label className="font-semibold text-sm">
-                Prompt Instructions
-              </label>
-              <Textarea
-                onChange={(e) => setDraftText(e.target.value)}
-                placeholder="Write the instructions to run after transcription. Example: Improve grammar and clarity for the following text: ${output}"
+              <div className="flex flex-col gap-1">
+                <label className="font-semibold text-sm">
+                  Prompt Instructions
+                </label>
+                <p className="text-muted-foreground text-xs">
+                  Write the instructions to run after transcription.
+                </p>
+              </div>
+              <MarkdownEditor
+                onChange={setDraftText}
+                placeholder="Start writing..."
+                showDragHandle={false}
+                showSlashMenu={true}
+                showToolbar={true}
                 value={draftText}
               />
               <p className="text-muted-foreground/70 text-xs">
@@ -472,8 +491,8 @@ export const PostProcessingSettingsPrompts =
   PostProcessingSettingsPromptsComponent;
 PostProcessingSettingsPrompts.displayName = "PostProcessingSettingsPrompts";
 
-export const PostProcessingSettings: React.FC = () => (
-  <div className="mx-auto w-full max-w-3xl space-y-6">
+export const PostProcessingSettings = () => (
+  <div className="mx-auto w-full max-w-3xl pb-20">
     <SettingsGroup title="API (OpenAI Compatible)">
       <PostProcessingSettingsApi />
     </SettingsGroup>

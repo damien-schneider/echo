@@ -11,7 +11,7 @@ export const SettingsGroup: React.FC<SettingsGroupProps> = ({
   description,
   children,
 }) => (
-  <div className="space-y-2">
+  <div className="space-y-4">
     {title && (
       <div className="px-4">
         <h2 className="font-medium text-muted-foreground text-xs uppercase tracking-wide">

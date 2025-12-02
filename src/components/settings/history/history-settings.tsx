@@ -1,7 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FolderOpen, Keyboard, Mic } from "lucide-react";
-import type React from "react";
 import { type ComponentProps, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
@@ -13,7 +12,7 @@ import { KeyboardInputList } from "./keyboard-input-list";
 
 type HistoryTab = "transcriptions" | "keyboard";
 
-export const HistorySettings: React.FC = () => {
+export const HistorySettings = () => {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<HistoryTab>("transcriptions");

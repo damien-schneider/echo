@@ -1,29 +1,22 @@
 import { useAtom } from "jotai";
 import { atomWithStorage } from "jotai/utils";
 import {
-  Beaker,
-  Cog,
-  FlaskConical,
+  AudioLines,
+  Box,
   History,
-  Info,
+  Keyboard,
   PanelLeft,
-  Sparkles,
+  Settings2,
 } from "lucide-react";
 import type React from "react";
 import { AnimatedBackground } from "@/components/motion-primitives/animated-background";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
-import { useSettings } from "../hooks/use-settings";
-import EchoLogo from "./icons/echo-logo";
-import {
-  AboutSettings,
-  AdvancedSettings,
-  DebugSettings,
-  ExperimentsSettings,
-  GeneralSettings,
-  HistorySettings,
-  PostProcessingSettings,
-} from "./settings";
+import { AppSettings } from "./settings/app/app-settings";
+import { HistorySettings } from "./settings/history/history-settings";
+import { KeyboardTrackingSettings } from "./settings/keyboard-tracking/keyboard-tracking-settings";
+import { ModelsSettings } from "./settings/models/models-settings";
+import { TranscriptionSettings } from "./settings/transcription/transcription-settings";
 import {
   Tooltip,
   TooltipContent,
@@ -35,76 +28,45 @@ const sidebarCollapsedAtom = atomWithStorage("sidebar_collapsed", true);
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
-interface IconProps {
+type IconProps = {
   width?: number | string;
   height?: number | string;
   size?: number | string;
   className?: string;
-  [key: string]: any;
-}
+  strokeWidth?: number | string;
+};
 
-interface SectionConfig {
+type SectionConfig = {
   label: string;
   icon: React.ComponentType<IconProps>;
   component: React.ComponentType;
-  enabled: (settings: any) => boolean;
-}
-
-// Wrapper component for EchoLogo to match IconProps interface
-const EchoLogoIcon: React.FC<IconProps> = (props) => {
-  const { size, strokeWidth, ...rest } = props;
-  return (
-    <EchoLogo
-      height={size || props.height || 20}
-      variant="sm"
-      width={size || props.width || 20}
-      {...rest}
-    />
-  );
 };
 
 export const SECTIONS_CONFIG = {
-  general: {
-    label: "General",
-    icon: EchoLogoIcon,
-    component: GeneralSettings,
-    enabled: () => true,
+  app: {
+    label: "App Settings",
+    icon: Settings2,
+    component: AppSettings,
   },
-  advanced: {
-    label: "Advanced",
-    icon: Cog,
-    component: AdvancedSettings,
-    enabled: () => true,
+  transcription: {
+    label: "Transcription",
+    icon: AudioLines,
+    component: TranscriptionSettings,
   },
-  experiments: {
-    label: "Experiments",
-    icon: Sparkles,
-    component: ExperimentsSettings,
-    enabled: () => true,
+  "keyboard-tracking": {
+    label: "Keyboard",
+    icon: Keyboard,
+    component: KeyboardTrackingSettings,
   },
-  postprocessing: {
-    label: "Post Process",
-    icon: Beaker,
-    component: PostProcessingSettings,
-    enabled: (settings) => settings?.beta_features_enabled ?? false,
+  models: {
+    label: "Models",
+    icon: Box,
+    component: ModelsSettings,
   },
   history: {
     label: "History",
     icon: History,
     component: HistorySettings,
-    enabled: () => true,
-  },
-  debug: {
-    label: "Debug",
-    icon: FlaskConical,
-    component: DebugSettings,
-    enabled: (settings) => settings?.debug_mode ?? false,
-  },
-  about: {
-    label: "About",
-    icon: Info,
-    component: AboutSettings,
-    enabled: () => true,
   },
 } as const satisfies Record<string, SectionConfig>;
 
@@ -115,12 +77,11 @@ export const Sidemenu = ({
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
 }) => {
-  const { settings } = useSettings();
   const [isCollapsed, setIsCollapsed] = useAtom(sidebarCollapsedAtom);
 
-  const availableSections = Object.entries(SECTIONS_CONFIG)
-    .filter(([_, config]) => config.enabled(settings))
-    .map(([id, config]) => ({ id: id as SidebarSection, ...config }));
+  const availableSections = Object.entries(SECTIONS_CONFIG).map(
+    ([id, config]) => ({ id: id as SidebarSection, ...config })
+  );
 
   return (
     <div className="px-2 pb-2">
@@ -171,6 +132,7 @@ export const Sidemenu = ({
                     data-id={section.id}
                     key={section.id}
                     onClick={() => onSectionChange(section.id)}
+                    type="button"
                   >
                     <div className="flex size-full h-10 w-full items-center gap-2 px-3">
                       <Icon className="size-4" strokeWidth={2} />

@@ -18,18 +18,31 @@ import { useSettings } from "./hooks/use-settings";
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
-    SECTIONS_CONFIG[section]?.component || SECTIONS_CONFIG.general.component;
+    SECTIONS_CONFIG[section]?.component ?? SECTIONS_CONFIG.app.component;
   return <ActiveComponent />;
 };
 
 function App() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
-  const [currentSection, setCurrentSection] =
-    useState<SidebarSection>("general");
+  const [currentSection, setCurrentSection] = useState<SidebarSection>("app");
   const { settings, updateSetting, isLoading } = useSettings();
   const hasSignaledReady = useRef(false);
   const osPlatform = getNormalizedOsPlatform();
+
+  // Check onboarding status on mount
   useEffect(() => {
+    const checkOnboardingStatus = async () => {
+      try {
+        // Always check if they have any models available
+        const modelsAvailable: boolean = await invoke(
+          "has_any_models_available"
+        );
+        setShowOnboarding(!modelsAvailable);
+      } catch (error) {
+        console.error("Failed to check onboarding status:", error);
+        setShowOnboarding(true);
+      }
+    };
     checkOnboardingStatus();
   }, []);
 
@@ -57,17 +70,6 @@ function App() {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [settings?.debug_mode, updateSetting]);
-
-  const checkOnboardingStatus = async () => {
-    try {
-      // Always check if they have any models available
-      const modelsAvailable: boolean = await invoke("has_any_models_available");
-      setShowOnboarding(!modelsAvailable);
-    } catch (error) {
-      console.error("Failed to check onboarding status:", error);
-      setShowOnboarding(true);
-    }
-  };
 
   const handleModelSelected = () => {
     // Transition to main app - user has started a download
