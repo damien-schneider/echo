@@ -2,22 +2,44 @@ use anyhow::Result;
 use rdev::{listen, Event, EventType, Key};
 use rusqlite::Connection;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{mpsc, Arc, RwLock};
 use std::thread;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager};
-use tauri_plugin_notification::NotificationExt;
+use tauri::{AppHandle, Emitter, Manager};
 
-/// Timeout duration after which we consider the user has left an input field
-const INPUT_IDLE_TIMEOUT: Duration = Duration::from_secs(2);
+/// Default timeout duration after which we consider the user has left an input field
+/// Value of 0 means disabled (only count on app switch/click)
+const DEFAULT_INPUT_IDLE_TIMEOUT_SECS: u64 = 2;
 
 /// Minimum number of characters to trigger saving
 const MIN_CHARS_FOR_SAVE: usize = 3;
 
-/// How often to check for app changes (milliseconds)
-/// Using 1 second to reduce AppleScript overhead
-const APP_CHECK_INTERVAL: Duration = Duration::from_millis(1000);
+/// How often to check for idle timeout (milliseconds)
+/// Only used for idle timeout checking, not app switching
+const IDLE_CHECK_INTERVAL: Duration = Duration::from_millis(500);
+
+/// Events that can be sent through the input tracker channel
+#[derive(Debug)]
+enum InputTrackerEvent {
+    /// App has changed (new app info)
+    AppChanged(ActiveAppInfo),
+    /// A keystroke was received
+    Keystroke(KeystrokeEvent),
+    /// Mouse click happened
+    Click,
+    /// Check for idle timeout
+    IdleCheck,
+    /// Shutdown the tracker
+    Shutdown,
+}
+
+#[derive(Debug)]
+struct KeystrokeEvent {
+    key: Key,
+    unicode: Option<String>,
+    is_press: bool,
+}
 
 /// Information about the currently active application
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -26,12 +48,52 @@ struct ActiveAppInfo {
     bundle_id: Option<String>,
 }
 
+/// Tracks the state of modifier keys
+#[derive(Debug, Clone, Default)]
+struct ModifierState {
+    shift: bool,
+    ctrl: bool,
+    alt: bool,
+    meta: bool, // Cmd on macOS, Win on Windows
+}
+
+impl ModifierState {
+    fn any_modifier(&self) -> bool {
+        self.ctrl || self.alt || self.meta
+    }
+
+    fn update(&mut self, key: Key, pressed: bool) {
+        match key {
+            Key::ShiftLeft | Key::ShiftRight => self.shift = pressed,
+            Key::ControlLeft | Key::ControlRight => self.ctrl = pressed,
+            Key::Alt | Key::AltGr => self.alt = pressed,
+            Key::MetaLeft | Key::MetaRight => self.meta = pressed,
+            _ => {}
+        }
+    }
+
+    fn is_modifier_key(key: Key) -> bool {
+        matches!(
+            key,
+            Key::ShiftLeft
+                | Key::ShiftRight
+                | Key::ControlLeft
+                | Key::ControlRight
+                | Key::Alt
+                | Key::AltGr
+                | Key::MetaLeft
+                | Key::MetaRight
+        )
+    }
+}
+
 /// Internal state for tracking typed input
 struct InputState {
     buffer: String,
     last_keystroke: Option<Instant>,
     session_start: Option<Instant>,
     current_app: ActiveAppInfo,
+    modifiers: ModifierState,
 }
 
 impl Default for InputState {
@@ -41,6 +103,7 @@ impl Default for InputState {
             last_keystroke: None,
             session_start: None,
             current_app: ActiveAppInfo::default(),
+            modifiers: ModifierState::default(),
         }
     }
 }
@@ -122,9 +185,14 @@ struct InputEntry {
 /// Manager for tracking system-wide input and storing entries
 pub struct InputTrackerManager {
     enabled: Arc<AtomicBool>,
-    state: Arc<Mutex<InputState>>,
     db_path: PathBuf,
     excluded_apps: Arc<RwLock<Vec<String>>>,
+    /// Idle timeout in seconds. 0 means disabled (only count on app switch/click)
+    idle_timeout_secs: Arc<AtomicU64>,
+    /// Channel sender for events
+    event_sender: Option<mpsc::Sender<InputTrackerEvent>>,
+    /// App handle for emitting Tauri events
+    app_handle: Option<AppHandle>,
 }
 
 impl InputTrackerManager {
@@ -140,12 +208,17 @@ impl InputTrackerManager {
 
         let settings = crate::settings::get_settings(app_handle);
         let excluded_apps = settings.input_tracking_excluded_apps.clone();
+        let idle_timeout = settings
+            .input_tracking_idle_timeout
+            .unwrap_or(DEFAULT_INPUT_IDLE_TIMEOUT_SECS);
 
         let manager = Self {
             enabled: Arc::new(AtomicBool::new(false)),
-            state: Arc::new(Mutex::new(InputState::default())),
             db_path,
             excluded_apps: Arc::new(RwLock::new(excluded_apps)),
+            idle_timeout_secs: Arc::new(AtomicU64::new(idle_timeout)),
+            event_sender: None,
+            app_handle: Some(app_handle.clone()),
         };
 
         Ok(manager)
@@ -159,15 +232,25 @@ impl InputTrackerManager {
         }
     }
 
+    /// Update the idle timeout in seconds. 0 means disabled.
+    pub fn set_idle_timeout(&self, timeout_secs: u64) {
+        self.idle_timeout_secs.store(timeout_secs, Ordering::SeqCst);
+        log::info!(
+            "[InputTracker] Updated idle timeout to {} seconds",
+            timeout_secs
+        );
+    }
+
     /// Check if an app is excluded
     fn is_app_excluded(excluded: &[String], app_info: &ActiveAppInfo) -> bool {
-        app_info
-            .bundle_id
-            .as_ref()
-            .map_or(false, |id| excluded.iter().any(|e| e.eq_ignore_ascii_case(id)))
-            || excluded
-                .iter()
-                .any(|e| e.eq_ignore_ascii_case(&app_info.name))
+        let by_bundle_id = app_info.bundle_id.as_ref().map_or(false, |id| {
+            excluded.iter().any(|e| e.eq_ignore_ascii_case(id))
+        });
+        let by_name = excluded
+            .iter()
+            .any(|e| e.eq_ignore_ascii_case(&app_info.name));
+
+        by_bundle_id || by_name
     }
 
     /// Start the input tracking listener
@@ -177,172 +260,237 @@ impl InputTrackerManager {
             return Ok(());
         }
 
-        log::info!("[InputTracker] Starting input tracker...");
+        log::info!("[InputTracker] Starting input tracker with event-based architecture...");
         self.enabled.store(true, Ordering::SeqCst);
+        self.app_handle = Some(app_handle.clone());
 
-        let enabled = self.enabled.clone();
-        let state = self.state.clone();
+        // Create the event channel
+        let (tx, rx) = mpsc::channel::<InputTrackerEvent>();
+        self.event_sender = Some(tx.clone());
+
         let db_path = self.db_path.clone();
         let excluded_apps = self.excluded_apps.clone();
-        let app = app_handle.clone();
+        let idle_timeout_secs = self.idle_timeout_secs.clone();
 
-        // Spawn the app monitor and idle checker thread
-        let monitor_enabled = self.enabled.clone();
-        let monitor_state = self.state.clone();
-        let monitor_db_path = self.db_path.clone();
-        let monitor_excluded = self.excluded_apps.clone();
-        let monitor_app = app_handle.clone();
-
+        // Spawn the main event processor thread
+        let processor_app_handle = app_handle.clone();
         thread::spawn(move || {
-            log::info!("[InputTracker] App monitor thread started");
-            let mut last_app = ActiveAppInfo::default();
+            log::info!("[InputTracker] Event processor thread started");
+            let mut state = InputState::default();
+            let mut current_app = ActiveAppInfo::default();
 
-            while monitor_enabled.load(Ordering::SeqCst) {
-                thread::sleep(APP_CHECK_INTERVAL);
+            // Get initial app info
+            current_app = get_active_app_info_fast();
+            state.set_current_app(current_app.clone());
+            log::info!(
+                "[InputTracker] Initial app: '{}' ({:?})",
+                current_app.name,
+                current_app.bundle_id
+            );
 
-                let current_app = get_active_app_info();
+            for event in rx {
+                match event {
+                    InputTrackerEvent::AppChanged(new_app) => {
+                        if new_app != current_app && !current_app.name.is_empty() {
+                            log::info!(
+                                "[InputTracker] App changed: {} -> {}",
+                                current_app.name,
+                                new_app.name
+                            );
 
-                // Check if app changed
-                if current_app != last_app && !last_app.name.is_empty() {
-                    log::info!(
-                        "[InputTracker] App changed: {} -> {}",
-                        last_app.name,
-                        current_app.name
-                    );
+                            // Check if previous app was excluded
+                            let prev_excluded = {
+                                let excluded = excluded_apps.read().unwrap();
+                                Self::is_app_excluded(&excluded, &current_app)
+                            };
 
-                    // Check if previous app was excluded
-                    let prev_excluded = {
-                        let excluded = monitor_excluded.read().unwrap();
-                        Self::is_app_excluded(&excluded, &last_app)
-                    };
+                            if !prev_excluded {
+                                if let Some(entry) = state.take_entry() {
+                                    save_entry_to_db(&db_path, &entry, &processor_app_handle);
+                                }
+                            } else {
+                                state.clear();
+                            }
 
-                    if !prev_excluded {
-                        if let Some(entry) = {
-                            let mut state = monitor_state.lock().unwrap();
-                            state.take_entry()
-                        } {
-                            save_entry_to_db(&monitor_db_path, &entry);
-                            send_notification(&monitor_app, &entry);
+                            state.set_current_app(new_app.clone());
+                            current_app = new_app;
+                        } else if current_app.name.is_empty() {
+                            current_app = new_app.clone();
+                            state.set_current_app(new_app);
                         }
-                    } else {
-                        let mut state = monitor_state.lock().unwrap();
-                        state.clear();
                     }
+                    InputTrackerEvent::Keystroke(keystroke) => {
+                        // Check if current app is excluded
+                        let is_excluded = {
+                            let excluded = excluded_apps.read().unwrap();
+                            Self::is_app_excluded(&excluded, &current_app)
+                        };
 
-                    // Update state with new app
-                    {
-                        let mut state = monitor_state.lock().unwrap();
-                        state.set_current_app(current_app.clone());
-                    }
-
-                    last_app = current_app;
-                } else if last_app.name.is_empty() {
-                    // Initial app detection
-                    last_app = current_app.clone();
-                    let mut state = monitor_state.lock().unwrap();
-                    state.set_current_app(current_app);
-                }
-
-                // Check for idle timeout
-                let is_excluded = {
-                    let excluded = monitor_excluded.read().unwrap();
-                    Self::is_app_excluded(&excluded, &last_app)
-                };
-
-                if !is_excluded {
-                    let should_save = {
-                        let state = monitor_state.lock().unwrap();
-                        state.is_idle(INPUT_IDLE_TIMEOUT) && state.has_content()
-                    };
-
-                    if should_save {
-                        if let Some(entry) = {
-                            let mut state = monitor_state.lock().unwrap();
-                            state.take_entry()
-                        } {
-                            log::info!("[InputTracker] Idle timeout, saving: '{}'", entry.content);
-                            save_entry_to_db(&monitor_db_path, &entry);
-                            send_notification(&monitor_app, &entry);
+                        if is_excluded {
+                            continue;
                         }
+
+                        if keystroke.is_press {
+                            state.modifiers.update(keystroke.key, true);
+
+                            if ModifierState::is_modifier_key(keystroke.key) {
+                                continue;
+                            }
+
+                            let is_submit_key = matches!(
+                                keystroke.key,
+                                Key::Return | Key::Tab | Key::Escape
+                            );
+                            let is_save_shortcut = (state.modifiers.meta || state.modifiers.ctrl)
+                                && matches!(keystroke.key, Key::KeyS);
+                            let is_navigation_shortcut = state.modifiers.meta
+                                && matches!(
+                                    keystroke.key,
+                                    Key::UpArrow | Key::DownArrow | Key::LeftArrow | Key::RightArrow
+                                );
+
+                            if is_submit_key || is_save_shortcut {
+                                if let Some(entry) = state.take_entry() {
+                                    let reason =
+                                        if is_save_shortcut { "save shortcut" } else { "submit key" };
+                                    log::info!(
+                                        "[InputTracker] {} {:?}, saving: '{}'",
+                                        reason,
+                                        keystroke.key,
+                                        entry.content
+                                    );
+                                    save_entry_to_db(&db_path, &entry, &processor_app_handle);
+                                }
+                            } else if matches!(keystroke.key, Key::Backspace) {
+                                if !state.modifiers.meta && !state.modifiers.ctrl {
+                                    state.handle_backspace();
+                                } else {
+                                    state.clear();
+                                }
+                            } else if is_navigation_shortcut {
+                                if let Some(entry) = state.take_entry() {
+                                    log::info!(
+                                        "[InputTracker] Navigation shortcut {:?}, saving: '{}'",
+                                        keystroke.key,
+                                        entry.content
+                                    );
+                                    save_entry_to_db(&db_path, &entry, &processor_app_handle);
+                                }
+                            } else if state.modifiers.any_modifier() {
+                                state.last_keystroke = Some(Instant::now());
+                            } else if let Some(ref unicode) = keystroke.unicode {
+                                for c in unicode.chars() {
+                                    if c.is_ascii_graphic() || c == ' ' {
+                                        state.append_char(c);
+                                    }
+                                }
+                            }
+                        } else {
+                            state.modifiers.update(keystroke.key, false);
+                        }
+                    }
+                    InputTrackerEvent::Click => {
+                        let is_excluded = {
+                            let excluded = excluded_apps.read().unwrap();
+                            Self::is_app_excluded(&excluded, &current_app)
+                        };
+
+                        if !is_excluded {
+                            if let Some(entry) = state.take_entry() {
+                                log::info!("[InputTracker] Click, saving: '{}'", entry.content);
+                                save_entry_to_db(&db_path, &entry, &processor_app_handle);
+                            }
+                        }
+
+                        // On click, also check if app changed (handles Dock clicks, etc.)
+                        let new_app = get_active_app_info_fast();
+                        if new_app != current_app {
+                            log::info!(
+                                "[InputTracker] App changed on click: {} -> {}",
+                                current_app.name,
+                                new_app.name
+                            );
+                            state.set_current_app(new_app.clone());
+                            current_app = new_app;
+                        }
+                    }
+                    InputTrackerEvent::IdleCheck => {
+                        let timeout_secs = idle_timeout_secs.load(Ordering::SeqCst);
+                        if timeout_secs > 0 {
+                            let is_excluded = {
+                                let excluded = excluded_apps.read().unwrap();
+                                Self::is_app_excluded(&excluded, &current_app)
+                            };
+
+                            if !is_excluded
+                                && state.is_idle(Duration::from_secs(timeout_secs))
+                                && state.has_content()
+                            {
+                                if let Some(entry) = state.take_entry() {
+                                    log::info!(
+                                        "[InputTracker] Idle timeout, saving: '{}'",
+                                        entry.content
+                                    );
+                                    save_entry_to_db(&db_path, &entry, &processor_app_handle);
+                                }
+                            }
+                        }
+                    }
+                    InputTrackerEvent::Shutdown => {
+                        log::info!("[InputTracker] Received shutdown signal");
+                        // Save any remaining content
+                        if let Some(entry) = state.take_entry() {
+                            log::info!(
+                                "[InputTracker] Saving remaining on shutdown: '{}'",
+                                entry.content
+                            );
+                            save_entry_to_db(&db_path, &entry, &processor_app_handle);
+                        }
+                        break;
                     }
                 }
             }
-            log::info!("[InputTracker] App monitor thread stopped");
+            log::info!("[InputTracker] Event processor thread stopped");
         });
 
-        // Spawn the keyboard listener thread
+        // Spawn the keyboard/mouse listener thread
+        let keyboard_tx = tx.clone();
+        let keyboard_enabled = self.enabled.clone();
         thread::spawn(move || {
             log::info!("[InputTracker] Keyboard listener thread starting...");
 
             let callback = move |event: Event| {
-                if !enabled.load(Ordering::SeqCst) {
-                    return;
-                }
-
-                // Check if current app is excluded
-                let is_excluded = {
-                    let state_guard = state.lock().unwrap();
-                    let excluded = excluded_apps.read().unwrap();
-                    Self::is_app_excluded(&excluded, &state_guard.current_app)
-                };
-
-                if is_excluded {
+                if !keyboard_enabled.load(Ordering::SeqCst) {
                     return;
                 }
 
                 match event.event_type {
                     EventType::KeyPress(key) => {
-                        let mut state_guard = state.lock().unwrap();
+                        let unicode = event.unicode.and_then(|u| {
+                            if let Some(name) = u.name {
+                                Some(name)
+                            } else if !u.unicode.is_empty() {
+                                String::from_utf16(&u.unicode).ok()
+                            } else {
+                                None
+                            }
+                        });
 
-                        match key {
-                            Key::Return | Key::Tab | Key::Escape => {
-                                if let Some(entry) = state_guard.take_entry() {
-                                    drop(state_guard);
-                                    log::info!(
-                                        "[InputTracker] Exit key {:?}, saving: '{}'",
-                                        key,
-                                        entry.content
-                                    );
-                                    save_entry_to_db(&db_path, &entry);
-                                    send_notification(&app, &entry);
-                                }
-                            }
-                            Key::Backspace => {
-                                state_guard.handle_backspace();
-                            }
-                            _ => {
-                                if let Some(ref unicode_info) = event.unicode {
-                                    if let Some(ref name) = unicode_info.name {
-                                        for c in name.chars() {
-                                            if c.is_ascii_graphic() || c == ' ' {
-                                                state_guard.append_char(c);
-                                            }
-                                        }
-                                    } else if !unicode_info.unicode.is_empty() {
-                                        if let Ok(decoded) =
-                                            String::from_utf16(&unicode_info.unicode)
-                                        {
-                                            for c in decoded.chars() {
-                                                if c.is_ascii_graphic() || c == ' ' {
-                                                    state_guard.append_char(c);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        let _ = keyboard_tx.send(InputTrackerEvent::Keystroke(KeystrokeEvent {
+                            key,
+                            unicode,
+                            is_press: true,
+                        }));
+                    }
+                    EventType::KeyRelease(key) => {
+                        let _ = keyboard_tx.send(InputTrackerEvent::Keystroke(KeystrokeEvent {
+                            key,
+                            unicode: None,
+                            is_press: false,
+                        }));
                     }
                     EventType::ButtonPress(_) => {
-                        let entry = {
-                            let mut state_guard = state.lock().unwrap();
-                            state_guard.take_entry()
-                        };
-                        if let Some(entry) = entry {
-                            log::info!("[InputTracker] Click, saving: '{}'", entry.content);
-                            save_entry_to_db(&db_path, &entry);
-                            send_notification(&app, &entry);
-                        }
+                        let _ = keyboard_tx.send(InputTrackerEvent::Click);
                     }
                     _ => {}
                 }
@@ -355,6 +503,29 @@ impl InputTrackerManager {
             log::info!("[InputTracker] rdev::listen exited");
         });
 
+        // Spawn the idle timeout checker thread
+        let idle_tx = tx.clone();
+        let idle_enabled = self.enabled.clone();
+        thread::spawn(move || {
+            log::info!("[InputTracker] Idle checker thread started");
+            while idle_enabled.load(Ordering::SeqCst) {
+                thread::sleep(IDLE_CHECK_INTERVAL);
+                if idle_tx.send(InputTrackerEvent::IdleCheck).is_err() {
+                    break;
+                }
+            }
+            log::info!("[InputTracker] Idle checker thread stopped");
+        });
+
+        // Spawn the app change watcher thread (fallback polling with longer interval)
+        let app_tx = tx.clone();
+        let app_enabled = self.enabled.clone();
+        thread::spawn(move || {
+            log::info!("[InputTracker] App watcher thread started");
+            start_app_change_watcher(app_tx, app_enabled);
+            log::info!("[InputTracker] App watcher thread stopped");
+        });
+
         log::info!("[InputTracker] Input tracker started successfully");
         Ok(())
     }
@@ -364,9 +535,11 @@ impl InputTrackerManager {
         log::info!("[InputTracker] Stopping input tracker...");
         self.enabled.store(false, Ordering::SeqCst);
 
-        if let Ok(mut state) = self.state.lock() {
-            state.clear();
+        // Send shutdown event
+        if let Some(ref sender) = self.event_sender {
+            let _ = sender.send(InputTrackerEvent::Shutdown);
         }
+        self.event_sender = None;
 
         log::info!("[InputTracker] Input tracker stopped");
     }
@@ -389,43 +562,239 @@ impl InputTrackerManager {
     }
 }
 
+/// Start watching for app changes using polling with a longer interval
+/// App switches are also detected on click events, so this serves as a fallback
+/// for keyboard-only app switching (e.g., Cmd+Tab)
+fn start_app_change_watcher(tx: mpsc::Sender<InputTrackerEvent>, enabled: Arc<AtomicBool>) {
+    // Use a longer poll interval since:
+    // 1. Click events already trigger app change detection
+    // 2. This is just a fallback for Cmd+Tab style switching
+    // 3. Reduces AppleScript overhead significantly
+    const APP_POLL_INTERVAL: Duration = Duration::from_millis(2000);
+
+    let mut last_app = get_active_app_info_fast();
+    let _ = tx.send(InputTrackerEvent::AppChanged(last_app.clone()));
+
+    while enabled.load(Ordering::SeqCst) {
+        thread::sleep(APP_POLL_INTERVAL);
+
+        if !enabled.load(Ordering::SeqCst) {
+            break;
+        }
+
+        let current_app = get_active_app_info_fast();
+        if current_app != last_app {
+            log::debug!(
+                "[InputTracker] App watcher detected change: {} -> {}",
+                last_app.name,
+                current_app.name
+            );
+            if tx
+                .send(InputTrackerEvent::AppChanged(current_app.clone()))
+                .is_err()
+            {
+                break;
+            }
+            last_app = current_app;
+        }
+    }
+}
+
 /// Get information about the currently active (frontmost) application
-/// Uses a cached AppleScript approach for better performance
+/// Uses AppleScript to get the displayed name (not process name) and bundle ID
 #[cfg(target_os = "macos")]
-fn get_active_app_info() -> ActiveAppInfo {
+fn get_active_app_info_fast() -> ActiveAppInfo {
     use std::process::Command;
 
-    // Simplified script that's faster to execute
+    // Use "displayed name" instead of "name" to get the proper app name
+    // For Electron apps, "name" returns "Electron" but "displayed name" returns "Visual Studio Code"
+    // We also get the bundle identifier which is more reliable for identification
     let output = Command::new("osascript")
-        .args(["-e", "tell application \"System Events\" to get {name, bundle identifier} of first application process whose frontmost is true"])
+        .args([
+            "-e",
+            r#"tell application "System Events"
+                set frontApp to first process whose frontmost is true
+                set appName to displayed name of frontApp
+                set bundleId to bundle identifier of frontApp
+                return appName & "|||" & bundleId
+            end tell"#,
+        ])
         .output();
 
     match output {
         Ok(output) if output.status.success() => {
-            let result = String::from_utf8_lossy(&output.stdout);
-            // Output format: "AppName, com.bundle.id"
-            let trimmed = result.trim();
-            if let Some(comma_pos) = trimmed.find(", ") {
-                let name = trimmed[..comma_pos].to_string();
-                let bundle_id = trimmed[comma_pos + 2..].to_string();
-                return ActiveAppInfo {
-                    name,
-                    bundle_id: Some(bundle_id),
-                };
-            }
+            let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let parts: Vec<&str> = result.split("|||").collect();
+
+            let name = parts.first().map(|s| s.to_string()).unwrap_or_default();
+            let bundle_id = parts.get(1).and_then(|s| {
+                let s = s.trim();
+                if s.is_empty() || s == "missing value" {
+                    None
+                } else {
+                    Some(s.to_string())
+                }
+            });
+
+            ActiveAppInfo { name, bundle_id }
+        }
+        _ => {
+            log::debug!("[InputTracker] Failed to get frontmost app info");
             ActiveAppInfo::default()
         }
-        _ => ActiveAppInfo::default(),
     }
 }
 
-#[cfg(not(target_os = "macos"))]
-fn get_active_app_info() -> ActiveAppInfo {
+/// Get information about the currently active window on Windows
+/// Uses PowerShell to get the foreground window process name
+#[cfg(target_os = "windows")]
+fn get_active_app_info_fast() -> ActiveAppInfo {
+    use std::process::Command;
+
+    // PowerShell script to get the foreground window's process name and path
+    let output = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            r#"
+            Add-Type @"
+                using System;
+                using System.Runtime.InteropServices;
+                using System.Text;
+                public class Win32 {
+                    [DllImport("user32.dll")]
+                    public static extern IntPtr GetForegroundWindow();
+                    [DllImport("user32.dll")]
+                    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+                }
+"@
+            $hwnd = [Win32]::GetForegroundWindow()
+            $pid = 0
+            [Win32]::GetWindowThreadProcessId($hwnd, [ref]$pid) | Out-Null
+            if ($pid -gt 0) {
+                $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+                if ($proc) {
+                    # Try to get the FileDescription (friendly name) from the executable
+                    $desc = ""
+                    try {
+                        $desc = $proc.MainModule.FileVersionInfo.FileDescription
+                    } catch {}
+                    if ([string]::IsNullOrWhiteSpace($desc)) {
+                        $desc = $proc.ProcessName
+                    }
+                    Write-Output "$desc|||$($proc.Path)"
+                }
+            }
+            "#,
+        ])
+        .output();
+
+    match output {
+        Ok(output) if output.status.success() => {
+            let result = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let parts: Vec<&str> = result.split("|||").collect();
+
+            let name = parts.first().map(|s| s.to_string()).unwrap_or_default();
+            // On Windows, we use the executable path as a pseudo bundle ID
+            let bundle_id = parts.get(1).map(|s| s.trim().to_string());
+
+            if name.is_empty() {
+                ActiveAppInfo::default()
+            } else {
+                ActiveAppInfo { name, bundle_id }
+            }
+        }
+        _ => {
+            log::debug!("[InputTracker] Failed to get foreground window info");
+            ActiveAppInfo::default()
+        }
+    }
+}
+
+/// Get information about the currently active window on Linux
+/// Uses xdotool to get the active window information
+#[cfg(target_os = "linux")]
+fn get_active_app_info_fast() -> ActiveAppInfo {
+    use std::process::Command;
+
+    // First try to get the active window ID using xdotool
+    let window_id_output = Command::new("xdotool")
+        .args(["getactivewindow"])
+        .output();
+
+    let window_id = match window_id_output {
+        Ok(output) if output.status.success() => {
+            String::from_utf8_lossy(&output.stdout).trim().to_string()
+        }
+        _ => {
+            log::debug!("[InputTracker] xdotool not available or failed");
+            return ActiveAppInfo::default();
+        }
+    };
+
+    if window_id.is_empty() {
+        return ActiveAppInfo::default();
+    }
+
+    // Get the window name (title)
+    let name_output = Command::new("xdotool")
+        .args(["getwindowname", &window_id])
+        .output();
+
+    // Get the WM_CLASS which is more reliable for app identification
+    let class_output = Command::new("xprop")
+        .args(["-id", &window_id, "WM_CLASS"])
+        .output();
+
+    let name = match name_output {
+        Ok(output) if output.status.success() => {
+            String::from_utf8_lossy(&output.stdout).trim().to_string()
+        }
+        _ => String::new(),
+    };
+
+    // Parse WM_CLASS to get the application class name
+    // Output format: WM_CLASS(STRING) = "instance", "class"
+    let bundle_id = match class_output {
+        Ok(output) if output.status.success() => {
+            let class_str = String::from_utf8_lossy(&output.stdout);
+            // Extract the class name (second quoted string)
+            class_str
+                .split('"')
+                .nth(3)
+                .map(|s| s.to_string())
+        }
+        _ => None,
+    };
+
+    // Use the class name as display name if window title is too long or generic
+    let display_name = if let Some(ref class) = bundle_id {
+        // Use class name as it's more consistent
+        class.clone()
+    } else {
+        name
+    };
+
+    if display_name.is_empty() {
+        ActiveAppInfo::default()
+    } else {
+        ActiveAppInfo {
+            name: display_name,
+            bundle_id,
+        }
+    }
+}
+
+/// Fallback for unsupported platforms
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+fn get_active_app_info_fast() -> ActiveAppInfo {
+    log::debug!("[InputTracker] Active app detection not supported on this platform");
     ActiveAppInfo::default()
 }
 
-/// Save an input entry to the database
-fn save_entry_to_db(db_path: &PathBuf, entry: &InputEntry) {
+/// Save an input entry to the database and emit event to frontend
+fn save_entry_to_db(db_path: &PathBuf, entry: &InputEntry, app_handle: &AppHandle) {
     match Connection::open(db_path) {
         Ok(conn) => {
             // Ensure table exists (handles migration edge cases)
@@ -438,7 +807,9 @@ fn save_entry_to_db(db_path: &PathBuf, entry: &InputEntry) {
                 .unwrap_or(false);
 
             if !table_exists {
-                log::warn!("[InputTracker] Creating input_entries table (migration may have been skipped)");
+                log::warn!(
+                    "[InputTracker] Creating input_entries table (migration may have been skipped)"
+                );
                 if let Err(e) = conn.execute_batch(
                     "CREATE TABLE IF NOT EXISTS input_entries (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -470,37 +841,21 @@ fn save_entry_to_db(db_path: &PathBuf, entry: &InputEntry) {
             );
 
             match result {
-                Ok(_) => log::info!(
-                    "[InputTracker] Saved to DB: app={}, len={}",
-                    entry.app_name,
-                    entry.content.len()
-                ),
+                Ok(_) => {
+                    log::info!(
+                        "[InputTracker] Saved to DB: app={}, len={}",
+                        entry.app_name,
+                        entry.content.len()
+                    );
+                    // Emit event to notify frontend
+                    if let Err(e) = app_handle.emit("input-entries-updated", ()) {
+                        log::warn!("[InputTracker] Failed to emit update event: {}", e);
+                    }
+                }
                 Err(e) => log::error!("[InputTracker] DB save failed: {}", e),
             }
         }
         Err(e) => log::error!("[InputTracker] DB open failed: {}", e),
-    }
-}
-
-/// Send a notification with the captured input text
-fn send_notification(app: &AppHandle, entry: &InputEntry) {
-    let truncated = if entry.content.len() > 100 {
-        format!("{}...", &entry.content[..100])
-    } else {
-        entry.content.clone()
-    };
-
-    let title = format!("Input from {}", entry.app_name);
-
-    match app
-        .notification()
-        .builder()
-        .title(&title)
-        .body(&truncated)
-        .show()
-    {
-        Ok(_) => log::debug!("[InputTracker] Notification sent"),
-        Err(e) => log::error!("[InputTracker] Notification failed: {}", e),
     }
 }
 

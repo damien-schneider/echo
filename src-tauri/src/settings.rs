@@ -221,6 +221,9 @@ pub struct AppSettings {
     pub input_tracking_enabled: bool,
     #[serde(default)]
     pub input_tracking_excluded_apps: Vec<String>,
+    /// Idle timeout in seconds for input tracking. None or 0 means disabled (only count on app switch/click).
+    #[serde(default = "default_input_tracking_idle_timeout")]
+    pub input_tracking_idle_timeout: Option<u64>,
 }
 
 fn default_model() -> String {
@@ -268,6 +271,10 @@ fn default_history_limit() -> usize {
 
 fn default_recording_retention_period() -> RecordingRetentionPeriod {
     RecordingRetentionPeriod::PreserveLimit
+}
+
+fn default_input_tracking_idle_timeout() -> Option<u64> {
+    Some(2) // Default 2 seconds
 }
 
 fn default_audio_feedback_volume() -> f32 {
@@ -418,6 +425,7 @@ pub fn get_default_settings() -> AppSettings {
         mute_while_recording: false,
         input_tracking_enabled: false,
         input_tracking_excluded_apps: Vec::new(),
+        input_tracking_idle_timeout: default_input_tracking_idle_timeout(),
     }
 }
 

@@ -2,12 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import "./App.css";
+import Footer from "@/components/footer/footer-application";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { getNormalizedOsPlatform } from "@/lib/os";
 import { cn } from "@/lib/utils";
 import { AccessibilityPermissions } from "./components/accessibility-permissions";
-import Footer from "./components/footer";
 import Onboarding from "./components/onboarding";
 import {
   SECTIONS_CONFIG,

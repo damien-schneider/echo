@@ -13,6 +13,7 @@ export { EchoShortcut } from "./echo-shortcut";
 export { HistorySettings } from "./history/history-settings";
 export { HistoryLimit } from "./history-limit";
 export { InputTrackingExcludedApps } from "./input-tracking-excluded-apps";
+export { InputTrackingIdleTimeout } from "./input-tracking-idle-timeout";
 export { InputTrackingToggle } from "./input-tracking-toggle";
 export { KeyboardTrackingSettings } from "./keyboard-tracking/keyboard-tracking-settings";
 // Individual setting components

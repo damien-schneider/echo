@@ -3,19 +3,22 @@ mod audio_feedback;
 pub mod audio_toolkit;
 mod clipboard;
 mod commands;
+mod features;
 mod helpers;
 mod llm_client;
 mod logging;
 mod managers;
 mod overlay;
 mod settings;
-mod shortcut;
 #[cfg(unix)]
 mod signal_handle;
 mod startup;
 mod tray;
 mod utils;
 mod window_effects;
+
+// Re-export shortcut module from features for convenience
+use features::shortcut;
 
 use managers::audio::AudioRecordingManager;
 use managers::history::HistoryManager;
@@ -300,40 +303,47 @@ pub fn run() {
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
-            shortcut::change_binding,
-            shortcut::reset_binding,
-            shortcut::change_ptt_setting,
-            shortcut::change_audio_feedback_setting,
-            shortcut::change_audio_feedback_volume_setting,
-            shortcut::change_sound_theme_setting,
-            shortcut::change_start_hidden_setting,
-            shortcut::change_autostart_setting,
-            shortcut::change_translate_to_english_setting,
-            shortcut::change_selected_language_setting,
-            shortcut::change_overlay_position_setting,
-            shortcut::change_debug_mode_setting,
-            shortcut::change_beta_features_setting,
-            shortcut::change_debug_logging_setting,
-            shortcut::change_word_correction_threshold_setting,
-            shortcut::change_paste_method_setting,
-            shortcut::change_clipboard_handling_setting,
-            shortcut::change_post_process_base_url_setting,
-            shortcut::change_post_process_api_key_setting,
-            shortcut::change_post_process_model_setting,
-            shortcut::set_post_process_provider,
-            shortcut::fetch_post_process_models,
-            shortcut::add_post_process_prompt,
-            shortcut::update_post_process_prompt,
-            shortcut::delete_post_process_prompt,
-            shortcut::set_post_process_selected_prompt,
-            shortcut::update_custom_words,
-            shortcut::suspend_binding,
-            shortcut::resume_binding,
-            shortcut::change_mute_while_recording_setting,
-            shortcut::change_input_tracking_setting,
-            shortcut::change_input_tracking_excluded_apps,
-            shortcut::register_escape_shortcut,
-            shortcut::unregister_escape_shortcut,
+            // Shortcut bindings commands
+            shortcut::bindings::change_binding,
+            shortcut::bindings::reset_binding,
+            shortcut::bindings::suspend_binding,
+            shortcut::bindings::resume_binding,
+            // Shortcut escape commands
+            shortcut::escape::register_escape_shortcut,
+            shortcut::escape::unregister_escape_shortcut,
+            // Audio settings commands
+            shortcut::settings::audio::change_ptt_setting,
+            shortcut::settings::audio::change_audio_feedback_setting,
+            shortcut::settings::audio::change_audio_feedback_volume_setting,
+            shortcut::settings::audio::change_sound_theme_setting,
+            shortcut::settings::audio::change_mute_while_recording_setting,
+            // General settings commands
+            shortcut::settings::general::change_start_hidden_setting,
+            shortcut::settings::general::change_autostart_setting,
+            shortcut::settings::general::change_translate_to_english_setting,
+            shortcut::settings::general::change_selected_language_setting,
+            shortcut::settings::general::change_overlay_position_setting,
+            shortcut::settings::general::change_debug_mode_setting,
+            shortcut::settings::general::change_beta_features_setting,
+            shortcut::settings::general::change_debug_logging_setting,
+            shortcut::settings::general::change_word_correction_threshold_setting,
+            shortcut::settings::general::change_paste_method_setting,
+            shortcut::settings::general::change_clipboard_handling_setting,
+            shortcut::settings::general::update_custom_words,
+            // Post-process settings commands
+            shortcut::settings::post_process::change_post_process_base_url_setting,
+            shortcut::settings::post_process::change_post_process_api_key_setting,
+            shortcut::settings::post_process::change_post_process_model_setting,
+            shortcut::settings::post_process::set_post_process_provider,
+            shortcut::settings::post_process::fetch_post_process_models,
+            shortcut::settings::post_process::add_post_process_prompt,
+            shortcut::settings::post_process::update_post_process_prompt,
+            shortcut::settings::post_process::delete_post_process_prompt,
+            shortcut::settings::post_process::set_post_process_selected_prompt,
+            // Input tracking settings commands
+            shortcut::settings::input_tracking::change_input_tracking_setting,
+            shortcut::settings::input_tracking::change_input_tracking_excluded_apps,
+            shortcut::settings::input_tracking::change_input_tracking_idle_timeout,
             trigger_update_check,
             startup::mark_frontend_ready,
             commands::cancel_operation,

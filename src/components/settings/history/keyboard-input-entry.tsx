@@ -1,3 +1,4 @@
+import { formatDistanceToNow } from "date-fns";
 import { Check, Copy, Trash2 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
@@ -59,7 +60,7 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
 
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
-    return date.toLocaleString();
+    return formatDistanceToNow(date, { addSuffix: true });
   };
 
   const formatDuration = (durationMs: number) => {

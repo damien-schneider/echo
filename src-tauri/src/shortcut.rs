@@ -766,6 +766,28 @@ pub fn change_input_tracking_excluded_apps(app: AppHandle, apps: Vec<String>) ->
     Ok(())
 }
 
+#[tauri::command]
+pub fn change_input_tracking_idle_timeout(app: AppHandle, timeout_secs: Option<u64>) -> Result<(), String> {
+    use crate::managers::input_tracker::InputTrackerManager;
+    use std::sync::Arc;
+
+    log::info!("[InputTracker] change_input_tracking_idle_timeout called with timeout={:?}", timeout_secs);
+
+    let mut settings = settings::get_settings(&app);
+    settings.input_tracking_idle_timeout = timeout_secs;
+    settings::write_settings(&app, settings);
+
+    // Update the input tracker manager
+    if let Some(manager) = app.try_state::<Arc<std::sync::Mutex<InputTrackerManager>>>() {
+        if let Ok(tracker) = manager.lock() {
+            // 0 means disabled, None also means disabled
+            tracker.set_idle_timeout(timeout_secs.unwrap_or(0));
+        }
+    }
+
+    Ok(())
+}
+
 /// Determine whether a shortcut string contains at least one non-modifier key.
 /// We allow single non-modifier keys (e.g. "f5" or "space") but disallow
 /// modifier-only combos (e.g. "ctrl" or "ctrl+shift").

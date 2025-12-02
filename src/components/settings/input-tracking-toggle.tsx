@@ -18,11 +18,11 @@ export const InputTrackingToggle = ({
 
   return (
     <SettingContainer
-      description="Track text typed in any application and receive a notification when you leave an input field. Requires accessibility permissions."
+      description="Track text typed in any application. Entries are saved when switching apps, clicking, or after idle timeout. Requires accessibility permissions."
       descriptionMode={descriptionMode}
       grouped={grouped}
       icon={<Keyboard className="h-4 w-4" />}
-      title="Input Tracking Notifications"
+      title="Enable Input Tracking"
     >
       <Switch
         checked={inputTrackingEnabled}

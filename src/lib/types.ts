@@ -122,6 +122,7 @@ export const SettingsSchema = z.object({
   mute_while_recording: z.boolean().optional().default(false),
   input_tracking_enabled: z.boolean().optional().default(false),
   input_tracking_excluded_apps: z.array(z.string()).optional().default([]),
+  input_tracking_idle_timeout: z.number().nullable().optional().default(2),
 });
 
 export const BindingResponseSchema = z.object({
