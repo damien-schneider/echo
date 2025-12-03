@@ -23,6 +23,7 @@ type MarkdownEditorProps = {
   showToolbar?: boolean;
   showSlashMenu?: boolean;
   showDragHandle?: boolean;
+  showMentionMenu?: boolean;
 };
 
 export function MarkdownEditor({
@@ -36,6 +37,7 @@ export function MarkdownEditor({
   showToolbar = true,
   showSlashMenu = true,
   showDragHandle = true,
+  showMentionMenu = false,
 }: MarkdownEditorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -53,6 +55,7 @@ export function MarkdownEditor({
     autoFocus,
     editable,
     lowlight,
+    enableMentions: showMentionMenu,
   });
 
   if (!editor) {

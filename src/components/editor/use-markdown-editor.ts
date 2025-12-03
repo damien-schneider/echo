@@ -1,7 +1,9 @@
 "use client";
 
+import type { AnyExtension } from "@tiptap/core";
 import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
 import Link from "@tiptap/extension-link";
+import Mention from "@tiptap/extension-mention";
 import NodeRange from "@tiptap/extension-node-range";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
@@ -10,7 +12,9 @@ import { Placeholder } from "@tiptap/extensions";
 import { useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import type { createLowlight } from "lowlight";
+import { useMemo } from "react";
 import { Markdown } from "tiptap-markdown";
+import { mentionSuggestion } from "./mention-suggestion";
 
 type UseMarkdownEditorOptions = {
   content?: string;
@@ -19,6 +23,7 @@ type UseMarkdownEditorOptions = {
   autoFocus?: boolean;
   editable?: boolean;
   lowlight: ReturnType<typeof createLowlight>;
+  enableMentions?: boolean;
 };
 
 export function useMarkdownEditor({
@@ -28,10 +33,10 @@ export function useMarkdownEditor({
   autoFocus = false,
   editable = true,
   lowlight,
+  enableMentions = false,
 }: UseMarkdownEditorOptions) {
-  const editor = useEditor({
-    immediatelyRender: false, // Prevent SSR hydration mismatch
-    extensions: [
+  const extensions = useMemo(() => {
+    const baseExtensions: AnyExtension[] = [
       StarterKit.configure({
         codeBlock: false, // We use lowlight version instead
         heading: {
@@ -77,7 +82,29 @@ export function useMarkdownEditor({
         transformPastedText: true,
         transformCopiedText: true,
       }),
-    ],
+    ];
+
+    if (enableMentions) {
+      baseExtensions.push(
+        Mention.configure({
+          HTMLAttributes: {
+            class:
+              "mention rounded bg-primary/20 px-1.5 py-0.5 text-primary font-medium",
+          },
+          renderText({ node }) {
+            return `@${node.attrs.label ?? node.attrs.id}`;
+          },
+          suggestion: mentionSuggestion,
+        })
+      );
+    }
+
+    return baseExtensions;
+  }, [placeholder, lowlight, enableMentions]);
+
+  const editor = useEditor({
+    immediatelyRender: false, // Prevent SSR hydration mismatch
+    extensions,
     content,
     autofocus: autoFocus ? "end" : false,
     editable,

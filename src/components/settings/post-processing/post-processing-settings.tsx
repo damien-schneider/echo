@@ -1,6 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import { PlusIcon, RefreshCcw, RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import {
+  CheckIcon,
+  PencilIcon,
+  PlusIcon,
+  RefreshCcw,
+  RotateCcw,
+  XIcon,
+} from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { MarkdownEditor } from "@/components/editor/markdown-editor";
 import { ApiKeyField } from "@/components/settings/post-processing-settings-api/api-key-field";
 import { BaseUrlField } from "@/components/settings/post-processing-settings-api/base-url-field";
@@ -209,8 +216,10 @@ const PostProcessingSettingsPromptsComponent = () => {
   const { getSetting, updateSetting, isUpdating, refreshSettings } =
     useSettings();
   const [isCreating, setIsCreating] = useState(false);
+  const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftText, setDraftText] = useState("");
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const betaEnabled = getSetting("beta_features_enabled") ?? false;
   const prompts = getSetting("post_process_prompts") || [];
@@ -235,10 +244,19 @@ const PostProcessingSettingsPromptsComponent = () => {
     selectedPrompt?.prompt,
   ]);
 
+  // Focus input when entering edit mode
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isEditingName]);
+
   const handlePromptSelect = (promptId: string | null) => {
     if (!promptId) return;
     updateSetting("post_process_selected_prompt_id", promptId);
     setIsCreating(false);
+    setIsEditingName(false);
   };
 
   const handleCreatePrompt = async () => {
@@ -254,6 +272,29 @@ const PostProcessingSettingsPromptsComponent = () => {
       setIsCreating(false);
     } catch (error) {
       console.error("Failed to create prompt:", error);
+    }
+  };
+
+  const handleSaveNameEdit = async () => {
+    if (!(selectedPromptId && draftName.trim())) return;
+
+    try {
+      await invoke("update_post_process_prompt", {
+        id: selectedPromptId,
+        name: draftName.trim(),
+        prompt: selectedPrompt?.prompt ?? draftText.trim(),
+      });
+      await refreshSettings();
+      setIsEditingName(false);
+    } catch (error) {
+      console.error("Failed to update prompt name:", error);
+    }
+  };
+
+  const handleCancelNameEdit = () => {
+    setIsEditingName(false);
+    if (selectedPrompt) {
+      setDraftName(selectedPrompt.name);
     }
   };
 
@@ -279,6 +320,7 @@ const PostProcessingSettingsPromptsComponent = () => {
       await invoke("delete_post_process_prompt", { id: promptId });
       await refreshSettings();
       setIsCreating(false);
+      setIsEditingName(false);
     } catch (error) {
       console.error("Failed to delete prompt:", error);
     }
@@ -297,8 +339,16 @@ const PostProcessingSettingsPromptsComponent = () => {
 
   const handleStartCreate = () => {
     setIsCreating(true);
+    setIsEditingName(false);
     setDraftName("");
     setDraftText("");
+  };
+
+  const handleStartEditName = () => {
+    if (selectedPrompt) {
+      setDraftName(selectedPrompt.name);
+      setIsEditingName(true);
+    }
   };
 
   if (!betaEnabled) {
@@ -311,14 +361,12 @@ const PostProcessingSettingsPromptsComponent = () => {
   }
 
   const hasPrompts = prompts.length > 0;
-  const isDirty =
-    !!selectedPrompt &&
-    (draftName.trim() !== selectedPrompt.name ||
-      draftText.trim() !== selectedPrompt.prompt.trim());
+  const isPromptTextDirty =
+    !!selectedPrompt && draftText.trim() !== selectedPrompt.prompt.trim();
 
   return (
     <SettingContainer
-      description="Select a template for refining transcriptions or create a new one. Use ${output} inside the prompt text to reference the captured transcript."
+      description="Select a template for refining transcriptions or create a new one. Type @output inside the prompt to reference the captured transcript."
       descriptionMode="tooltip"
       grouped={true}
       layout="stacked"
@@ -326,31 +374,106 @@ const PostProcessingSettingsPromptsComponent = () => {
     >
       <div className="space-y-3">
         <div className="flex gap-2">
-          <NativeSelect
-            className="flex-1"
-            disabled={
-              isUpdating("post_process_selected_prompt_id") ||
-              isCreating ||
-              prompts.length === 0
-            }
-            onChange={(e) => handlePromptSelect(e.target.value)}
-            value={selectedPromptId || ""}
-          >
-            <NativeSelectOption disabled value="">
-              {prompts.length === 0
-                ? "No prompts available"
-                : "Select a prompt"}
-            </NativeSelectOption>
-            {prompts.map((p) => (
-              <NativeSelectOption key={p.id} value={p.id}>
-                {p.name}
-              </NativeSelectOption>
-            ))}
-          </NativeSelect>
+          {isEditingName && selectedPrompt ? (
+            <div className="flex flex-1 items-center gap-1">
+              <Input
+                className="flex-1"
+                onChange={(e) => setDraftName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleSaveNameEdit();
+                  } else if (e.key === "Escape") {
+                    handleCancelNameEdit();
+                  }
+                }}
+                placeholder="Enter prompt name"
+                ref={nameInputRef}
+                type="text"
+                value={draftName}
+              />
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      disabled={!draftName.trim()}
+                      onClick={handleSaveNameEdit}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <CheckIcon className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Save name</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleCancelNameEdit}
+                      size="icon"
+                      variant="ghost"
+                    >
+                      <XIcon className="size-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Cancel</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          ) : (
+            <>
+              <NativeSelect
+                className="flex-1"
+                disabled={
+                  isUpdating("post_process_selected_prompt_id") ||
+                  isCreating ||
+                  prompts.length === 0
+                }
+                onChange={(e) => handlePromptSelect(e.target.value)}
+                value={selectedPromptId || ""}
+                wrapperClassName="w-full"
+              >
+                <NativeSelectOption disabled value="">
+                  {prompts.length === 0
+                    ? "No prompts available"
+                    : "Select a prompt"}
+                </NativeSelectOption>
+                {prompts.map((p) => (
+                  <NativeSelectOption key={p.id} value={p.id}>
+                    {p.name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelect>
+              {selectedPrompt && !isCreating && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        className="shrink-0"
+                        onClick={handleStartEditName}
+                        size="icon"
+                        variant="secondary"
+                      >
+                        <PencilIcon className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Rename prompt</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
+            </>
+          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button disabled={isCreating} onClick={handleStartCreate}>
+                <Button
+                  className="shrink-0"
+                  disabled={isCreating || isEditingName}
+                  onClick={handleStartCreate}
+                  size="icon"
+                  variant="secondary"
+                >
                   <PlusIcon />
                 </Button>
               </TooltipTrigger>
@@ -361,16 +484,6 @@ const PostProcessingSettingsPromptsComponent = () => {
 
         {!isCreating && hasPrompts && selectedPrompt && (
           <div className="space-y-3">
-            <div className="flex flex-col space-y-2">
-              <label className="font-semibold text-sm">Prompt Label</label>
-              <Input
-                onChange={(e) => setDraftName(e.target.value)}
-                placeholder="Enter prompt name"
-                type="text"
-                value={draftName}
-              />
-            </div>
-
             <div className="flex flex-col space-y-2">
               <div className="flex flex-col gap-1">
                 <label className="font-semibold text-sm">
@@ -385,25 +498,26 @@ const PostProcessingSettingsPromptsComponent = () => {
                 onChange={setDraftText}
                 placeholder="Start typing..."
                 showDragHandle={false}
+                showMentionMenu={true}
                 showSlashMenu={true}
                 showToolbar={true}
                 value={draftText}
               />
               <p className="text-muted-foreground/70 text-xs">
-                Tip: Use{" "}
+                Tip: Type{" "}
                 <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
-                  $&#123;output&#125;
+                  @output
                 </code>{" "}
-                to insert the transcribed text in your prompt.
+                to insert the transcribed text placeholder.
               </p>
             </div>
 
             <div className="flex gap-2 pt-2">
               <Button
-                disabled={!(draftName.trim() && draftText.trim() && isDirty)}
+                disabled={!isPromptTextDirty}
                 onClick={handleUpdatePrompt}
               >
-                Update Prompt
+                Save Changes
               </Button>
               <Button
                 disabled={!selectedPromptId || prompts.length <= 1}
@@ -453,16 +567,17 @@ const PostProcessingSettingsPromptsComponent = () => {
                 onChange={setDraftText}
                 placeholder="Start writing..."
                 showDragHandle={false}
+                showMentionMenu={true}
                 showSlashMenu={true}
                 showToolbar={true}
                 value={draftText}
               />
               <p className="text-muted-foreground/70 text-xs">
-                Tip: Use{" "}
+                Tip: Type{" "}
                 <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
-                  $&#123;output&#125;
+                  @output
                 </code>{" "}
-                to insert the transcribed text in your prompt.
+                to insert the transcribed text placeholder.
               </p>
             </div>
 
@@ -484,11 +599,14 @@ const PostProcessingSettingsPromptsComponent = () => {
   );
 };
 
-export const PostProcessingSettingsApi = PostProcessingSettingsApiComponent;
+export const PostProcessingSettingsApi: React.FC & {
+  displayName?: string;
+} = PostProcessingSettingsApiComponent;
 PostProcessingSettingsApi.displayName = "PostProcessingSettingsApi";
 
-export const PostProcessingSettingsPrompts =
-  PostProcessingSettingsPromptsComponent;
+export const PostProcessingSettingsPrompts: React.FC & {
+  displayName?: string;
+} = PostProcessingSettingsPromptsComponent;
 PostProcessingSettingsPrompts.displayName = "PostProcessingSettingsPrompts";
 
 export const PostProcessingSettings = () => (
