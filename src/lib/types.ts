@@ -119,6 +119,7 @@ export const SettingsSchema = z.object({
   post_process_models: z.record(z.string(), z.string()).optional().default({}),
   post_process_prompts: z.array(LLMPromptSchema).optional().default([]),
   post_process_selected_prompt_id: z.string().nullable().optional(),
+  ai_sdk_tools_enabled: z.boolean().optional().default(false),
   mute_while_recording: z.boolean().optional().default(false),
   input_tracking_enabled: z.boolean().optional().default(false),
   input_tracking_excluded_apps: z.array(z.string()).optional().default([]),

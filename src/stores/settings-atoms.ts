@@ -86,6 +86,8 @@ const settingUpdaters: {
     invoke("update_recording_retention_period", { period: value }),
   post_process_selected_prompt_id: (value) =>
     invoke("set_post_process_selected_prompt", { id: value }),
+  ai_sdk_tools_enabled: (value) =>
+    invoke("change_ai_sdk_tools_setting", { enabled: value }),
   mute_while_recording: (value) =>
     invoke("change_mute_while_recording_setting", { enabled: value }),
   input_tracking_enabled: (value) =>
