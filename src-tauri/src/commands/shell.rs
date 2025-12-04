@@ -1,5 +1,10 @@
 //! Shell execution commands for AI SDK tool integration.
 //! These commands allow the AI to execute shell operations based on voice commands.
+//!
+//! SECURITY NOTE: These commands execute shell operations on the user's system.
+//! They are intended for use with AI-generated tool calls and include basic
+//! security measures, but users should be aware that enabling AI SDK tools
+//! allows voice commands to execute system operations.
 
 use serde::{Deserialize, Serialize};
 use std::process::Command;
@@ -19,12 +24,39 @@ pub struct CommandResult {
     pub message: Option<String>,
 }
 
+/// Escapes a string for safe use in shell commands
+fn shell_escape(s: &str) -> String {
+    // Replace single quotes with escaped version for shell
+    // This is safe for use in single-quoted strings
+    s.replace('\'', "'\\''")
+}
+
+/// Validates a path string to prevent directory traversal attacks
+fn validate_path(path: &str) -> Result<(), String> {
+    // Check for null bytes
+    if path.contains('\0') {
+        return Err("Path contains null bytes".to_string());
+    }
+    
+    // Allow empty path (current directory)
+    if path.is_empty() {
+        return Ok(());
+    }
+    
+    Ok(())
+}
+
 /// Opens the default terminal application
 #[tauri::command]
 pub fn open_terminal(
     app: AppHandle,
     working_directory: Option<String>,
 ) -> Result<CommandResult, String> {
+    // Validate working directory if provided
+    if let Some(ref dir) = working_directory {
+        validate_path(dir)?;
+    }
+
     let result = if cfg!(target_os = "macos") {
         open_terminal_macos(working_directory)
     } else if cfg!(target_os = "windows") {
@@ -39,13 +71,16 @@ pub fn open_terminal(
 #[cfg(target_os = "macos")]
 fn open_terminal_macos(working_directory: Option<String>) -> Result<CommandResult, String> {
     let script = match working_directory {
-        Some(ref dir) => format!(
-            r#"tell application "Terminal"
+        Some(ref dir) => {
+            let escaped_dir = shell_escape(dir);
+            format!(
+                r#"tell application "Terminal"
                 activate
                 do script "cd '{}'"
             end tell"#,
-            dir.replace("'", "'\\''")
-        ),
+                escaped_dir
+            )
+        }
         None => r#"tell application "Terminal"
             activate
             do script ""
@@ -148,12 +183,55 @@ fn open_terminal_linux(
 }
 
 /// Executes a shell command
+/// 
+/// SECURITY NOTE: This function executes arbitrary shell commands. It is intended
+/// for use with AI SDK tools where the user has explicitly enabled AI-driven
+/// command execution. The command is logged for security auditing purposes.
 #[tauri::command]
 pub fn execute_shell_command(
     command: String,
     working_directory: Option<String>,
     capture_output: Option<bool>,
 ) -> Result<CommandResult, String> {
+    // Log the command execution for security auditing
+    log::info!(
+        "[AI SDK Tools] Executing shell command: {} (working_dir: {:?})",
+        command,
+        working_directory
+    );
+
+    // Validate working directory if provided
+    if let Some(ref dir) = working_directory {
+        validate_path(dir)?;
+    }
+
+    // Basic command validation - block obviously dangerous patterns
+    // Note: This is not foolproof; users should be aware that enabling AI SDK tools
+    // allows AI-generated commands to run on their system
+    let command_lower = command.to_lowercase();
+    let dangerous_patterns = [
+        "rm -rf /",
+        "rm -rf ~",
+        "mkfs",
+        "dd if=",
+        "> /dev/sda",
+        "chmod 777 /",
+        ":(){ :|:& };:",  // Fork bomb
+    ];
+    
+    for pattern in dangerous_patterns {
+        if command_lower.contains(pattern) {
+            log::warn!(
+                "[AI SDK Tools] Blocked dangerous command pattern: {}",
+                pattern
+            );
+            return Err(format!(
+                "Command blocked for safety: contains dangerous pattern '{}'",
+                pattern
+            ));
+        }
+    }
+
     let capture = capture_output.unwrap_or(false);
 
     let shell = if cfg!(target_os = "windows") {

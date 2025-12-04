@@ -9,12 +9,12 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownEditor } from "@/components/editor/markdown-editor";
+import { AiSdkToolsToggle } from "@/components/settings/post-processing/ai-sdk-tools-toggle";
 import { ApiKeyField } from "@/components/settings/post-processing-settings-api/api-key-field";
 import { BaseUrlField } from "@/components/settings/post-processing-settings-api/base-url-field";
 import { ModelSelect } from "@/components/settings/post-processing-settings-api/model-select";
 import { ProviderSelect } from "@/components/settings/post-processing-settings-api/provider-select";
 import { usePostProcessProviderState } from "@/components/settings/post-processing-settings-api/use-post-process-provider-state";
-import { AiSdkToolsToggle } from "@/components/settings/post-processing/ai-sdk-tools-toggle";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import {
@@ -617,7 +617,7 @@ export const PostProcessingSettings = () => (
     </SettingsGroup>
 
     <SettingsGroup title="AI SDK Tools (Experimental)">
-      <AiSdkToolsToggle grouped descriptionMode="inline" />
+      <AiSdkToolsToggle descriptionMode="inline" grouped />
     </SettingsGroup>
   </div>
 );

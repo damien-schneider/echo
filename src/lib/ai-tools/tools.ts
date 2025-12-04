@@ -1,6 +1,6 @@
+import { invoke } from "@tauri-apps/api/core";
 import { tool } from "ai";
 import { z } from "zod";
-import { invoke } from "@tauri-apps/api/core";
 
 // Define the input schemas
 const openTerminalInputSchema = z.object({

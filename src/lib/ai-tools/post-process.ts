@@ -1,5 +1,5 @@
-import { generateText, type Tool } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
+import { generateText, type Tool } from "ai";
 import { postProcessTools } from "./tools";
 
 export interface PostProcessConfig {
@@ -33,7 +33,7 @@ export async function postProcessWithTools(
   // Create OpenAI-compatible provider with custom base URL
   const provider = createOpenAI({
     baseURL: baseUrl.endsWith("/") ? baseUrl.slice(0, -1) : baseUrl,
-    apiKey: apiKey || "dummy-key", // Some providers like Ollama don't need a key
+    apiKey: apiKey || undefined, // Some providers like Ollama don't need a key
   });
 
   // Replace mention placeholder with transcription
@@ -69,9 +69,12 @@ IMPORTANT: After using any tool, provide a brief natural language summary of wha
       for (const step of result.steps) {
         if (step.toolResults) {
           for (const toolResult of step.toolResults) {
+            // Safely access the output property, falling back to the entire object if not found
+            const output =
+              "output" in toolResult ? toolResult.output : toolResult;
             toolResults.push({
               toolName: toolResult.toolName,
-              result: toolResult.output, // Use 'output' property from AI SDK v6
+              result: output,
             });
           }
         }

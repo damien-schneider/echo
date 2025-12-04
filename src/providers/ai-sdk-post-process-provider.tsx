@@ -1,5 +1,5 @@
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
 import { postProcessWithTools } from "@/lib/ai-tools";
 
@@ -52,7 +52,10 @@ export const AiSdkPostProcessProvider = ({
 
             // Log tool results if any
             if (result.toolResults && result.toolResults.length > 0) {
-              console.log("[AiSdkPostProcess] Tool results:", result.toolResults);
+              console.log(
+                "[AiSdkPostProcess] Tool results:",
+                result.toolResults
+              );
             }
 
             // Paste the result text using Tauri command
@@ -62,7 +65,10 @@ export const AiSdkPostProcessProvider = ({
 
             console.log("[AiSdkPostProcess] Pasted result and hid overlay");
           } catch (error) {
-            console.error("[AiSdkPostProcess] Error processing request:", error);
+            console.error(
+              "[AiSdkPostProcess] Error processing request:",
+              error
+            );
 
             // Fall back to pasting the original transcription
             try {
@@ -97,4 +103,3 @@ export const AiSdkPostProcessProvider = ({
 
   return <>{children}</>;
 };
-
