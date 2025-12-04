@@ -13,11 +13,42 @@ use async_openai::types::{
 use log::{debug, error};
 use ferrous_opencc::{config::BuiltinConfig, OpenCC};
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::AppHandle;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+
+/// Request payload sent to frontend for AI SDK post-processing
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostProcessRequest {
+    pub transcription: String,
+    pub base_url: String,
+    pub api_key: String,
+    pub model: String,
+    pub prompt: String,
+    pub request_id: String,
+}
+
+/// Response payload received from frontend after AI SDK post-processing
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PostProcessResponse {
+    pub request_id: String,
+    pub text: String,
+    pub success: bool,
+    pub error: Option<String>,
+    pub tool_results: Option<Vec<ToolResult>>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolResult {
+    pub tool_name: String,
+    pub result: serde_json::Value,
+}
 
 // Shortcut Action Trait
 pub trait ShortcutAction: Send + Sync {
@@ -28,11 +59,98 @@ pub trait ShortcutAction: Send + Sync {
 // Transcribe Action
 struct TranscribeAction;
 
+/// Emit a post-process request to the frontend for AI SDK processing with tools
+fn emit_ai_sdk_post_process_request(
+    app: &AppHandle,
+    settings: &AppSettings,
+    transcription: &str,
+) -> bool {
+    if !(settings.beta_features_enabled && settings.ai_sdk_tools_enabled) {
+        return false;
+    }
+
+    let provider = match settings.active_post_process_provider().cloned() {
+        Some(provider) => provider,
+        None => {
+            debug!("AI SDK tools enabled but no provider is selected");
+            return false;
+        }
+    };
+
+    let model = settings
+        .post_process_models
+        .get(&provider.id)
+        .cloned()
+        .unwrap_or_default();
+
+    if model.trim().is_empty() {
+        debug!("AI SDK tools skipped: no model configured for provider '{}'", provider.id);
+        return false;
+    }
+
+    let selected_prompt_id = match &settings.post_process_selected_prompt_id {
+        Some(id) => id.clone(),
+        None => {
+            debug!("AI SDK tools skipped: no prompt selected");
+            return false;
+        }
+    };
+
+    let prompt = match settings
+        .post_process_prompts
+        .iter()
+        .find(|p| p.id == selected_prompt_id)
+    {
+        Some(p) => p.prompt.clone(),
+        None => {
+            debug!("AI SDK tools skipped: prompt '{}' not found", selected_prompt_id);
+            return false;
+        }
+    };
+
+    let api_key = settings
+        .post_process_api_keys
+        .get(&provider.id)
+        .cloned()
+        .unwrap_or_default();
+
+    let request_id = format!("req_{}", chrono::Utc::now().timestamp_millis());
+
+    let request = PostProcessRequest {
+        transcription: transcription.to_string(),
+        base_url: provider.base_url.clone(),
+        api_key,
+        model,
+        prompt,
+        request_id: request_id.clone(),
+    };
+
+    debug!("Emitting AI SDK post-process request: {}", request_id);
+
+    match app.emit("post-process-request", request) {
+        Ok(_) => {
+            log::info!("[AI SDK Tools] Emitted post-process request to frontend");
+            true
+        }
+        Err(e) => {
+            error!("Failed to emit AI SDK post-process request: {}", e);
+            false
+        }
+    }
+}
+
 async fn maybe_post_process_transcription(
     settings: &AppSettings,
     transcription: &str,
 ) -> Option<String> {
     if !settings.beta_features_enabled {
+        return None;
+    }
+
+    // Skip Rust post-processing if AI SDK tools mode is enabled
+    // (frontend will handle it)
+    if settings.ai_sdk_tools_enabled {
+        debug!("Skipping Rust post-processing: AI SDK tools mode is enabled");
         return None;
     }
 
@@ -352,70 +470,97 @@ impl ShortcutAction for TranscribeAction {
                         );
                         if !transcription.is_empty() {
                             let settings = get_settings(&ah);
-                            let mut final_text = transcription.clone();
-                            let mut post_processed_text: Option<String> = None;
-                            let mut post_process_prompt: Option<String> = None;
 
-                            if let Some(converted_text) =
-                                maybe_convert_chinese_variant(&settings, &transcription).await
-                            {
-                                final_text = converted_text.clone();
-                                post_processed_text = Some(converted_text);
-                            } else if let Some(processed_text) =
-                                maybe_post_process_transcription(&settings, &transcription).await
-                            {
-                                final_text = processed_text.clone();
-                                post_processed_text = Some(processed_text);
-
-                                // Get the prompt that was used
-                                if let Some(prompt_id) = &settings.post_process_selected_prompt_id {
-                                    if let Some(prompt) = settings
-                                        .post_process_prompts
-                                        .iter()
-                                        .find(|p| &p.id == prompt_id)
+                            // Check if AI SDK tools mode is enabled
+                            // If so, emit to frontend and let it handle post-processing and pasting
+                            if emit_ai_sdk_post_process_request(&ah, &settings, &transcription) {
+                                // Save to history with original transcription
+                                // (frontend will handle the post-processing)
+                                let hm_clone = Arc::clone(&hm);
+                                let transcription_for_history = transcription.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    if let Err(e) = hm_clone
+                                        .save_transcription(
+                                            samples_clone,
+                                            transcription_for_history,
+                                            None, // Post-processed text will be handled by frontend
+                                            None, // Prompt will be handled by frontend
+                                        )
+                                        .await
                                     {
-                                        post_process_prompt = Some(prompt.prompt.clone());
+                                        error!("Failed to save transcription to history: {}", e);
+                                    }
+                                });
+
+                                // Don't paste or hide overlay here - frontend will do it after AI SDK processing
+                                debug!("AI SDK tools mode: frontend will handle post-processing and pasting");
+                            } else {
+                                // Standard processing path (Rust-based)
+                                let mut final_text = transcription.clone();
+                                let mut post_processed_text: Option<String> = None;
+                                let mut post_process_prompt: Option<String> = None;
+
+                                if let Some(converted_text) =
+                                    maybe_convert_chinese_variant(&settings, &transcription).await
+                                {
+                                    final_text = converted_text.clone();
+                                    post_processed_text = Some(converted_text);
+                                } else if let Some(processed_text) =
+                                    maybe_post_process_transcription(&settings, &transcription).await
+                                {
+                                    final_text = processed_text.clone();
+                                    post_processed_text = Some(processed_text);
+
+                                    // Get the prompt that was used
+                                    if let Some(prompt_id) = &settings.post_process_selected_prompt_id {
+                                        if let Some(prompt) = settings
+                                            .post_process_prompts
+                                            .iter()
+                                            .find(|p| &p.id == prompt_id)
+                                        {
+                                            post_process_prompt = Some(prompt.prompt.clone());
+                                        }
                                     }
                                 }
+
+                                // Save to history with post-processed text and prompt
+                                let hm_clone = Arc::clone(&hm);
+                                let transcription_for_history = transcription.clone();
+                                tauri::async_runtime::spawn(async move {
+                                    if let Err(e) = hm_clone
+                                        .save_transcription(
+                                            samples_clone,
+                                            transcription_for_history,
+                                            post_processed_text,
+                                            post_process_prompt,
+                                        )
+                                        .await
+                                    {
+                                        error!("Failed to save transcription to history: {}", e);
+                                    }
+                                });
+
+                                // Paste the final text (either processed or original)
+                                let ah_clone = ah.clone();
+                                let paste_time = Instant::now();
+                                ah.run_on_main_thread(move || {
+                                    match utils::paste(final_text, ah_clone.clone()) {
+                                        Ok(()) => debug!(
+                                            "Text pasted successfully in {:?}",
+                                            paste_time.elapsed()
+                                        ),
+                                        Err(e) => error!("Failed to paste transcription: {}", e),
+                                    }
+                                    // Hide the overlay after transcription is complete
+                                    utils::hide_recording_overlay(&ah_clone);
+                                    change_tray_icon(&ah_clone, TrayIconState::Idle);
+                                })
+                                .unwrap_or_else(|e| {
+                                    error!("Failed to run paste on main thread: {:?}", e);
+                                    utils::hide_recording_overlay(&ah);
+                                    change_tray_icon(&ah, TrayIconState::Idle);
+                                });
                             }
-
-                            // Save to history with post-processed text and prompt
-                            let hm_clone = Arc::clone(&hm);
-                            let transcription_for_history = transcription.clone();
-                            tauri::async_runtime::spawn(async move {
-                                if let Err(e) = hm_clone
-                                    .save_transcription(
-                                        samples_clone,
-                                        transcription_for_history,
-                                        post_processed_text,
-                                        post_process_prompt,
-                                    )
-                                    .await
-                                {
-                                    error!("Failed to save transcription to history: {}", e);
-                                }
-                            });
-
-                            // Paste the final text (either processed or original)
-                            let ah_clone = ah.clone();
-                            let paste_time = Instant::now();
-                            ah.run_on_main_thread(move || {
-                                match utils::paste(final_text, ah_clone.clone()) {
-                                    Ok(()) => debug!(
-                                        "Text pasted successfully in {:?}",
-                                        paste_time.elapsed()
-                                    ),
-                                    Err(e) => error!("Failed to paste transcription: {}", e),
-                                }
-                                // Hide the overlay after transcription is complete
-                                utils::hide_recording_overlay(&ah_clone);
-                                change_tray_icon(&ah_clone, TrayIconState::Idle);
-                            })
-                            .unwrap_or_else(|e| {
-                                error!("Failed to run paste on main thread: {:?}", e);
-                                utils::hide_recording_overlay(&ah);
-                                change_tray_icon(&ah, TrayIconState::Idle);
-                            });
                         } else {
                             utils::hide_recording_overlay(&ah);
                             change_tray_icon(&ah, TrayIconState::Idle);

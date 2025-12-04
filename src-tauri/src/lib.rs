@@ -340,6 +340,7 @@ pub fn run() {
             shortcut::settings::post_process::update_post_process_prompt,
             shortcut::settings::post_process::delete_post_process_prompt,
             shortcut::settings::post_process::set_post_process_selected_prompt,
+            shortcut::settings::post_process::change_ai_sdk_tools_setting,
             // Input tracking settings commands
             shortcut::settings::input_tracking::change_input_tracking_setting,
             shortcut::settings::input_tracking::change_input_tracking_excluded_apps,
@@ -389,6 +390,11 @@ pub fn run() {
             commands::input_tracking::delete_input_entry,
             commands::input_tracking::clear_all_input_entries,
             commands::input_tracking::get_installed_apps,
+            commands::shell::open_terminal,
+            commands::shell::execute_shell_command,
+            commands::shell::open_path,
+            commands::paste_text_and_hide_overlay,
+            commands::hide_overlay_and_reset_tray,
             commands::get_log_dir_path,
             commands::open_log_dir,
             commands::set_log_level

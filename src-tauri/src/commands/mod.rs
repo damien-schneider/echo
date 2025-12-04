@@ -2,6 +2,7 @@ pub mod audio;
 pub mod history;
 pub mod input_tracking;
 pub mod models;
+pub mod shell;
 pub mod transcription;
 
 use crate::utils::cancel_current_operation;
@@ -102,6 +103,33 @@ pub fn open_recordings_folder(app: AppHandle) -> Result<(), String> {
     app.opener()
         .open_path(path, None::<String>)
         .map_err(|e| format!("Failed to open recordings folder: {}", e))?;
+
+    Ok(())
+}
+
+/// Paste text and hide the recording overlay - used by AI SDK tools post-processing
+#[tauri::command]
+pub fn paste_text_and_hide_overlay(app: AppHandle, text: String) -> Result<(), String> {
+    use crate::tray::{change_tray_icon, TrayIconState};
+
+    // Paste the text
+    crate::utils::paste(text, app.clone())
+        .map_err(|e| format!("Failed to paste text: {}", e))?;
+
+    // Hide the overlay and reset tray
+    crate::utils::hide_recording_overlay(&app);
+    change_tray_icon(&app, TrayIconState::Idle);
+
+    Ok(())
+}
+
+/// Hide the overlay and reset tray to idle - used for error recovery
+#[tauri::command]
+pub fn hide_overlay_and_reset_tray(app: AppHandle) -> Result<(), String> {
+    use crate::tray::{change_tray_icon, TrayIconState};
+
+    crate::utils::hide_recording_overlay(&app);
+    change_tray_icon(&app, TrayIconState::Idle);
 
     Ok(())
 }

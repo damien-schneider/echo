@@ -327,3 +327,12 @@ pub fn set_post_process_selected_prompt(app: AppHandle, id: String) -> Result<()
     settings::write_settings(&app, settings);
     Ok(())
 }
+
+/// Change AI SDK tools enabled setting.
+#[tauri::command]
+pub fn change_ai_sdk_tools_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.ai_sdk_tools_enabled = enabled;
+    settings::write_settings(&app, settings);
+    Ok(())
+}

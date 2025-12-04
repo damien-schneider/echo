@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { MarkdownEditor } from "@/components/editor/markdown-editor";
+import { AiSdkToolsToggle } from "@/components/settings/post-processing/ai-sdk-tools-toggle";
 import { ApiKeyField } from "@/components/settings/post-processing-settings-api/api-key-field";
 import { BaseUrlField } from "@/components/settings/post-processing-settings-api/base-url-field";
 import { ModelSelect } from "@/components/settings/post-processing-settings-api/model-select";
@@ -613,6 +614,10 @@ export const PostProcessingSettings = () => (
 
     <SettingsGroup title="Prompt">
       <PostProcessingSettingsPrompts />
+    </SettingsGroup>
+
+    <SettingsGroup title="AI SDK Tools (Experimental)">
+      <AiSdkToolsToggle descriptionMode="inline" grouped />
     </SettingsGroup>
   </div>
 );

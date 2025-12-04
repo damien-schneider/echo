@@ -1,5 +1,15 @@
-bun test
-bunx ultracite fix || true
+#!/bin/sh
+# Use yarn or npm as fallback if bun is not available
+if command -v bun > /dev/null 2>&1; then
+  bun test
+  bunx ultracite fix || true
+elif command -v yarn > /dev/null 2>&1; then
+  yarn run ultracite fix || true
+elif command -v npx > /dev/null 2>&1; then
+  npx ultracite fix || true
+else
+  echo "No package manager found, skipping pre-commit hooks"
+fi
 
 # #!/bin/sh
 # # Exit on any error
