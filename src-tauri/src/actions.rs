@@ -97,8 +97,39 @@ async fn maybe_post_process_transcription(
         provider.id, model
     );
 
-    // Replace ${output} variable in the prompt with the actual text
-    let processed_prompt = prompt.replace("${output}", transcription);
+    // Log the original transcription that will be inserted
+    log::info!(
+        "[Post-Process] Original transcription:\n{}",
+        transcription
+    );
+
+    // Log the original prompt template (before variable substitution)
+    log::info!(
+        "[Post-Process] Original prompt template:\n{}",
+        prompt
+    );
+
+    // Replace mention placeholder with the actual transcription text
+    // Handle multiple formats:
+    // 1. Platejs remarkMention link format: [output](mention:output) or [any text](mention:output)
+    // 2. Legacy ${output} format
+    // 3. Simple @output format
+    
+    // Use regex for flexible matching of [any text](mention:output)
+    let mention_regex = regex::Regex::new(r"\[[^\]]*\]\(mention:output\)").unwrap();
+    let processed_prompt = mention_regex.replace_all(&prompt, transcription).to_string();
+    
+    // Also replace ${output} and @output formats for backward compatibility
+    let processed_prompt = processed_prompt
+        .replace("${output}", transcription)
+        .replace("@output", transcription);
+
+    // Log the processed prompt (after variable substitution)
+    log::info!(
+        "[Post-Process] Prompt with transcript inserted:\n{}",
+        processed_prompt
+    );
+
     debug!("Processed prompt length: {} chars", processed_prompt.len());
 
     // Create OpenAI-compatible client
@@ -139,6 +170,11 @@ async fn maybe_post_process_transcription(
         Ok(response) => {
             if let Some(choice) = response.choices.first() {
                 if let Some(content) = &choice.message.content {
+                    // Log the LLM result
+                    log::info!(
+                        "[Post-Process] LLM result:\n{}",
+                        content
+                    );
                     debug!(
                         "LLM post-processing succeeded for provider '{}'. Output length: {} chars",
                         provider.id,

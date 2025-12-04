@@ -497,10 +497,8 @@ const PostProcessingSettingsPromptsComponent = () => {
                 className="min-h-32"
                 onChange={setDraftText}
                 placeholder="Start typing..."
-                showDragHandle={false}
-                showMentionMenu={true}
-                showSlashMenu={true}
-                showToolbar={true}
+                showMentionMenu
+                showToolbar
                 value={draftText}
               />
               <p className="text-muted-foreground/70 text-xs">
@@ -566,10 +564,8 @@ const PostProcessingSettingsPromptsComponent = () => {
               <MarkdownEditor
                 onChange={setDraftText}
                 placeholder="Start writing..."
-                showDragHandle={false}
-                showMentionMenu={true}
-                showSlashMenu={true}
-                showToolbar={true}
+                showMentionMenu
+                showToolbar
                 value={draftText}
               />
               <p className="text-muted-foreground/70 text-xs">

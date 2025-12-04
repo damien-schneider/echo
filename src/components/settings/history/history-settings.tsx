@@ -1,7 +1,7 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FolderOpen, Keyboard, Mic } from "lucide-react";
-import { type ComponentProps, useCallback, useEffect, useState } from "react";
+import { type ComponentProps, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
 import {
@@ -17,7 +17,7 @@ export const HistorySettings = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<HistoryTab>("transcriptions");
 
-  const loadHistoryEntries = useCallback(async () => {
+  const loadHistoryEntries = async () => {
     try {
       const entries = await invoke<HistoryEntry[]>("get_history_entries");
       setHistoryEntries(entries);
@@ -26,7 +26,7 @@ export const HistorySettings = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   useEffect(() => {
     loadHistoryEntries();
@@ -49,7 +49,7 @@ export const HistorySettings = () => {
         }
       });
     };
-  }, [loadHistoryEntries]);
+  }, []);
 
   const toggleSaved = async (id: number) => {
     try {

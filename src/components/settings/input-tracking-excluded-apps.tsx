@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Ban, Loader2, Plus, X } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import {
@@ -40,7 +40,7 @@ export const InputTrackingExcludedApps = ({
   const inputTrackingEnabled = getSetting("input_tracking_enabled") ?? false;
 
   // Lazy load apps only when popover opens
-  const fetchApps = useCallback(async () => {
+  const fetchApps = async () => {
     if (appsLoaded || loadingApps) {
       return;
     }
@@ -55,7 +55,7 @@ export const InputTrackingExcludedApps = ({
     } finally {
       setLoadingApps(false);
     }
-  }, [appsLoaded, loadingApps]);
+  };
 
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);

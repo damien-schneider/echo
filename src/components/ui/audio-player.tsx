@@ -1,6 +1,6 @@
 import { Pause, Play } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface AudioPlayerProps {
@@ -45,7 +45,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const durationRef = useRef(0);
 
   // Generate consistent waveform data based on the src
-  const waveformData = useMemo(() => {
+  const waveformData = (() => {
     // Generate seeded random values for consistent waveform
     const seed = src
       .split("")
@@ -55,7 +55,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       return x - Math.floor(x);
     };
     return Array.from({ length: barCount }, (_, i) => 0.15 + random(i) * 0.7);
-  }, [src, barCount]);
+  })();
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -100,7 +100,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, []);
 
   // Render waveform
-  const renderWaveform = useCallback(() => {
+  const renderWaveform = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -190,15 +190,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     }
 
     ctx.globalAlpha = 1;
-  }, [
-    waveformData,
-    barWidth,
-    barGap,
-    barRadius,
-    barCount,
-    activeColor,
-    inactiveColor,
-  ]);
+  };
 
   // Watch for theme changes to re-render with new colors
   useEffect(() => {
@@ -220,7 +212,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     });
 
     return () => observer.disconnect();
-  }, [renderWaveform]);
+  }, []);
 
   // Animation loop for playback
   useEffect(() => {
@@ -257,14 +249,14 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         animationRef.current = undefined;
       }
     };
-  }, [isPlaying, isDragging, renderWaveform]);
+  }, [isPlaying, isDragging]);
 
   // Re-render when currentTime changes (for scrubbing)
   useEffect(() => {
     if (!isPlaying) {
       renderWaveform();
     }
-  }, [currentTime, isPlaying, renderWaveform]);
+  }, [isPlaying]);
 
   // Audio event handlers
   useEffect(() => {
@@ -299,27 +291,24 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
     };
-  }, [renderWaveform]);
+  }, []);
 
   // Calculate time from click position
-  const getTimeFromPosition = useCallback(
-    (clientX: number) => {
-      const container = containerRef.current;
-      if (!container) return 0;
+  const getTimeFromPosition = (clientX: number) => {
+    const container = containerRef.current;
+    if (!container) return 0;
 
-      const rect = container.getBoundingClientRect();
-      const step = barWidth + barGap;
-      const totalWidth = barCount * step - barGap;
-      const startX = (rect.width - totalWidth) / 2;
+    const rect = container.getBoundingClientRect();
+    const step = barWidth + barGap;
+    const totalWidth = barCount * step - barGap;
+    const startX = (rect.width - totalWidth) / 2;
 
-      const x = clientX - rect.left;
-      const relativeX = x - startX;
-      const progress = Math.max(0, Math.min(1, relativeX / totalWidth));
+    const x = clientX - rect.left;
+    const relativeX = x - startX;
+    const progress = Math.max(0, Math.min(1, relativeX / totalWidth));
 
-      return progress * duration;
-    },
-    [duration, barWidth, barGap, barCount]
-  );
+    return progress * duration;
+  };
 
   // Mouse/touch handlers for scrubbing
   const handlePointerDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -365,7 +354,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       );
       document.removeEventListener("touchend", handlePointerUp);
     };
-  }, [isDragging, getTimeFromPosition, renderWaveform]);
+  }, [isDragging]);
 
   const togglePlay = async () => {
     const audio = audioRef.current;

@@ -1,16 +1,10 @@
 "use client";
 
-import { EditorContent } from "@tiptap/react";
-import { common, createLowlight } from "lowlight";
-import { useCallback, useRef } from "react";
+import { Plate, PlateContent } from "platejs/react";
 import { cn } from "@/lib/utils";
-import { DragHandle } from "./drag-handle";
-import { SlashMenu } from "./slash-menu";
 import { EditorToolbar } from "./toolbar";
 import { useMarkdownEditor } from "./use-markdown-editor";
 import "./editor.css";
-
-const lowlight = createLowlight(common);
 
 type MarkdownEditorProps = {
   value?: string;
@@ -21,8 +15,7 @@ type MarkdownEditorProps = {
   autoFocus?: boolean;
   editable?: boolean;
   showToolbar?: boolean;
-  showSlashMenu?: boolean;
-  showDragHandle?: boolean;
+  /** Enable @mention functionality with custom items like @output */
   showMentionMenu?: boolean;
 };
 
@@ -35,26 +28,14 @@ export function MarkdownEditor({
   autoFocus = false,
   editable = true,
   showToolbar = true,
-  showSlashMenu = true,
-  showDragHandle = true,
   showMentionMenu = false,
 }: MarkdownEditorProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const handleUpdate = useCallback(
-    (markdown: string) => {
-      onChange?.(markdown);
-    },
-    [onChange]
-  );
-
-  const { editor } = useMarkdownEditor({
+  const { editor, handleChange } = useMarkdownEditor({
     content: value,
-    onUpdate: handleUpdate,
+    onUpdate: onChange,
     placeholder,
     autoFocus,
     editable,
-    lowlight,
     enableMentions: showMentionMenu,
   });
 
@@ -67,30 +48,33 @@ export function MarkdownEditor({
   }
 
   return (
-    <div className={cn("relative flex flex-col", className)} ref={containerRef}>
-      <div className="relative">
-        {showDragHandle && editable && <DragHandle editor={editor} />}
+    <div
+      className={cn(
+        "relative flex flex-col",
+        "**:selection:bg-blue-500/35! dark:**:selection:bg-blue-400/45!",
 
-        <EditorContent
+        className
+      )}
+    >
+      <Plate editor={editor} onChange={handleChange}>
+        {showToolbar && editable && (
+          <div className="w-fit px-3">
+            <EditorToolbar className="w-fit" />
+          </div>
+        )}
+        <PlateContent
+          autoFocus={autoFocus}
           className={cn(
             "prose prose-sm dark:prose-invert max-w-none",
             "min-h-[200px] w-full rounded-lg border border-input bg-background px-4 py-3",
-            "[&_.ProseMirror]:min-h-[180px] [&_.ProseMirror]:outline-none",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground",
-            "[&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)]",
+            "focus:outline-none",
+            "**:data-slate-placeholder:text-muted-foreground **:data-slate-placeholder:opacity-100",
             editorClassName
           )}
-          editor={editor}
+          placeholder={placeholder}
+          readOnly={!editable}
         />
-
-        {/* BubbleMenu appears when text is selected */}
-        {showToolbar && editable && <EditorToolbar editor={editor} />}
-
-        {showSlashMenu && editable && <SlashMenu editor={editor} />}
-      </div>
+      </Plate>
     </div>
   );
 }

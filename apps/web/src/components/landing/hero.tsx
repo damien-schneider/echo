@@ -2,7 +2,7 @@
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { motion, useInView } from "motion/react";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { DoubleSide, type Mesh, Vector3 } from "three";
 import { useGithubData } from "@/hooks/use-github-data";
 
@@ -203,14 +203,11 @@ function ShaderBackground({
   className = "w-full h-full",
   isActive = true,
 }: ShaderBackgroundProps) {
-  const shaderUniforms = useMemo(
-    () => ({
-      u_time: { value: 0 },
-      u_resolution: { value: new Vector3(1, 1, 1) },
-      ...uniforms,
-    }),
-    [uniforms]
-  );
+  const shaderUniforms = {
+    u_time: { value: 0 },
+    u_resolution: { value: new Vector3(1, 1, 1) },
+    ...uniforms,
+  };
 
   return (
     <div className={className}>

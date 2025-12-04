@@ -1,20 +1,128 @@
 "use client";
 
-import type { AnyExtension } from "@tiptap/core";
-import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
-import Link from "@tiptap/extension-link";
-import Mention from "@tiptap/extension-mention";
-import NodeRange from "@tiptap/extension-node-range";
-import TaskItem from "@tiptap/extension-task-item";
-import TaskList from "@tiptap/extension-task-list";
-import Typography from "@tiptap/extension-typography";
-import { Placeholder } from "@tiptap/extensions";
-import { useEditor } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import type { createLowlight } from "lowlight";
-import { useMemo } from "react";
-import { Markdown } from "tiptap-markdown";
-import { mentionSuggestion } from "./mention-suggestion";
+import {
+  BlockquotePlugin,
+  BoldPlugin,
+  CodePlugin,
+  H1Plugin,
+  H2Plugin,
+  H3Plugin,
+  H4Plugin,
+  H5Plugin,
+  H6Plugin,
+  ItalicPlugin,
+  StrikethroughPlugin,
+  UnderlinePlugin,
+} from "@platejs/basic-nodes/react";
+import {
+  CodeBlockPlugin,
+  CodeLinePlugin,
+  CodeSyntaxPlugin,
+} from "@platejs/code-block/react";
+import {
+  BulletedListPlugin,
+  ListItemPlugin,
+  ListPlugin,
+  NumberedListPlugin,
+  TaskListPlugin,
+} from "@platejs/list-classic/react";
+import { MarkdownPlugin, remarkMdx, remarkMention } from "@platejs/markdown";
+import { MentionInputPlugin, MentionPlugin } from "@platejs/mention/react";
+import type { Value } from "platejs";
+import { usePlateEditor } from "platejs/react";
+import { useEffect, useRef } from "react";
+import remarkGfm from "remark-gfm";
+
+import { MentionElement, MentionInputElement } from "./mention-node";
+
+// Pre-compiled regex pattern at top level for performance
+const MENTION_TRIGGER_PATTERN = /^$|^[\s"']$/;
+
+// Static plugins array for non-mention editors
+const BASE_PLUGINS = [
+  // Basic marks
+  BoldPlugin,
+  ItalicPlugin,
+  UnderlinePlugin,
+  StrikethroughPlugin,
+  CodePlugin,
+
+  // Basic elements
+  H1Plugin,
+  H2Plugin,
+  H3Plugin,
+  H4Plugin,
+  H5Plugin,
+  H6Plugin,
+  BlockquotePlugin,
+
+  // Code blocks
+  CodeBlockPlugin,
+  CodeLinePlugin,
+  CodeSyntaxPlugin,
+
+  // Lists
+  ListPlugin,
+  BulletedListPlugin,
+  NumberedListPlugin,
+  ListItemPlugin,
+  TaskListPlugin,
+
+  // Markdown plugin with GFM and MDX support (for HTML-like tags)
+  MarkdownPlugin.configure({
+    options: {
+      remarkPlugins: [remarkGfm, remarkMdx],
+    },
+  }),
+];
+
+// Static plugins array for mention-enabled editors
+const MENTION_PLUGINS = [
+  // Basic marks
+  BoldPlugin,
+  ItalicPlugin,
+  UnderlinePlugin,
+  StrikethroughPlugin,
+  CodePlugin,
+
+  // Basic elements
+  H1Plugin,
+  H2Plugin,
+  H3Plugin,
+  H4Plugin,
+  H5Plugin,
+  H6Plugin,
+  BlockquotePlugin,
+
+  // Code blocks
+  CodeBlockPlugin,
+  CodeLinePlugin,
+  CodeSyntaxPlugin,
+
+  // Lists
+  ListPlugin,
+  BulletedListPlugin,
+  NumberedListPlugin,
+  ListItemPlugin,
+  TaskListPlugin,
+
+  // Markdown plugin with GFM, MDX, and mention support
+  MarkdownPlugin.configure({
+    options: {
+      remarkPlugins: [remarkGfm, remarkMdx, remarkMention],
+    },
+  }),
+
+  // Mention plugins with UI components
+  MentionPlugin.configure({
+    options: {
+      trigger: "@",
+      triggerPreviousCharPattern: MENTION_TRIGGER_PATTERN,
+      insertSpaceAfterMention: false,
+    },
+  }).withComponent(MentionElement),
+  MentionInputPlugin.withComponent(MentionInputElement),
+];
 
 type UseMarkdownEditorOptions = {
   content?: string;
@@ -22,106 +130,90 @@ type UseMarkdownEditorOptions = {
   placeholder?: string;
   autoFocus?: boolean;
   editable?: boolean;
-  lowlight: ReturnType<typeof createLowlight>;
   enableMentions?: boolean;
 };
 
 export function useMarkdownEditor({
   content = "",
   onUpdate,
-  placeholder = "Start typing...",
   autoFocus = false,
   editable = true,
-  lowlight,
   enableMentions = false,
 }: UseMarkdownEditorOptions) {
-  const extensions = useMemo(() => {
-    const baseExtensions: AnyExtension[] = [
-      StarterKit.configure({
-        codeBlock: false, // We use lowlight version instead
-        heading: {
-          levels: [1, 2, 3, 4, 5, 6],
-        },
-      }),
-      Placeholder.configure({
-        placeholder,
-        emptyEditorClass: "is-editor-empty",
-      }),
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          class:
-            "text-primary underline underline-offset-4 hover:text-primary/80",
-        },
-      }),
-      TaskList.configure({
-        HTMLAttributes: {
-          class: "not-prose pl-0 list-none",
-        },
-      }),
-      TaskItem.configure({
-        nested: true,
-        HTMLAttributes: {
-          class: "flex items-start gap-2 my-1",
-        },
-      }),
-      CodeBlockLowlight.configure({
-        lowlight,
-        HTMLAttributes: {
-          class: "rounded-lg bg-muted p-4 font-mono text-sm overflow-x-auto",
-        },
-      }),
-      Typography,
-      NodeRange,
-      Markdown.configure({
-        html: false,
-        tightLists: true,
-        bulletListMarker: "-",
-        linkify: true,
-        breaks: true,
-        transformPastedText: true,
-        transformCopiedText: true,
-      }),
-    ];
+  // Track whether this is the initial mount
+  const isInitialMount = useRef(true);
+  // Track the last content we set to avoid sync loops
+  const lastSetContent = useRef(content);
+  // Store the onUpdate callback in a ref to avoid recreating handleChange
+  const onUpdateRef = useRef(onUpdate);
+  onUpdateRef.current = onUpdate;
 
-    if (enableMentions) {
-      baseExtensions.push(
-        Mention.configure({
-          HTMLAttributes: {
-            class:
-              "mention rounded bg-primary/20 px-1.5 py-0.5 text-primary font-medium",
-          },
-          renderText({ node }) {
-            return `@${node.attrs.label ?? node.attrs.id}`;
-          },
-          suggestion: mentionSuggestion,
-        })
-      );
+  // Use stable plugin arrays
+  const plugins = enableMentions ? MENTION_PLUGINS : BASE_PLUGINS;
+
+  // Initial value computation - intentionally only on mount
+  const initialValue = (() => {
+    if (content) {
+      // We can't deserialize here without editor, so return a placeholder
+      // The actual deserialization happens in the value factory
+      return content;
     }
+    return "";
+  })();
 
-    return baseExtensions;
-  }, [placeholder, lowlight, enableMentions]);
-
-  const editor = useEditor({
-    immediatelyRender: false, // Prevent SSR hydration mismatch
-    extensions,
-    content,
-    autofocus: autoFocus ? "end" : false,
-    editable,
-    editorProps: {
-      attributes: {
-        class: "focus:outline-none",
+  const editor = usePlateEditor(
+    {
+      plugins,
+      value: (plateEditor) => {
+        if (initialValue) {
+          const markdownApi = plateEditor.getApi(MarkdownPlugin).markdown;
+          return markdownApi.deserialize(initialValue) as Value;
+        }
+        return [{ type: "p", children: [{ text: "" }] }] as Value;
       },
     },
-    onUpdate: ({ editor: e }) => {
-      // Get markdown content using tiptap-markdown
-      const storage = e.storage as {
-        markdown?: { getMarkdown?: () => string };
-      };
-      const markdown = storage.markdown?.getMarkdown?.() ?? "";
-      onUpdate?.(markdown);
-    },
-  });
+    [enableMentions]
+  );
 
-  return { editor };
+  // Handle onChange callback - use ref to avoid dependency on onUpdate
+  const handleChange = () => {
+    if (editor && onUpdateRef.current) {
+      const markdownApi = editor.getApi(MarkdownPlugin).markdown;
+      const markdown = markdownApi.serialize();
+      // Update our tracking ref so we don't try to sync this back
+      lastSetContent.current = markdown;
+      onUpdateRef.current(markdown);
+    }
+  };
+
+  // Sync editor content when the external value changes (e.g., from parent reset)
+  useEffect(() => {
+    // Skip on initial mount - the editor already has the initial value
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+
+    if (!editor) {
+      return;
+    }
+
+    // Skip if this content came from our own onChange (avoid sync loop)
+    if (lastSetContent.current === content) {
+      return;
+    }
+
+    // Update tracking ref
+    lastSetContent.current = content;
+
+    // Deserialize and set the new content
+    const markdownApi = editor.getApi(MarkdownPlugin).markdown;
+    const value = content
+      ? (markdownApi.deserialize(content) as Value)
+      : ([{ type: "p", children: [{ text: "" }] }] as Value);
+
+    editor.tf.setValue(value);
+  }, [editor, content]);
+
+  return { editor, handleChange, autoFocus, editable };
 }

@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  type HTMLAttributes,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type HTMLAttributes, useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -414,21 +407,18 @@ export const AudioScrubber = ({
     }
   }, [currentTime, duration, isDragging]);
 
-  const handleScrub = useCallback(
-    (clientX: number) => {
-      const container = containerRef.current;
-      if (!container) return;
+  const handleScrub = (clientX: number) => {
+    const container = containerRef.current;
+    if (!container) return;
 
-      const rect = container.getBoundingClientRect();
-      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-      const progress = x / rect.width;
-      const newTime = progress * duration;
+    const rect = container.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const progress = x / rect.width;
+    const newTime = progress * duration;
 
-      setLocalProgress(progress);
-      onSeek?.(newTime);
-    },
-    [duration, onSeek]
-  );
+    setLocalProgress(progress);
+    onSeek?.(newTime);
+  };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -454,7 +444,7 @@ export const AudioScrubber = ({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, duration, handleScrub]);
+  }, [isDragging]);
 
   const heightStyle = typeof height === "number" ? `${height}px` : height;
 
@@ -709,14 +699,14 @@ export const StaticWaveform = ({
   seed = 42,
   ...props
 }: StaticWaveformProps) => {
-  const data = useMemo(() => {
+  const data = (() => {
     const random = (seedValue: number) => {
       const x = Math.sin(seedValue) * 10_000;
       return x - Math.floor(x);
     };
 
     return Array.from({ length: bars }, (_, i) => 0.2 + random(seed + i) * 0.6);
-  }, [bars, seed]);
+  })();
 
   return <Waveform data={data} {...props} />;
 };
@@ -924,90 +914,84 @@ export const LiveMicrophoneWaveform = ({
     }
   };
 
-  const playScrubSound = useCallback(
-    (position: number, direction: number) => {
-      if (
-        !(
-          enableAudioPlayback &&
-          audioBufferRef.current &&
-          audioContextRef.current
-        )
+  const playScrubSound = (position: number, direction: number) => {
+    if (
+      !(
+        enableAudioPlayback &&
+        audioBufferRef.current &&
+        audioContextRef.current
       )
-        return;
+    )
+      return;
 
-      if (scrubSourceRef.current) {
-        try {
-          scrubSourceRef.current.stop();
-        } catch {}
-      }
+    if (scrubSourceRef.current) {
+      try {
+        scrubSourceRef.current.stop();
+      } catch {}
+    }
 
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBufferRef.current;
+    const source = audioContextRef.current.createBufferSource();
+    source.buffer = audioBufferRef.current;
 
-      const speed = Math.abs(direction);
-      const playbackRate =
-        direction > 0
-          ? Math.min(3, 1 + speed * 0.1)
-          : Math.max(-3, -1 - speed * 0.1);
+    const speed = Math.abs(direction);
+    const playbackRate =
+      direction > 0
+        ? Math.min(3, 1 + speed * 0.1)
+        : Math.max(-3, -1 - speed * 0.1);
 
-      source.playbackRate.value = playbackRate;
+    source.playbackRate.value = playbackRate;
 
-      const filter = audioContextRef.current.createBiquadFilter();
-      filter.type = "lowpass";
-      filter.frequency.value = Math.max(200, 2000 - speed * 100);
+    const filter = audioContextRef.current.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = Math.max(200, 2000 - speed * 100);
 
-      source.connect(filter);
-      filter.connect(audioContextRef.current.destination);
+    source.connect(filter);
+    filter.connect(audioContextRef.current.destination);
 
-      const startTime = Math.max(
-        0,
-        Math.min(position, audioBufferRef.current.duration - 0.1)
-      );
-      source.start(0, startTime, 0.1);
-      scrubSourceRef.current = source;
-    },
-    [enableAudioPlayback]
-  );
+    const startTime = Math.max(
+      0,
+      Math.min(position, audioBufferRef.current.duration - 0.1)
+    );
+    source.start(0, startTime, 0.1);
+    scrubSourceRef.current = source;
+  };
 
-  const playFromPosition = useCallback(
-    (position: number) => {
-      if (
-        !(
-          enableAudioPlayback &&
-          audioBufferRef.current &&
-          audioContextRef.current
-        )
+  const playFromPosition = (position: number) => {
+    if (
+      !(
+        enableAudioPlayback &&
+        audioBufferRef.current &&
+        audioContextRef.current
       )
-        return;
+    )
+      return;
 
-      if (sourceNodeRef.current) {
-        try {
-          sourceNodeRef.current.stop();
-        } catch {}
-      }
+    if (sourceNodeRef.current) {
+      try {
+        sourceNodeRef.current.stop();
+      } catch {}
+    }
 
-      const source = audioContextRef.current.createBufferSource();
-      source.buffer = audioBufferRef.current;
-      source.playbackRate.value = playbackRate;
-      source.connect(audioContextRef.current.destination);
+    const source = audioContextRef.current.createBufferSource();
+    source.buffer = audioBufferRef.current;
+    source.playbackRate.value = playbackRate;
+    source.connect(audioContextRef.current.destination);
 
-      const startTime = Math.max(
-        0,
-        Math.min(position, audioBufferRef.current.duration)
-      );
-      source.start(0, startTime);
-      sourceNodeRef.current = source;
+    const startTime = Math.max(
+      0,
+      Math.min(position, audioBufferRef.current.duration)
+    );
+    source.start(0, startTime);
+    sourceNodeRef.current = source;
 
-      playbackStartTimeRef.current =
-        audioContextRef.current.currentTime - startTime;
-      setPlaybackPosition(startTime);
+    playbackStartTimeRef.current =
+      audioContextRef.current.currentTime - startTime;
+    setPlaybackPosition(startTime);
 
-      source.onended = () => {
-        setPlaybackPosition(null);
-      };
-    },
-    [enableAudioPlayback, playbackRate]
-  );
+    source.onended = () => {
+      setPlaybackPosition(null);
+    };
+  };
 
   useEffect(() => {
     if (playbackPosition === null || !audioBufferRef.current) return;
@@ -1301,8 +1285,6 @@ export const LiveMicrophoneWaveform = ({
     setDragOffset,
     dragOffset,
     enableAudioPlayback,
-    playScrubSound,
-    playFromPosition,
     historyRef,
   ]);
 
@@ -1598,19 +1580,16 @@ export const RecordingWaveform = ({
     barColor,
   ]);
 
-  const handleScrub = useCallback(
-    (clientX: number) => {
-      const container = containerRef.current;
-      if (!container || recording || !isRecordingComplete) return;
+  const handleScrub = (clientX: number) => {
+    const container = containerRef.current;
+    if (!container || recording || !isRecordingComplete) return;
 
-      const rect = container.getBoundingClientRect();
-      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-      const position = x / rect.width;
+    const rect = container.getBoundingClientRect();
+    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+    const position = x / rect.width;
 
-      setViewPosition(position);
-    },
-    [recording, isRecordingComplete]
-  );
+    setViewPosition(position);
+  };
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (recording || !isRecordingComplete) return;
@@ -1638,7 +1617,7 @@ export const RecordingWaveform = ({
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
-  }, [isDragging, handleScrub]);
+  }, [isDragging]);
 
   return (
     <div
