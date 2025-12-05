@@ -40,8 +40,7 @@ use platform::get_active_app_info_fast;
 use state::{InputState, ModifierState};
 use types::{ActiveAppInfo, InputTrackerEvent, KeystrokeEvent};
 
-// Re-export the manager for external use
-pub use types::InputEntry;
+// Re-export the manager for external use (currently unused but may be needed by other modules)
 
 /// Default timeout duration after which we consider the user has left an input field
 /// Value of 0 means disabled (only count on app switch/click)
@@ -146,10 +145,9 @@ impl InputTrackerManager {
         thread::spawn(move || {
             log::info!("[InputTracker] Event processor thread started");
             let mut state = InputState::default();
-            let mut current_app = ActiveAppInfo::default();
 
             // Get initial app info
-            current_app = get_active_app_info_fast();
+            let mut current_app = get_active_app_info_fast();
             state.set_current_app(current_app.clone());
             log::info!(
                 "[InputTracker] Initial app: '{}' ({:?})",

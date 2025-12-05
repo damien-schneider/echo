@@ -25,6 +25,7 @@ import { useComposedRef, useEditorRef } from "platejs/react";
 import {
   type ComponentProps,
   createContext,
+  type HTMLAttributes,
   type ReactNode,
   type RefObject,
   startTransition,
@@ -341,7 +342,9 @@ const InlineComboboxEmpty = ({
     };
   }, [setHasEmpty]);
 
-  if (items.length > 0) return null;
+  if (items.length > 0) {
+    return null;
+  }
 
   return (
     <div
