@@ -75,7 +75,7 @@
     "tailwindcss": "^4.1.17",
     "tailwindcss-animate": "^1.0.7",
     "tauri-plugin-macos-permissions-api": "2.3.0",
-    "zod": "^4.1.13"
+    "zod": "^3.24.0"
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.8",
