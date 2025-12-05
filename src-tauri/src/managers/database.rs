@@ -17,7 +17,7 @@ use rusqlite::Connection;
 use std::path::Path;
 
 /// Current schema version. Increment this when adding new migrations.
-const CURRENT_SCHEMA_VERSION: u32 = 4;
+const CURRENT_SCHEMA_VERSION: u32 = 5;
 
 /// A database migration with version and SQL statement.
 struct Migration {
@@ -66,6 +66,11 @@ const MIGRATIONS: &[Migration] = &[
         );
         CREATE INDEX IF NOT EXISTS idx_input_entries_timestamp ON input_entries(timestamp);
         CREATE INDEX IF NOT EXISTS idx_input_entries_app ON input_entries(app_bundle_id)",
+    },
+    Migration {
+        version: 5,
+        description: "add_app_pid_column",
+        sql: "ALTER TABLE input_entries ADD COLUMN app_pid INTEGER",
     },
 ];
 
@@ -212,12 +217,15 @@ fn detect_schema_version(conn: &Connection) -> Result<u32> {
 
     // Check for tables/columns added in later migrations
     let has_input_entries = check_table_exists(conn, "input_entries")?;
+    let has_app_pid = check_column_exists(conn, "input_entries", "app_pid")?;
     let has_post_process_prompt =
         check_column_exists(conn, "transcription_history", "post_process_prompt")?;
     let has_post_processed_text =
         check_column_exists(conn, "transcription_history", "post_processed_text")?;
 
-    if has_input_entries {
+    if has_input_entries && has_app_pid {
+        Ok(5)
+    } else if has_input_entries {
         Ok(4)
     } else if has_post_process_prompt {
         Ok(3)

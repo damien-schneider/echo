@@ -7,6 +7,7 @@ pub struct InputEntry {
     pub id: i64,
     pub app_name: String,
     pub app_bundle_id: Option<String>,
+    pub app_pid: Option<i32>,
     pub window_title: Option<String>,
     pub content: String,
     pub timestamp: i64,
@@ -27,7 +28,7 @@ pub fn get_input_entries(app: AppHandle, limit: Option<usize>) -> Result<Vec<Inp
 
     let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or_default();
     let query = format!(
-        "SELECT id, app_name, app_bundle_id, window_title, content, timestamp, duration_ms 
+        "SELECT id, app_name, app_bundle_id, app_pid, window_title, content, timestamp, duration_ms 
          FROM input_entries ORDER BY timestamp DESC{}",
         limit_clause
     );
@@ -42,10 +43,11 @@ pub fn get_input_entries(app: AppHandle, limit: Option<usize>) -> Result<Vec<Inp
                 id: row.get(0)?,
                 app_name: row.get(1)?,
                 app_bundle_id: row.get(2)?,
-                window_title: row.get(3)?,
-                content: row.get(4)?,
-                timestamp: row.get(5)?,
-                duration_ms: row.get(6)?,
+                app_pid: row.get(3)?,
+                window_title: row.get(4)?,
+                content: row.get(5)?,
+                timestamp: row.get(6)?,
+                duration_ms: row.get(7)?,
             })
         })
         .map_err(|e| format!("Failed to query entries: {}", e))?
