@@ -129,8 +129,13 @@
 
   /* Tauri drag region support */
   [data-tauri-drag-region] {
-    -webkit-app-region: drag;
-    app-region: drag;
+    -webkit-app-region: drag !important;
+    app-region: drag !important;
+  }
+
+  [data-tauri-drag-region-with-children] {
+    -webkit-app-region: drag !important;
+    app-region: drag !important;
   }
 
   [data-tauri-drag-region] * {
