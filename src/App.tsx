@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import "./App.css";
@@ -6,12 +8,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { getNormalizedOsPlatform } from "@/lib/os";
 import { cn } from "@/lib/utils";
 import { AccessibilityPermissions } from "./components/accessibility-permissions";
+import { ErrorDialog } from "./components/error-dialog";
 import Onboarding from "./components/onboarding";
 import {
   SECTIONS_CONFIG,
   SidebarLayout,
   type SidebarSection,
 } from "./components/sidemenu";
+import { TranscriptionResultDialog } from "./components/transcription-result-dialog";
 import { useSettings } from "./hooks/use-settings";
 
 const renderSettingsContent = (section: SidebarSection) => {
@@ -24,6 +28,9 @@ function App() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [currentSection, setCurrentSection] = useState<SidebarSection>("app");
   const { settings, updateSetting, isLoading } = useSettings();
+  const [isDragging, setIsDragging] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const hasSignaledReady = useRef(false);
   const osPlatform = getNormalizedOsPlatform();
 
@@ -89,6 +96,51 @@ function App() {
     }
   }, [isInitializing]);
 
+  // Handle drag events for file drop overlay
+  useEffect(() => {
+    const unlistenPromises = [
+      listen("drag-enter", () => setIsDragging(true)),
+      listen("drag-over", () => setIsDragging(true)),
+      listen("drag-leave", () => setIsDragging(false)),
+      listen("file-transcription-progress", () => setIsDragging(false)),
+    ];
+
+    Promise.all(unlistenPromises).then((unlisteners) => {
+      return () => {
+        unlisteners.forEach((u) => {
+          u.then((fn) => fn());
+        });
+      };
+    });
+  }, []);
+
+  // Handle transcription progress
+  useEffect(() => {
+    const unlistenPromises = [
+      listen(
+        "file-transcription-progress",
+        (event: { payload: { status: string; progress: number } }) => {
+          const { status, progress } = event.payload;
+          if (status === "complete") {
+            setIsTranscribing(false);
+            setTranscriptionProgress(0);
+          } else {
+            setIsTranscribing(true);
+            setTranscriptionProgress(progress);
+          }
+        }
+      ),
+    ];
+
+    Promise.all(unlistenPromises).then((unlisteners) => {
+      return () => {
+        unlisteners.forEach((u) => {
+          u.then((fn) => fn());
+        });
+      };
+    });
+  }, []);
+
   if (isInitializing) {
     return (
       <div
@@ -118,13 +170,27 @@ function App() {
       <Toaster />
       <SidebarLayout
         activeSection={currentSection}
+        isTranscribing={isTranscribing}
         onSectionChange={setCurrentSection}
+        transcriptionProgress={transcriptionProgress}
       >
         <div className="mx-auto max-w-xl">
           <AccessibilityPermissions />
           {renderSettingsContent(currentSection)}
         </div>
       </SidebarLayout>
+      <TranscriptionResultDialog />
+      <ErrorDialog />
+      {isDragging && (
+        <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-background/40 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3">
+            <Upload className="h-12 w-12 text-muted-foreground" />
+            <p className="font-medium text-muted-foreground text-sm">
+              Drop to transcribe
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

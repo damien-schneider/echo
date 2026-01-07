@@ -2,7 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,7 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
   const contentLengthRef = useRef(0);
 
   // Update checking functions
-  async function checkForUpdates() {
+  const checkForUpdates = useCallback(async () => {
     if (isChecking) {
       return;
     }
@@ -59,12 +59,12 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       setIsChecking(false);
       isManualCheckRef.current = false;
     }
-  }
+  }, []);
 
-  function handleManualUpdateCheck() {
+  const handleManualUpdateCheck = useCallback(() => {
     isManualCheckRef.current = true;
     checkForUpdates();
-  }
+  }, [checkForUpdates]);
 
   useEffect(() => {
     checkForUpdates();

@@ -154,3 +154,13 @@ export const ModelInfoSchema = z.object({
 });
 
 export type ModelInfo = z.infer<typeof ModelInfoSchema>;
+
+export const FileTranscriptionProgressSchema = z.object({
+  status: z.string(),
+  progress: z.number(),
+  message: z.string(),
+});
+
+export type FileTranscriptionProgress = z.infer<
+  typeof FileTranscriptionProgressSchema
+>;

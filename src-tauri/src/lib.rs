@@ -37,6 +37,7 @@ use tauri::Emitter;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKind, LogLevel};
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::path::PathBuf;
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 #[cfg(unix)]
 use signal_hook::consts::SIGUSR2;
@@ -222,11 +223,143 @@ fn build_console_filter() -> env_filter::Filter {
     builder.build()
 }
 
+/// Helper function to validate and transcribe a dropped file (for window drops)
+/// Does not show the window after completion - only shows the dialog
+async fn validate_and_transcribe_file(
+    app: AppHandle,
+    file_path: PathBuf,
+) -> Result<(), String> {
+    // Validate file exists
+    if !file_path.exists() {
+        let _ = app.emit("show-error-dialog", "File not found");
+        return Err("File not found".to_string());
+    }
+
+    // Validate file extension
+    let valid_extensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga"];
+    let extension = file_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+
+    if !valid_extensions.contains(&extension.as_str()) {
+        let error_msg = format!("Unsupported file format: .{}", extension);
+        let _ = app.emit("show-error-dialog", error_msg.clone());
+        return Err(error_msg);
+    }
+
+    // Get managers from state
+    let history_manager = app.state::<Arc<HistoryManager>>();
+    let transcription_manager = app.state::<Arc<TranscriptionManager>>();
+
+    // Call existing transcription command logic
+    let file_path_str = file_path.to_string_lossy().to_string();
+    commands::file_transcription::transcribe_audio_file(
+        app.clone(),
+        file_path_str,
+        history_manager,
+        transcription_manager,
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Helper function to validate and transcribe a dropped file (for icon drops)
+/// Shows the window after completion
+async fn validate_and_transcribe_file_icon_drop(
+    app: AppHandle,
+    file_path: PathBuf,
+    show_window_after: bool,
+) -> Result<(), String> {
+    // Validate file exists
+    if !file_path.exists() {
+        // Show error dialog and open window
+        let _ = app.emit("show-error-dialog", "File not found");
+        startup::show_main_window(&app);
+        return Err("File not found".to_string());
+    }
+
+    // Validate file extension
+    let valid_extensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga"];
+    let extension = file_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_lowercase())
+        .unwrap_or_default();
+
+    if !valid_extensions.contains(&extension.as_str()) {
+        // Show unsupported file error
+        let error_msg = format!("Unsupported file format: .{}", extension);
+        let _ = app.emit("show-error-dialog", error_msg.clone());
+        startup::show_main_window(&app);
+        return Err(error_msg);
+    }
+
+    // Get managers from state
+    let history_manager = app.state::<Arc<HistoryManager>>();
+    let transcription_manager = app.state::<Arc<TranscriptionManager>>();
+
+    // Call existing transcription command logic
+    let file_path_str = file_path.to_string_lossy().to_string();
+    commands::file_transcription::transcribe_audio_file(
+        app.clone(),
+        file_path_str,
+        history_manager,
+        transcription_manager,
+    )
+    .await?;
+
+    // Show window after successful transcription
+    if show_window_after {
+        startup::show_main_window(&app);
+    }
+
+    Ok(())
+}
+
 pub fn run() {
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            show_main_window(app);
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // Check if any arguments look like file paths (icon drops)
+            let file_paths: Vec<PathBuf> = args
+                .iter()
+                .skip(1) // Skip the first arg (app executable path)
+                .filter_map(|arg| {
+                    let path = PathBuf::from(arg);
+                    if path.exists() {
+                        Some(path)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if !file_paths.is_empty() {
+                log::info!("Files dropped on app icon: {:?}", file_paths);
+
+                // Process first file (for now, could process multiple)
+                if let Some(file_path) = file_paths.first() {
+                    let app_handle = app.clone();
+                    let path = file_path.clone();
+
+                    // Spawn async task to handle transcription
+                    tauri::async_runtime::spawn(async move {
+                        let handle_for_emit = app_handle.clone();
+                        if let Err(e) =
+                            validate_and_transcribe_file_icon_drop(app_handle, path, true).await
+                        {
+                            log::error!("Failed to transcribe dropped file: {}", e);
+                            let _ = handle_for_emit.emit("file-transcription-error", e);
+                        }
+                    });
+                }
+            } else {
+                // No files, just show the window
+                show_main_window(app);
+            }
         }))
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
@@ -308,6 +441,38 @@ pub fn run() {
                 log::info!("Theme changed to: {:?}", theme);
                 // Update tray icon to match new theme, maintaining idle state
                 utils::change_tray_icon(&window.app_handle(), utils::TrayIconState::Idle);
+            }
+            tauri::WindowEvent::DragDrop(drag_event) => {
+                match drag_event {
+                    tauri::DragDropEvent::Enter { .. } => {
+                        log::info!("File drag entered window");
+                        let _ = window.emit("drag-enter", ());
+                    }
+                    tauri::DragDropEvent::Over { .. } => {
+                        let _ = window.emit("drag-over", ());
+                    }
+                    tauri::DragDropEvent::Leave => {
+                        log::info!("File drag left window");
+                        let _ = window.emit("drag-leave", ());
+                    }
+                    tauri::DragDropEvent::Drop { paths, .. } => {
+                        log::info!("File dropped on window: {:?}", paths);
+                        if let Some(file_path) = paths.first() {
+                            let app_handle = window.app_handle().clone();
+                            let path = file_path.clone();
+
+                            // Spawn async task to handle transcription
+                            tauri::async_runtime::spawn(async move {
+                                let handle_for_emit = app_handle.clone();
+                                if let Err(e) = validate_and_transcribe_file(app_handle, path).await {
+                                    log::error!("Failed to transcribe dropped file: {}", e);
+                                    let _ = handle_for_emit.emit("file-transcription-error", e);
+                                }
+                            });
+                        }
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         })
@@ -394,6 +559,7 @@ pub fn run() {
             commands::history::reprocess_history_entry,
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
+            commands::file_transcription::transcribe_audio_file,
             commands::input_tracking::get_input_entries,
             commands::input_tracking::delete_input_entry,
             commands::input_tracking::clear_all_input_entries,

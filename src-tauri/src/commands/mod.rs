@@ -1,4 +1,5 @@
 pub mod audio;
+pub mod file_transcription;
 pub mod history;
 pub mod input_tracking;
 pub mod models;
