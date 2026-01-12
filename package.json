@@ -17,7 +17,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "prepare": "husky",
-    "version": "bun ./scripts/bump-version.ts"
+    "version": "bun ./scripts/bump-version.ts",
+    "clean": "rm -rf .turbo .cargo node_modules bun.lock dist src-tauri/target apps/web/node_modules && bun install"
   },
   "dependencies": {
     "@ariakit/react": "^0.4.20",

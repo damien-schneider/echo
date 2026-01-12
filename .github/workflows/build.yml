@@ -330,6 +330,15 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
           WHISPER_NO_AVX: ${{ contains(inputs.platform, 'ubuntu') && 'ON' || '' }}
           WHISPER_NO_AVX2: ${{ contains(inputs.platform, 'ubuntu') && 'ON' || '' }}
+          # Set macOS deployment target to 10.15 for std::filesystem support required by ggml.
+          # The ggml-backend-reg.cpp uses std::filesystem::path which requires macOS 10.15+.
+          MACOSX_DEPLOYMENT_TARGET: ${{ contains(inputs.platform, 'macos') && '10.15' || '' }}
+          # Disable native CPU detection for macOS ARM64 to avoid i8mm feature conflicts in ggml.
+          # The -mcpu=native flag causes issues when ggml detects i8mm is not supported at runtime
+          # but the code still tries to use i8mm instructions. Using a fixed architecture ensures
+          # compatibility across all Apple Silicon Macs (M1 and later).
+          GGML_NATIVE: ${{ contains(inputs.target, 'aarch64-apple-darwin') && 'OFF' || '' }}
+          GGML_CPU_ARM_ARCH: ${{ contains(inputs.target, 'aarch64-apple-darwin') && 'armv8.2-a+fp16+dotprod' || '' }}
         with:
           tagName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
           releaseName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
