@@ -14,6 +14,7 @@
     "build:web": "turbo run build --filter=apps/web",
     "check-types": "tsc --noEmit",
     "pipeline": "bun run check-types && bun run build",
+    "ci:local": "bun run pipeline && cd src-tauri && cargo check",
     "preview": "vite preview",
     "tauri": "tauri",
     "prepare": "husky",

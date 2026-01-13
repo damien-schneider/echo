@@ -328,17 +328,18 @@ jobs:
           AZURE_TENANT_ID: ${{ inputs.sign-binaries && secrets.AZURE_TENANT_ID || '' }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+          # Disable AVX/AVX2 for Linux to ensure broad compatibility
           WHISPER_NO_AVX: ${{ contains(inputs.platform, 'ubuntu') && 'ON' || '' }}
           WHISPER_NO_AVX2: ${{ contains(inputs.platform, 'ubuntu') && 'ON' || '' }}
           # Set macOS deployment target to 10.15 for std::filesystem support required by ggml.
-          # The ggml-backend-reg.cpp uses std::filesystem::path which requires macOS 10.15+.
           MACOSX_DEPLOYMENT_TARGET: ${{ contains(inputs.platform, 'macos') && '10.15' || '' }}
-          # Disable native CPU detection for macOS ARM64 to avoid i8mm feature conflicts in ggml.
-          # The -mcpu=native flag causes issues when ggml detects i8mm is not supported at runtime
-          # but the code still tries to use i8mm instructions. Using a fixed architecture ensures
-          # compatibility across all Apple Silicon Macs (M1 and later).
-          GGML_NATIVE: ${{ contains(inputs.target, 'aarch64-apple-darwin') && 'OFF' || '' }}
-          GGML_CPU_ARM_ARCH: ${{ contains(inputs.target, 'aarch64-apple-darwin') && 'armv8.2-a+fp16+dotprod' || '' }}
+          # Disable native CPU detection for ARM64 builds to avoid i8mm instruction errors.
+          # WHISPER_NATIVE is passed to cmake by whisper-rs-sys and maps to GGML_NATIVE.
+          # When disabled, cmake uses GGML_CPU_ARM_ARCH instead of native detection.
+          WHISPER_NATIVE: ${{ contains(inputs.target, 'aarch64') && 'OFF' || '' }}
+          # Set a fixed ARM architecture when native detection is disabled.
+          # armv8-a is the base ARMv8 without problematic i8mm instructions.
+          GGML_CPU_ARM_ARCH: ${{ contains(inputs.target, 'aarch64') && 'armv8-a' || '' }}
         with:
           tagName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
           releaseName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
