@@ -4,6 +4,7 @@ import { Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import "./App.css";
+import { AppHeader } from "@/components/app-header";
 import { Spinner } from "@/components/ui/spinner";
 import { getNormalizedOsPlatform } from "@/lib/os";
 import { cn } from "@/lib/utils";
@@ -16,6 +17,7 @@ import {
   type SidebarSection,
 } from "./components/sidemenu";
 import { TranscriptionResultDialog } from "./components/transcription-result-dialog";
+import { useFileTranscriptionListener } from "./hooks/use-file-transcription-listener";
 import { useSettings } from "./hooks/use-settings";
 
 const renderSettingsContent = (section: SidebarSection) => {
@@ -33,6 +35,8 @@ function App() {
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const hasSignaledReady = useRef(false);
   const osPlatform = getNormalizedOsPlatform();
+
+  useFileTranscriptionListener();
 
   // Check onboarding status on mount
   useEffect(() => {
@@ -107,6 +111,12 @@ function App() {
       unlistenFns.push(
         await listen("file-transcription-progress", () => setIsDragging(false))
       );
+      unlistenFns.push(
+        await listen("file-transcription-error", () => setIsDragging(false))
+      );
+      unlistenFns.push(
+        await listen("show-error-dialog", () => setIsDragging(false))
+      );
     };
 
     setupListeners();
@@ -172,6 +182,7 @@ function App() {
       data-tauri-drag-region
     >
       <Toaster />
+      <AppHeader />
       <SidebarLayout
         activeSection={currentSection}
         onSectionChange={setCurrentSection}
@@ -188,7 +199,7 @@ function App() {
           <div className="flex flex-col items-center gap-3">
             <Upload className="h-12 w-12 text-muted-foreground" />
             <p className="font-medium text-muted-foreground text-sm">
-              Drop to transcribe
+              Drop audio or video to transcribe
             </p>
           </div>
         </div>

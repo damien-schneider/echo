@@ -162,26 +162,24 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
 
   return (
     <div className={`flex items-center gap-3 ${className}`}>
-      <div className="relative">
-        <Button
-          className={cn(
-            "min-w-32 items-center gap-2",
-            updateAvailable
-              ? "font-medium text-brand hover:text-brand/80"
-              : "text-text/60 hover:text-text/80"
-          )}
-          disabled={!isUpdateClickable}
-          onClick={getUpdateStatusAction()}
-          size="xs"
-          variant="ghost"
-        >
-          {showSpinner ? (
-            <Spinner className="size-3" />
-          ) : (
-            <span className="tabular-nums">{getUpdateStatusText()}</span>
-          )}
-        </Button>
-      </div>
+      <Button
+        className={cn(
+          "min-w-32 items-center gap-2",
+          updateAvailable
+            ? "font-medium text-brand hover:text-brand/80"
+            : "text-text/60 hover:text-text/80"
+        )}
+        disabled={!isUpdateClickable}
+        onClick={getUpdateStatusAction()}
+        size="xs"
+        variant="ghost"
+      >
+        {showSpinner ? (
+          <Spinner className="size-3" />
+        ) : (
+          <span className="tabular-nums">{getUpdateStatusText()}</span>
+        )}
+      </Button>
 
       {isInstalling && downloadProgress > 0 && downloadProgress < 100 && (
         <ProgressBar

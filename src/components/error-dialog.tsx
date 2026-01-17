@@ -3,16 +3,46 @@ import { AlertCircle } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+interface ErrorPayload {
+  title?: string;
+  message: string;
+  details?: string;
+}
 
 export const ErrorDialog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorData, setErrorData] = useState<ErrorPayload>({
+    message: "",
+  });
 
   useEffect(() => {
-    const unlisten = listen<string>("show-error-dialog", (event) => {
-      setErrorMessage(event.payload);
-      setIsOpen(true);
-    });
+    const unlisten = listen<string | ErrorPayload>(
+      "show-error-dialog",
+      (event) => {
+        if (typeof event.payload === "string") {
+          setErrorData({
+            title: "Error",
+            message: event.payload,
+          });
+        } else {
+          setErrorData({
+            title: event.payload.title || "Error",
+            message: event.payload.message,
+            details: event.payload.details,
+          });
+        }
+        setIsOpen(true);
+      }
+    );
 
     return () => {
       unlisten.then((u) => u());
@@ -23,22 +53,29 @@ export const ErrorDialog: React.FC = () => {
     setIsOpen(false);
   };
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-md rounded-lg bg-background p-6 shadow-lg">
-        <div className="mb-4 flex items-center gap-2">
-          <AlertCircle className="h-5 w-5 text-destructive" />
-          <h3 className="font-semibold text-lg">Error</h3>
-        </div>
+    <Dialog onOpenChange={setIsOpen} open={isOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-destructive" />
+            {errorData.title}
+          </DialogTitle>
+          <DialogDescription>{errorData.message}</DialogDescription>
+        </DialogHeader>
 
-        <p className="mb-6 text-muted-foreground text-sm">{errorMessage}</p>
+        {errorData.details && (
+          <div className="rounded-lg bg-muted p-3">
+            <p className="font-mono text-muted-foreground text-xs">
+              {errorData.details}
+            </p>
+          </div>
+        )}
 
-        <div className="flex justify-end">
+        <DialogFooter>
           <Button onClick={handleClose}>Close</Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };
