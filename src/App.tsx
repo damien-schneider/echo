@@ -4,6 +4,7 @@ import { Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import "./App.css";
+import { AppHeader } from "@/components/app-header";
 import { GlassWindow } from "@/components/ui/glass-window";
 import { Spinner } from "@/components/ui/spinner";
 import { AccessibilityPermissions } from "./components/accessibility-permissions";
@@ -16,6 +17,7 @@ import {
 } from "./components/sidemenu";
 import { TranscriptionResultDialog } from "./components/transcription-result-dialog";
 import { TitleBar } from "./components/ui/title-bar";
+import { useFileTranscriptionListener } from "./hooks/use-file-transcription-listener";
 import { useSettings } from "./hooks/use-settings";
 
 const renderSettingsContent = (section: SidebarSection) => {
@@ -32,6 +34,8 @@ function App() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const hasSignaledReady = useRef(false);
+
+  useFileTranscriptionListener();
 
   // Check onboarding status on mount
   useEffect(() => {
@@ -106,6 +110,12 @@ function App() {
       unlistenFns.push(
         await listen("file-transcription-progress", () => setIsDragging(false))
       );
+      unlistenFns.push(
+        await listen("file-transcription-error", () => setIsDragging(false))
+      );
+      unlistenFns.push(
+        await listen("show-error-dialog", () => setIsDragging(false))
+      );
     };
 
     setupListeners();
@@ -167,6 +177,7 @@ function App() {
     <GlassWindow>
       <TitleBar />
       <Toaster />
+      <AppHeader />
       <SidebarLayout
         activeSection={currentSection}
         onSectionChange={setCurrentSection}
@@ -183,7 +194,7 @@ function App() {
           <div className="flex flex-col items-center gap-3">
             <Upload className="h-12 w-12 text-muted-foreground" />
             <p className="font-medium text-muted-foreground text-sm">
-              Drop to transcribe
+              Drop audio or video to transcribe
             </p>
           </div>
         </div>

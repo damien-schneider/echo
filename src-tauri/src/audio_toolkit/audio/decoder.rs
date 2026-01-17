@@ -1,23 +1,25 @@
 use anyhow::{Context, Result};
 use hound::WavReader;
-use log::debug;
+use log::{debug, info, warn};
 use std::path::Path;
+use std::process::Command;
 use symphonia::core::{
-    codecs::{CODEC_TYPE_NULL, DecoderOptions},
+    audio::Signal,
+    codecs::{DecoderOptions, CODEC_TYPE_NULL},
     formats::FormatOptions,
     io::MediaSourceStream,
     meta::MetadataOptions,
     probe::Hint,
-    audio::Signal,
 };
 use std::fs::File;
 
-/// Supported audio formats
+/// Supported audio formats (including video files with audio tracks)
 pub enum AudioFormat {
     Wav,
     Mp3,
     M4a,
     Ogg,
+    Video,
     Unsupported,
 }
 
@@ -35,6 +37,7 @@ impl AudioFormat {
             "mp3" => AudioFormat::Mp3,
             "m4a" | "aac" => AudioFormat::M4a,
             "ogg" | "oga" => AudioFormat::Ogg,
+            "mp4" | "mov" | "avi" | "mkv" | "webm" | "flv" => AudioFormat::Video,
             _ => AudioFormat::Unsupported,
         }
     }
@@ -52,11 +55,105 @@ pub fn decode_audio_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
         AudioFormat::Mp3 | AudioFormat::M4a | AudioFormat::Ogg => {
             decode_with_symphonia(&file_path)
         }
+        AudioFormat::Video => {
+            // For video files, extract audio using FFmpeg for better codec compatibility
+            decode_video_with_ffmpeg(&file_path)
+        }
         AudioFormat::Unsupported => Err(anyhow::anyhow!(
-            "Unsupported audio format: {:?}",
-            file_path.as_ref().extension()
+            "Unsupported file format. Please provide an audio file (wav, mp3, m4a, ogg) or a video file with an audio track (mp4, mov, mkv, webm)."
         )),
     }
+}
+
+/// Decode video files by extracting audio with FFmpeg
+/// This provides better codec compatibility than symphonia for video containers
+/// Outputs raw PCM directly to stdout for maximum speed (no temp file needed)
+fn decode_video_with_ffmpeg<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
+    let path = file_path.as_ref();
+    info!("Extracting audio from video file using FFmpeg: {:?}", path);
+
+    // Find FFmpeg - check common locations
+    let ffmpeg_path = find_ffmpeg()?;
+
+    // Run FFmpeg to extract audio as raw 16-bit PCM to stdout
+    // This is faster than writing to a temp file
+    let output = Command::new(&ffmpeg_path)
+        .args([
+            "-i",
+            path.to_str().unwrap_or_default(),
+            "-vn",              // No video
+            "-f", "s16le",      // Raw 16-bit little-endian PCM
+            "-acodec", "pcm_s16le",
+            "-ar", "16000",     // 16kHz sample rate
+            "-ac", "1",         // Mono
+            "-",                // Output to stdout
+        ])
+        .output()
+        .with_context(|| format!("Failed to run FFmpeg: {}", ffmpeg_path))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow::anyhow!(
+            "FFmpeg failed to extract audio: {}",
+            stderr.lines().last().unwrap_or("Unknown error")
+        ));
+    }
+
+    info!("FFmpeg audio extraction complete, converting PCM to samples...");
+
+    // Convert raw PCM bytes to f32 samples
+    let samples = pcm_s16le_to_f32(&output.stdout);
+
+    debug!(
+        "Decoded video file via FFmpeg: {:?} -> {} samples at 16kHz mono",
+        path,
+        samples.len()
+    );
+
+    Ok(samples)
+}
+
+/// Convert raw 16-bit little-endian PCM bytes to f32 samples
+fn pcm_s16le_to_f32(bytes: &[u8]) -> Vec<f32> {
+    bytes
+        .chunks_exact(2)
+        .map(|chunk| {
+            let sample = i16::from_le_bytes([chunk[0], chunk[1]]);
+            sample as f32 / i16::MAX as f32
+        })
+        .collect()
+}
+
+/// Find FFmpeg executable in common locations
+fn find_ffmpeg() -> Result<String> {
+    // Check if ffmpeg is in PATH
+    if let Ok(output) = Command::new("which").arg("ffmpeg").output() {
+        if output.status.success() {
+            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            if !path.is_empty() {
+                return Ok(path);
+            }
+        }
+    }
+
+    // Check common macOS locations
+    let common_paths = [
+        "/opt/homebrew/bin/ffmpeg",
+        "/usr/local/bin/ffmpeg",
+        "/usr/bin/ffmpeg",
+    ];
+
+    for path in common_paths {
+        if std::path::Path::new(path).exists() {
+            return Ok(path.to_string());
+        }
+    }
+
+    Err(anyhow::anyhow!(
+        "FFmpeg not found. Please install FFmpeg to process video files.\n\
+        On macOS: brew install ffmpeg\n\
+        On Windows: Download from https://ffmpeg.org/download.html"
+    ))
 }
 
 /// Decode WAV file using existing hound library
@@ -138,7 +235,7 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     // Create decoder
     let mut decoder = symphonia::default::get_codecs()
         .make(&track.codec_params, &DecoderOptions::default())
-        .with_context(|| format!("Failed to create decoder for track"))?;
+        .context("Failed to create decoder for track")?;
 
     // Get sample rate
     let sample_rate = track
@@ -155,10 +252,16 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
 
     // Collect all decoded samples
     let mut all_samples: Vec<f32> = Vec::new();
+    let mut decode_errors = 0;
+    const MAX_CONSECUTIVE_ERRORS: u32 = 50;
+    let mut consecutive_errors = 0;
 
     loop {
         let packet = match probed.next_packet() {
-            Ok(packet) => packet,
+            Ok(packet) => {
+                consecutive_errors = 0; // Reset on successful packet read
+                packet
+            }
             Err(symphonia::core::errors::Error::ResetRequired) => {
                 // Reset required, continue
                 continue;
@@ -167,10 +270,52 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
                 // End of file or unrecoverable error
                 break;
             }
-            Err(e) => return Err(anyhow::anyhow!("Failed to read packet: {}", e)),
+            Err(e) => {
+                warn!("Error reading packet: {}", e);
+                consecutive_errors += 1;
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                    return Err(anyhow::anyhow!(
+                        "Too many consecutive errors reading packets: {}",
+                        e
+                    ));
+                }
+                continue;
+            }
         };
 
-        let decoded = decoder.decode(&packet)?;
+        let decoded = match decoder.decode(&packet) {
+            Ok(decoded) => {
+                consecutive_errors = 0; // Reset on successful decode
+                decoded
+            }
+            Err(symphonia::core::errors::Error::DecodeError(msg)) => {
+                // Skip malformed frames - this is common in some AAC streams
+                decode_errors += 1;
+                if decode_errors == 1 {
+                    warn!("Decode error (will skip malformed frames): {}", msg);
+                }
+                consecutive_errors += 1;
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                    return Err(anyhow::anyhow!(
+                        "Too many consecutive decode errors: {}",
+                        msg
+                    ));
+                }
+                continue;
+            }
+            Err(symphonia::core::errors::Error::ResetRequired) => {
+                decoder.reset();
+                continue;
+            }
+            Err(e) => {
+                warn!("Error decoding packet: {}", e);
+                consecutive_errors += 1;
+                if consecutive_errors >= MAX_CONSECUTIVE_ERRORS {
+                    return Err(anyhow::anyhow!("Too many consecutive decode errors: {}", e));
+                }
+                continue;
+            }
+        };
 
         // Use the Symphonia API to extract samples
         // AudioBufferRef can be different formats, we need to handle them
@@ -227,6 +372,21 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
         }
     }
 
+    // Check if we got any audio at all
+    if all_samples.is_empty() {
+        return Err(anyhow::anyhow!(
+            "No audio could be decoded from file. The file may be corrupted or use an unsupported codec."
+        ));
+    }
+
+    // Log if we had to skip some frames
+    if decode_errors > 0 {
+        warn!(
+            "Skipped {} malformed frames while decoding {:?}",
+            decode_errors, path
+        );
+    }
+
     // Convert to mono if needed
     if channels_count > 1 {
         all_samples = stereo_to_mono(all_samples, channels_count);
@@ -238,11 +398,16 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     }
 
     debug!(
-        "Decoded audio file: {:?} - {} samples at {}Hz -> {} samples at 16kHz mono",
+        "Decoded audio file: {:?} - {} samples at {}Hz -> {} samples at 16kHz mono{}",
         path,
         all_samples.len(),
         sample_rate,
-        all_samples.len()
+        all_samples.len(),
+        if decode_errors > 0 {
+            format!(" (skipped {} malformed frames)", decode_errors)
+        } else {
+            String::new()
+        }
     );
 
     Ok(all_samples)

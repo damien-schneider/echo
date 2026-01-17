@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
+import { FileTranscriptionCenter } from "@/components/file-transcription-center";
 import EchoLogo from "@/components/icons/echo-logo";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -108,13 +109,18 @@ function SidebarVersionFooter() {
     <SidebarFooter className="select-none" data-tauri-drag-region>
       <SidebarMenu>
         <SidebarMenuItem>
-          <div className="flex items-center gap-2 px-2 py-1.5">
-            <AboutDialog />
-            <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-              <UpdateChecker />
-              <Badge size="sm" variant="outline">
-                v{version}
-              </Badge>
+          <FileTranscriptionCenter />
+        </SidebarMenuItem>
+        <SidebarMenuItem>
+          <div className="flex items-center justify-between py-1.5">
+            <div className="flex items-center gap-2">
+              <AboutDialog />
+              <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
+                <UpdateChecker />
+                <Badge size="sm" variant="outline">
+                  v{version}
+                </Badge>
+              </div>
             </div>
           </div>
         </SidebarMenuItem>
