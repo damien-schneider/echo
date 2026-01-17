@@ -11,8 +11,8 @@ use async_openai::types::{
     ChatCompletionRequestMessage, ChatCompletionRequestUserMessageArgs,
     CreateChatCompletionRequestArgs,
 };
-use log::{debug, error, info};
 use ferrous_opencc::{config::BuiltinConfig, OpenCC};
+use log::{debug, error, info};
 use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -99,27 +99,23 @@ pub async fn maybe_post_process_transcription(
     );
 
     // Log the original transcription that will be inserted
-    log::info!(
-        "[Post-Process] Original transcription:\n{}",
-        transcription
-    );
+    log::info!("[Post-Process] Original transcription:\n{}", transcription);
 
     // Log the original prompt template (before variable substitution)
-    log::info!(
-        "[Post-Process] Original prompt template:\n{}",
-        prompt
-    );
+    log::info!("[Post-Process] Original prompt template:\n{}", prompt);
 
     // Replace mention placeholder with the actual transcription text
     // Handle multiple formats:
     // 1. Platejs remarkMention link format: [output](mention:output) or [any text](mention:output)
     // 2. Legacy ${output} format
     // 3. Simple @output format
-    
+
     // Use regex for flexible matching of [any text](mention:output)
     let mention_regex = regex::Regex::new(r"\[[^\]]*\]\(mention:output\)").unwrap();
-    let processed_prompt = mention_regex.replace_all(&prompt, transcription).to_string();
-    
+    let processed_prompt = mention_regex
+        .replace_all(&prompt, transcription)
+        .to_string();
+
     // Also replace ${output} and @output formats for backward compatibility
     let processed_prompt = processed_prompt
         .replace("${output}", transcription)
@@ -172,10 +168,7 @@ pub async fn maybe_post_process_transcription(
             if let Some(choice) = response.choices.first() {
                 if let Some(content) = &choice.message.content {
                     // Log the LLM result
-                    log::info!(
-                        "[Post-Process] LLM result:\n{}",
-                        content
-                    );
+                    log::info!("[Post-Process] LLM result:\n{}", content);
                     debug!(
                         "LLM post-processing succeeded for provider '{}'. Output length: {} chars",
                         provider.id,
@@ -206,9 +199,7 @@ async fn maybe_convert_chinese_variant(
     let is_traditional = settings.selected_language == "zh-Hant";
 
     if !is_simplified && !is_traditional {
-        debug!(
-            "selected_language is not Simplified or Traditional Chinese; skipping conversion"
-        );
+        debug!("selected_language is not Simplified or Traditional Chinese; skipping conversion");
         return None;
     }
 

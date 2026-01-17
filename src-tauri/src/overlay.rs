@@ -20,7 +20,20 @@ const OVERLAY_BOTTOM_OFFSET: f64 = 15.0;
 const OVERLAY_BOTTOM_OFFSET: f64 = 40.0;
 
 fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
+    // On Wayland, Enigo's cursor detection can hang or fail due to security restrictions.
+    // Detect Wayland and skip directly to primary_monitor fallback.
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(session_type) = std::env::var("XDG_SESSION_TYPE") {
+            if session_type.to_lowercase() == "wayland" {
+                debug!("[Overlay] Wayland detected, skipping Enigo cursor detection");
+                return app_handle.primary_monitor().ok().flatten();
+            }
+        }
+    }
+
     let enigo = Enigo::new(&Default::default());
+
     if let Ok(enigo) = enigo {
         if let Ok(mouse_location) = enigo.location() {
             if let Ok(monitors) = app_handle.available_monitors() {
@@ -121,36 +134,44 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
 
 /// Shows the recording overlay window with fade-in animation
 pub fn show_recording_overlay(app_handle: &AppHandle) {
-    // Check if overlay should be shown based on position setting
-    let settings = settings::get_settings(app_handle);
-    if settings.overlay_position == OverlayPosition::None {
-        return;
-    }
+    let app_handle = app_handle.clone();
 
-    update_overlay_position(app_handle);
+    std::thread::spawn(move || {
+        // Check if overlay should be shown based on position setting
+        let settings = settings::get_settings(&app_handle);
+        if settings.overlay_position == OverlayPosition::None {
+            return;
+        }
 
-    if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
-        let _ = overlay_window.show();
-        // Emit event to trigger fade-in animation with recording state
-        let _ = overlay_window.emit("show-overlay", "recording");
-    }
+        update_overlay_position(&app_handle);
+
+        if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+            let _ = overlay_window.show();
+            // Emit event to trigger fade-in animation with recording state
+            let _ = overlay_window.emit("show-overlay", "recording");
+        }
+    });
 }
 
 /// Shows the transcribing overlay window
 pub fn show_transcribing_overlay(app_handle: &AppHandle) {
-    // Check if overlay should be shown based on position setting
-    let settings = settings::get_settings(app_handle);
-    if settings.overlay_position == OverlayPosition::None {
-        return;
-    }
+    let app_handle = app_handle.clone();
 
-    update_overlay_position(app_handle);
+    std::thread::spawn(move || {
+        // Check if overlay should be shown based on position setting
+        let settings = settings::get_settings(&app_handle);
+        if settings.overlay_position == OverlayPosition::None {
+            return;
+        }
 
-    if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
-        let _ = overlay_window.show();
-        // Emit event to switch to transcribing state
-        let _ = overlay_window.emit("show-overlay", "transcribing");
-    }
+        update_overlay_position(&app_handle);
+
+        if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+            let _ = overlay_window.show();
+            // Emit event to switch to transcribing state
+            let _ = overlay_window.emit("show-overlay", "transcribing");
+        }
+    });
 }
 
 /// Updates the overlay window position based on current settings
