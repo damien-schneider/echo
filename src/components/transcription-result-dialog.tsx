@@ -48,16 +48,14 @@ export const TranscriptionResultDialog: React.FC<
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog onOpenChange={setIsOpen} open={isOpen}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
             <DialogTitle>Transcription Complete</DialogTitle>
           </div>
-          {fileName && (
-            <DialogDescription>File: {fileName}</DialogDescription>
-          )}
+          {fileName && <DialogDescription>File: {fileName}</DialogDescription>}
         </DialogHeader>
 
         <div className="max-h-60 overflow-y-auto rounded-md border bg-muted/30 p-3">

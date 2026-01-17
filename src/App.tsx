@@ -17,8 +17,8 @@ import {
   type SidebarSection,
 } from "./components/sidemenu";
 import { TranscriptionResultDialog } from "./components/transcription-result-dialog";
-import { useSettings } from "./hooks/use-settings";
 import { useFileTranscriptionNotifications } from "./hooks/use-file-transcription-notifications";
+import { useSettings } from "./hooks/use-settings";
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
@@ -179,8 +179,8 @@ function App() {
       <Toaster />
       <SidebarLayout
         activeSection={currentSection}
-        onSectionChange={setCurrentSection}
         notificationCenter={<NotificationCenter />}
+        onSectionChange={setCurrentSection}
       >
         <div className="mx-auto max-w-xl">
           <AccessibilityPermissions />

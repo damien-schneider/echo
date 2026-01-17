@@ -130,7 +130,20 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
     setError(null);
 
     // Validate file type
-    const validExtensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "webm", "mkv", "avi"];
+    const validExtensions = [
+      "wav",
+      "wave",
+      "mp3",
+      "m4a",
+      "aac",
+      "ogg",
+      "oga",
+      "mp4",
+      "mov",
+      "webm",
+      "mkv",
+      "avi",
+    ];
     const fileExtension = file.name.split(".").pop()?.toLowerCase();
 
     if (!(fileExtension && validExtensions.includes(fileExtension))) {
