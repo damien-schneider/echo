@@ -1,3 +1,5 @@
+/// <reference types="vitest" />
+
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
@@ -6,10 +8,12 @@ import { nitro } from "nitro/vite";
 import { defineConfig } from "vite";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 
+const isTest = process.env.VITEST;
+
 const config = defineConfig({
   plugins: [
     devtools(),
-    nitro({}),
+    !isTest && nitro({}),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ["./tsconfig.json"],
@@ -22,6 +26,9 @@ const config = defineConfig({
       },
     }),
   ],
+  test: {
+    environment: "jsdom",
+  },
 });
 
 export default config;
