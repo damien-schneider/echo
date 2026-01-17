@@ -54,7 +54,7 @@ export const ErrorDialog: React.FC = () => {
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+    <Dialog onOpenChange={setIsOpen} open={isOpen}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
