@@ -64,11 +64,6 @@ export const useFileTranscriptionNotifications = () => {
     };
 
     const setupListeners = async () => {
-      // Listen for drag enter to create initial notification
-      const unlistenDragEnter = await listen("drag-enter", () => {
-        // We'll create notification on drop instead
-      });
-
       // Listen for file drop to create notification
       const unlistenDrop = await listen("file-drop", () => {
         const notificationId = addNotification({
@@ -123,7 +118,6 @@ export const useFileTranscriptionNotifications = () => {
       );
 
       return () => {
-        unlistenDragEnter();
         unlistenDrop();
         unlistenProgress();
         unlistenComplete();
