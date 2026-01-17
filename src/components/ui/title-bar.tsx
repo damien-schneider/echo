@@ -1,6 +1,6 @@
 import { Slot } from "@radix-ui/react-slot";
-import { cva, type VariantProps } from "class-variance-authority";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { cva, type VariantProps } from "class-variance-authority";
 import { Minus, Square, X } from "lucide-react";
 import * as React from "react";
 import { cn } from "@/lib/utils";
@@ -54,15 +54,24 @@ export interface TitleBarProps extends React.HTMLAttributes<HTMLDivElement> { }
 
 const TitleBar = React.forwardRef<HTMLDivElement, TitleBarProps>(
     ({ className, ...props }, ref) => {
-        const handleMinimize = async () => {
+        const handleMinimize = async (e: React.MouseEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            console.log("Minimize clicked");
             await getCurrentWindow().minimize();
         };
 
-        const handleMaximize = async () => {
+        const handleMaximize = async (e: React.MouseEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            console.log("Maximize clicked");
             await getCurrentWindow().toggleMaximize();
         };
 
-        const handleClose = async () => {
+        const handleClose = async (e: React.MouseEvent) => {
+            e.stopPropagation();
+            e.preventDefault();
+            console.log("Close clicked");
             await getCurrentWindow().close();
         };
 
@@ -84,15 +93,15 @@ const TitleBar = React.forwardRef<HTMLDivElement, TitleBarProps>(
                 }
                 {...props}
             >
-                <WindowControlButton onClick={handleMinimize}>
+                <WindowControlButton type="button" onClick={handleMinimize}>
                     <Minus />
                     <span className="sr-only">Minimize</span>
                 </WindowControlButton>
-                <WindowControlButton onClick={handleMaximize}>
+                <WindowControlButton type="button" onClick={handleMaximize}>
                     <Square />
                     <span className="sr-only">Maximize</span>
                 </WindowControlButton>
-                <WindowControlButton variant="close" onClick={handleClose}>
+                <WindowControlButton type="button" onClick={handleClose} variant="close">
                     <X />
                     <span className="sr-only">Close</span>
                 </WindowControlButton>

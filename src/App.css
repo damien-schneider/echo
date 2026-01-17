@@ -45,7 +45,8 @@
   --window-radius: 12px;
   --window-border: oklch(0 0 0 / 8%);
   --window-border-highlight: oklch(1 0 0 / 50%);
-  --window-shadow: 0 25px 50px -12px oklch(0 0 0 / 25%), 0 0 0 1px oklch(0 0 0 / 5%);
+  --window-shadow:
+    0 25px 50px -12px oklch(0 0 0 / 25%), 0 0 0 1px oklch(0 0 0 / 5%);
   --window-background: oklch(1 0 0 / 85%);
 }
 
@@ -127,7 +128,8 @@
   /* macOS glassmorphism tokens - dark */
   --window-border: oklch(1 0 0 / 12%);
   --window-border-highlight: oklch(1 0 0 / 8%);
-  --window-shadow: 0 25px 50px -12px oklch(0 0 0 / 50%), 0 0 0 1px oklch(0 0 0 / 30%);
+  --window-shadow:
+    0 25px 50px -12px oklch(0 0 0 / 50%), 0 0 0 1px oklch(0 0 0 / 30%);
   --window-background: oklch(0.145 0 0 / 80%);
 }
 
