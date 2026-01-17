@@ -3,7 +3,7 @@ import { atom } from "jotai";
 export interface FileTranscriptionItem {
   id: string;
   fileName: string;
-  status: "processing" | "complete" | "error";
+  status: "extracting" | "processing" | "transcribing" | "complete" | "error";
   progress: number;
   message: string;
   text?: string;
@@ -22,7 +22,11 @@ export const addFileTranscriptionAtom = atom(
 
 export const updateFileTranscriptionAtom = atom(
   null,
-  (get, set, update: { id: string; updates: Partial<FileTranscriptionItem> }) => {
+  (
+    get,
+    set,
+    update: { id: string; updates: Partial<FileTranscriptionItem> }
+  ) => {
     const items = get(fileTranscriptionsAtom);
     set(
       fileTranscriptionsAtom,
@@ -48,6 +52,8 @@ export const clearCompletedTranscriptionsAtom = atom(null, (get, set) => {
   const items = get(fileTranscriptionsAtom);
   set(
     fileTranscriptionsAtom,
-    items.filter((item) => item.status === "processing")
+    items.filter(
+      (item) => item.status !== "complete" && item.status !== "error"
+    )
   );
 });

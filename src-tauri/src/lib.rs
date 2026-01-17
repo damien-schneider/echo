@@ -36,7 +36,7 @@ use tauri::tray::TrayIconBuilder;
 use tauri::Emitter;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKind, LogLevel};
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::path::PathBuf;
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 #[cfg(unix)]
@@ -51,6 +51,19 @@ struct ShortcutToggleStates {
 }
 
 type ManagedToggleState = Mutex<ShortcutToggleStates>;
+
+/// Global flag to track if a file transcription is currently in progress
+static FILE_TRANSCRIPTION_ACTIVE: AtomicBool = AtomicBool::new(false);
+
+/// Check if a file transcription is currently active
+pub fn is_file_transcription_active() -> bool {
+    FILE_TRANSCRIPTION_ACTIVE.load(Ordering::SeqCst)
+}
+
+/// Set the file transcription active state
+pub fn set_file_transcription_active(active: bool) {
+    FILE_TRANSCRIPTION_ACTIVE.store(active, Ordering::SeqCst);
+}
 
 fn initialize_core_logic(app_handle: &AppHandle) {
     // First, initialize the managers

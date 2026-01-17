@@ -153,6 +153,35 @@ pub fn show_transcribing_overlay(app_handle: &AppHandle) {
     }
 }
 
+/// Shows a warning overlay with a custom message
+pub fn show_warning_overlay(app_handle: &AppHandle, message: &str) {
+    // Check if overlay should be shown based on position setting
+    let settings = settings::get_settings(app_handle);
+    if settings.overlay_position == OverlayPosition::None {
+        return;
+    }
+
+    update_overlay_position(app_handle);
+
+    if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+        let _ = overlay_window.show();
+        // Emit event to show warning state with message
+        let _ = overlay_window.emit("show-overlay", serde_json::json!({
+            "state": "warning",
+            "message": message
+        }));
+        
+        // Auto-hide after 2 seconds
+        let window_clone = overlay_window.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            let _ = window_clone.emit("hide-overlay", ());
+            std::thread::sleep(std::time::Duration::from_millis(300));
+            let _ = window_clone.hide();
+        });
+    }
+}
+
 /// Updates the overlay window position based on current settings
 pub fn update_overlay_position(app_handle: &AppHandle) {
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {

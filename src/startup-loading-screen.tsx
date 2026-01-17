@@ -13,7 +13,7 @@ function Splashscreen() {
     >
       <Spinner className="size-8" />
       <EchoLogo className="w-32" variant="full" />
-      {/* <p className="text-sm">Starting Echo...</p> */}
+      <p className="sr-only">Starting Echo...</p>
     </div>
   );
 }

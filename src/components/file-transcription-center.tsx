@@ -4,7 +4,9 @@ import {
   Bell,
   CheckCircle,
   Clock,
+  FileAudio,
   Loader2,
+  MessageSquareText,
   Trash2,
   X,
 } from "lucide-react";
@@ -29,7 +31,7 @@ export function FileTranscriptionCenter() {
   const clearCompleted = useSetAtom(clearCompletedTranscriptionsAtom);
 
   const processingCount = transcriptions.filter(
-    (t) => t.status === "processing"
+    (t) => t.status !== "complete" && t.status !== "error"
   ).length;
   const hasItems = transcriptions.length > 0;
   const hasCompleted = transcriptions.some(
@@ -38,6 +40,12 @@ export function FileTranscriptionCenter() {
 
   const getStatusIcon = (status: string) => {
     switch (status) {
+      case "extracting":
+        return <FileAudio className="h-4 w-4 animate-pulse text-orange-500" />;
+      case "transcribing":
+        return (
+          <MessageSquareText className="h-4 w-4 animate-pulse text-blue-500" />
+        );
       case "processing":
         return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
       case "complete":
@@ -53,23 +61,29 @@ export function FileTranscriptionCenter() {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
+    const diffMins = Math.floor(diffMs / 60_000);
 
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffMins < 1) {
+      return "Just now";
+    }
+    if (diffMins < 60) {
+      return `${diffMins}m ago`;
+    }
 
     const diffHours = Math.floor(diffMins / 60);
-    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffHours < 24) {
+      return `${diffHours}h ago`;
+    }
 
     return date.toLocaleDateString();
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>
         <Button
           className="relative"
-          size="icon-xs"
+          size="icon-sm"
           title="File transcriptions"
           variant="ghost"
         >
@@ -81,15 +95,11 @@ export function FileTranscriptionCenter() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-96 p-0">
-        <div className="flex items-center justify-between border-b border-foreground/10 px-4 py-3">
+      <PopoverContent align="start" className="w-96 p-0" side="top">
+        <div className="flex items-center justify-between border-foreground/10 border-b px-4 py-3">
           <h3 className="font-semibold text-sm">File Transcriptions</h3>
           {hasCompleted && (
-            <Button
-              onClick={() => clearCompleted()}
-              size="xs"
-              variant="ghost"
-            >
+            <Button onClick={() => clearCompleted()} size="xs" variant="ghost">
               <Trash2 className="mr-1 h-3 w-3" />
               Clear completed
             </Button>
@@ -111,11 +121,11 @@ export function FileTranscriptionCenter() {
 
           {transcriptions.map((item) => (
             <div
-              key={item.id}
               className={cn(
-                "border-b border-foreground/5 px-4 py-3 transition-colors hover:bg-foreground/5",
+                "border-foreground/5 border-b px-4 py-3 transition-colors hover:bg-foreground/5",
                 item.status === "error" && "bg-destructive/5"
               )}
+              key={item.id}
             >
               <div className="flex items-start gap-3">
                 <div className="mt-0.5">{getStatusIcon(item.status)}</div>
@@ -138,13 +148,36 @@ export function FileTranscriptionCenter() {
                     {item.message}
                   </p>
 
-                  {item.status === "processing" && (
+                  {(item.status === "extracting" ||
+                    item.status === "transcribing" ||
+                    item.status === "processing") && (
                     <div className="mt-2">
                       <div className="h-1 overflow-hidden rounded-full bg-foreground/10">
-                        <div
-                          className="h-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${item.progress * 100}%` }}
-                        />
+                        {item.progress < 0 ? (
+                          // Indeterminate progress bar
+                          <div
+                            className={cn(
+                              "h-full w-1/3 animate-pulse rounded-full",
+                              item.status === "extracting" && "bg-orange-500",
+                              item.status === "transcribing" && "bg-blue-500",
+                              item.status === "processing" && "bg-blue-500"
+                            )}
+                            style={{
+                              animation:
+                                "indeterminate 1.5s ease-in-out infinite",
+                            }}
+                          />
+                        ) : (
+                          <div
+                            className={cn(
+                              "h-full transition-all duration-300",
+                              item.status === "extracting" && "bg-orange-500",
+                              item.status === "transcribing" && "bg-blue-500",
+                              item.status === "processing" && "bg-blue-500"
+                            )}
+                            style={{ width: `${item.progress * 100}%` }}
+                          />
+                        )}
                       </div>
                     </div>
                   )}

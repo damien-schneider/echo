@@ -3,8 +3,15 @@ import { useSetAtom } from "jotai";
 import { useEffect, useRef } from "react";
 import {
   addFileTranscriptionAtom,
+  type FileTranscriptionItem,
   updateFileTranscriptionAtom,
 } from "@/lib/atoms/file-transcription-atoms";
+
+let transcriptionIdCounter = 0;
+function generateUniqueId(): string {
+  transcriptionIdCounter += 1;
+  return `transcription-${Date.now()}-${transcriptionIdCounter}`;
+}
 
 interface FileTranscriptionProgress {
   status: string;
@@ -16,6 +23,25 @@ interface FileTranscriptionProgress {
 interface TranscriptionCompletePayload {
   text: string;
   fileName: string;
+}
+
+function mapStatusToItemStatus(
+  status: string
+): FileTranscriptionItem["status"] {
+  switch (status) {
+    case "decoding":
+      return "extracting";
+    case "transcribing":
+      return "transcribing";
+    case "saving":
+      return "processing";
+    case "complete":
+      return "complete";
+    case "error":
+      return "error";
+    default:
+      return "processing";
+  }
 }
 
 export function useFileTranscriptionListener() {
@@ -35,11 +61,11 @@ export function useFileTranscriptionListener() {
             const { status, progress, message, fileName } = event.payload;
 
             if (status === "decoding" && !currentTranscriptionId.current) {
-              const id = `${Date.now()}-${Math.random()}`;
+              const id = generateUniqueId();
               addTranscription({
                 id,
                 fileName: fileName || "Unknown file",
-                status: "processing",
+                status: mapStatusToItemStatus(status),
                 progress,
                 message,
                 timestamp: Date.now(),
@@ -55,17 +81,41 @@ export function useFileTranscriptionListener() {
                     message,
                   },
                 });
-                lastCompletedTranscriptionId.current = currentTranscriptionId.current;
+                lastCompletedTranscriptionId.current =
+                  currentTranscriptionId.current;
+                currentTranscriptionId.current = null;
+              } else if (status === "error") {
+                updateTranscription({
+                  id: currentTranscriptionId.current,
+                  updates: {
+                    status: "error",
+                    message: "Transcription failed",
+                    error: message,
+                  },
+                });
                 currentTranscriptionId.current = null;
               } else {
                 updateTranscription({
                   id: currentTranscriptionId.current,
                   updates: {
+                    status: mapStatusToItemStatus(status),
                     progress,
                     message,
                   },
                 });
               }
+            } else if (status === "error") {
+              // Error without an existing transcription - create one with error state
+              const id = generateUniqueId();
+              addTranscription({
+                id,
+                fileName: fileName || "Unknown file",
+                status: "error",
+                progress: 0,
+                message: "Transcription failed",
+                error: message,
+                timestamp: Date.now(),
+              });
             }
           }
         )
@@ -112,7 +162,7 @@ export function useFileTranscriptionListener() {
             });
             currentTranscriptionId.current = null;
           } else {
-            const id = `${Date.now()}-${Math.random()}`;
+            const id = generateUniqueId();
             addTranscription({
               id,
               fileName: "Unknown file",
