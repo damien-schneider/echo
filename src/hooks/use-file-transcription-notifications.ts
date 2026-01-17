@@ -12,6 +12,8 @@ interface FileTranscriptionProgress {
   message: string;
 }
 
+const DEFAULT_FILE_NAME = "Unknown file";
+
 export const useFileTranscriptionNotifications = () => {
   const addNotification = useSetAtom(addNotificationAtom);
   const updateNotification = useSetAtom(updateNotificationAtom);
@@ -52,7 +54,7 @@ export const useFileTranscriptionNotifications = () => {
       } else {
         // Create a new notification if we don't have one
         const notificationId = addNotification({
-          fileName: "Unknown file",
+          fileName: DEFAULT_FILE_NAME,
           status: status === "complete" ? "complete" : "processing",
           progress,
           message,
@@ -63,11 +65,14 @@ export const useFileTranscriptionNotifications = () => {
       }
     };
 
+    let isMounted = true;
+    let cleanup: (() => void) | null = null;
+
     const setupListeners = async () => {
       // Listen for file drop to create notification
       const unlistenDrop = await listen("file-drop", () => {
         const notificationId = addNotification({
-          fileName: "Unknown file",
+          fileName: DEFAULT_FILE_NAME,
           status: "pending",
           progress: 0,
           message: "Preparing to transcribe",
@@ -117,17 +122,27 @@ export const useFileTranscriptionNotifications = () => {
         }
       );
 
-      return () => {
+      cleanup = () => {
         unlistenDrop();
         unlistenProgress();
         unlistenComplete();
         unlistenError();
       };
+
+      // Call cleanup immediately if component has unmounted while setting up
+      if (!isMounted && cleanup) {
+        cleanup();
+        cleanup = null;
+      }
     };
 
-    const cleanup = setupListeners();
+    setupListeners();
+
     return () => {
-      cleanup.then((fn) => fn());
+      isMounted = false;
+      if (cleanup) {
+        cleanup();
+      }
     };
   }, [addNotification, updateNotification]);
 };
