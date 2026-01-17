@@ -66,6 +66,8 @@ const NotificationItem = ({
   );
 };
 
+const NOTIFICATION_CLEANUP_INTERVAL_MS = 60_000; // 1 minute
+
 export const NotificationCenter = () => {
   const [notifications, setNotifications] = useAtom(notificationsAtom);
   const removeNotification = useSetAtom(removeNotificationAtom);
@@ -75,7 +77,7 @@ export const NotificationCenter = () => {
     // Clear old notifications every minute
     const interval = setInterval(() => {
       clearOldNotifications();
-    }, 60_000);
+    }, NOTIFICATION_CLEANUP_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [clearOldNotifications]);

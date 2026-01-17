@@ -52,7 +52,7 @@ export const useFileTranscriptionNotifications = () => {
       } else {
         // Create a new notification if we don't have one
         const notificationId = addNotification({
-          fileName: "File",
+          fileName: "Unknown file",
           status: status === "complete" ? "complete" : "processing",
           progress,
           message,
@@ -67,7 +67,7 @@ export const useFileTranscriptionNotifications = () => {
       // Listen for file drop to create notification
       const unlistenDrop = await listen("file-drop", () => {
         const notificationId = addNotification({
-          fileName: "Processing file...",
+          fileName: "Unknown file",
           status: "pending",
           progress: 0,
           message: "Preparing to transcribe",

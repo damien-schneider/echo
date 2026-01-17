@@ -18,7 +18,7 @@ export const addNotificationAtom = atom(
     const notifications = get(notificationsAtom);
     const newNotification: FileNotification = {
       ...notification,
-      id: `${Date.now()}-${Math.random()}`,
+      id: crypto.randomUUID(),
       timestamp: Date.now(),
     };
     set(notificationsAtom, [...notifications, newNotification]);
