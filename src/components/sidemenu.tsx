@@ -215,7 +215,7 @@ export function SidebarLayout({
         data-tauri-drag-region
       >
         <div
-          className="flex h-full w-full overflow-auto pt-12 *:w-full"
+          className="flex h-full w-full overflow-auto pt-4 *:w-full"
           data-tauri-drag-region
         >
           {children}

@@ -24,6 +24,7 @@
         "visible": false,
         "transparent": true,
         "titleBarStyle": "Overlay",
+        "decorations": false,
         "dragDropEnabled": true
       },
       {
@@ -47,7 +48,9 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["**"],
+          "allow": [
+            "**"
+          ],
           "requireLiteralLeadingDot": false
         }
       }
@@ -57,7 +60,9 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": "all",
-    "resources": ["resources/**/*"],
+    "resources": [
+      "resources/**/*"
+    ],
     "license": "MIT",
     "icon": [
       "icons/32x32.png",
