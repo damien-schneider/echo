@@ -42,9 +42,7 @@ export const updateNotificationAtom = atom(
     const notifications = get(notificationsAtom);
     set(
       notificationsAtom,
-      notifications.map((n) =>
-        n.id === update.id ? { ...n, ...update } : n
-      )
+      notifications.map((n) => (n.id === update.id ? { ...n, ...update } : n))
     );
   }
 );
@@ -61,7 +59,7 @@ export const clearOldNotificationsAtom = atom(null, (get, set) => {
   const notifications = get(notificationsAtom);
   const now = Date.now();
   const FIVE_MINUTES = 5 * 60 * 1000;
-  
+
   set(
     notificationsAtom,
     notifications.filter(

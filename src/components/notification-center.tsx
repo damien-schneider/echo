@@ -1,5 +1,5 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Bell, CheckCircle2, AlertCircle, Loader2, X } from "lucide-react";
+import { useAtom, useSetAtom } from "jotai";
+import { AlertCircle, Bell, CheckCircle2, Loader2, X } from "lucide-react";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/Button";
 import {
@@ -8,10 +8,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import {
-  notificationsAtom,
-  removeNotificationAtom,
   clearOldNotificationsAtom,
   type FileNotification,
+  notificationsAtom,
+  removeNotificationAtom,
 } from "@/stores/notification-atoms";
 
 const NotificationItem = ({
@@ -38,7 +38,9 @@ const NotificationItem = ({
     <div className="group relative flex items-start gap-3 rounded-lg border bg-background p-3 transition-colors hover:bg-muted/50">
       <div className="mt-0.5">{getStatusIcon()}</div>
       <div className="flex-1 space-y-1">
-        <p className="font-medium text-sm leading-none">{notification.fileName}</p>
+        <p className="font-medium text-sm leading-none">
+          {notification.fileName}
+        </p>
         <p className="text-muted-foreground text-xs">{notification.message}</p>
         {notification.status === "processing" && (
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
@@ -53,10 +55,10 @@ const NotificationItem = ({
         )}
       </div>
       <Button
+        className="opacity-0 transition-opacity group-hover:opacity-100"
         onClick={() => onRemove(notification.id)}
         size="icon-xs"
         variant="ghost"
-        className="opacity-0 transition-opacity group-hover:opacity-100"
       >
         <X className="h-3 w-3" />
       </Button>
@@ -73,7 +75,7 @@ export const NotificationCenter = () => {
     // Clear old notifications every minute
     const interval = setInterval(() => {
       clearOldNotifications();
-    }, 60000);
+    }, 60_000);
 
     return () => clearInterval(interval);
   }, [clearOldNotifications]);
@@ -87,7 +89,7 @@ export const NotificationCenter = () => {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className="relative">
+        <Button className="relative" size="icon-sm" variant="ghost">
           <Bell className="h-4 w-4" />
           {activeCount > 0 && (
             <span className="absolute top-0 right-0 flex h-2 w-2">
@@ -103,20 +105,16 @@ export const NotificationCenter = () => {
             <h3 className="font-semibold text-sm">File Processing</h3>
             {hasNotifications && (
               <Button
+                className="h-auto p-1 text-xs"
                 onClick={() => setNotifications([])}
                 size="sm"
                 variant="ghost"
-                className="h-auto p-1 text-xs"
               >
                 Clear all
               </Button>
             )}
           </div>
-          {!hasNotifications ? (
-            <p className="py-4 text-center text-muted-foreground text-sm">
-              No recent file processing
-            </p>
-          ) : (
+          {hasNotifications ? (
             <div className="space-y-2">
               {notifications.map((notification) => (
                 <NotificationItem
@@ -126,6 +124,10 @@ export const NotificationCenter = () => {
                 />
               ))}
             </div>
+          ) : (
+            <p className="py-4 text-center text-muted-foreground text-sm">
+              No recent file processing
+            </p>
           )}
         </div>
       </PopoverContent>

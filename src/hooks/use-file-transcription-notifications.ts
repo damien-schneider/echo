@@ -4,7 +4,6 @@ import { useEffect, useRef } from "react";
 import {
   addNotificationAtom,
   updateNotificationAtom,
-  type FileNotification,
 } from "@/stores/notification-atoms";
 
 interface FileTranscriptionProgress {
@@ -19,6 +18,51 @@ export const useFileTranscriptionNotifications = () => {
   const currentNotificationId = useRef<string | null>(null);
 
   useEffect(() => {
+    const handleProgressUpdate = (
+      status: string,
+      progress: number,
+      message: string
+    ) => {
+      if (currentNotificationId.current) {
+        if (status === "complete") {
+          updateNotification({
+            id: currentNotificationId.current,
+            status: "complete",
+            progress: 1,
+            message: "Transcription complete!",
+          });
+          currentNotificationId.current = null;
+        } else if (status === "error") {
+          updateNotification({
+            id: currentNotificationId.current,
+            status: "error",
+            progress: 0,
+            message: "Transcription failed",
+            error: message,
+          });
+          currentNotificationId.current = null;
+        } else {
+          updateNotification({
+            id: currentNotificationId.current,
+            status: "processing",
+            progress,
+            message,
+          });
+        }
+      } else {
+        // Create a new notification if we don't have one
+        const notificationId = addNotification({
+          fileName: "File",
+          status: status === "complete" ? "complete" : "processing",
+          progress,
+          message,
+        });
+        if (status !== "complete") {
+          currentNotificationId.current = notificationId;
+        }
+      }
+    };
+
     const setupListeners = async () => {
       // Listen for drag enter to create initial notification
       const unlistenDragEnter = await listen("drag-enter", () => {
@@ -41,45 +85,7 @@ export const useFileTranscriptionNotifications = () => {
         "file-transcription-progress",
         (event) => {
           const { status, progress, message } = event.payload;
-
-          if (currentNotificationId.current) {
-            if (status === "complete") {
-              updateNotification({
-                id: currentNotificationId.current,
-                status: "complete",
-                progress: 1,
-                message: "Transcription complete!",
-              });
-              currentNotificationId.current = null;
-            } else if (status === "error") {
-              updateNotification({
-                id: currentNotificationId.current,
-                status: "error",
-                progress: 0,
-                message: "Transcription failed",
-                error: message,
-              });
-              currentNotificationId.current = null;
-            } else {
-              updateNotification({
-                id: currentNotificationId.current,
-                status: "processing",
-                progress,
-                message,
-              });
-            }
-          } else {
-            // Create a new notification if we don't have one
-            const notificationId = addNotification({
-              fileName: "File",
-              status: status === "complete" ? "complete" : "processing",
-              progress,
-              message,
-            });
-            if (status !== "complete") {
-              currentNotificationId.current = notificationId;
-            }
-          }
+          handleProgressUpdate(status, progress, message);
         }
       );
 
