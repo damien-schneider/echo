@@ -64,24 +64,18 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("dragEnter", { relatedTarget: e.relatedTarget });
     setIsDragging(true);
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Keep dragging state true
     setIsDragging(true);
   }, []);
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("dragLeave", {
-      relatedTarget: e.relatedTarget,
-      currentTarget: e.currentTarget,
-    });
     // Only reset if we're actually leaving the container (not entering a child)
     const container = e.currentTarget;
     if (container && !container.contains(e.relatedTarget as Node)) {
@@ -92,14 +86,12 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
   const handleDragEnd = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("dragEnd");
     setIsDragging(false);
   }, []);
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    console.log("drop", { files: e.dataTransfer.files });
     setIsDragging(false);
 
     const files = Array.from(e.dataTransfer.files);
@@ -130,12 +122,26 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
     setError(null);
 
     // Validate file type
-    const validExtensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga"];
+    const validExtensions = [
+      "wav",
+      "wave",
+      "mp3",
+      "m4a",
+      "aac",
+      "ogg",
+      "oga",
+      "mp4",
+      "mov",
+      "avi",
+      "mkv",
+      "webm",
+      "flv",
+    ];
     const fileExtension = file.name.split(".").pop()?.toLowerCase();
 
     if (!(fileExtension && validExtensions.includes(fileExtension))) {
       setError(
-        `Unsupported file format: .${fileExtension}. Please upload WAV, MP3, M4A, or OGG files.`
+        `Unsupported file format: .${fileExtension}. Please upload audio files (wav, mp3, m4a, ogg) or video files (mp4, mov, mkv, webm).`
       );
       return;
     }
@@ -241,14 +247,14 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
         >
           <Upload className="pointer-events-none mb-2 h-8 w-8 text-muted-foreground" />
           <p className="pointer-events-none font-medium text-sm">
-            Drop audio file here or click to browse
+            Drop audio or video file here or click to browse
           </p>
           <p className="pointer-events-none text-muted-foreground text-xs">
-            Supports WAV, MP3, M4A, OGG (max 100MB)
+            Supports WAV, MP3, M4A, OGG, MP4, MOV (max 100MB)
           </p>
           <div className="pointer-events-none absolute inset-0">
             <input
-              accept=".wav,.wave,.mp3,.m4a,.aac,.ogg,.oga,audio/wav,audio/mpeg,audio/mp4,audio/ogg"
+              accept=".wav,.wave,.mp3,.m4a,.aac,.ogg,.oga,.mp4,.mov,.avi,.mkv,.webm,.flv,audio/*,video/*"
               className="pointer-events-auto h-full w-full cursor-pointer opacity-0"
               disabled={isProcessing}
               onChange={handleFileSelect}

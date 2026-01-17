@@ -3,10 +3,11 @@ use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
 use crate::managers::tts::TtsManager;
-use crate::overlay::{show_recording_overlay, show_transcribing_overlay};
+use crate::overlay::{show_recording_overlay, show_transcribing_overlay, show_warning_overlay};
 use crate::settings::{get_settings, AppSettings};
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils;
+use crate::ManagedToggleState;
 use async_openai::types::{
     ChatCompletionRequestMessage, ChatCompletionRequestUserMessageArgs,
     CreateChatCompletionRequestArgs,
@@ -247,6 +248,19 @@ impl ShortcutAction for TranscribeAction {
     fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
         let start_time = Instant::now();
         debug!("TranscribeAction::start called for binding: {}", binding_id);
+
+        // Check if a file transcription is currently active
+        if crate::is_file_transcription_active() {
+            debug!("File transcription in progress - showing warning overlay");
+            show_warning_overlay(app, "File transcription in progress. Please wait...");
+            
+            // Reset the toggle state so next press will call start() again
+            let toggle_state_manager = app.state::<ManagedToggleState>();
+            if let Ok(mut states) = toggle_state_manager.lock() {
+                states.active_toggles.insert(binding_id.to_string(), false);
+            }
+            return;
+        }
 
         // Load model in the background
         let tm = app.state::<Arc<TranscriptionManager>>();
