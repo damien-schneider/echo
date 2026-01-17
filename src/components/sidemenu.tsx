@@ -191,10 +191,12 @@ export function SidebarLayout({
   activeSection,
   onSectionChange,
   children,
+  notificationCenter,
 }: {
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
   children: React.ReactNode;
+  notificationCenter?: React.ReactNode;
 }) {
   return (
     <SidebarProvider defaultOpen={false}>
@@ -214,6 +216,11 @@ export function SidebarLayout({
         )}
         data-tauri-drag-region
       >
+        {notificationCenter && (
+          <div className="absolute top-4 right-4 z-10">
+            {notificationCenter}
+          </div>
+        )}
         <div
           className="flex h-full w-full overflow-auto pt-12 *:w-full"
           data-tauri-drag-region

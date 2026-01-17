@@ -130,12 +130,12 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
     setError(null);
 
     // Validate file type
-    const validExtensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga"];
+    const validExtensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "webm", "mkv", "avi"];
     const fileExtension = file.name.split(".").pop()?.toLowerCase();
 
     if (!(fileExtension && validExtensions.includes(fileExtension))) {
       setError(
-        `Unsupported file format: .${fileExtension}. Please upload WAV, MP3, M4A, or OGG files.`
+        `Unsupported file format: .${fileExtension}. Please upload audio files (WAV, MP3, M4A, OGG) or video files (MP4, MOV, WEBM).`
       );
       return;
     }
@@ -241,14 +241,14 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
         >
           <Upload className="pointer-events-none mb-2 h-8 w-8 text-muted-foreground" />
           <p className="pointer-events-none font-medium text-sm">
-            Drop audio file here or click to browse
+            Drop audio or video file here or click to browse
           </p>
           <p className="pointer-events-none text-muted-foreground text-xs">
-            Supports WAV, MP3, M4A, OGG (max 100MB)
+            Supports WAV, MP3, M4A, OGG, MP4, MOV, WEBM (max 100MB)
           </p>
           <div className="pointer-events-none absolute inset-0">
             <input
-              accept=".wav,.wave,.mp3,.m4a,.aac,.ogg,.oga,audio/wav,audio/mpeg,audio/mp4,audio/ogg"
+              accept=".wav,.wave,.mp3,.m4a,.aac,.ogg,.oga,.mp4,.mov,.webm,.mkv,.avi,audio/*,video/*"
               className="pointer-events-auto h-full w-full cursor-pointer opacity-0"
               disabled={isProcessing}
               onChange={handleFileSelect}

@@ -9,6 +9,7 @@ import { getNormalizedOsPlatform } from "@/lib/os";
 import { cn } from "@/lib/utils";
 import { AccessibilityPermissions } from "./components/accessibility-permissions";
 import { ErrorDialog } from "./components/error-dialog";
+import { NotificationCenter } from "./components/notification-center";
 import Onboarding from "./components/onboarding";
 import {
   SECTIONS_CONFIG,
@@ -17,6 +18,7 @@ import {
 } from "./components/sidemenu";
 import { TranscriptionResultDialog } from "./components/transcription-result-dialog";
 import { useSettings } from "./hooks/use-settings";
+import { useFileTranscriptionNotifications } from "./hooks/use-file-transcription-notifications";
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
@@ -33,6 +35,9 @@ function App() {
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const hasSignaledReady = useRef(false);
   const osPlatform = getNormalizedOsPlatform();
+
+  // Hook to manage file transcription notifications
+  useFileTranscriptionNotifications();
 
   // Check onboarding status on mount
   useEffect(() => {
@@ -175,6 +180,7 @@ function App() {
       <SidebarLayout
         activeSection={currentSection}
         onSectionChange={setCurrentSection}
+        notificationCenter={<NotificationCenter />}
       >
         <div className="mx-auto max-w-xl">
           <AccessibilityPermissions />

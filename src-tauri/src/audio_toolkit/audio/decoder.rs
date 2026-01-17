@@ -12,12 +12,13 @@ use symphonia::core::{
 };
 use std::fs::File;
 
-/// Supported audio formats
+/// Supported audio and video formats
 pub enum AudioFormat {
     Wav,
     Mp3,
     M4a,
     Ogg,
+    Video, // MP4, MOV, WEBM - extract audio track
     Unsupported,
 }
 
@@ -35,6 +36,7 @@ impl AudioFormat {
             "mp3" => AudioFormat::Mp3,
             "m4a" | "aac" => AudioFormat::M4a,
             "ogg" | "oga" => AudioFormat::Ogg,
+            "mp4" | "mov" | "webm" | "mkv" | "avi" => AudioFormat::Video,
             _ => AudioFormat::Unsupported,
         }
     }
@@ -43,13 +45,13 @@ impl AudioFormat {
 /// Target sample rate for transcription (Whisper requires 16kHz)
 const TARGET_SAMPLE_RATE: u32 = 16000;
 
-/// Decode an audio file to 16kHz mono f32 samples
+/// Decode an audio or video file to 16kHz mono f32 samples
 pub fn decode_audio_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let format = AudioFormat::from_path(&file_path);
 
     match format {
         AudioFormat::Wav => decode_wav_file(&file_path),
-        AudioFormat::Mp3 | AudioFormat::M4a | AudioFormat::Ogg => {
+        AudioFormat::Mp3 | AudioFormat::M4a | AudioFormat::Ogg | AudioFormat::Video => {
             decode_with_symphonia(&file_path)
         }
         AudioFormat::Unsupported => Err(anyhow::anyhow!(

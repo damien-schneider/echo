@@ -236,7 +236,7 @@ async fn validate_and_transcribe_file(
     }
 
     // Validate file extension
-    let valid_extensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga"];
+    let valid_extensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "webm", "mkv", "avi"];
     let extension = file_path
         .extension()
         .and_then(|e| e.to_str())
@@ -244,7 +244,7 @@ async fn validate_and_transcribe_file(
         .unwrap_or_default();
 
     if !valid_extensions.contains(&extension.as_str()) {
-        let error_msg = format!("Unsupported file format: .{}", extension);
+        let error_msg = format!("Unsupported file format: .{}. Supported formats: audio (WAV, MP3, M4A, OGG) and video (MP4, MOV, WEBM)", extension);
         let _ = app.emit("show-error-dialog", error_msg.clone());
         return Err(error_msg);
     }
@@ -282,7 +282,7 @@ async fn validate_and_transcribe_file_icon_drop(
     }
 
     // Validate file extension
-    let valid_extensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga"];
+    let valid_extensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "webm", "mkv", "avi"];
     let extension = file_path
         .extension()
         .and_then(|e| e.to_str())
@@ -291,7 +291,7 @@ async fn validate_and_transcribe_file_icon_drop(
 
     if !valid_extensions.contains(&extension.as_str()) {
         // Show unsupported file error
-        let error_msg = format!("Unsupported file format: .{}", extension);
+        let error_msg = format!("Unsupported file format: .{}. Supported formats: audio (WAV, MP3, M4A, OGG) and video (MP4, MOV, WEBM)", extension);
         let _ = app.emit("show-error-dialog", error_msg.clone());
         startup::show_main_window(&app);
         return Err(error_msg);
