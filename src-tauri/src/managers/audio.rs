@@ -351,8 +351,6 @@ impl AudioRecordingManager {
         Ok(())
     }
 
-    /* ---------- recording --------------------------------------------------- */
-
     pub fn try_start_recording(&self, binding_id: &str) -> bool {
         let mut state = self.state.lock().unwrap();
 

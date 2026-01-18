@@ -144,7 +144,7 @@ impl AudioRecorder {
         if let Some(tx) = &self.cmd_tx {
             tx.send(Cmd::Stop(resp_tx))?;
         }
-        Ok(resp_rx.recv()?) // wait for the samples
+        Ok(resp_rx.recv()?)
     }
 
     pub fn close(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -284,9 +284,18 @@ fn run_consumer(
     }
 
     loop {
-        let raw = match sample_rx.recv() {
+        // Use recv_timeout to allow checking for shutdown commands even when
+        // no audio samples are being received (e.g., if the audio device is unresponsive)
+        let raw = match sample_rx.recv_timeout(Duration::from_millis(100)) {
             Ok(s) => s,
-            Err(_) => break, // stream closed
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                // Check for shutdown command on timeout
+                if let Ok(Cmd::Shutdown) = cmd_rx.try_recv() {
+                    return;
+                }
+                continue;
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
         };
 
         // ---------- spectrum processing ---------------------------------- //
@@ -308,7 +317,7 @@ fn run_consumer(
                     processed_samples.clear();
                     recording = true;
                     chunk_tx = tx;
-                    visualizer.reset(); // Reset visualization buffer
+                    visualizer.reset();
                     if let Some(v) = &vad {
                         v.lock().unwrap().reset();
                     }
@@ -317,7 +326,6 @@ fn run_consumer(
                     recording = false;
 
                     frame_resampler.finish(&mut |frame: &[f32]| {
-                        // we still want to process the last few frames
                         handle_frame(frame, true, &vad, &mut processed_samples, &chunk_tx)
                     });
 

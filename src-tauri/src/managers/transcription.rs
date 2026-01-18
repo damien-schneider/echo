@@ -440,6 +440,8 @@ impl TranscriptionManager {
         let mut last = self.last_partial_update.lock().unwrap();
         if now.duration_since(*last).as_millis() > 500 {
             *last = now;
+            // Drop the lock before doing heavy work to prevent deadlock
+            drop(last);
 
             // Perform partial transcription on a separate thread
             let buf_clone = self.streaming_buffer.lock().unwrap().clone();
@@ -447,16 +449,11 @@ impl TranscriptionManager {
 
             // Avoid transcribing extremely short buffers
             if buf_clone.len() < 16000 {
-                // wait for at least 1 second of audio
                 return;
             }
 
             thread::spawn(move || {
-                // Use existing transcribe method which handles model locking etc.
                 if let Ok(text) = this.transcribe(buf_clone) {
-                    // Emit progress event
-                    // payload could be object { text: String, is_partial: bool }
-                    // but for now just text string as requested
                     let _ = this.app_handle.emit("transcription-progress", text);
                 }
             });
