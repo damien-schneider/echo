@@ -43,6 +43,8 @@ pub struct TranscriptionManager {
     watcher_handle: Arc<Mutex<Option<thread::JoinHandle<()>>>>,
     is_loading: Arc<Mutex<bool>>,
     loading_condvar: Arc<Condvar>,
+    streaming_buffer: Arc<Mutex<Vec<f32>>>,
+    last_partial_update: Arc<Mutex<std::time::Instant>>,
 }
 
 impl TranscriptionManager {
@@ -62,6 +64,8 @@ impl TranscriptionManager {
             watcher_handle: Arc::new(Mutex::new(None)),
             is_loading: Arc::new(Mutex::new(false)),
             loading_condvar: Arc::new(Condvar::new()),
+            streaming_buffer: Arc::new(Mutex::new(Vec::new())),
+            last_partial_update: Arc::new(Mutex::new(std::time::Instant::now())),
         };
 
         // Start the idle watcher
@@ -352,14 +356,13 @@ impl TranscriptionManager {
                     let whisper_language = if settings.selected_language == "auto" {
                         None
                     } else {
-                        let normalized = if matches!(
-                            settings.selected_language.as_str(),
-                            "zh-Hans" | "zh-Hant"
-                        ) {
-                            "zh".to_string()
-                        } else {
-                            settings.selected_language.clone()
-                        };
+                        let normalized =
+                            if matches!(settings.selected_language.as_str(), "zh-Hans" | "zh-Hant")
+                            {
+                                "zh".to_string()
+                            } else {
+                                settings.selected_language.clone()
+                            };
                         Some(normalized)
                     };
 
@@ -403,7 +406,11 @@ impl TranscriptionManager {
         } else {
             ""
         };
-        info!("Transcription completed in {}ms{}", (et - st).as_millis(), translation_note);
+        info!(
+            "Transcription completed in {}ms{}",
+            (et - st).as_millis(),
+            translation_note
+        );
 
         // Check if we should immediately unload the model after transcription
         if settings.model_unload_timeout == ModelUnloadTimeout::Immediately {
@@ -414,6 +421,46 @@ impl TranscriptionManager {
         }
 
         Ok(corrected_result.trim().to_string())
+    }
+    pub fn start_streaming(&self) {
+        let mut buf = self.streaming_buffer.lock().unwrap();
+        buf.clear();
+        *self.last_partial_update.lock().unwrap() = std::time::Instant::now();
+    }
+
+    pub fn handle_streaming_chunk(&self, chunk: Vec<f32>) {
+        // Append chunk to buffer
+        {
+            let mut buf = self.streaming_buffer.lock().unwrap();
+            buf.extend_from_slice(&chunk);
+        }
+
+        // Throttle updates to ~500ms
+        let now = std::time::Instant::now();
+        let mut last = self.last_partial_update.lock().unwrap();
+        if now.duration_since(*last).as_millis() > 500 {
+            *last = now;
+
+            // Perform partial transcription on a separate thread
+            let buf_clone = self.streaming_buffer.lock().unwrap().clone();
+            let this = self.clone();
+
+            // Avoid transcribing extremely short buffers
+            if buf_clone.len() < 16000 {
+                // wait for at least 1 second of audio
+                return;
+            }
+
+            thread::spawn(move || {
+                // Use existing transcribe method which handles model locking etc.
+                if let Ok(text) = this.transcribe(buf_clone) {
+                    // Emit progress event
+                    // payload could be object { text: String, is_partial: bool }
+                    // but for now just text string as requested
+                    let _ = this.app_handle.emit("transcription-progress", text);
+                }
+            });
+        }
     }
 }
 

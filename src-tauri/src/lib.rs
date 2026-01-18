@@ -605,6 +605,7 @@ pub fn run() {
             commands::set_log_level,
             features::shortcut::settings::tts::change_tts_enabled_setting,
             commands::tts::preview_tts,
+            overlay::resize_recording_overlay,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -6,7 +6,7 @@ import { LiveWaveform } from "@/components/ui/live-waveform";
 import "./recording-overlay.css";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/Button";
-import { OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@/lib/constants/overlay";
+import { OVERLAY_EXPANDED_HEIGHT, OVERLAY_HEIGHT, OVERLAY_WIDTH } from "@/lib/constants/overlay";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/providers";
 
@@ -22,6 +22,7 @@ const RecordingOverlay = () => {
   const [state, setState] = useState<OverlayState>("recording");
   const [warningMessage, setWarningMessage] = useState("");
   const [audioLevels, setAudioLevels] = useState<number[]>([]);
+  const [streamingText, setStreamingText] = useState("");
   const { resolvedTheme } = useTheme();
 
   useEffect(() => {
@@ -43,6 +44,9 @@ const RecordingOverlay = () => {
           }
         }
         setIsVisible(true);
+        // Reset streaming text on show
+        setStreamingText("");
+        invoke("resize_recording_overlay", { height: OVERLAY_HEIGHT }).catch(() => { });
       });
 
       // Listen for hide-overlay event from Rust
@@ -55,11 +59,18 @@ const RecordingOverlay = () => {
         setAudioLevels(event.payload as number[]);
       });
 
+      // Listen for transcription progress
+      const unlistenProgress = await listen("transcription-progress", (event) => {
+        const text = event.payload as string;
+        setStreamingText(text);
+      });
+
       // Cleanup function
       return () => {
         unlistenShow();
         unlistenHide();
         unlistenMic();
+        unlistenProgress();
       };
     };
 
@@ -91,6 +102,15 @@ const RecordingOverlay = () => {
     };
   }, [isVisible]);
 
+  // Handle resizing based on text content
+  useEffect(() => {
+    if (!isVisible) return;
+
+    const targetHeight = streamingText ? OVERLAY_EXPANDED_HEIGHT : OVERLAY_HEIGHT;
+    invoke("resize_recording_overlay", { height: targetHeight }).catch(console.error);
+
+  }, [streamingText, isVisible]);
+
   return (
     <motion.div
       animate={{
@@ -110,7 +130,7 @@ const RecordingOverlay = () => {
         // y: 0
       }}
       style={{
-        height: `${OVERLAY_HEIGHT}px`,
+        height: isVisible ? (streamingText ? OVERLAY_EXPANDED_HEIGHT : OVERLAY_HEIGHT) : 0, // Animate height
         width: `${OVERLAY_WIDTH}px`,
         // boxSizing: "border-box"
       }}
@@ -158,6 +178,15 @@ const RecordingOverlay = () => {
             width: `${OVERLAY_WIDTH - 10}px`,
           }}
         />
+      )}
+
+      {/* Streaming Text */}
+      {streamingText && (
+        <div className="absolute top-[60px] left-0 right-0 px-3 pb-3">
+          <p className="text-xs text-muted-foreground line-clamp-5 animate-in fade-in slide-in-from-top-1">
+            {streamingText}
+          </p>
+        </div>
       )}
 
       {state === "recording" && (

@@ -18,7 +18,7 @@ use crate::audio_toolkit::{
 use log::{debug, error, warn};
 
 enum Cmd {
-    Start,
+    Start(Option<mpsc::Sender<Vec<f32>>>),
     Stop(mpsc::Sender<Vec<f32>>),
     Shutdown,
 }
@@ -129,9 +129,12 @@ impl AudioRecorder {
         Ok(())
     }
 
-    pub fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn start(
+        &self,
+        chunk_tx: Option<mpsc::Sender<Vec<f32>>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(tx) = &self.cmd_tx {
-            tx.send(Cmd::Start)?;
+            tx.send(Cmd::Start(chunk_tx))?;
         }
         Ok(())
     }
@@ -238,6 +241,7 @@ fn run_consumer(
 
     let mut processed_samples = Vec::<f32>::new();
     let mut recording = false;
+    let mut chunk_tx: Option<mpsc::Sender<Vec<f32>>> = None;
 
     // ---------- spectrum visualisation setup ---------------------------- //
     const BUCKETS: usize = 64;
@@ -255,19 +259,27 @@ fn run_consumer(
         recording: bool,
         vad: &Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
         out_buf: &mut Vec<f32>,
+        chunk_tx: &Option<mpsc::Sender<Vec<f32>>>,
     ) {
         if !recording {
             return;
         }
 
+        let mut process_speech = |buf: &[f32]| {
+            out_buf.extend_from_slice(buf);
+            if let Some(tx) = chunk_tx {
+                let _ = tx.send(buf.to_vec());
+            }
+        };
+
         if let Some(vad_arc) = vad {
             let mut det = vad_arc.lock().unwrap();
             match det.push_frame(samples).unwrap_or(VadFrame::Speech(samples)) {
-                VadFrame::Speech(buf) => out_buf.extend_from_slice(buf),
+                VadFrame::Speech(buf) => process_speech(buf),
                 VadFrame::Noise => {}
             }
         } else {
-            out_buf.extend_from_slice(samples);
+            process_speech(samples);
         }
     }
 
@@ -286,15 +298,16 @@ fn run_consumer(
 
         // ---------- existing pipeline ------------------------------------ //
         frame_resampler.push(&raw, &mut |frame: &[f32]| {
-            handle_frame(frame, recording, &vad, &mut processed_samples)
+            handle_frame(frame, recording, &vad, &mut processed_samples, &chunk_tx)
         });
 
         // non-blocking check for a command
         while let Ok(cmd) = cmd_rx.try_recv() {
             match cmd {
-                Cmd::Start => {
+                Cmd::Start(tx) => {
                     processed_samples.clear();
                     recording = true;
+                    chunk_tx = tx;
                     visualizer.reset(); // Reset visualization buffer
                     if let Some(v) = &vad {
                         v.lock().unwrap().reset();
@@ -305,10 +318,11 @@ fn run_consumer(
 
                     frame_resampler.finish(&mut |frame: &[f32]| {
                         // we still want to process the last few frames
-                        handle_frame(frame, true, &vad, &mut processed_samples)
+                        handle_frame(frame, true, &vad, &mut processed_samples, &chunk_tx)
                     });
 
                     let _ = reply_tx.send(std::mem::take(&mut processed_samples));
+                    chunk_tx = None;
                 }
                 Cmd::Shutdown => return,
             }

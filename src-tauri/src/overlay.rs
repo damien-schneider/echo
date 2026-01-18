@@ -187,11 +187,14 @@ pub fn show_warning_overlay(app_handle: &AppHandle, message: &str) {
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let _ = overlay_window.show();
         // Emit event to show warning state with message
-        let _ = overlay_window.emit("show-overlay", serde_json::json!({
-            "state": "warning",
-            "message": message
-        }));
-        
+        let _ = overlay_window.emit(
+            "show-overlay",
+            serde_json::json!({
+                "state": "warning",
+                "message": message
+            }),
+        );
+
         // Auto-hide after 2 seconds
         let window_clone = overlay_window.clone();
         std::thread::spawn(move || {
@@ -236,5 +239,52 @@ pub fn emit_levels(app_handle: &AppHandle, levels: &Vec<f32>) {
     // also emit to the recording overlay if it's open
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let _ = overlay_window.emit("mic-level", levels);
+    }
+}
+
+#[tauri::command]
+pub fn resize_recording_overlay(app_handle: AppHandle, height: f64) {
+    if let Some(window) = app_handle.get_webview_window("recording_overlay") {
+        // Resize
+        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+            width: OVERLAY_WIDTH,
+            height,
+        }));
+
+        // Reposition if needed (only for bottom alignment to keep it anchored at bottom)
+        let settings = settings::get_settings(&app_handle);
+        match settings.overlay_position {
+            OverlayPosition::Bottom | OverlayPosition::None => {
+                if let Some(monitor) = get_monitor_with_cursor(&app_handle) {
+                    let work_area = monitor.work_area();
+                    let scale = monitor.scale_factor();
+                    let work_area_height = work_area.size.height as f64 / scale;
+                    let work_area_y = work_area.position.y as f64 / scale;
+
+                    // We want the bottom of the overlay to stay fixed relative to screen bottom
+                    // The original Y calculation was: work_area_y + work_area_height - OVERLAY_BOTTOM_OFFSET
+                    // But that seemed to produce a Y that pushes the window slightly offscreen if height is added?
+                    // Let's assume we want to preserve the "visual bottom"
+
+                    // If we assume the current validation is correct for 52px height:
+                    // Current Top = BaseY.
+                    // New Top should be BaseY - (NewHeight - 52).
+
+                    let base_y = work_area_y + work_area_height - OVERLAY_BOTTOM_OFFSET;
+                    let new_y = base_y - (height - OVERLAY_HEIGHT);
+
+                    if let Ok(pos) = window.outer_position() {
+                        // We maintain X
+                        let current_logical_x = pos.x as f64 / scale;
+                        let _ =
+                            window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                                x: current_logical_x,
+                                y: new_y,
+                            }));
+                    }
+                }
+            }
+            _ => {} // Top alignment just grows down, which is fine
+        }
     }
 }

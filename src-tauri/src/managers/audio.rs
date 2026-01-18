@@ -1,5 +1,6 @@
 use crate::audio_toolkit::{list_input_devices, vad::SmoothedVad, AudioRecorder, SileroVad};
 use crate::helpers::clamshell;
+use crate::managers::transcription::TranscriptionManager;
 use crate::settings::{get_settings, AppSettings};
 use crate::utils;
 use log::{debug, info};
@@ -194,10 +195,7 @@ impl AudioRecordingManager {
         debug!("Preloading VAD model from {:?}", vad_path);
 
         // Create recorder (this loads the heavy VAD model)
-        let recorder = create_audio_recorder(
-            vad_path.to_str().unwrap(),
-            &self.app_handle,
-        )?;
+        let recorder = create_audio_recorder(vad_path.to_str().unwrap(), &self.app_handle)?;
 
         // Store it if not already set by start_microphone_stream
         let mut recorder_guard = self.recorder.lock().unwrap();
@@ -368,12 +366,29 @@ impl AudioRecordingManager {
             }
 
             if let Some(rec) = self.recorder.lock().unwrap().as_ref() {
-                if rec.start().is_ok() {
+                let (chunk_tx, chunk_rx) = std::sync::mpsc::channel();
+
+                if rec.start(Some(chunk_tx)).is_ok() {
                     *self.is_recording.lock().unwrap() = true;
                     *state = RecordingState::Recording {
                         binding_id: binding_id.to_string(),
                     };
                     debug!("Recording started for binding {binding_id}");
+
+                    // Start streaming thread
+                    let tm = self
+                        .app_handle
+                        .state::<Arc<TranscriptionManager>>()
+                        .inner()
+                        .clone();
+                    tm.start_streaming();
+
+                    std::thread::spawn(move || {
+                        while let Ok(chunk) = chunk_rx.recv() {
+                            tm.handle_streaming_chunk(chunk);
+                        }
+                    });
+
                     return true;
                 }
             }
