@@ -3,8 +3,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Minus, Square, X } from "lucide-react";
 import * as React from "react";
-import { cn } from "@/lib/utils";
 import { getNormalizedOsPlatform } from "@/lib/os";
+import { cn } from "@/lib/utils";
 
 const TITLEBAR_HEIGHT = "2rem";
 
@@ -32,7 +32,7 @@ const windowControlVariants = cva(
 
 interface WindowControlButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-  VariantProps<typeof windowControlVariants> {
+    VariantProps<typeof windowControlVariants> {
   asChild?: boolean;
 }
 
@@ -51,7 +51,7 @@ const WindowControlButton = React.forwardRef<
 });
 WindowControlButton.displayName = "WindowControlButton";
 
-export interface TitleBarProps extends React.HTMLAttributes<HTMLDivElement> { }
+export interface TitleBarProps extends React.HTMLAttributes<HTMLDivElement> {}
 
 const TitleBar = React.forwardRef<HTMLDivElement, TitleBarProps>(
   ({ className, ...props }, ref) => {
@@ -91,10 +91,12 @@ const TitleBar = React.forwardRef<HTMLDivElement, TitleBarProps>(
           {
             "--titlebar-height": TITLEBAR_HEIGHT,
             height: "var(--titlebar-height)",
-            ...(isWindows ? {} : {
-              borderTopLeftRadius: "var(--window-radius)",
-              borderTopRightRadius: "var(--window-radius)",
-            }),
+            ...(isWindows
+              ? {}
+              : {
+                  borderTopLeftRadius: "var(--window-radius)",
+                  borderTopRightRadius: "var(--window-radius)",
+                }),
           } as React.CSSProperties
         }
         {...props}

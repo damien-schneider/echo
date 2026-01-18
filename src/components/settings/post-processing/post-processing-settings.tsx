@@ -201,7 +201,7 @@ const PostProcessingSettingsApiComponent = () => {
             className="min-w-[380px] flex-1"
             disabled={state.isModelUpdating}
             isLoading={state.isFetchingModels}
-            onBlur={() => { }}
+            onBlur={() => {}}
             onCreate={state.handleModelCreate}
             onSelect={state.handleModelSelect}
             options={state.modelOptions}

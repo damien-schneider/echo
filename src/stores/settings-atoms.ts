@@ -273,15 +273,15 @@ export const updateBindingAtom = atom(
       set(settingsAtom, (prev: any) =>
         prev
           ? {
-            ...prev,
-            bindings: {
-              ...prev.bindings,
-              [id]: {
-                ...prev.bindings[id],
-                current_binding: binding,
+              ...prev,
+              bindings: {
+                ...prev.bindings,
+                [id]: {
+                  ...prev.bindings[id],
+                  current_binding: binding,
+                },
               },
-            },
-          }
+            }
           : null
       );
 
@@ -294,15 +294,15 @@ export const updateBindingAtom = atom(
         set(settingsAtom, (prev: any) =>
           prev
             ? {
-              ...prev,
-              bindings: {
-                ...prev.bindings,
-                [id]: {
-                  ...prev.bindings[id],
-                  current_binding: originalBinding,
+                ...prev,
+                bindings: {
+                  ...prev.bindings,
+                  [id]: {
+                    ...prev.bindings[id],
+                    current_binding: originalBinding,
+                  },
                 },
-              },
-            }
+              }
             : null
         );
       }

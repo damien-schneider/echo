@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import * as React from "react";
-import { cn } from "@/lib/utils";
 import { getNormalizedOsPlatform } from "@/lib/os";
+import { cn } from "@/lib/utils";
 
 export interface GlassWindowProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -35,22 +35,23 @@ const GlassWindow = React.forwardRef<HTMLDivElement, GlassWindowProps>(
     const platform = getNormalizedOsPlatform();
     const isWindows = platform === "windows";
 
-    const glassStyles = isMaximized || isWindows
-      ? {
-        borderRadius: "0",
-        background: "var(--background)",
-        border: "none",
-        boxShadow: "none",
-      }
-      : {
-        borderRadius: "var(--window-radius)",
-        background: "var(--window-background)",
-        border: "1px solid var(--window-border)",
-        boxShadow:
-          "var(--window-shadow), inset 0 1px 0 0 var(--window-border-highlight)",
-        backdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
-        WebkitBackdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
-      };
+    const glassStyles =
+      isMaximized || isWindows
+        ? {
+            borderRadius: "0",
+            background: "var(--background)",
+            border: "none",
+            boxShadow: "none",
+          }
+        : {
+            borderRadius: "var(--window-radius)",
+            background: "var(--window-background)",
+            border: "1px solid var(--window-border)",
+            boxShadow:
+              "var(--window-shadow), inset 0 1px 0 0 var(--window-border-highlight)",
+            backdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
+            WebkitBackdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
+          };
 
     return (
       <div
@@ -63,7 +64,7 @@ const GlassWindow = React.forwardRef<HTMLDivElement, GlassWindowProps>(
         {...props}
       >
         {/* Noise/grain overlay - only show when not maximized and not on Windows */}
-        {!isMaximized && !isWindows && (
+        {!(isMaximized || isWindows) && (
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-0"
