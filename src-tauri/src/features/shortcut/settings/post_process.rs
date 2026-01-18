@@ -314,16 +314,32 @@ async fn fetch_models_manual(
 }
 
 /// Set the selected post-process prompt.
+/// Set the selected post-process prompt.
 #[tauri::command]
-pub fn set_post_process_selected_prompt(app: AppHandle, id: String) -> Result<(), String> {
+pub fn set_post_process_selected_prompt(app: AppHandle, id: Option<String>) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
 
-    // Verify the prompt exists
-    if !settings.post_process_prompts.iter().any(|p| p.id == id) {
-        return Err(format!("Prompt with id '{}' not found", id));
+    if let Some(prompt_id) = &id {
+        // Verify the prompt exists
+        if !settings
+            .post_process_prompts
+            .iter()
+            .any(|p| &p.id == prompt_id)
+        {
+            return Err(format!("Prompt with id '{}' not found", prompt_id));
+        }
     }
 
-    settings.post_process_selected_prompt_id = Some(id);
+    settings.post_process_selected_prompt_id = id;
+    settings::write_settings(&app, settings);
+    Ok(())
+}
+
+/// Change post-process enabled setting.
+#[tauri::command]
+pub fn change_post_process_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    let mut settings = settings::get_settings(&app);
+    settings.post_process_enabled = enabled;
     settings::write_settings(&app, settings);
     Ok(())
 }

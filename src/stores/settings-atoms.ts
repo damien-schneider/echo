@@ -92,6 +92,8 @@ const settingUpdaters: {
     invoke("change_input_tracking_excluded_apps", { apps: value }),
   tts_enabled: (value) =>
     invoke("change_tts_enabled_setting", { enabled: value }),
+  post_process_enabled: (value) =>
+    invoke("change_post_process_enabled_setting", { enabled: value }),
 };
 
 // State Atoms
@@ -271,15 +273,15 @@ export const updateBindingAtom = atom(
       set(settingsAtom, (prev: any) =>
         prev
           ? {
-              ...prev,
-              bindings: {
-                ...prev.bindings,
-                [id]: {
-                  ...prev.bindings[id],
-                  current_binding: binding,
-                },
+            ...prev,
+            bindings: {
+              ...prev.bindings,
+              [id]: {
+                ...prev.bindings[id],
+                current_binding: binding,
               },
-            }
+            },
+          }
           : null
       );
 
@@ -292,15 +294,15 @@ export const updateBindingAtom = atom(
         set(settingsAtom, (prev: any) =>
           prev
             ? {
-                ...prev,
-                bindings: {
-                  ...prev.bindings,
-                  [id]: {
-                    ...prev.bindings[id],
-                    current_binding: originalBinding,
-                  },
+              ...prev,
+              bindings: {
+                ...prev.bindings,
+                [id]: {
+                  ...prev.bindings[id],
+                  current_binding: originalBinding,
                 },
-              }
+              },
+            }
             : null
         );
       }

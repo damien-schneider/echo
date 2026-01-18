@@ -20,6 +20,7 @@ mod window_effects;
 // Re-export shortcut module from features for convenience
 use features::shortcut;
 
+use env_filter::Builder as EnvFilterBuilder;
 use managers::audio::AudioRecordingManager;
 use managers::history::HistoryManager;
 use managers::input_tracker::InputTrackerManager;
@@ -30,19 +31,18 @@ use startup::show_main_window;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
-use env_filter::Builder as EnvFilterBuilder;
 
-use tauri::tray::TrayIconBuilder;
-use tauri::Emitter;
-use tauri::{AppHandle, Manager};
-use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKind, LogLevel};
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
-use std::path::PathBuf;
-use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 #[cfg(unix)]
 use signal_hook::consts::SIGUSR2;
 #[cfg(unix)]
 use signal_hook::iterator::Signals;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use tauri::tray::TrayIconBuilder;
+use tauri::Emitter;
+use tauri::{AppHandle, Manager};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_log::{Builder as LogBuilder, LogLevel, RotationStrategy, Target, TargetKind};
 
 #[derive(Default)]
 struct ShortcutToggleStates {
@@ -85,7 +85,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     ));
 
     let tts_manager = Arc::new(TtsManager::new());
-    
+
     // Pre-warm TTS engine on startup
     if let Err(e) = tts_manager.initialize() {
         log::warn!("Failed to initialize TTS engine on startup: {}", e);
@@ -238,10 +238,7 @@ fn build_console_filter() -> env_filter::Filter {
 
 /// Helper function to validate and transcribe a dropped file (for window drops)
 /// Does not show the window after completion - only shows the dialog
-async fn validate_and_transcribe_file(
-    app: AppHandle,
-    file_path: PathBuf,
-) -> Result<(), String> {
+async fn validate_and_transcribe_file(app: AppHandle, file_path: PathBuf) -> Result<(), String> {
     // Validate file exists
     if !file_path.exists() {
         let error_payload = serde_json::json!({
@@ -254,7 +251,9 @@ async fn validate_and_transcribe_file(
     }
 
     // Validate file extension
-    let valid_extensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "avi", "mkv", "webm", "flv"];
+    let valid_extensions = [
+        "wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "avi", "mkv", "webm", "flv",
+    ];
     let extension = file_path
         .extension()
         .and_then(|e| e.to_str())
@@ -309,7 +308,9 @@ async fn validate_and_transcribe_file_icon_drop(
     }
 
     // Validate file extension
-    let valid_extensions = ["wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "avi", "mkv", "webm", "flv"];
+    let valid_extensions = [
+        "wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "avi", "mkv", "webm", "flv",
+    ];
     let extension = file_path
         .extension()
         .and_then(|e| e.to_str())
@@ -351,7 +352,6 @@ async fn validate_and_transcribe_file_icon_drop(
 }
 
 pub fn run() {
-
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // Check if any arguments look like file paths (icon drops)
@@ -419,7 +419,10 @@ pub fn run() {
                         move |metadata| console_filter.enabled(metadata)
                     }),
                     // File logs respect the user's settings stored in FILE_LOG_LEVEL
-                    Target::new(TargetKind::LogDir { file_name: Some("handy".into()) }).filter(|metadata| {
+                    Target::new(TargetKind::LogDir {
+                        file_name: Some("handy".into()),
+                    })
+                    .filter(|metadata| {
                         let file_level = FILE_LOG_LEVEL.load(Ordering::Relaxed);
                         metadata.level() <= level_filter_from_u8(file_level)
                     }),
@@ -495,7 +498,8 @@ pub fn run() {
                             // Spawn async task to handle transcription
                             tauri::async_runtime::spawn(async move {
                                 let handle_for_emit = app_handle.clone();
-                                if let Err(e) = validate_and_transcribe_file(app_handle, path).await {
+                                if let Err(e) = validate_and_transcribe_file(app_handle, path).await
+                                {
                                     log::error!("Failed to transcribe dropped file: {}", e);
                                     let _ = handle_for_emit.emit("file-transcription-error", e);
                                 }
@@ -536,6 +540,7 @@ pub fn run() {
             shortcut::settings::general::update_custom_words,
             // Post-process settings commands
             shortcut::settings::post_process::change_post_process_base_url_setting,
+            shortcut::settings::post_process::change_post_process_enabled_setting,
             shortcut::settings::post_process::change_post_process_api_key_setting,
             shortcut::settings::post_process::change_post_process_model_setting,
             shortcut::settings::post_process::set_post_process_provider,

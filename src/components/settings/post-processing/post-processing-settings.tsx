@@ -17,9 +17,12 @@ import { usePostProcessProviderState } from "@/components/settings/post-processi
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
 import { SettingContainer } from "@/components/ui/SettingContainer";
 import { SettingsGroup } from "@/components/ui/SettingsGroup";
 import { Switch } from "@/components/ui/switch";
@@ -198,7 +201,7 @@ const PostProcessingSettingsApiComponent = () => {
             className="min-w-[380px] flex-1"
             disabled={state.isModelUpdating}
             isLoading={state.isFetchingModels}
-            onBlur={() => {}}
+            onBlur={() => { }}
             onCreate={state.handleModelCreate}
             onSelect={state.handleModelSelect}
             options={state.modelOptions}
@@ -279,6 +282,12 @@ const PostProcessingSettingsPromptsComponent = () => {
   }, [isEditingName]);
 
   const handlePromptSelect = (promptId: string | null) => {
+    if (promptId === "none") {
+      updateSetting("post_process_selected_prompt_id", null);
+      setIsCreating(false);
+      setIsEditingName(false);
+      return;
+    }
     if (!promptId) {
       return;
     }
@@ -458,28 +467,33 @@ const PostProcessingSettingsPromptsComponent = () => {
             </div>
           ) : (
             <>
-              <NativeSelect
-                className="flex-1"
+              <Select
                 disabled={
                   isUpdating("post_process_selected_prompt_id") ||
                   isCreating ||
                   prompts.length === 0
                 }
-                onChange={(e) => handlePromptSelect(e.target.value)}
-                value={selectedPromptId || ""}
-                wrapperClassName="w-full"
+                onValueChange={handlePromptSelect}
+                value={selectedPromptId || (prompts.length === 0 ? "" : "none")}
               >
-                <NativeSelectOption disabled value="">
-                  {prompts.length === 0
-                    ? "No prompts available"
-                    : "Select a prompt"}
-                </NativeSelectOption>
-                {prompts.map((p) => (
-                  <NativeSelectOption key={p.id} value={p.id}>
-                    {p.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
+                <SelectTrigger className="flex-1">
+                  <SelectValue
+                    placeholder={
+                      prompts.length === 0
+                        ? "No prompts available"
+                        : "Select a prompt"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {prompts.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {selectedPrompt && !isCreating && (
                 <TooltipProvider>
                   <Tooltip>
