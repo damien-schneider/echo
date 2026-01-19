@@ -7,9 +7,11 @@ import { defineConfig } from "vite";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 
 const config = defineConfig({
+  server: {
+    port: 3000,
+  },
   plugins: [
     devtools(),
-    nitro({}),
     // this is the plugin that enables path aliases
     viteTsConfigPaths({
       projects: ["./tsconfig.json"],
@@ -21,6 +23,7 @@ const config = defineConfig({
         plugins: ["babel-plugin-react-compiler"],
       },
     }),
+    nitro({ preset: "node-server" }),
   ],
 });
 
