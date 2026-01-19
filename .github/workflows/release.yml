@@ -24,6 +24,63 @@ jobs:
           echo "Application version from tauri.conf.json: $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
+      - name: Get previous tag
+        id: get-previous-tag
+        shell: bash
+        run: |
+          # Get the most recent tag before the current version
+          CURRENT_VERSION="${{ steps.get-version.outputs.version }}"
+          CURRENT_TAG="v${CURRENT_VERSION}"
+
+          # Get all tags sorted by version, exclude current version
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -1)
+
+          if [ -z "$PREVIOUS_TAG" ]; then
+            # If no previous tag exists, use the first commit
+            PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD)
+            echo "No previous tag found, using first commit: $PREVIOUS_TAG"
+            echo "is_first_release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Previous tag: $PREVIOUS_TAG"
+            echo "is_first_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          echo "previous_tag=$PREVIOUS_TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Generate release notes from commits
+        id: generate-notes
+        shell: bash
+        run: |
+          PREVIOUS_TAG="${{ steps.get-previous-tag.outputs.previous_tag }}"
+          IS_FIRST_RELEASE="${{ steps.get-previous-tag.outputs.is_first_release }}"
+          CURRENT_TAG="v${{ steps.get-version.outputs.version }}"
+
+          # Generate changelog from commits between previous tag and HEAD
+          if [ "$IS_FIRST_RELEASE" = "true" ]; then
+            # First release: show all commits
+            COMMITS=$(git log --pretty=format:"- %s (%h)" HEAD)
+            CHANGELOG_LINK=""
+          else
+            # Normal case: compare with previous tag
+            COMMITS=$(git log --pretty=format:"- %s (%h)" ${PREVIOUS_TAG}..HEAD)
+            CHANGELOG_LINK="**Full Changelog**: ${PREVIOUS_TAG}...${CURRENT_TAG}"
+          fi
+
+          if [ -z "$COMMITS" ]; then
+            COMMITS="- No changes detected"
+          fi
+
+          # Create formatted release notes
+          {
+            echo "## What's Changed"
+            echo ""
+            echo "$COMMITS"
+            echo ""
+            if [ -n "$CHANGELOG_LINK" ]; then
+              echo "$CHANGELOG_LINK"
+            fi
+          } > release_notes.md
+
       - name: Create and push tag
         shell: bash
         run: |
@@ -44,15 +101,50 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
+            const releaseNotes = fs.readFileSync('release_notes.md', 'utf8');
+
+            const currentTag = `v${{ steps.get-version.outputs.version }}`;
+            const previousTag = `${{ steps.get-previous-tag.outputs.previous_tag }}`;
+            const isFirstRelease = `${{ steps.get-previous-tag.outputs.is_first_release }}` === 'true';
+
+            let combinedNotes = releaseNotes;
+
+            // Try to get GitHub's auto-generated notes for PR information
+            try {
+              // Only use previous_tag_name if it's a valid tag (not a commit hash)
+              const generateOptions = {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: currentTag,
+              };
+              
+              // Only add previous_tag_name if it's not the first release and looks like a tag
+              if (!isFirstRelease && previousTag.startsWith('v')) {
+                generateOptions.previous_tag_name = previousTag;
+              }
+              
+              const { data: autoNotes } = await github.rest.repos.generateReleaseNotes(generateOptions);
+              
+              // Combine both: use commit-based notes as primary, append auto-generated PR info
+              if (autoNotes && autoNotes.body) {
+                combinedNotes = releaseNotes + '\n\n---\n\n' + autoNotes.body;
+              }
+            } catch (error) {
+              console.log('Could not generate auto-release notes, using commit-based notes only:', error.message);
+              // Continue with just the commit-based notes
+            }
+
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: `v${{ steps.get-version.outputs.version }}`,
-              name: `v${{ steps.get-version.outputs.version }}`,
+              tag_name: currentTag,
+              name: currentTag,
+              body: combinedNotes,
               draft: true,
               prerelease: false,
-              generate_release_notes: true
-            })
+            });
+
             return data.id
 
   publish-tauri:
