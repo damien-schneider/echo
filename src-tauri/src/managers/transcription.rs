@@ -423,6 +423,7 @@ impl TranscriptionManager {
         Ok(corrected_result.trim().to_string())
     }
     pub fn start_streaming(&self) {
+        debug!("start_streaming called - clearing buffer");
         let mut buf = self.streaming_buffer.lock().unwrap();
         buf.clear();
         *self.last_partial_update.lock().unwrap() = std::time::Instant::now();
@@ -430,31 +431,35 @@ impl TranscriptionManager {
 
     pub fn handle_streaming_chunk(&self, chunk: Vec<f32>) {
         // Append chunk to buffer
-        {
+        let current_len = {
             let mut buf = self.streaming_buffer.lock().unwrap();
             buf.extend_from_slice(&chunk);
-        }
+            buf.len()
+        };
 
         // Throttle updates to ~500ms
         let now = std::time::Instant::now();
         let mut last = self.last_partial_update.lock().unwrap();
-        if now.duration_since(*last).as_millis() > 500 {
+        let elapsed_ms = now.duration_since(*last).as_millis();
+
+        if elapsed_ms > 500 {
             *last = now;
-            // Drop the lock before doing heavy work to prevent deadlock
             drop(last);
+
+            // Avoid transcribing extremely short buffers (need at least 1 second)
+            if current_len < 16000 {
+                return;
+            }
 
             // Perform partial transcription on a separate thread
             let buf_clone = self.streaming_buffer.lock().unwrap().clone();
             let this = self.clone();
 
-            // Avoid transcribing extremely short buffers
-            if buf_clone.len() < 16000 {
-                return;
-            }
-
             thread::spawn(move || {
                 if let Ok(text) = this.transcribe(buf_clone) {
-                    let _ = this.app_handle.emit("transcription-progress", text);
+                    debug!("Partial transcription: '{}'", text);
+                    // Emit to recording overlay window
+                    crate::overlay::emit_transcription_progress(&this.app_handle, &text);
                 }
             });
         }

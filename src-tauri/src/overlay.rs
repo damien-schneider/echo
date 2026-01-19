@@ -242,6 +242,16 @@ pub fn emit_levels(app_handle: &AppHandle, levels: &Vec<f32>) {
     }
 }
 
+pub fn emit_transcription_progress(app_handle: &AppHandle, text: &str) {
+    // emit to main app
+    let _ = app_handle.emit("transcription-progress", text);
+
+    // also emit to the recording overlay if it's open
+    if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+        let _ = overlay_window.emit("transcription-progress", text);
+    }
+}
+
 #[tauri::command]
 pub fn resize_recording_overlay(app_handle: AppHandle, height: f64) {
     if let Some(window) = app_handle.get_webview_window("recording_overlay") {

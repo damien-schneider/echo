@@ -2,6 +2,7 @@
   display: flex;
   align-items: center;
 }
+
 .overlay-right {
   display: flex;
   align-items: center;
@@ -36,10 +37,12 @@
 }
 
 @keyframes transcribing-pulse {
+
   0%,
   100% {
     opacity: 0.6;
   }
+
   50% {
     opacity: 1;
   }
@@ -67,4 +70,17 @@
 
 .cancel-button:active {
   transform: scale(0.95);
+}
+
+/* Hide scrollbar for streaming text */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
 }

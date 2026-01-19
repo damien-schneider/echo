@@ -284,6 +284,34 @@ fn run_consumer(
     }
 
     loop {
+        // Check for commands FIRST, before processing audio
+        while let Ok(cmd) = cmd_rx.try_recv() {
+            match cmd {
+                Cmd::Start(tx) => {
+                    debug!("Cmd::Start received, chunk_tx is_some: {}", tx.is_some());
+                    processed_samples.clear();
+                    recording = true;
+                    chunk_tx = tx;
+                    visualizer.reset();
+                    if let Some(v) = &vad {
+                        v.lock().unwrap().reset();
+                    }
+                }
+                Cmd::Stop(reply_tx) => {
+                    debug!("Cmd::Stop received");
+                    recording = false;
+
+                    frame_resampler.finish(&mut |frame: &[f32]| {
+                        handle_frame(frame, true, &vad, &mut processed_samples, &chunk_tx)
+                    });
+
+                    let _ = reply_tx.send(std::mem::take(&mut processed_samples));
+                    chunk_tx = None;
+                }
+                Cmd::Shutdown => return,
+            }
+        }
+
         // Use recv_timeout to allow checking for shutdown commands even when
         // no audio samples are being received (e.g., if the audio device is unresponsive)
         let raw = match sample_rx.recv_timeout(Duration::from_millis(100)) {
@@ -309,31 +337,5 @@ fn run_consumer(
         frame_resampler.push(&raw, &mut |frame: &[f32]| {
             handle_frame(frame, recording, &vad, &mut processed_samples, &chunk_tx)
         });
-
-        // non-blocking check for a command
-        while let Ok(cmd) = cmd_rx.try_recv() {
-            match cmd {
-                Cmd::Start(tx) => {
-                    processed_samples.clear();
-                    recording = true;
-                    chunk_tx = tx;
-                    visualizer.reset();
-                    if let Some(v) = &vad {
-                        v.lock().unwrap().reset();
-                    }
-                }
-                Cmd::Stop(reply_tx) => {
-                    recording = false;
-
-                    frame_resampler.finish(&mut |frame: &[f32]| {
-                        handle_frame(frame, true, &vad, &mut processed_samples, &chunk_tx)
-                    });
-
-                    let _ = reply_tx.send(std::mem::take(&mut processed_samples));
-                    chunk_tx = None;
-                }
-                Cmd::Shutdown => return,
-            }
-        }
     }
 }

@@ -379,12 +379,18 @@ impl AudioRecordingManager {
                         .state::<Arc<TranscriptionManager>>()
                         .inner()
                         .clone();
+
+                    // Ensure model is loaded for streaming
+                    tm.initiate_model_load();
                     tm.start_streaming();
 
+                    let binding_id_clone = binding_id.to_string();
                     std::thread::spawn(move || {
+                        debug!("Streaming thread started for binding {}", binding_id_clone);
                         while let Ok(chunk) = chunk_rx.recv() {
                             tm.handle_streaming_chunk(chunk);
                         }
+                        debug!("Streaming thread finished");
                     });
 
                     return true;

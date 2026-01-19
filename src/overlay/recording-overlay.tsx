@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { AlertTriangle, XIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LiveWaveform } from "@/components/ui/live-waveform";
 import "./recording-overlay.css";
 import { motion } from "motion/react";
@@ -28,6 +28,7 @@ const RecordingOverlay = () => {
   const [audioLevels, setAudioLevels] = useState<number[]>([]);
   const [streamingText, setStreamingText] = useState("");
   const { resolvedTheme } = useTheme();
+  const textScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const setupEventListeners = async () => {
@@ -35,8 +36,13 @@ const RecordingOverlay = () => {
       const unlistenShow = await listen("show-overlay", (event) => {
         // Handle both simple string state and object with message
         if (typeof event.payload === "string") {
-          setState(event.payload as OverlayState);
+          const newState = event.payload as OverlayState;
+          setState(newState);
           setWarningMessage("");
+          // Only reset streaming text when starting a NEW recording
+          if (newState === "recording") {
+            setStreamingText("");
+          }
         } else if (
           typeof event.payload === "object" &&
           event.payload !== null
@@ -48,10 +54,8 @@ const RecordingOverlay = () => {
           }
         }
         setIsVisible(true);
-        // Reset streaming text on show
-        setStreamingText("");
         invoke("resize_recording_overlay", { height: OVERLAY_HEIGHT }).catch(
-          () => {}
+          () => { }
         );
       });
 
@@ -115,13 +119,18 @@ const RecordingOverlay = () => {
   useEffect(() => {
     if (!isVisible) return;
 
-    const targetHeight = streamingText
-      ? OVERLAY_EXPANDED_HEIGHT
-      : OVERLAY_HEIGHT;
+    const targetHeight = streamingText ? OVERLAY_EXPANDED_HEIGHT : OVERLAY_HEIGHT;
     invoke("resize_recording_overlay", { height: targetHeight }).catch(
       console.error
     );
   }, [streamingText, isVisible]);
+
+  // Auto-scroll text to end when it updates
+  useEffect(() => {
+    if (textScrollRef.current && streamingText) {
+      textScrollRef.current.scrollLeft = textScrollRef.current.scrollWidth;
+    }
+  }, [streamingText]);
 
   return (
     <motion.div
@@ -146,9 +155,8 @@ const RecordingOverlay = () => {
           ? streamingText
             ? OVERLAY_EXPANDED_HEIGHT
             : OVERLAY_HEIGHT
-          : 0, // Animate height
+          : 0,
         width: `${OVERLAY_WIDTH}px`,
-        // boxSizing: "border-box"
       }}
       transition={{
         type: "spring",
@@ -179,10 +187,12 @@ const RecordingOverlay = () => {
           audioLevels={audioLevels}
           barColor={resolvedTheme === "dark" ? "#ffffff" : "#000000"}
           barGap={1}
-          // height={OVERLAY_HEIGHT}
           barRadius={99}
           barWidth={4}
-          className="absolute top-1/2 left-1/2 flex-1 -translate-x-1/2 -translate-y-1/2"
+          className={cn(
+            "absolute left-1/2 -translate-x-1/2",
+            streamingText ? "top-[26px] -translate-y-1/2" : "top-1/2 -translate-y-1/2"
+          )}
           disableInternalAudio={true}
           fadeEdges={true}
           fadeWidth={20}
@@ -196,12 +206,19 @@ const RecordingOverlay = () => {
         />
       )}
 
-      {/* Streaming Text */}
+      {/* Streaming Text - Single line with horizontal scroll */}
       {streamingText && (
-        <div className="absolute top-[60px] right-0 left-0 px-3 pb-3">
-          <p className="fade-in slide-in-from-top-1 line-clamp-5 animate-in text-muted-foreground text-xs">
+        <div
+          className="absolute left-0 right-0 overflow-x-scroll px-3 scrollbar-hide"
+          ref={textScrollRef}
+          style={{
+            top: `${OVERLAY_HEIGHT - 2}px`,
+            height: '24px',
+          }}
+        >
+          <span className="text-foreground/50 text-xs font-medium whitespace-nowrap inline-block">
             {streamingText}
-          </p>
+          </span>
         </div>
       )}
 
