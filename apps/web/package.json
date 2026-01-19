@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite dev --port 3005",
     "build": "vite build",
+    "start": "node .output/server/index.mjs",
     "serve": "vite preview",
     "test": "vitest run"
   },
