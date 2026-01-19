@@ -70,8 +70,8 @@ fn apply_linux_window_effects(window: &WebviewWindow) {
     log::info!("Linux window: Using CSS backdrop-filter for glassmorphism effect");
     log::info!("For compositor blur, ensure your compositor supports blur effects");
 
-    // Try to apply blur if the compositor supports it
-    #[allow(unused_variables)]
+    // The window parameter is intentionally unused on Linux
+    // as transparency is handled by CSS and the compositor
     let _ = window;
 }
 

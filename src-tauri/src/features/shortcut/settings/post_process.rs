@@ -314,7 +314,6 @@ async fn fetch_models_manual(
 }
 
 /// Set the selected post-process prompt.
-/// Set the selected post-process prompt.
 #[tauri::command]
 pub fn set_post_process_selected_prompt(app: AppHandle, id: Option<String>) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);

@@ -184,7 +184,7 @@ function App() {
       >
         <div className="mx-auto max-w-xl">
           <AccessibilityPermissions />
-          <div>{renderSettingsContent(currentSection)}</div>
+          {renderSettingsContent(currentSection)}
         </div>
       </SidebarLayout>
       <TranscriptionResultDialog />

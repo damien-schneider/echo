@@ -20,10 +20,10 @@
         "minWidth": 750,
         "minHeight": 600,
         "resizable": true,
-        "maximizable": false,
+        "maximizable": true,
         "visible": false,
         "transparent": true,
-        "decorations": false,
+        "titleBarStyle": "Overlay",
         "dragDropEnabled": true
       },
       {
