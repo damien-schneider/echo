@@ -58,7 +58,7 @@ const GlassWindow = ({
     if (isMaximized || isWindows) {
       return {
         borderRadius: "0",
-        background: "var(--background)",
+        background: "var(--window-background)",
         border: "none",
         boxShadow: "none",
       };
@@ -68,7 +68,7 @@ const GlassWindow = ({
     if (isLinux) {
       return {
         borderRadius: "var(--window-radius)",
-        background: "var(--background)",
+        background: "var(--window-background)",
         border: "1px solid var(--window-border)",
         boxShadow: "var(--window-shadow)",
       };
