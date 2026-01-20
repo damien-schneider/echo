@@ -189,9 +189,11 @@ fn create_schema_version_table(conn: &Connection) -> Result<()> {
 /// Get the current schema version.
 fn get_schema_version(conn: &Connection) -> Result<u32> {
     let version: u32 = conn
-        .query_row("SELECT version FROM schema_version WHERE id = 1", [], |row| {
-            row.get(0)
-        })
+        .query_row(
+            "SELECT version FROM schema_version WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
         .context("Failed to read schema version")?;
 
     Ok(version)
@@ -271,7 +273,10 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     }
 
     if current_version == CURRENT_SCHEMA_VERSION {
-        debug!("Database schema is up to date (version {})", current_version);
+        debug!(
+            "Database schema is up to date (version {})",
+            current_version
+        );
         return Ok(());
     }
 
@@ -335,8 +340,12 @@ mod tests {
 
         // Verify table exists with all columns
         assert!(check_table_exists(&conn, "transcription_history").unwrap());
-        assert!(check_column_exists(&conn, "transcription_history", "post_processed_text").unwrap());
-        assert!(check_column_exists(&conn, "transcription_history", "post_process_prompt").unwrap());
+        assert!(
+            check_column_exists(&conn, "transcription_history", "post_processed_text").unwrap()
+        );
+        assert!(
+            check_column_exists(&conn, "transcription_history", "post_process_prompt").unwrap()
+        );
     }
 
     #[test]
@@ -382,7 +391,11 @@ mod tests {
         assert_eq!(version, CURRENT_SCHEMA_VERSION);
 
         // Verify new columns exist
-        assert!(check_column_exists(&conn, "transcription_history", "post_processed_text").unwrap());
-        assert!(check_column_exists(&conn, "transcription_history", "post_process_prompt").unwrap());
+        assert!(
+            check_column_exists(&conn, "transcription_history", "post_processed_text").unwrap()
+        );
+        assert!(
+            check_column_exists(&conn, "transcription_history", "post_process_prompt").unwrap()
+        );
     }
 }

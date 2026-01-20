@@ -23,8 +23,7 @@ pub fn get_input_entries(app: AppHandle, limit: Option<usize>) -> Result<Vec<Inp
 
     let db_path = app_data_dir.join("echo.db");
 
-    let conn = Connection::open(&db_path)
-        .map_err(|e| format!("Failed to open database: {}", e))?;
+    let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
 
     let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or_default();
     let query = format!(
@@ -66,8 +65,7 @@ pub fn delete_input_entry(app: AppHandle, id: i64) -> Result<(), String> {
 
     let db_path = app_data_dir.join("echo.db");
 
-    let conn = Connection::open(&db_path)
-        .map_err(|e| format!("Failed to open database: {}", e))?;
+    let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
 
     conn.execute("DELETE FROM input_entries WHERE id = ?1", [id])
         .map_err(|e| format!("Failed to delete entry: {}", e))?;
@@ -85,8 +83,7 @@ pub fn clear_all_input_entries(app: AppHandle) -> Result<(), String> {
 
     let db_path = app_data_dir.join("echo.db");
 
-    let conn = Connection::open(&db_path)
-        .map_err(|e| format!("Failed to open database: {}", e))?;
+    let conn = Connection::open(&db_path).map_err(|e| format!("Failed to open database: {}", e))?;
 
     let deleted = conn
         .execute("DELETE FROM input_entries", [])
@@ -183,18 +180,18 @@ fn parse_applescript_lists(input: &str) -> Option<(Vec<String>, Vec<String>)> {
     if items.len() < 2 || items.len() % 2 != 0 {
         return None;
     }
-    
+
     let mid = items.len() / 2;
     let names: Vec<String> = items[..mid].iter().map(|s| s.to_string()).collect();
     let ids: Vec<String> = items[mid..].iter().map(|s| s.to_string()).collect();
-    
+
     Some((names, ids))
 }
 
 #[cfg(target_os = "macos")]
 fn get_app_info_from_bundle(path: &std::path::Path) -> Option<(String, String)> {
     use std::process::Command;
-    
+
     // Use defaults to read the Info.plist
     let plist_path = path.join("Contents/Info.plist");
     if !plist_path.exists() {

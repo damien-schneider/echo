@@ -3,8 +3,8 @@
 //! Manages system native TTS with automatic language detection
 
 use anyhow::{Context, Result};
-use std::sync::Mutex;
 use log::{debug, info, warn};
+use std::sync::Mutex;
 use tts::{Features, Tts, Voice};
 use whichlang::detect_language;
 
@@ -69,7 +69,11 @@ impl TtsManager {
             whichlang::Lang::Tur => "tr",
             whichlang::Lang::Vie => "vi",
         };
-        info!("Detected language: {} for text: {}...", lang_code, &text[..text.len().min(50)]);
+        info!(
+            "Detected language: {} for text: {}...",
+            lang_code,
+            &text[..text.len().min(50)]
+        );
         Some(lang_code.to_string())
     }
 
@@ -90,7 +94,8 @@ impl TtsManager {
         voices.into_iter().find(|v| {
             let voice_lang = v.language().to_string().to_lowercase();
             let target_lang = language.to_lowercase();
-            voice_lang.starts_with(&target_lang) || voice_lang.split('-').next() == Some(&target_lang)
+            voice_lang.starts_with(&target_lang)
+                || voice_lang.split('-').next() == Some(&target_lang)
         })
     }
 
@@ -106,7 +111,11 @@ impl TtsManager {
                 let mut guard = self.system_tts.lock().unwrap();
                 let tts = guard.as_mut().context("TTS not initialized")?;
 
-                info!("Auto-selected voice '{}' for language '{}'", voice.name(), detected_lang);
+                info!(
+                    "Auto-selected voice '{}' for language '{}'",
+                    voice.name(),
+                    detected_lang
+                );
                 if let Err(e) = tts.set_voice(&voice) {
                     warn!("Failed to set auto-detected voice: {}, using default", e);
                 }

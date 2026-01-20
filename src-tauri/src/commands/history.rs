@@ -141,7 +141,7 @@ pub async fn reprocess_history_entry(
     id: i64,
 ) -> Result<String, String> {
     use log::{error, info};
-    
+
     // Get the history entry
     let entry = history_manager
         .get_entry_by_id(id)

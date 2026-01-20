@@ -35,7 +35,7 @@ pub fn is_laptop() -> Result<bool, String> {
         .map_err(|e| e.to_string())?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
-    
+
     // Check if InternalBattery is present (laptops have batteries, desktops typically don't)
     Ok(stdout.contains("InternalBattery"))
 }

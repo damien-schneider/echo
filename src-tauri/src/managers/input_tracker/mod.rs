@@ -236,9 +236,10 @@ impl InputTrackerManager {
                                 && matches!(keystroke.key, Key::UpArrow | Key::DownArrow);
 
                             // Large jumps (PageUp/PageDown, Cmd+Up/Down for document start/end)
-                            let is_large_jump = matches!(keystroke.key, Key::PageUp | Key::PageDown)
-                                || (state.modifiers.is_line_modifier()
-                                    && matches!(keystroke.key, Key::UpArrow | Key::DownArrow));
+                            let is_large_jump =
+                                matches!(keystroke.key, Key::PageUp | Key::PageDown)
+                                    || (state.modifiers.is_line_modifier()
+                                        && matches!(keystroke.key, Key::UpArrow | Key::DownArrow));
 
                             // Submit keys (Return, Tab, Escape)
                             let is_submit_key =

@@ -244,7 +244,7 @@ impl ShortcutAction for TranscribeAction {
         if crate::is_file_transcription_active() {
             debug!("File transcription in progress - showing warning overlay");
             show_warning_overlay(app, "File transcription in progress. Please wait...");
-            
+
             // Reset the toggle state so next press will call start() again
             let toggle_state_manager = app.state::<ManagedToggleState>();
             if let Ok(mut states) = toggle_state_manager.lock() {

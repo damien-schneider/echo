@@ -43,8 +43,7 @@ impl HistoryManager {
         }
 
         // Initialize database schema and run migrations
-        database::initialize_database(&db_path)
-            .context("Failed to initialize history database")?;
+        database::initialize_database(&db_path).context("Failed to initialize history database")?;
 
         let manager = Self {
             app_handle: app_handle.clone(),
@@ -385,7 +384,10 @@ impl HistoryManager {
             params![post_processed_text, post_process_prompt, id],
         )?;
 
-        debug!("Updated post-processed text for history entry with id: {}", id);
+        debug!(
+            "Updated post-processed text for history entry with id: {}",
+            id
+        );
 
         // Emit history updated event
         if let Err(e) = self.app_handle.emit("history-updated", ()) {

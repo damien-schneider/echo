@@ -32,14 +32,14 @@ pub fn get_active_app_info() -> ActiveAppInfo {
         }
 
         // Open the process to query its name
-        let process_handle =
-            match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id) {
-                Ok(handle) => handle,
-                Err(e) => {
-                    log::debug!("[InputTracker] Failed to open process: {}", e);
-                    return ActiveAppInfo::default();
-                }
-            };
+        let process_handle = match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id)
+        {
+            Ok(handle) => handle,
+            Err(e) => {
+                log::debug!("[InputTracker] Failed to open process: {}", e);
+                return ActiveAppInfo::default();
+            }
+        };
 
         // Get the full process image name (executable path)
         let mut buffer = [0u16; 1024];

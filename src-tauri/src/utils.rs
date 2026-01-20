@@ -1,8 +1,8 @@
 use crate::actions::ACTION_MAP;
 use crate::managers::audio::AudioRecordingManager;
 use crate::ManagedToggleState;
-use std::sync::Arc;
 use log::{info, warn};
+use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 // Re-export all utility modules for easy access

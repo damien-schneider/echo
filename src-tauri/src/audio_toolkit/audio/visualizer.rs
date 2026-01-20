@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 const DB_MIN: f32 = -90.0; // Match AnalyserNode minDecibels default
 const DB_MAX: f32 = -30.0; // Match AnalyserNode maxDecibels default
-const GAIN: f32 = 1.2;     // Slight boost to overall levels
+const GAIN: f32 = 1.2; // Slight boost to overall levels
 const CURVE_POWER: f32 = 0.7; // Gentle compression to make low volume more visible
 const SMOOTHING: f32 = 0.8; // Match AnalyserNode default smoothingTimeConstant
 
@@ -130,14 +130,15 @@ impl AudioVisualiser {
 
             // Map configurable dB range to 0-1 with gain and curve shaping
             let normalized = ((db - DB_MIN) / (DB_MAX - DB_MIN)).clamp(0.0, 1.0);
-            
+
             // Exact replication of AnalyserNode behavior: Linear mapping
             let target_value = (normalized * GAIN).powf(CURVE_POWER).clamp(0.0, 1.0);
-            
+
             // Apply temporal smoothing
-            buckets[bucket_idx] = self.prev_buckets[bucket_idx] * SMOOTHING + target_value * (1.0 - SMOOTHING);
+            buckets[bucket_idx] =
+                self.prev_buckets[bucket_idx] * SMOOTHING + target_value * (1.0 - SMOOTHING);
         }
-        
+
         // Update previous buckets
         self.prev_buckets = buckets.clone();
 

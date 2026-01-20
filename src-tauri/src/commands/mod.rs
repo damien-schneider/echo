@@ -6,8 +6,8 @@ pub mod models;
 pub mod transcription;
 pub mod tts;
 
-use crate::utils::cancel_current_operation;
 use crate::settings;
+use crate::utils::cancel_current_operation;
 use log::LevelFilter;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_opener::OpenerExt;
@@ -26,7 +26,6 @@ pub fn get_app_dir_path(app: AppHandle) -> Result<String, String> {
 
     Ok(app_data_dir.to_string_lossy().to_string())
 }
-
 
 #[tauri::command]
 pub fn get_log_dir_path(app: AppHandle) -> Result<String, String> {
@@ -81,7 +80,10 @@ pub fn set_log_level(app: AppHandle, level: u8) -> Result<(), String> {
     let pl_level = map_log_level_u8_to_tauri(level);
 
     // Update the file log level atomic so the filter picks up the new level
-    crate::FILE_LOG_LEVEL.store(map_log_level_u8_to_filter(level) as u8, std::sync::atomic::Ordering::Relaxed);
+    crate::FILE_LOG_LEVEL.store(
+        map_log_level_u8_to_filter(level) as u8,
+        std::sync::atomic::Ordering::Relaxed,
+    );
 
     // Also persist to settings for the UI (store LogLevel as enum value)
     let mut settings = settings::get_settings(&app);

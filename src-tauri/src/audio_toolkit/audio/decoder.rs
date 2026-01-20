@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use hound::WavReader;
 use log::{debug, info, warn};
+use std::fs::File;
 use std::path::Path;
 use std::process::Command;
 use symphonia::core::{
@@ -11,7 +12,6 @@ use symphonia::core::{
     meta::MetadataOptions,
     probe::Hint,
 };
-use std::fs::File;
 
 /// Supported audio formats (including video files with audio tracks)
 pub enum AudioFormat {
@@ -81,12 +81,16 @@ fn decode_video_with_ffmpeg<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
         .args([
             "-i",
             path.to_str().unwrap_or_default(),
-            "-vn",              // No video
-            "-f", "s16le",      // Raw 16-bit little-endian PCM
-            "-acodec", "pcm_s16le",
-            "-ar", "16000",     // 16kHz sample rate
-            "-ac", "1",         // Mono
-            "-",                // Output to stdout
+            "-vn", // No video
+            "-f",
+            "s16le", // Raw 16-bit little-endian PCM
+            "-acodec",
+            "pcm_s16le",
+            "-ar",
+            "16000", // 16kHz sample rate
+            "-ac",
+            "1", // Mono
+            "-", // Output to stdout
         ])
         .output()
         .with_context(|| format!("Failed to run FFmpeg: {}", ffmpeg_path))?;
@@ -203,8 +207,7 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let path = file_path.as_ref();
 
     // Open the file directly (without BufReader)
-    let file = File::open(path)
-        .with_context(|| format!("Failed to open file: {:?}", path))?;
+    let file = File::open(path).with_context(|| format!("Failed to open file: {:?}", path))?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
     // Create a hint to help format registry
@@ -244,11 +247,7 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
         .ok_or_else(|| anyhow::anyhow!("Missing sample rate"))?;
 
     // Get number of channels
-    let channels_count = track
-        .codec_params
-        .channels
-        .map(|c| c.count())
-        .unwrap_or(1);
+    let channels_count = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
 
     // Collect all decoded samples
     let mut all_samples: Vec<f32> = Vec::new();

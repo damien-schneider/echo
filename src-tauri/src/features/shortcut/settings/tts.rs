@@ -1,7 +1,7 @@
 //! TTS-related settings commands.
 
-use tauri::AppHandle;
 use crate::settings::{self, get_settings};
+use tauri::AppHandle;
 
 #[tauri::command]
 pub fn change_tts_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {

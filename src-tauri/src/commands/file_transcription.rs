@@ -2,14 +2,14 @@ use crate::audio_toolkit::audio::decode_audio_file;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::TranscriptionManager;
 use log::{error, info};
+use rusqlite::params;
+use serde::Serialize;
+use serde_json::json;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
-use serde::Serialize;
-use serde_json::json;
-use rusqlite::params;
 
 #[derive(Clone, Serialize)]
 pub struct FileTranscriptionProgress {
@@ -27,8 +27,11 @@ fn is_video_file(path: &PathBuf) -> bool {
         .and_then(|e| e.to_str())
         .map(|e| e.to_lowercase())
         .unwrap_or_default();
-    
-    matches!(extension.as_str(), "mp4" | "mov" | "avi" | "mkv" | "webm" | "flv")
+
+    matches!(
+        extension.as_str(),
+        "mp4" | "mov" | "avi" | "mkv" | "webm" | "flv"
+    )
 }
 
 #[tauri::command]
@@ -77,7 +80,10 @@ pub async fn transcribe_audio_file(
         Ok(samples) => samples,
         Err(e) => {
             let err = if is_video {
-                format!("Failed to extract audio: {}. Make sure FFmpeg is installed.", e)
+                format!(
+                    "Failed to extract audio: {}. Make sure FFmpeg is installed.",
+                    e
+                )
             } else {
                 format!("Failed to decode audio: {}", e)
             };
@@ -161,8 +167,7 @@ pub async fn transcribe_audio_file(
     });
 
     // Transcribe the audio
-    let transcription_result = transcription_manager
-        .transcribe(audio_samples.clone());
+    let transcription_result = transcription_manager.transcribe(audio_samples.clone());
 
     // Signal progress thread to stop
     progress_complete.store(true, Ordering::SeqCst);
@@ -220,7 +225,9 @@ pub async fn transcribe_audio_file(
 
     // Update the title in the database to use the file name
     // Get the most recent entry and update its title
-    let db_path = app.path().app_data_dir()
+    let db_path = app
+        .path()
+        .app_data_dir()
         .map_err(|e| format!("Failed to get app data dir: {}", e))?
         .join("history.db");
 
@@ -251,7 +258,7 @@ pub async fn transcribe_audio_file(
         json!({
             "text": transcription_text,
             "fileName": file_name.clone().unwrap_or_else(|| "Unknown file".to_string())
-        })
+        }),
     ) {
         error!("Failed to emit transcription-complete event: {}", e);
     }

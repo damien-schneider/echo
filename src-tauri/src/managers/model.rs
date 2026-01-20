@@ -249,7 +249,7 @@ impl ModelManager {
                     .join(format!("{}.extracting", &model.filename));
 
                 // Clean up any leftover .extracting directories from interrupted extractions
-                    if extracting_path.exists() {
+                if extracting_path.exists() {
                     log::warn!("Cleaning up interrupted extraction for model: {}", model.id);
                     let _ = fs::remove_dir_all(&extracting_path);
                 }
@@ -291,10 +291,11 @@ impl ModelManager {
         if settings.selected_model.is_empty() {
             // Find the first available (downloaded) model
             let models = self.available_models.lock().unwrap();
-                if let Some(available_model) = models.values().find(|model| model.is_downloaded) {
+            if let Some(available_model) = models.values().find(|model| model.is_downloaded) {
                 log::info!(
                     "Auto-selecting model: {} ({})",
-                    available_model.id, available_model.name
+                    available_model.id,
+                    available_model.name
                 );
 
                 // Update settings with the selected model
@@ -541,7 +542,8 @@ impl ModelManager {
 
         log::info!(
             "Successfully downloaded model {} to {:?}",
-            model_id, model_path
+            model_id,
+            model_path
         );
 
         Ok(())

@@ -25,10 +25,7 @@ fn resolve_sound_path(
     match app.path().resolve(&sound_file, base_dir) {
         Ok(path) => Some(path.to_path_buf()),
         Err(e) => {
-            error!(
-                "Failed to resolve audio file path '{}': {}",
-                sound_file, e
-            );
+            error!("Failed to resolve audio file path '{}': {}", sound_file, e);
             None
         }
     }
