@@ -45,6 +45,7 @@ pub struct TranscriptionManager {
     loading_condvar: Arc<Condvar>,
     streaming_buffer: Arc<Mutex<Vec<f32>>>,
     last_partial_update: Arc<Mutex<std::time::Instant>>,
+    streaming_in_progress: Arc<AtomicBool>,
 }
 
 impl TranscriptionManager {
@@ -66,6 +67,7 @@ impl TranscriptionManager {
             loading_condvar: Arc::new(Condvar::new()),
             streaming_buffer: Arc::new(Mutex::new(Vec::new())),
             last_partial_update: Arc::new(Mutex::new(std::time::Instant::now())),
+            streaming_in_progress: Arc::new(AtomicBool::new(false)),
         };
 
         // Start the idle watcher
@@ -451,16 +453,37 @@ impl TranscriptionManager {
                 return;
             }
 
-            // Perform partial transcription on a separate thread
-            let buf_clone = self.streaming_buffer.lock().unwrap().clone();
+            // Skip if a streaming transcription is already in progress
+            // This prevents parallel transcriptions and resource waste
+            if self.streaming_in_progress.swap(true, Ordering::SeqCst) {
+                debug!("Skipping streaming transcription - previous one still in progress");
+                return;
+            }
+
+            // Only transcribe the last 30 seconds of audio to prevent exponential slowdown
+            // 16000 samples/sec * 30 sec = 480000 samples
+            const MAX_STREAMING_SAMPLES: usize = 16000 * 30;
+
+            let buf_to_transcribe = {
+                let buf = self.streaming_buffer.lock().unwrap();
+                if buf.len() > MAX_STREAMING_SAMPLES {
+                    // Take only the last 30 seconds
+                    buf[buf.len() - MAX_STREAMING_SAMPLES..].to_vec()
+                } else {
+                    buf.clone()
+                }
+            };
+
             let this = self.clone();
 
             thread::spawn(move || {
-                if let Ok(text) = this.transcribe(buf_clone) {
+                if let Ok(text) = this.transcribe(buf_to_transcribe) {
                     debug!("Partial transcription: '{}'", text);
                     // Emit to recording overlay window
                     crate::overlay::emit_transcription_progress(&this.app_handle, &text);
                 }
+                // Mark streaming transcription as complete
+                this.streaming_in_progress.store(false, Ordering::SeqCst);
             });
         }
     }
