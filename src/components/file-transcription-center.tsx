@@ -89,7 +89,7 @@ export function FileTranscriptionCenter() {
         >
           <Bell className="h-4 w-4" />
           {processingCount > 0 && (
-            <span className="absolute top-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
+            <span className="absolute -top-1 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
               {processingCount}
             </span>
           )}

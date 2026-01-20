@@ -330,7 +330,7 @@ const SidebarInset = ({
 }) => (
   <main
     className={cn(
-      "relative flex w-full flex-1 flex-col bg-background",
+      "relative flex w-full flex-1 flex-col bg-background/70",
       "md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:mx-2 md:peer-data-[variant=inset]:mb-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
       className
     )}
@@ -645,7 +645,7 @@ const SidebarMenuAction = ({
         "peer-data-[size=lg]/menu-button:top-2.5",
         "group-data-[collapsible=icon]:hidden",
         showOnHover &&
-          "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
+        "group-focus-within/menu-item:opacity-100 group-hover/menu-item:opacity-100 data-[state=open]:opacity-100 peer-data-[active=true]/menu-button:text-sidebar-accent-foreground md:opacity-0",
         className
       )}
       data-sidebar="menu-action"

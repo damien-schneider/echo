@@ -12,6 +12,7 @@ import type React from "react";
 import { useEffect, useState } from "react";
 import { FileTranscriptionCenter } from "@/components/file-transcription-center";
 import EchoLogo from "@/components/icons/echo-logo";
+import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Badge } from "@/components/ui/Badge";
 import {
   Sidebar,
@@ -108,6 +109,9 @@ function SidebarVersionFooter() {
   return (
     <SidebarFooter className="select-none" data-tauri-drag-region>
       <SidebarMenu>
+        <SidebarMenuItem>
+          <ThemeSwitcher />
+        </SidebarMenuItem>
         <SidebarMenuItem>
           <FileTranscriptionCenter />
         </SidebarMenuItem>
