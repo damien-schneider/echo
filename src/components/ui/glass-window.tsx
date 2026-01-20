@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 // Cache platform at module level to avoid repeated calls
 const platform = getNormalizedOsPlatform();
 const isWindows = platform === "windows";
+const isLinux = platform === "linux";
 
 export interface GlassWindowProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
@@ -51,24 +52,41 @@ const GlassWindow = ({
         });
     };
   }, []);
+  // Determine window styles based on platform and state
+  const getGlassStyles = () => {
+    // Windows or maximized: no border radius, solid background
+    if (isMaximized || isWindows) {
+      return {
+        borderRadius: "0",
+        background: "var(--background)",
+        border: "none",
+        boxShadow: "none",
+      };
+    }
 
-  const glassStyles =
-    isMaximized || isWindows
-      ? {
-          borderRadius: "0",
-          background: "var(--background)",
-          border: "none",
-          boxShadow: "none",
-        }
-      : {
-          borderRadius: "var(--window-radius)",
-          background: "var(--window-background)",
-          border: "1px solid var(--window-border)",
-          boxShadow:
-            "var(--window-shadow), inset 0 1px 0 0 var(--window-border-highlight)",
-          backdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
-          WebkitBackdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
-        };
+    // Linux: rounded corners with solid background (no glassmorphism)
+    if (isLinux) {
+      return {
+        borderRadius: "var(--window-radius)",
+        background: "var(--background)",
+        border: "1px solid var(--window-border)",
+        boxShadow: "var(--window-shadow)",
+      };
+    }
+
+    // macOS: full glassmorphism
+    return {
+      borderRadius: "var(--window-radius)",
+      background: "var(--window-background)",
+      border: "1px solid var(--window-border)",
+      boxShadow:
+        "var(--window-shadow), inset 0 1px 0 0 var(--window-border-highlight)",
+      backdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
+      WebkitBackdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
+    };
+  };
+
+  const glassStyles = getGlassStyles();
 
   return (
     <div
@@ -80,8 +98,8 @@ const GlassWindow = ({
       style={glassStyles as React.CSSProperties}
       {...props}
     >
-      {/* Noise/grain overlay - only show when not maximized and not on Windows */}
-      {!(isMaximized || isWindows) && (
+      {/* Noise/grain overlay - only show when not maximized and not on Windows/Linux */}
+      {!(isMaximized || isWindows || isLinux) && (
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"
