@@ -1,7 +1,7 @@
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::AppHandle;
-use log::{debug, warn};
 use tauri_plugin_log::LogLevel;
 use tauri_plugin_store::StoreExt;
 
@@ -458,7 +458,11 @@ fn apply_settings_migrations_from_raw(
     let mut updated = false;
 
     // Migration: Add Ollama provider if it doesn't exist
-    if !settings.post_process_providers.iter().any(|p| p.id == "ollama") {
+    if !settings
+        .post_process_providers
+        .iter()
+        .any(|p| p.id == "ollama")
+    {
         // Find the position to insert (before "custom" if it exists, otherwise at the end)
         let insert_pos = settings
             .post_process_providers
@@ -486,11 +490,39 @@ fn apply_settings_migrations_from_raw(
     settings.bindings.retain(|id, _| {
         let is_valid = valid_binding_ids.contains(&id.as_str());
         if !is_valid {
-            warn!("Removing stale binding '{}' from settings (no corresponding action)", id);
+            warn!(
+                "Removing stale binding '{}' from settings (no corresponding action)",
+                id
+            );
         }
         is_valid
     });
     if settings.bindings.len() != original_count {
+        updated = true;
+    }
+
+    // Migration: Auto-select default prompt if none is selected
+    if (settings.post_process_selected_prompt_id.is_none()
+        || settings
+            .post_process_selected_prompt_id
+            .as_ref()
+            .map(|s| s.is_empty())
+            .unwrap_or(true))
+        && !settings.post_process_prompts.is_empty()
+    {
+        // Try to find the default one first
+        if settings
+            .post_process_prompts
+            .iter()
+            .any(|p| p.id == "default_improve_transcriptions")
+        {
+            settings.post_process_selected_prompt_id =
+                Some("default_improve_transcriptions".to_string());
+        } else {
+            // Fallback to first available
+            settings.post_process_selected_prompt_id =
+                settings.post_process_prompts.first().map(|p| p.id.clone());
+        }
         updated = true;
     }
 

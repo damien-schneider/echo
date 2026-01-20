@@ -5,9 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import "./App.css";
 import { AppHeader } from "@/components/app-header";
+import { GlassWindow } from "@/components/ui/glass-window";
 import { Spinner } from "@/components/ui/spinner";
-import { getNormalizedOsPlatform } from "@/lib/os";
-import { cn } from "@/lib/utils";
 import { AccessibilityPermissions } from "./components/accessibility-permissions";
 import { ErrorDialog } from "./components/error-dialog";
 import Onboarding from "./components/onboarding";
@@ -17,6 +16,7 @@ import {
   type SidebarSection,
 } from "./components/sidemenu";
 import { TranscriptionResultDialog } from "./components/transcription-result-dialog";
+import { TitleBar } from "./components/ui/title-bar";
 import { useFileTranscriptionListener } from "./hooks/use-file-transcription-listener";
 import { useSettings } from "./hooks/use-settings";
 
@@ -34,7 +34,6 @@ function App() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const hasSignaledReady = useRef(false);
-  const osPlatform = getNormalizedOsPlatform();
 
   useFileTranscriptionListener();
 
@@ -157,30 +156,26 @@ function App() {
 
   if (isInitializing) {
     return (
-      <div
-        className="flex h-screen w-full flex-col items-center justify-center gap-3 text-muted-foreground"
-        data-tauri-drag-region
-      >
-        <Spinner className="size-8" />
-        <p className="text-sm">Loading Echo...</p>
-      </div>
+      <GlassWindow data-tauri-drag-region>
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-muted-foreground">
+          <Spinner className="size-8" />
+          <p className="text-sm">Loading Echo...</p>
+        </div>
+      </GlassWindow>
     );
   }
 
   if (showOnboarding) {
-    return <Onboarding onModelSelected={handleModelSelected} />;
+    return (
+      <GlassWindow>
+        <Onboarding onModelSelected={handleModelSelected} />
+      </GlassWindow>
+    );
   }
 
   return (
-    <div
-      className={cn(
-        "flex h-screen flex-col",
-        osPlatform === "linux" && "bg-background",
-        osPlatform === "mac" &&
-          "rounded-[26px] bg-background/85 backdrop-blur-xs"
-      )}
-      data-tauri-drag-region
-    >
+    <GlassWindow>
+      <TitleBar />
       <Toaster />
       <AppHeader />
       <SidebarLayout
@@ -204,7 +199,7 @@ function App() {
           </div>
         </div>
       )}
-    </div>
+    </GlassWindow>
   );
 }
 

@@ -92,6 +92,8 @@ const settingUpdaters: {
     invoke("change_input_tracking_excluded_apps", { apps: value }),
   tts_enabled: (value) =>
     invoke("change_tts_enabled_setting", { enabled: value }),
+  post_process_enabled: (value) =>
+    invoke("change_post_process_enabled_setting", { enabled: value }),
 };
 
 // State Atoms

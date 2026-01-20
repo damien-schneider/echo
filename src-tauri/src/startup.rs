@@ -7,8 +7,8 @@ use tokio::time;
 // 200ms balances UI responsiveness with allowing the splash screen to fully close
 // before resetting window elevation. Adjust with caution.
 const MACOS_WINDOW_FOREGROUND_DELAY_MS: u64 = 200;
-use tauri::{AppHandle, Manager, State};
 use log::{error, warn};
+use tauri::{AppHandle, Manager, State};
 
 #[derive(Default)]
 pub struct StartupState {
@@ -22,6 +22,15 @@ pub type ManagedStartupState = Mutex<StartupState>;
 
 pub fn show_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
+        // On Linux and Windows, disable native decorations to use custom title bar
+        // macOS uses titleBarStyle: "Overlay" from tauri.conf.json for native traffic lights
+        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        {
+            if let Err(e) = main_window.set_decorations(false) {
+                warn!("Failed to disable window decorations: {}", e);
+            }
+        }
+
         #[cfg(target_os = "macos")]
         {
             if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
