@@ -348,8 +348,11 @@ impl ShortcutAction for TranscribeAction {
                     samples.len()
                 );
 
+                // Final transcription: transcribe ALL audio for complete result
+                // (streaming preview is limited, but final result is complete)
                 let transcription_time = Instant::now();
-                let samples_clone = samples.clone(); // Clone for history saving
+                let samples_clone = samples.clone(); // Clone full samples for history saving
+
                 match tm.transcribe(samples) {
                     Ok(transcription) => {
                         debug!(

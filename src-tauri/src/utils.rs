@@ -1,4 +1,3 @@
-use crate::actions::ACTION_MAP;
 use crate::managers::audio::AudioRecordingManager;
 use crate::ManagedToggleState;
 use log::{info, warn};
@@ -16,11 +15,16 @@ pub use crate::tray::*;
 pub fn cancel_current_operation(app: &AppHandle) {
     info!("Initiating operation cancellation...");
 
-    // First, reset all shortcut toggle states and call stop actions
-    // This is critical for non-push-to-talk mode where shortcuts toggle on/off
+    // Cancel any ongoing recording FIRST (before resetting toggle states)
+    // This ensures the audio stream is stopped before any cleanup
+    let audio_manager = app.state::<Arc<AudioRecordingManager>>();
+    audio_manager.cancel_recording();
+
+    // Reset all shortcut toggle states WITHOUT calling stop actions
+    // We don't want to trigger transcription during cancellation
     let toggle_state_manager = app.state::<ManagedToggleState>();
     if let Ok(mut states) = toggle_state_manager.lock() {
-        // For each currently active toggle, call its stop action and reset state
+        // For each currently active toggle, just reset its state
         let active_bindings: Vec<String> = states
             .active_toggles
             .iter()
@@ -29,14 +33,9 @@ pub fn cancel_current_operation(app: &AppHandle) {
             .collect();
 
         for binding_id in active_bindings {
-            info!("Stopping active action for binding: {}", binding_id);
-
-            // Call the action's stop method to ensure proper cleanup
-            if let Some(action) = ACTION_MAP.get(&binding_id) {
-                action.stop(app, &binding_id, "cancelled");
-            }
-
-            // Reset the toggle state
+            info!("Resetting toggle state for binding: {}", binding_id);
+            // Just reset the toggle state - don't call action.stop()
+            // because that would trigger a transcription
             if let Some(is_active) = states.active_toggles.get_mut(&binding_id) {
                 *is_active = false;
             }
@@ -45,11 +44,8 @@ pub fn cancel_current_operation(app: &AppHandle) {
         warn!("Warning: Failed to lock toggle state manager during cancellation");
     }
 
-    // Cancel any ongoing recording
-    let audio_manager = app.state::<Arc<AudioRecordingManager>>();
-    audio_manager.cancel_recording();
-
-    // Update tray icon and menu to idle state
+    // Hide overlay and update tray icon to idle state
+    hide_recording_overlay(app);
     change_tray_icon(app, crate::tray::TrayIconState::Idle);
 
     info!("Operation cancellation completed - returned to idle state");
