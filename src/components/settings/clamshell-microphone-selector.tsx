@@ -5,9 +5,12 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
 import { SettingContainer } from "@/components/ui/SettingContainer";
 import {
   Tooltip,
@@ -78,27 +81,32 @@ export const ClamshellMicrophoneSelector: React.FC<
       title="Clamshell Microphone"
     >
       <div className="flex items-center space-x-1">
-        <NativeSelect
-          className="flex-1"
+        <Select
           disabled={
             isUpdating("clamshell_microphone") ||
             isLoading ||
             audioDevices.length === 0
           }
-          onChange={(event) => handleSelect(event.target.value)}
+          onValueChange={handleSelect}
           value={selectedClamshellMicrophone}
         >
-          <NativeSelectOption disabled value="">
-            {isLoading || audioDevices.length === 0
-              ? "Loading..."
-              : "Select microphone..."}
-          </NativeSelectOption>
-          {audioDevices.map((device) => (
-            <NativeSelectOption key={device.name} value={device.name}>
-              {device.name}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
+          <SelectTrigger className="flex-1">
+            <SelectValue
+              placeholder={
+                isLoading || audioDevices.length === 0
+                  ? "Loading..."
+                  : "Select microphone..."
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {audioDevices.map((device) => (
+              <SelectItem key={device.name} value={device.name}>
+                {device.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <TooltipProvider>
           <ButtonGroup className="">
             <Tooltip>

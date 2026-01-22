@@ -120,7 +120,7 @@ const TitleBar = ({
   return (
     <div
       className={cn(
-        "flex shrink-0 items-center justify-end gap-1 bg-sidebar px-2",
+        "flex shrink-0 items-center justify-end gap-1 px-2",
         className
       )}
       data-tauri-drag-region

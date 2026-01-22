@@ -1,8 +1,11 @@
 import type React from "react";
 import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
 import { SettingContainer } from "@/components/ui/SettingContainer";
 import { useSettings } from "@/hooks/use-settings";
 
@@ -29,8 +32,8 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
 
   const selectedValue = currentLevel.toString();
 
-  const handleSelect = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const parsed = Number.parseInt(event.target.value, 10);
+  const handleSelect = async (value: string) => {
+    const parsed = Number.parseInt(value, 10);
     if (Number.isNaN(parsed) || parsed === currentLevel) {
       return;
     }
@@ -50,17 +53,22 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
       title="Log Level"
     >
       <div className="space-y-1">
-        <NativeSelect
+        <Select
           disabled={!settings || isLevelUpdating}
-          onChange={handleSelect}
+          onValueChange={handleSelect}
           value={selectedValue}
         >
-          {LOG_LEVEL_OPTIONS.map((opt) => (
-            <NativeSelectOption key={opt.value} value={opt.value}>
-              {opt.label}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LOG_LEVEL_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
     </SettingContainer>
   );

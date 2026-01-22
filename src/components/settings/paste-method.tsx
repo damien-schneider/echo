@@ -3,7 +3,13 @@ import { Clipboard } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useSettings } from "../../hooks/use-settings";
 import type { PasteMethod } from "../../lib/types";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/Select";
 import { SettingContainer } from "../ui/SettingContainer";
 
 interface PasteMethodProps {
@@ -53,19 +59,24 @@ export const PasteMethodSetting = ({
       title="Paste Method"
       tooltipPosition="bottom"
     >
-      <NativeSelect
+      <Select
         disabled={isUpdating("paste_method")}
-        onChange={(e) =>
-          updateSetting("paste_method", e.target.value as PasteMethod)
+        onValueChange={(val) =>
+          updateSetting("paste_method", val as PasteMethod)
         }
         value={selectedMethod}
       >
-        {pasteMethodOptions.map((option) => (
-          <NativeSelectOption key={option.value} value={option.value}>
-            {option.label}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {pasteMethodOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingContainer>
   );
 };

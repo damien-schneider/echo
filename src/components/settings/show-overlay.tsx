@@ -1,7 +1,13 @@
 import { Layers } from "lucide-react";
 import { useSettings } from "../../hooks/use-settings";
 import type { OverlayPosition } from "../../lib/types";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/Select";
 import { SettingContainer } from "../ui/SettingContainer";
 
 interface ShowOverlayProps {
@@ -32,19 +38,24 @@ export const ShowOverlay = ({
       icon={<Layers className="h-4 w-4" />}
       title="Overlay Position"
     >
-      <NativeSelect
+      <Select
         disabled={isUpdating("overlay_position")}
-        onChange={(e) =>
-          updateSetting("overlay_position", e.target.value as OverlayPosition)
+        onValueChange={(val) =>
+          updateSetting("overlay_position", val as OverlayPosition)
         }
         value={selectedPosition}
       >
-        {overlayOptions.map((option) => (
-          <NativeSelectOption key={option.value} value={option.value}>
-            {option.label}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {overlayOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingContainer>
   );
 };

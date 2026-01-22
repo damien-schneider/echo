@@ -1,7 +1,13 @@
 import { RotateCcw, Speaker } from "lucide-react";
 import { useSettings } from "../../hooks/use-settings";
 import { Button } from "../ui/Button";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/Select";
 import { SettingContainer } from "../ui/SettingContainer";
 
 interface OutputDeviceSelectorProps {
@@ -48,28 +54,33 @@ export const OutputDeviceSelector = ({
       title="Output Device"
     >
       <div className="flex items-center space-x-1">
-        <NativeSelect
-          className="flex-1"
+        <Select
           disabled={
             disabled ||
             isUpdating("selected_output_device") ||
             isLoading ||
             outputDevices.length === 0
           }
-          onChange={(e) => handleOutputDeviceSelect(e.target.value)}
+          onValueChange={handleOutputDeviceSelect}
           value={selectedOutputDevice}
         >
-          <NativeSelectOption disabled value="">
-            {isLoading || outputDevices.length === 0
-              ? "Loading..."
-              : "Select output device..."}
-          </NativeSelectOption>
-          {outputDevices.map((device) => (
-            <NativeSelectOption key={device.name} value={device.name}>
-              {device.name}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
+          <SelectTrigger className="flex-1">
+            <SelectValue
+              placeholder={
+                isLoading || outputDevices.length === 0
+                  ? "Loading..."
+                  : "Select output device..."
+              }
+            />
+          </SelectTrigger>
+          <SelectContent>
+            {outputDevices.map((device) => (
+              <SelectItem key={device.name} value={device.name}>
+                {device.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Button
           disabled={
             disabled || isUpdating("selected_output_device") || isLoading

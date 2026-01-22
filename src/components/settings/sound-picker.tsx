@@ -2,7 +2,13 @@ import { PlayIcon } from "lucide-react";
 import type React from "react";
 import { useSettings } from "../../hooks/use-settings";
 import { Button } from "../ui/Button";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/Select";
 import { SettingContainer } from "../ui/SettingContainer";
 
 interface SoundPickerProps {
@@ -34,21 +40,21 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
       title={label}
     >
       <div className="flex items-center gap-2">
-        <NativeSelect
-          onChange={(e) =>
-            updateSetting(
-              "sound_theme",
-              e.target.value as "marimba" | "pop" | "custom"
-            )
+        <Select
+          onValueChange={(val) =>
+            updateSetting("sound_theme", val as "marimba" | "pop" | "custom")
           }
           value={selectedTheme}
         >
-          <NativeSelectOption value="marimba">Marimba</NativeSelectOption>
-          <NativeSelectOption value="pop">Pop</NativeSelectOption>
-          {hasCustomSounds && (
-            <NativeSelectOption value="custom">Custom</NativeSelectOption>
-          )}
-        </NativeSelect>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="marimba">Marimba</SelectItem>
+            <SelectItem value="pop">Pop</SelectItem>
+            {hasCustomSounds && <SelectItem value="custom">Custom</SelectItem>}
+          </SelectContent>
+        </Select>
         <Button
           onClick={handlePlayBothSounds}
           size="sm"

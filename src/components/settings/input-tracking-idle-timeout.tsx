@@ -2,9 +2,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { Clock } from "lucide-react";
 import type React from "react";
 import {
-  NativeSelect,
-  NativeSelectOption,
-} from "@/components/ui/native-select";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/Select";
 import { SettingContainer } from "@/components/ui/SettingContainer";
 import { useSettings } from "@/hooks/use-settings";
 
@@ -25,8 +28,7 @@ export const InputTrackingIdleTimeout: React.FC<
 > = ({ descriptionMode = "tooltip", grouped = false }) => {
   const { getSetting, updateSetting } = useSettings();
 
-  const handleChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = event.target.value;
+  const handleChange = async (value: string) => {
     const newTimeout = value === "0" ? null : Number(value);
 
     try {
@@ -54,13 +56,18 @@ export const InputTrackingIdleTimeout: React.FC<
       icon={<Clock className="h-4 w-4" />}
       title="Idle Timeout"
     >
-      <NativeSelect onChange={handleChange} value={selectValue}>
-        {timeoutOptions.map((option) => (
-          <NativeSelectOption key={option.value} value={option.value}>
-            {option.label}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+      <Select onValueChange={handleChange} value={selectValue}>
+        <SelectTrigger className="w-[200px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {timeoutOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingContainer>
   );
 };

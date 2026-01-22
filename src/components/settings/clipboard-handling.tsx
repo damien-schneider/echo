@@ -1,7 +1,13 @@
 import { ClipboardCopy } from "lucide-react";
 import { useSettings } from "../../hooks/use-settings";
 import type { ClipboardHandling } from "../../lib/types";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/Select";
 import { SettingContainer } from "../ui/SettingContainer";
 
 interface ClipboardHandlingProps {
@@ -31,22 +37,24 @@ export const ClipboardHandlingSetting = ({
       icon={<ClipboardCopy className="h-4 w-4" />}
       title="Clipboard Handling"
     >
-      <NativeSelect
+      <Select
         disabled={isUpdating("clipboard_handling")}
-        onChange={(e) =>
-          updateSetting(
-            "clipboard_handling",
-            e.target.value as ClipboardHandling
-          )
+        onValueChange={(val) =>
+          updateSetting("clipboard_handling", val as ClipboardHandling)
         }
         value={selectedHandling}
       >
-        {clipboardHandlingOptions.map((option) => (
-          <NativeSelectOption key={option.value} value={option.value}>
-            {option.label}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {clipboardHandlingOptions.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingContainer>
   );
 };

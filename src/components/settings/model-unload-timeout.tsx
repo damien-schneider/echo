@@ -3,7 +3,13 @@ import { Timer } from "lucide-react";
 import type React from "react";
 import { useSettings } from "../../hooks/use-settings";
 import type { ModelUnloadTimeout } from "../../lib/types";
-import { NativeSelect, NativeSelectOption } from "../ui/native-select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/Select";
 import { SettingContainer } from "../ui/SettingContainer";
 
 interface ModelUnloadTimeoutProps {
@@ -32,8 +38,8 @@ export const ModelUnloadTimeoutSetting: React.FC<ModelUnloadTimeoutProps> = ({
 }) => {
   const { settings, getSetting, updateSetting } = useSettings();
 
-  const handleChange = async (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const newTimeout = event.target.value as ModelUnloadTimeout;
+  const handleChange = async (value: string) => {
+    const newTimeout = value as ModelUnloadTimeout;
 
     try {
       await invoke("set_model_unload_timeout", { timeout: newTimeout });
@@ -56,17 +62,22 @@ export const ModelUnloadTimeoutSetting: React.FC<ModelUnloadTimeoutProps> = ({
       icon={<Timer className="h-4 w-4" />}
       title="Unload Model"
     >
-      <NativeSelect
+      <Select
         disabled={false}
-        onChange={handleChange}
+        onValueChange={handleChange}
         value={currentValue}
       >
-        {options.map((option) => (
-          <NativeSelectOption key={option.value} value={option.value}>
-            {option.label}
-          </NativeSelectOption>
-        ))}
-      </NativeSelect>
+        <SelectTrigger className="w-full md:w-56">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((option) => (
+            <SelectItem key={option.value} value={option.value}>
+              {option.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </SettingContainer>
   );
 };
