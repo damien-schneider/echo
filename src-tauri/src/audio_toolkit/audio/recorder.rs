@@ -305,6 +305,13 @@ fn run_consumer(
                         handle_frame(frame, true, &vad, &mut processed_samples, &chunk_tx)
                     });
 
+                    let sample_count = processed_samples.len();
+                    let audio_duration_secs = sample_count as f32 / 16000.0;
+                    debug!(
+                        "AudioRecorder stop: returning {} samples ({:.1}s of audio)",
+                        sample_count, audio_duration_secs
+                    );
+
                     let _ = reply_tx.send(std::mem::take(&mut processed_samples));
                     chunk_tx = None;
                 }

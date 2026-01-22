@@ -343,9 +343,10 @@ impl ShortcutAction for TranscribeAction {
             let stop_recording_time = Instant::now();
             if let Some(samples) = rm_for_task.stop_recording(&binding_id) {
                 debug!(
-                    "Recording stopped and samples retrieved in {:?}, sample count: {}",
+                    "Recording stopped and samples retrieved in {:?}, sample count: {} ({:.1}s audio)",
                     stop_recording_time.elapsed(),
-                    samples.len()
+                    samples.len(),
+                    samples.len() as f32 / 16000.0
                 );
 
                 // Final transcription: transcribe ALL audio for complete result
