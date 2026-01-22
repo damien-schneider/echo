@@ -47,7 +47,9 @@
       "assetProtocol": {
         "enable": true,
         "scope": {
-          "allow": ["**"],
+          "allow": [
+            "**"
+          ],
           "requireLiteralLeadingDot": false
         }
       }
@@ -57,7 +59,9 @@
     "active": true,
     "createUpdaterArtifacts": true,
     "targets": "all",
-    "resources": ["resources/**/*"],
+    "resources": [
+      "resources/**/*"
+    ],
     "license": "MIT",
     "icon": [
       "icons/32x32.png",
@@ -91,7 +95,8 @@
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEI5NTJDOEY3ODlGNUE1MzMKUldRenBmV0o5OGhTdVNSMlR2WmlZeVVIaStCaEZQMlJiRVNwdHZ2WU1ZZGp4Z3JzanFxVzVmdkIK",
       "endpoints": [
         "https://github.com/damien-schneider/echo/releases/latest/download/latest.json"
-      ]
+      ],
+      "titleBarStyle": "Overlay"
     }
   }
 }

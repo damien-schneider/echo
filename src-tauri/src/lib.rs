@@ -450,6 +450,13 @@ pub fn run() {
             initialize_core_logic(&app_handle);
 
             if let Some(main_window) = app_handle.get_webview_window("main") {
+                // Apply platform-specific title bar style as requested
+                #[cfg(not(target_os = "macos"))]
+                {
+                    use tauri::TitleBarStyle;
+                    let _ = main_window.set_title_bar_style(TitleBarStyle::Transparent);
+                }
+
                 window_effects::apply_window_effects(&main_window);
             }
 
