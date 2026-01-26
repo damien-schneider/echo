@@ -4,21 +4,6 @@ use enigo::{Enigo, Mouse};
 use log::debug;
 use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindowBuilder};
 
-// Ensure to sync with src/lib/constants/overlay.ts
-const OVERLAY_WIDTH: f64 = 210.0;
-const OVERLAY_HEIGHT: f64 = 52.0;
-
-#[cfg(target_os = "macos")]
-const OVERLAY_TOP_OFFSET: f64 = 46.0;
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-const OVERLAY_TOP_OFFSET: f64 = 4.0;
-
-#[cfg(target_os = "macos")]
-const OVERLAY_BOTTOM_OFFSET: f64 = 15.0;
-
-#[cfg(any(target_os = "windows", target_os = "linux"))]
-const OVERLAY_BOTTOM_OFFSET: f64 = 40.0;
-
 fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
     // On Wayland, Enigo's cursor detection can hang or fail due to security restrictions.
     // Detect Wayland and skip directly to primary_monitor fallback.
@@ -72,34 +57,26 @@ fn is_mouse_within_monitor(
         && mouse_y < (monitor_y + monitor_height as i32)
 }
 
-fn calculate_overlay_position(app_handle: &AppHandle) -> Option<(f64, f64)> {
+/// Gets the full monitor dimensions for the monitor containing the cursor
+fn get_full_screen_dimensions(app_handle: &AppHandle) -> Option<(f64, f64, f64, f64)> {
     if let Some(monitor) = get_monitor_with_cursor(app_handle) {
-        let work_area = monitor.work_area();
+        let position = monitor.position();
+        let size = monitor.size();
         let scale = monitor.scale_factor();
-        let work_area_width = work_area.size.width as f64 / scale;
-        let work_area_height = work_area.size.height as f64 / scale;
-        let work_area_x = work_area.position.x as f64 / scale;
-        let work_area_y = work_area.position.y as f64 / scale;
 
-        let settings = settings::get_settings(app_handle);
+        let x = position.x as f64 / scale;
+        let y = position.y as f64 / scale;
+        let width = size.width as f64 / scale;
+        let height = size.height as f64 / scale;
 
-        let x = work_area_x + (work_area_width - OVERLAY_WIDTH) / 2.0;
-        let y = match settings.overlay_position {
-            OverlayPosition::Top => work_area_y + OVERLAY_TOP_OFFSET,
-            OverlayPosition::Bottom | OverlayPosition::None => {
-                // don't subtract the overlay height it puts it too far up
-                work_area_y + work_area_height - OVERLAY_BOTTOM_OFFSET
-            }
-        };
-
-        return Some((x, y));
+        return Some((x, y, width, height));
     }
     None
 }
 
-/// Creates the recording overlay window and keeps it hidden by default
+/// Creates the recording overlay window as a full-screen transparent window (hidden by default)
 pub fn create_recording_overlay(app_handle: &AppHandle) {
-    if let Some((x, y)) = calculate_overlay_position(app_handle) {
+    if let Some((x, y, width, height)) = get_full_screen_dimensions(app_handle) {
         match WebviewWindowBuilder::new(
             app_handle,
             "recording_overlay",
@@ -108,7 +85,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
         .title("Recording")
         .position(x, y)
         .resizable(false)
-        .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
+        .inner_size(width, height)
         .shadow(false)
         .maximizable(false)
         .minimizable(false)
@@ -122,8 +99,10 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
         .visible(false)
         .build()
         {
-            Ok(_window) => {
-                debug!("Recording overlay window created successfully (hidden)");
+            Ok(window) => {
+                // Enable click-through on transparent areas
+                let _ = window.set_ignore_cursor_events(true);
+                debug!("Recording overlay window created successfully (hidden, full-screen)");
             }
             Err(e) => {
                 debug!("Failed to create recording overlay window: {}", e);
@@ -147,6 +126,12 @@ pub fn show_recording_overlay(app_handle: &AppHandle) {
 
         if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
             let _ = overlay_window.show();
+            // Emit position preference to frontend for CSS positioning
+            let position = match settings.overlay_position {
+                OverlayPosition::Top => "top",
+                OverlayPosition::Bottom | OverlayPosition::None => "bottom",
+            };
+            let _ = overlay_window.emit("overlay-position", position);
             // Emit event to trigger fade-in animation with recording state
             let _ = overlay_window.emit("show-overlay", "recording");
         }
@@ -168,6 +153,12 @@ pub fn show_transcribing_overlay(app_handle: &AppHandle) {
 
         if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
             let _ = overlay_window.show();
+            // Emit position preference to frontend for CSS positioning
+            let position = match settings.overlay_position {
+                OverlayPosition::Top => "top",
+                OverlayPosition::Bottom | OverlayPosition::None => "bottom",
+            };
+            let _ = overlay_window.emit("overlay-position", position);
             // Emit event to switch to transcribing state
             let _ = overlay_window.emit("show-overlay", "transcribing");
         }
@@ -186,6 +177,12 @@ pub fn show_warning_overlay(app_handle: &AppHandle, message: &str) {
 
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let _ = overlay_window.show();
+        // Emit position preference to frontend for CSS positioning
+        let position = match settings.overlay_position {
+            OverlayPosition::Top => "top",
+            OverlayPosition::Bottom | OverlayPosition::None => "bottom",
+        };
+        let _ = overlay_window.emit("overlay-position", position);
         // Emit event to show warning state with message
         let _ = overlay_window.emit(
             "show-overlay",
@@ -206,12 +203,16 @@ pub fn show_warning_overlay(app_handle: &AppHandle, message: &str) {
     }
 }
 
-/// Updates the overlay window position based on current settings
+/// Updates the overlay window position and size for the current monitor (multi-monitor support)
 pub fn update_overlay_position(app_handle: &AppHandle) {
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
-        if let Some((x, y)) = calculate_overlay_position(app_handle) {
+        if let Some((x, y, width, height)) = get_full_screen_dimensions(app_handle) {
             let _ = overlay_window
                 .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
+            let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width,
+                height,
+            }));
         }
     }
 }
@@ -249,52 +250,5 @@ pub fn emit_transcription_progress(app_handle: &AppHandle, text: &str) {
     // also emit to the recording overlay if it's open
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let _ = overlay_window.emit("transcription-progress", text);
-    }
-}
-
-#[tauri::command]
-pub fn resize_recording_overlay(app_handle: AppHandle, height: f64) {
-    if let Some(window) = app_handle.get_webview_window("recording_overlay") {
-        // Resize
-        let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-            width: OVERLAY_WIDTH,
-            height,
-        }));
-
-        // Reposition if needed (only for bottom alignment to keep it anchored at bottom)
-        let settings = settings::get_settings(&app_handle);
-        match settings.overlay_position {
-            OverlayPosition::Bottom | OverlayPosition::None => {
-                if let Some(monitor) = get_monitor_with_cursor(&app_handle) {
-                    let work_area = monitor.work_area();
-                    let scale = monitor.scale_factor();
-                    let work_area_height = work_area.size.height as f64 / scale;
-                    let work_area_y = work_area.position.y as f64 / scale;
-
-                    // We want the bottom of the overlay to stay fixed relative to screen bottom
-                    // The original Y calculation was: work_area_y + work_area_height - OVERLAY_BOTTOM_OFFSET
-                    // But that seemed to produce a Y that pushes the window slightly offscreen if height is added?
-                    // Let's assume we want to preserve the "visual bottom"
-
-                    // If we assume the current validation is correct for 52px height:
-                    // Current Top = BaseY.
-                    // New Top should be BaseY - (NewHeight - 52).
-
-                    let base_y = work_area_y + work_area_height - OVERLAY_BOTTOM_OFFSET;
-                    let new_y = base_y - (height - OVERLAY_HEIGHT);
-
-                    if let Ok(pos) = window.outer_position() {
-                        // We maintain X
-                        let current_logical_x = pos.x as f64 / scale;
-                        let _ =
-                            window.set_position(tauri::Position::Logical(tauri::LogicalPosition {
-                                x: current_logical_x,
-                                y: new_y,
-                            }));
-                    }
-                }
-            }
-            _ => {} // Top alignment just grows down, which is fine
-        }
     }
 }

@@ -1,3 +1,19 @@
+/* Waveform container positioning based on overlay_position setting */
+
+/* Top position: closer to top edge (macOS accounts for menu bar) */
+.overlay-waveform-top {
+  top: 46px; /* Account for macOS menu bar */
+}
+
+/* Bottom position setting: slightly lower from top */
+.overlay-waveform-bottom {
+  top: 32px;
+}
+
+/* Platform-specific adjustments via media queries or JS would go here if needed */
+
+/* Legacy styles for backwards compatibility */
+
 .overlay-left {
   display: flex;
   align-items: center;

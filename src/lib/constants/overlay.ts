@@ -1,5 +1,5 @@
-// Ensure to sync with src-tauri/src/overlay.rs
+// Element dimensions for the overlay (not window dimensions - window is full-screen)
 
-export const OVERLAY_WIDTH = 210;
-export const OVERLAY_HEIGHT = 52;
-export const OVERLAY_EXPANDED_HEIGHT = 80;
+export const WAVEFORM_CONTAINER_HEIGHT = 52;
+export const WAVEFORM_CONTAINER_WIDTH = 210;
+export const TEXT_CONTAINER_HEIGHT = 28;

@@ -7,14 +7,15 @@ import "./recording-overlay.css";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/Button";
 import {
-  OVERLAY_EXPANDED_HEIGHT,
-  OVERLAY_HEIGHT,
-  OVERLAY_WIDTH,
+  TEXT_CONTAINER_HEIGHT,
+  WAVEFORM_CONTAINER_HEIGHT,
+  WAVEFORM_CONTAINER_WIDTH,
 } from "@/lib/constants/overlay";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/providers";
 
 type OverlayState = "recording" | "transcribing" | "warning";
+type OverlayPositionPref = "top" | "bottom";
 
 interface WarningPayload {
   state: "warning";
@@ -27,11 +28,18 @@ const RecordingOverlay = () => {
   const [warningMessage, setWarningMessage] = useState("");
   const [audioLevels, setAudioLevels] = useState<number[]>([]);
   const [streamingText, setStreamingText] = useState("");
+  const [positionPref, setPositionPref] = useState<OverlayPositionPref>("top");
   const { resolvedTheme } = useTheme();
   const textScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const setupEventListeners = async () => {
+      // Listen for overlay-position event from Rust
+      const unlistenPosition = await listen("overlay-position", (event) => {
+        const position = event.payload as OverlayPositionPref;
+        setPositionPref(position);
+      });
+
       // Listen for show-overlay event from Rust
       const unlistenShow = await listen("show-overlay", (event) => {
         // Handle both simple string state and object with message
@@ -54,9 +62,6 @@ const RecordingOverlay = () => {
           }
         }
         setIsVisible(true);
-        invoke("resize_recording_overlay", { height: OVERLAY_HEIGHT }).catch(
-          () => {}
-        );
       });
 
       // Listen for hide-overlay event from Rust
@@ -80,6 +85,7 @@ const RecordingOverlay = () => {
 
       // Cleanup function
       return () => {
+        unlistenPosition();
         unlistenShow();
         unlistenHide();
         unlistenMic();
@@ -115,18 +121,6 @@ const RecordingOverlay = () => {
     };
   }, [isVisible]);
 
-  // Handle resizing based on text content
-  useEffect(() => {
-    if (!isVisible) return;
-
-    const targetHeight = streamingText
-      ? OVERLAY_EXPANDED_HEIGHT
-      : OVERLAY_HEIGHT;
-    invoke("resize_recording_overlay", { height: targetHeight }).catch(
-      console.error
-    );
-  }, [streamingText, isVisible]);
-
   // Auto-scroll text to end when it updates
   useEffect(() => {
     if (textScrollRef.current && streamingText) {
@@ -135,110 +129,129 @@ const RecordingOverlay = () => {
   }, [streamingText]);
 
   return (
-    <motion.div
-      animate={{
-        opacity: isVisible ? 1 : 0,
-        filter: isVisible ? "blur(0px)" : "blur(12px)",
-        // scale: 1,
-        // y: 0
-      }}
+    <div
       className={cn(
-        "relative flex items-center justify-center rounded-xl border border-foreground/10 bg-background px-1",
-        !isVisible && "pointer-events-none"
+        "pointer-events-none fixed inset-0",
+        !isVisible && "opacity-0"
       )}
-      initial={{
-        opacity: 0,
-        filter: "blur(12px)",
-        // scale: 1,
-        // y: 0
-      }}
-      style={{
-        height: isVisible
-          ? streamingText
-            ? OVERLAY_EXPANDED_HEIGHT
-            : OVERLAY_HEIGHT
-          : 0,
-        width: `${OVERLAY_WIDTH}px`,
-      }}
-      transition={{
-        type: "spring",
-        stiffness: 300,
-        damping: 30,
-        mass: 0.8,
-        opacity: {
-          type: "spring",
-          stiffness: 400,
-          damping: 35,
-        },
-      }}
     >
-      {/* Warning state content */}
-      {state === "warning" && (
-        <div className="flex items-center gap-2 px-3">
-          <AlertTriangle className="h-4 w-4 shrink-0 text-orange-500" />
-          <span className="text-foreground/80 text-xs leading-tight">
-            {warningMessage}
-          </span>
-        </div>
-      )}
+      {/* Waveform container - positioned at top, centered horizontally */}
+      <motion.div
+        animate={{
+          opacity: isVisible ? 1 : 0,
+          filter: isVisible ? "blur(0px)" : "blur(12px)",
+        }}
+        className={cn(
+          "pointer-events-auto fixed left-1/2 flex -translate-x-1/2 items-center justify-center rounded-xl border border-foreground/10 bg-background px-1",
+          positionPref === "top"
+            ? "overlay-waveform-top"
+            : "overlay-waveform-bottom"
+        )}
+        initial={{
+          opacity: 0,
+          filter: "blur(12px)",
+        }}
+        style={{
+          height: `${WAVEFORM_CONTAINER_HEIGHT}px`,
+          width: `${WAVEFORM_CONTAINER_WIDTH}px`,
+        }}
+        transition={{
+          type: "spring",
+          stiffness: 300,
+          damping: 30,
+          mass: 0.8,
+          opacity: {
+            type: "spring",
+            stiffness: 400,
+            damping: 35,
+          },
+        }}
+      >
+        {/* Warning state content */}
+        {state === "warning" && (
+          <div className="flex items-center gap-2 px-3">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-orange-500" />
+            <span className="text-foreground/80 text-xs leading-tight">
+              {warningMessage}
+            </span>
+          </div>
+        )}
 
-      {/* Recording/Transcribing waveform */}
-      {state !== "warning" && (
-        <LiveWaveform
-          active={state === "recording" && isVisible}
-          audioLevels={audioLevels}
-          barColor={resolvedTheme === "dark" ? "#ffffff" : "#000000"}
-          barGap={1}
-          barRadius={99}
-          barWidth={4}
-          className={cn(
-            "absolute left-1/2 -translate-x-1/2",
-            streamingText
-              ? "top-[26px] -translate-y-1/2"
-              : "top-1/2 -translate-y-1/2"
-          )}
-          disableInternalAudio={true}
-          fadeEdges={true}
-          fadeWidth={20}
-          mode="static"
-          processing={state === "transcribing" && isVisible}
-          smoothingTimeConstant={0.7}
-          style={{
-            height: `${OVERLAY_HEIGHT}px`,
-            width: `${OVERLAY_WIDTH - 10}px`,
-          }}
-        />
-      )}
+        {/* Recording/Transcribing waveform */}
+        {state !== "warning" && (
+          <LiveWaveform
+            active={state === "recording" && isVisible}
+            audioLevels={audioLevels}
+            barColor={resolvedTheme === "dark" ? "#ffffff" : "#000000"}
+            barGap={1}
+            barRadius={99}
+            barWidth={4}
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+            disableInternalAudio={true}
+            fadeEdges={true}
+            fadeWidth={20}
+            mode="static"
+            processing={state === "transcribing" && isVisible}
+            smoothingTimeConstant={0.7}
+            style={{
+              height: `${WAVEFORM_CONTAINER_HEIGHT}px`,
+              width: `${WAVEFORM_CONTAINER_WIDTH - 10}px`,
+            }}
+          />
+        )}
 
-      {/* Streaming Text - Single line with horizontal scroll */}
+        {state === "recording" && (
+          <Button
+            className="absolute top-px right-px rounded-full"
+            onClick={() => {
+              invoke("cancel_operation");
+            }}
+            size="icon-2xs"
+            variant="ghost"
+          >
+            <XIcon className="size-3! text-muted-foreground" />
+          </Button>
+        )}
+      </motion.div>
+
+      {/* Streaming Text container - positioned at bottom, centered horizontally */}
       {streamingText && (
-        <div
-          className="scrollbar-hide absolute right-0 left-0 overflow-x-scroll px-3"
-          ref={textScrollRef}
+        <motion.div
+          animate={{
+            opacity: 1,
+            y: 0,
+          }}
+          className="pointer-events-none fixed bottom-8 left-1/2 -translate-x-1/2 rounded-lg border border-foreground/10 bg-background/95 px-3 py-1.5 backdrop-blur-sm"
+          initial={{
+            opacity: 0,
+            y: 10,
+          }}
           style={{
-            top: `${OVERLAY_HEIGHT - 2}px`,
-            height: "24px",
+            maxWidth: "80vw",
+            height: `${TEXT_CONTAINER_HEIGHT}px`,
+          }}
+          transition={{
+            type: "spring",
+            stiffness: 300,
+            damping: 30,
           }}
         >
-          <span className="inline-block whitespace-nowrap font-medium text-foreground/50 text-xs">
-            {streamingText}
-          </span>
-        </div>
+          <div
+            className="scrollbar-hide overflow-x-scroll"
+            ref={textScrollRef}
+            style={{
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+            }}
+          >
+            <span className="inline-block whitespace-nowrap font-medium text-foreground/70 text-xs">
+              {streamingText}
+            </span>
+          </div>
+        </motion.div>
       )}
-
-      {state === "recording" && (
-        <Button
-          className="absolute top-px right-px rounded-full"
-          onClick={() => {
-            invoke("cancel_operation");
-          }}
-          size="icon-2xs"
-          variant="ghost"
-        >
-          <XIcon className="size-3! text-muted-foreground" />
-        </Button>
-      )}
-    </motion.div>
+    </div>
   );
 };
 
