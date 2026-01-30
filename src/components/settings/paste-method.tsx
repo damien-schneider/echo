@@ -18,9 +18,7 @@ interface PasteMethodProps {
 }
 
 const getPasteMethodOptions = (osType: string) => {
-  const baseOptions = [
-    { value: "ctrl_v", label: "Clipboard (Ctrl+V)" },
-  ];
+  const baseOptions = [{ value: "ctrl_v", label: "Clipboard (Ctrl+V)" }];
 
   // Direct input only available on Linux
   // On macOS it causes cascading suffix duplication in terminals like Ghostty
