@@ -1,5 +1,9 @@
+<<<<<<< HEAD
 use crate::settings;
 use crate::settings::OverlayPosition;
+=======
+use crate::settings::{self, OverlayPosition};
+>>>>>>> aef9bf8 (refactor: move dconf update to do_bind_shortcuts for consistency)
 #[cfg(not(target_os = "linux"))]
 use enigo::{Enigo, Mouse};
 use log::{debug, error, info, warn};
