@@ -1,8 +1,11 @@
 use crate::settings;
 use crate::settings::OverlayPosition;
+#[cfg(not(target_os = "linux"))]
 use enigo::{Enigo, Mouse};
-use log::debug;
-use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize, WebviewWindowBuilder};
+use log::{debug, error, info, warn};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindowBuilder};
+#[cfg(not(target_os = "linux"))]
+use tauri::{PhysicalPosition, PhysicalSize};
 
 fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
     // On Wayland, Enigo's cursor detection can hang or fail due to security restrictions.
@@ -36,6 +39,7 @@ fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
     app_handle.primary_monitor().ok().flatten()
 }
 
+#[cfg(not(target_os = "linux"))]
 fn is_mouse_within_monitor(
     mouse_pos: (i32, i32),
     monitor_pos: &PhysicalPosition<i32>,
@@ -209,10 +213,8 @@ pub fn update_overlay_position(app_handle: &AppHandle) {
         if let Some((x, y, width, height)) = get_full_screen_dimensions(app_handle) {
             let _ = overlay_window
                 .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
-            let _ = overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize {
-                width,
-                height,
-            }));
+            let _ =
+                overlay_window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
         }
     }
 }

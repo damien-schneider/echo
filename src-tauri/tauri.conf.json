@@ -23,7 +23,8 @@
         "maximizable": true,
         "visible": false,
         "transparent": true,
-        "titleBarStyle": "Overlay",
+        "decorations": false,
+        "shadow": false,
         "dragDropEnabled": true
       },
       {

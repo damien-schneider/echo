@@ -450,10 +450,49 @@ pub fn run() {
             initialize_core_logic(&app_handle);
 
             if let Some(main_window) = app_handle.get_webview_window("main") {
-                // Apply platform-specific title bar style as requested
-                #[cfg(not(target_os = "macos"))]
+                // ============================================================
+                // PLATFORM-SPECIFIC WINDOW DECORATION CONFIGURATION
+                // ============================================================
+                //
+                // The main window is created with `decorations: false` in
+                // tauri.conf.json. This is REQUIRED for Linux/GTK because:
+                //
+                //   On GTK, if a window is created WITH decorations (the
+                //   default), GTK initializes a CSD (Client-Side Decorations)
+                //   header bar internally. Calling set_decorations(false) AFTER
+                //   creation only hides the header bar — it does NOT fully
+                //   remove the CSD infrastructure. The residual GTK rendering
+                //   causes visual artifacts:
+                //     - A faint horizontal bar at the top of the window
+                //     - Ghost pixels in the rounded corners (where CSS
+                //       border-radius clips the webview but GTK's rectangular
+                //       background bleeds through)
+                //   These artifacts are most visible on light themes and HDR
+                //   displays.
+                //
+                //   By setting decorations: false at creation time (in the JSON
+                //   config), GTK never creates the CSD infrastructure at all,
+                //   which eliminates the artifacts entirely. The app renders its
+                //   own custom title bar in src/components/ui/title-bar.tsx with
+                //   window controls and data-tauri-drag-region for dragging.
+                //
+                // On macOS and Windows, we re-enable decorations here and apply
+                // the platform-appropriate title bar style. The window starts
+                // hidden (visible: false), so re-enabling decorations before
+                // first show is safe and produces no visual flicker.
+                // ============================================================
+
+                #[cfg(target_os = "macos")]
                 {
                     use tauri::TitleBarStyle;
+                    let _ = main_window.set_decorations(true);
+                    let _ = main_window.set_title_bar_style(TitleBarStyle::Overlay);
+                }
+
+                #[cfg(target_os = "windows")]
+                {
+                    use tauri::TitleBarStyle;
+                    let _ = main_window.set_decorations(true);
                     let _ = main_window.set_title_bar_style(TitleBarStyle::Transparent);
                 }
 

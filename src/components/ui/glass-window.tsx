@@ -64,13 +64,18 @@ const GlassWindow = ({
       };
     }
 
-    // Linux: rounded corners with solid background (no glassmorphism)
+    // Linux: rounded corners with solid background (no glassmorphism).
+    // Uses a subtle 1px border that follows the border-radius to give
+    // a clean window edge, similar to native GNOME apps. The inset
+    // box-shadow at the top adds a slight highlight for depth.
+    // No outward box-shadow — Mutter (GNOME compositor) provides its
+    // own window shadow on Wayland.
     if (isLinux) {
       return {
         borderRadius: "var(--window-radius)",
         background: "var(--window-background)",
         border: "1px solid var(--window-border)",
-        boxShadow: "var(--window-shadow)",
+        boxShadow: "inset 0 1px 0 0 var(--window-border-highlight)",
       };
     }
 
