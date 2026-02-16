@@ -343,6 +343,7 @@ pub fn change_paste_method_setting(app: AppHandle, method: String) -> Result<(),
     let mut settings = settings::get_settings(&app);
     let parsed = match method.as_str() {
         "ctrl_v" => PasteMethod::CtrlV,
+        #[cfg(target_os = "linux")]
         "direct" => PasteMethod::Direct,
         #[cfg(not(target_os = "macos"))]
         "shift_insert" => PasteMethod::ShiftInsert,
