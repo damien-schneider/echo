@@ -15,7 +15,7 @@ mod signal_handle;
 mod startup;
 mod tray;
 mod utils;
-pub mod wayland;
+mod wayland;
 mod window_effects;
 
 // Re-export shortcut module from features for convenience
@@ -110,6 +110,12 @@ fn initialize_core_logic(app_handle: &AppHandle) {
                 }
             }
         }
+    }
+
+    // Initialize Wayland state if on Wayland (must be done before shortcuts)
+    #[cfg(target_os = "linux")]
+    {
+        shortcut::init_wayland_state(app_handle);
     }
 
     // Initialize the shortcuts
@@ -564,6 +570,10 @@ pub fn run() {
             shortcut::bindings::reset_binding,
             shortcut::bindings::suspend_binding,
             shortcut::bindings::resume_binding,
+            shortcut::check_wayland_shortcut_conflict,
+            shortcut::is_wayland_session,
+            shortcut::get_wayland_shortcuts,
+            shortcut::open_wayland_shortcut_settings,
             // Shortcut escape commands
             shortcut::escape::register_escape_shortcut,
             shortcut::escape::unregister_escape_shortcut,

@@ -29,7 +29,7 @@ fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
         }
 
         error!("[Overlay] CRITICAL: No monitors detected!");
-        return app_handle.primary_monitor().ok().flatten();
+        return None;
     }
 
     #[cfg(not(target_os = "linux"))]
@@ -211,7 +211,6 @@ pub fn show_recording_overlay(app_handle: &AppHandle) {
             #[cfg(target_os = "linux")]
             {
                 if crate::wayland::is_wayland() {
-                    use gtk::prelude::*;
                     use gtk_layer_shell::LayerShell;
                     match overlay_window.gtk_window() {
                         Ok(gtk_window) => {

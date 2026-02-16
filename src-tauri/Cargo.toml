@@ -1,6 +1,6 @@
 [package]
 name = "echo"
-version = "0.2.3"
+version = "0.2.4"
 description = "Echo"
 authors = ["Damien Schneider <damien-schneider>"]
 edition = "2021"
@@ -58,6 +58,7 @@ tokio = "1"
 vad-rs = { git = "https://github.com/cjpais/vad-rs", default-features = false }
 enigo = "0.6"
 rodio = { git = "https://github.com/cjpais/rodio.git" }
+raw-window-handle = "0.6"
 reqwest = { version = "0.12", features = ["json", "stream"] }
 async-openai = "0.30"
 futures-util = "0.3"
@@ -76,13 +77,17 @@ unicode-normalization = "0.1"
 tts = "0.26"
 whichlang = "0.1"
 
-[target.'cfg(target_os = "linux")'.dependencies]
-gtk = "0.18"
-webkit2gtk = "2.0"
-gtk-layer-shell = { version = "0.8", features = ["v0_5"] }
-
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# XDG Desktop Portal for Wayland global shortcuts (GNOME 45+, KDE Plasma 6+)
+# gtk3_wayland and gtk3_x11 features enable WindowIdentifier from GTK windows
+ashpd = { version = "0.12", default-features = false, features = ["tokio", "raw_handle"] }
+gtk = "0.18"
+gdk = "0.18"
+
+gtk-layer-shell = { version = "0.8", features = ["v0_5"] }
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.3", features = [

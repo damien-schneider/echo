@@ -121,6 +121,24 @@ const RecordingOverlay = () => {
     };
   }, [isVisible]);
 
+  // Fallback: listen for Escape via JavaScript keydown.
+  // On Wayland (GNOME), the global shortcut plugin (X11-based) doesn't work,
+  // but the overlay window receives focus, so keydown events reach the webview.
+  useEffect(() => {
+    if (!isVisible) {
+      return;
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        invoke("cancel_operation");
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isVisible]);
+
   // Auto-scroll text to end when it updates
   useEffect(() => {
     if (textScrollRef.current && streamingText) {

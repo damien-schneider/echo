@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { type } from "@tauri-apps/plugin-os";
-import { Keyboard, RotateCcw } from "lucide-react";
+import { AlertTriangle, Keyboard, RotateCcw } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -13,6 +14,14 @@ import {
 } from "../../lib/utils/keyboard";
 import { Button } from "../ui/Button";
 import { SettingContainer } from "../ui/SettingContainer";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+
+/** Wayland shortcut info from the portal */
+interface WaylandShortcutInfo {
+  id: string;
+  trigger: string;
+  has_printable_key: boolean;
+}
 
 interface EchoShortcutProps {
   descriptionMode?: "inline" | "tooltip";
@@ -32,9 +41,79 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
   );
   const [originalBinding, setOriginalBinding] = useState<string>("");
   const [osType, setOsType] = useState<OSType>("unknown");
+  const [isWayland, setIsWayland] = useState(false);
+  const [waylandShortcuts, setWaylandShortcuts] = useState<
+    WaylandShortcutInfo[]
+  >([]);
   const shortcutRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
 
   const bindings = getSetting("bindings") || {};
+
+  // Detect if running on Wayland
+  useEffect(() => {
+    const checkWayland = async () => {
+      try {
+        const wayland = await invoke<boolean>("is_wayland_session");
+        setIsWayland(wayland);
+        if (wayland) {
+          console.log("[EchoShortcut] Running on Wayland");
+          // Fetch current Wayland shortcuts
+          const shortcuts = await invoke<WaylandShortcutInfo[]>(
+            "get_wayland_shortcuts"
+          );
+          console.log("[EchoShortcut] Wayland shortcuts:", shortcuts);
+          setWaylandShortcuts(shortcuts);
+        }
+      } catch (error) {
+        console.error("Failed to check Wayland session:", error);
+      }
+    };
+    checkWayland();
+  }, []);
+
+  // Listen for Wayland shortcut updates (initial bind + rebind fallback)
+  useEffect(() => {
+    if (!isWayland) {
+      return;
+    }
+
+    const unlisten = listen<WaylandShortcutInfo[]>(
+      "wayland-shortcuts-ready",
+      (event) => {
+        console.log(
+          "[EchoShortcut] Received wayland-shortcuts-ready:",
+          event.payload
+        );
+        setWaylandShortcuts(event.payload);
+      }
+    );
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [isWayland]);
+
+  // Listen for shortcut changes from the system configure dialog (portal v2)
+  useEffect(() => {
+    if (!isWayland) {
+      return;
+    }
+
+    const unlisten = listen<WaylandShortcutInfo[]>(
+      "wayland-shortcuts-changed",
+      (event) => {
+        console.log(
+          "[EchoShortcut] Received wayland-shortcuts-changed:",
+          event.payload
+        );
+        setWaylandShortcuts(event.payload);
+      }
+    );
+
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, [isWayland]);
 
   // Detect and store OS type
   useEffect(() => {
@@ -289,6 +368,20 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
     );
   }
 
+  // Get the Wayland shortcut info for a binding ID
+  const getWaylandShortcut = (id: string): WaylandShortcutInfo | undefined => {
+    return waylandShortcuts.find((s) => s.id === id);
+  };
+
+  // Get the Wayland printable key warning for a binding
+  const getWaylandWarning = (id: string): boolean => {
+    if (!isWayland) {
+      return false;
+    }
+    const info = getWaylandShortcut(id);
+    return info?.has_printable_key ?? false;
+  };
+
   return (
     <SettingContainer
       description="Set the keyboard shortcut to start and stop speech-to-text recording"
@@ -313,16 +406,8 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
         return (
           <div className="flex items-center space-x-1">
             {editingShortcutId === primaryId ? (
-              <Button
-                asChild
-                size="sm"
-                // className="bg-foreground hover:bg-foreground text-background hover:text-background"
-                variant="secondary"
-              >
-                <div
-                  ref={(ref) => setShortcutRef(primaryId, ref)}
-                  // className="px-2 py-1 text-sm font-semibold border border-brand bg-brand/30 rounded min-w-[120px] text-center"
-                >
+              <Button asChild size="sm" variant="secondary">
+                <div ref={(ref) => setShortcutRef(primaryId, ref)}>
                   {formatCurrentKeys()}
                 </div>
               </Button>
@@ -344,6 +429,20 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
             >
               <RotateCcw className="h-5 w-5" />
             </Button>
+            {isWayland && getWaylandWarning(primaryId) && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <AlertTriangle className="h-4 w-4 text-orange-500" />
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs" side="bottom">
+                  <p className="text-xs">
+                    This shortcut may type a character when activated on
+                    Wayland. Consider using a shortcut without printable keys
+                    (e.g., Super+Shift+F1).
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
         );
       })()}
