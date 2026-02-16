@@ -15,6 +15,7 @@ mod signal_handle;
 mod startup;
 mod tray;
 mod utils;
+pub mod wayland;
 mod window_effects;
 
 // Re-export shortcut module from features for convenience
