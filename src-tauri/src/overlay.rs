@@ -1,9 +1,4 @@
-<<<<<<< HEAD
-use crate::settings;
-use crate::settings::OverlayPosition;
-=======
 use crate::settings::{self, OverlayPosition};
->>>>>>> aef9bf8 (refactor: move dconf update to do_bind_shortcuts for consistency)
 #[cfg(not(target_os = "linux"))]
 use enigo::{Enigo, Mouse};
 use log::{debug, error, info, warn};
@@ -24,22 +19,31 @@ fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
         }
     }
 
-    let enigo = Enigo::new(&Default::default());
+    #[cfg(not(target_os = "linux"))]
+    {
+        let enigo = Enigo::new(&Default::default());
 
-    if let Ok(enigo) = enigo {
-        if let Ok(mouse_location) = enigo.location() {
-            if let Ok(monitors) = app_handle.available_monitors() {
-                for monitor in monitors {
-                    let is_within =
-                        is_mouse_within_monitor(mouse_location, monitor.position(), monitor.size());
-                    if is_within {
-                        return Some(monitor);
+        if let Ok(enigo) = enigo {
+            if let Ok(mouse_location) = enigo.location() {
+                if let Ok(monitors) = app_handle.available_monitors() {
+                    for monitor in monitors {
+                        let is_within = is_mouse_within_monitor(
+                            mouse_location,
+                            monitor.position(),
+                            monitor.size(),
+                        );
+                        if is_within {
+                            return Some(monitor);
+                        }
                     }
                 }
             }
         }
+
+        app_handle.primary_monitor().ok().flatten()
     }
 
+    #[cfg(target_os = "linux")]
     app_handle.primary_monitor().ok().flatten()
 }
 

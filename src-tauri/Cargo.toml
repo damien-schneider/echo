@@ -76,6 +76,10 @@ unicode-normalization = "0.1"
 tts = "0.26"
 whichlang = "0.1"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+webkit2gtk = "2.0"
+
 [target.'cfg(unix)'.dependencies]
 signal-hook = "0.3"
 
