@@ -149,7 +149,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
                 // Initialize Layer Shell on Wayland for proper overlay behavior
                 #[cfg(target_os = "linux")]
                 if is_wayland_session {
-                    match crate::wayland::init_layer_shell(&window) {
+                    match crate::wayland::init_layer_shell(&_window) {
                         Ok(()) => {
                             info!("[Overlay] Successfully initialized gtk-layer-shell for Wayland");
                         }
@@ -159,7 +159,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
                             // doesn't support wlr-layer-shell.
                             // Use configure only (don't present yet) to avoid showing empty window at startup.
                             info!("[Overlay] Applying GNOME/Mutter fallback configuration");
-                            crate::wayland::configure_gnome_overlay(&window);
+                            crate::wayland::configure_gnome_overlay(&_window);
                         }
                     }
                 }

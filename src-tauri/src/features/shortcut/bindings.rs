@@ -6,6 +6,8 @@
 //! saves the new value and re-initializes the portal session so the user
 //! is prompted to authorize the new shortcut.
 
+#[cfg(target_os = "linux")]
+use log::{debug, info};
 use log::{error, warn};
 use serde::Serialize;
 use tauri::AppHandle;

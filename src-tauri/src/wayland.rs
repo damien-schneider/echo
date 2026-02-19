@@ -1,5 +1,5 @@
 #[cfg(target_os = "linux")]
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 use tauri::{Runtime, WebviewWindow};
 
 /// Check if running under a Wayland session.
