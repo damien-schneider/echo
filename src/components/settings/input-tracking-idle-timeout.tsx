@@ -7,7 +7,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/Select";
+} from "@/components/ui/select";
 import { SettingContainer } from "@/components/ui/setting-container";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
 

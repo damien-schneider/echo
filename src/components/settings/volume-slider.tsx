@@ -1,6 +1,6 @@
 import { Volume2 } from "lucide-react";
 import type React from "react";
-import { Slider } from "@/components/ui/Slider";
+import { Slider } from "@/components/ui/slider";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 export const VolumeSlider: React.FC<{ disabled?: boolean }> = ({

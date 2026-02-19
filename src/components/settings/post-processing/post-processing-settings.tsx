@@ -16,14 +16,14 @@ import { ModelSelect } from "@/components/settings/post-processing-settings-api/
 import { ProviderSelect } from "@/components/settings/post-processing-settings-api/provider-select";
 import { usePostProcessProviderState } from "@/components/settings/post-processing-settings-api/use-post-process-provider-state";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/Select";
+} from "@/components/ui/select";
 import { SettingContainer } from "@/components/ui/setting-container";
 import { SettingsGroup } from "@/components/ui/settings-group";
 import { Switch } from "@/components/ui/switch";

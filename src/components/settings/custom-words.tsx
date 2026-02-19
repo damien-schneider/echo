@@ -3,7 +3,7 @@ import type React from "react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
-import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/input";
 import { SettingContainer } from "@/components/ui/setting-container";
 import { cn } from "@/lib/utils";
 import {

@@ -294,7 +294,7 @@ export const ScrollingWaveform = ({
 
       while (
         barsRef.current.length === 0 ||
-        barsRef.current.at(-1).x < rect.width
+        (barsRef.current.at(-1)?.x ?? 0) < rect.width
       ) {
         const lastBar = barsRef.current.at(-1);
         const nextX = lastBar ? lastBar.x + step : rect.width;

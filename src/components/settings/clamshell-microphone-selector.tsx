@@ -10,7 +10,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/Select";
+} from "@/components/ui/select";
 import { SettingContainer } from "@/components/ui/setting-container";
 import {
   Tooltip,

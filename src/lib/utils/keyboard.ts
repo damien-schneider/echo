@@ -19,7 +19,7 @@ const getMetaKeyName = (osType: OSType): string => {
   return "super";
 };
 
-const getKeyFromCode = (code: string, osType: OSType): string | undefined => {
+const getKeyFromCode = (code: string, osType: OSType): string => {
   if (FUNCTION_KEY_RE.test(code)) {
     return code.toLowerCase();
   }
@@ -115,7 +115,7 @@ const getKeyFromCode = (code: string, osType: OSType): string | undefined => {
   return code.toLowerCase().replace(/([a-z])([A-Z])/g, "$1 $2");
 };
 
-const getKeyFromKeyProp = (key: string, osType: OSType): string | undefined => {
+const getKeyFromKeyProp = (key: string, osType: OSType): string => {
   const metaName = getMetaKeyName(osType);
 
   const keyMap: Record<string, string> = {

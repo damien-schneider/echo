@@ -1,5 +1,5 @@
 import type React from "react";
-import { Slider } from "@/components/ui/Slider";
+import { Slider } from "@/components/ui/slider";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 interface WordCorrectionThresholdProps {
