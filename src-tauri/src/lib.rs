@@ -495,7 +495,7 @@ pub fn run() {
                     use cocoa::appkit::{
                         NSWindow, NSWindowStyleMask, NSWindowTitleVisibility,
                     };
-                    use cocoa::base::id;
+                    use cocoa::base::{id, YES};
 
                     // The window is created with decorations: false (required
                     // for Linux to avoid GTK CSD artifacts). On macOS we
@@ -514,7 +514,7 @@ pub fn run() {
                                     | NSWindowStyleMask::NSResizableWindowMask
                                     | NSWindowStyleMask::NSFullSizeContentViewWindowMask,
                             );
-                            window.setTitlebarAppearsTransparent_(true);
+                            window.setTitlebarAppearsTransparent_(YES);
                             window.setTitleVisibility_(
                                 NSWindowTitleVisibility::NSWindowTitleHidden,
                             );

@@ -1,4 +1,6 @@
-use log::{debug, warn};
+#[cfg(debug_assertions)]
+use log::debug;
+use log::warn;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tauri::AppHandle;
