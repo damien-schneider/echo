@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type React from "react";
-import { useEffect, useState } from "react";
-import type { ModelInfo } from "../../lib/types";
-import EchoLogo from "../icons/echo-logo";
+import { useCallback, useEffect, useState } from "react";
+import EchoLogo from "@/components/icons/echo-logo";
+import type { ModelInfo } from "@/lib/types";
 import ModelCard from "./model-card";
 
 interface OnboardingProps {
@@ -14,7 +14,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadModels() {
+  const loadModels = useCallback(async () => {
     try {
       const models: ModelInfo[] = await invoke("get_available_models");
       // Only show downloadable models for onboarding
@@ -23,7 +23,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onModelSelected }) => {
       console.error("Failed to load models:", err);
       setError("Failed to load available models");
     }
-  }
+  }, []);
 
   useEffect(() => {
     loadModels();

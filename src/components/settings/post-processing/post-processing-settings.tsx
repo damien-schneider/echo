@@ -15,7 +15,7 @@ import { BaseUrlField } from "@/components/settings/post-processing-settings-api
 import { ModelSelect } from "@/components/settings/post-processing-settings-api/model-select";
 import { ProviderSelect } from "@/components/settings/post-processing-settings-api/provider-select";
 import { usePostProcessProviderState } from "@/components/settings/post-processing-settings-api/use-post-process-provider-state";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import {
   Select,
@@ -24,8 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import { SettingContainer } from "@/components/ui/SettingContainer";
-import { SettingsGroup } from "@/components/ui/SettingsGroup";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { SettingsGroup } from "@/components/ui/settings-group";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -33,8 +33,33 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useSettings } from "@/hooks/use-settings";
 import type { LLMPrompt } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
+
+const MENTION_OUTPUT_REGEX = /\[[^\]]*\]\(mention:output\)/;
+// biome-ignore lint/suspicious/noTemplateCurlyInString: Intentional literal check for ${output} placeholder
+const OUTPUT_TEMPLATE = "${output}";
+
+const hasMissingOutputPlaceholder = (text: string): boolean =>
+  text.trim() !== "" &&
+  !text.includes("@output") &&
+  !text.includes(OUTPUT_TEMPLATE) &&
+  !MENTION_OUTPUT_REGEX.test(text);
+
+const OutputPlaceholderWarning = () => (
+  <div className="flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-warning">
+    <AlertTriangle className="h-4 w-4" />
+    <p className="text-xs">
+      No output placeholder found. The transcript will be automatically appended
+      to the end of your prompt.
+    </p>
+  </div>
+);
 
 const DisabledNotice = ({ children }: { children: React.ReactNode }) => (
   <div className="rounded-lg border border-border/20 bg-muted/5 p-4 text-center">
@@ -43,8 +68,9 @@ const DisabledNotice = ({ children }: { children: React.ReactNode }) => (
 );
 
 const PostProcessingEnableToggle = () => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-  const postProcessEnabled = getSetting("post_process_enabled") ?? false;
+  const postProcessEnabled = useSetting("post_process_enabled") ?? false;
+  const isPostProcessUpdating = useIsSettingUpdating("post_process_enabled");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <SettingContainer
@@ -55,7 +81,7 @@ const PostProcessingEnableToggle = () => {
     >
       <Switch
         checked={postProcessEnabled}
-        disabled={isUpdating("post_process_enabled")}
+        disabled={isPostProcessUpdating}
         onCheckedChange={(value) =>
           updateSetting("post_process_enabled", value)
         }
@@ -66,9 +92,8 @@ const PostProcessingEnableToggle = () => {
 
 const PostProcessingSettingsApiComponent = () => {
   const state = usePostProcessProviderState();
-  const { getSetting } = useSettings();
+  const postProcessEnabled = useSetting("post_process_enabled") ?? false;
   const [localBaseUrl, setLocalBaseUrl] = useState(state.baseUrl);
-  const postProcessEnabled = getSetting("post_process_enabled") ?? false;
 
   // Sync local value when saved value changes (e.g., after reset or provider change)
   useEffect(() => {
@@ -202,7 +227,9 @@ const PostProcessingSettingsApiComponent = () => {
             className="min-w-[380px] flex-1"
             disabled={state.isModelUpdating}
             isLoading={state.isFetchingModels}
-            onBlur={() => {}}
+            onBlur={() => {
+              /* intentionally empty */
+            }}
             onCreate={state.handleModelCreate}
             onSelect={state.handleModelSelect}
             options={state.modelOptions}
@@ -225,7 +252,10 @@ const PostProcessingSettingsApiComponent = () => {
                   variant="ghost"
                 >
                   <RefreshCcw
-                    className={`h-4 w-4 ${state.isFetchingModels ? "animate-spin" : ""}`}
+                    className={cn(
+                      "h-4 w-4",
+                      state.isFetchingModels && "animate-spin"
+                    )}
                   />
                 </Button>
               </TooltipTrigger>
@@ -241,17 +271,21 @@ const PostProcessingSettingsApiComponent = () => {
 };
 
 const PostProcessingSettingsPromptsComponent = () => {
-  const { getSetting, updateSetting, isUpdating, refreshSettings } =
-    useSettings();
+  const postProcessEnabled = useSetting("post_process_enabled") ?? false;
+  const prompts = useSetting("post_process_prompts") || [];
+  const selectedPromptId = useSetting("post_process_selected_prompt_id") || "";
+  const isPromptIdUpdating = useIsSettingUpdating(
+    "post_process_selected_prompt_id"
+  );
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const refreshSettings = useSettingsStore((s) => s.refreshSettings);
+
   const [isCreating, setIsCreating] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [draftText, setDraftText] = useState("");
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  const postProcessEnabled = getSetting("post_process_enabled") ?? false;
-  const prompts = getSetting("post_process_prompts") || [];
-  const selectedPromptId = getSetting("post_process_selected_prompt_id") || "";
   const selectedPrompt =
     prompts.find((prompt) => prompt.id === selectedPromptId) || null;
 
@@ -409,6 +443,129 @@ const PostProcessingSettingsPromptsComponent = () => {
   const isPromptTextDirty =
     !!selectedPrompt && draftText.trim() !== selectedPrompt.prompt.trim();
 
+  const renderEditSection = () => {
+    if (isCreating || !hasPrompts || !selectedPrompt) {
+      return null;
+    }
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-col space-y-2">
+          <div className="flex flex-col gap-1">
+            <span className="font-semibold text-sm">Prompt Instructions</span>
+            <p className="text-muted-foreground text-xs">
+              Write the instructions to run after transcription.
+            </p>
+          </div>
+          <MarkdownEditor
+            className="min-h-32"
+            onChange={setDraftText}
+            placeholder="Start typing..."
+            showMentionMenu
+            showToolbar
+            value={draftText}
+          />
+          <p className="text-muted-foreground/70 text-xs">
+            Tip: Type{" "}
+            <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
+              @output
+            </code>{" "}
+            to insert the transcribed text placeholder.
+          </p>
+          {hasMissingOutputPlaceholder(draftText) && (
+            <OutputPlaceholderWarning />
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <Button disabled={!isPromptTextDirty} onClick={handleUpdatePrompt}>
+            Save Changes
+          </Button>
+          <Button
+            disabled={!selectedPromptId || prompts.length <= 1}
+            onClick={() => handleDeletePrompt(selectedPromptId)}
+            variant="secondary"
+          >
+            Delete Prompt
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
+  const renderEmptyState = () => {
+    if (isCreating || selectedPrompt) {
+      return null;
+    }
+    return (
+      <div className="rounded border border-border/20 bg-muted/5 p-3">
+        <p className="text-muted-foreground text-sm">
+          {hasPrompts
+            ? "Select a prompt above to view and edit its details."
+            : "Click 'Create New Prompt' above to create your first post-processing prompt."}
+        </p>
+      </div>
+    );
+  };
+
+  const renderCreateSection = () => {
+    if (!isCreating) {
+      return null;
+    }
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-col space-y-2">
+          <span className="font-semibold text-sm text-text">Prompt Label</span>
+          <Input
+            onChange={(e) => setDraftName(e.target.value)}
+            placeholder="Enter prompt name"
+            type="text"
+            value={draftName}
+          />
+        </div>
+
+        <div className="flex flex-col space-y-2">
+          <div className="flex flex-col gap-1">
+            <span className="font-semibold text-sm">Prompt Instructions</span>
+            <p className="text-muted-foreground text-xs">
+              Write the instructions to run after transcription.
+            </p>
+          </div>
+          <MarkdownEditor
+            onChange={setDraftText}
+            placeholder="Start writing..."
+            showMentionMenu
+            showToolbar
+            value={draftText}
+          />
+          <div className="flex flex-col gap-2">
+            <p className="text-muted-foreground/70 text-xs">
+              Tip: Type{" "}
+              <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
+                @output
+              </code>{" "}
+              to insert the transcribed text placeholder.
+            </p>
+            {hasMissingOutputPlaceholder(draftText) && (
+              <OutputPlaceholderWarning />
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-2">
+          <Button
+            disabled={!(draftName.trim() && draftText.trim())}
+            onClick={handleCreatePrompt}
+          >
+            Create Prompt
+          </Button>
+          <Button onClick={handleCancelCreate} variant="secondary">
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <SettingContainer
       description="Select a template for refining transcriptions or create a new one. Type @output inside the prompt to reference the captured transcript."
@@ -470,9 +627,7 @@ const PostProcessingSettingsPromptsComponent = () => {
             <>
               <Select
                 disabled={
-                  isUpdating("post_process_selected_prompt_id") ||
-                  isCreating ||
-                  prompts.length === 0
+                  isPromptIdUpdating || isCreating || prompts.length === 0
                 }
                 onValueChange={handlePromptSelect}
                 value={selectedPromptId || (prompts.length === 0 ? "" : "none")}
@@ -532,140 +687,11 @@ const PostProcessingSettingsPromptsComponent = () => {
           </TooltipProvider>
         </div>
 
-        {!isCreating && hasPrompts && selectedPrompt && (
-          <div className="space-y-3">
-            <div className="flex flex-col space-y-2">
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-sm">
-                  Prompt Instructions
-                </label>
-                <p className="text-muted-foreground text-xs">
-                  Write the instructions to run after transcription.
-                </p>
-              </div>
-              <MarkdownEditor
-                className="min-h-32"
-                onChange={setDraftText}
-                placeholder="Start typing..."
-                showMentionMenu
-                showToolbar
-                value={draftText}
-              />
-              <p className="text-muted-foreground/70 text-xs">
-                Tip: Type{" "}
-                <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
-                  @output
-                </code>{" "}
-                to insert the transcribed text placeholder.
-              </p>
-              {draftText.trim() &&
-                !draftText.includes("@output") &&
-                !draftText.includes("${output}") &&
-                !/\[[^\]]*\]\(mention:output\)/.test(draftText) && (
-                  <div className="flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-warning">
-                    <AlertTriangle className="h-4 w-4" />
-                    <p className="text-xs">
-                      No output placeholder found. The transcript will be
-                      automatically appended to the end of your prompt.
-                    </p>
-                  </div>
-                )}
-            </div>
+        {renderEditSection()}
 
-            <div className="flex gap-2 pt-2">
-              <Button
-                disabled={!isPromptTextDirty}
-                onClick={handleUpdatePrompt}
-              >
-                Save Changes
-              </Button>
-              <Button
-                disabled={!selectedPromptId || prompts.length <= 1}
-                onClick={() => handleDeletePrompt(selectedPromptId)}
-                variant="secondary"
-              >
-                Delete Prompt
-              </Button>
-            </div>
-          </div>
-        )}
+        {renderEmptyState()}
 
-        {!(isCreating || selectedPrompt) && (
-          <div className="rounded border border-border/20 bg-muted/5 p-3">
-            <p className="text-muted-foreground text-sm">
-              {hasPrompts
-                ? "Select a prompt above to view and edit its details."
-                : "Click 'Create New Prompt' above to create your first post-processing prompt."}
-            </p>
-          </div>
-        )}
-
-        {isCreating && (
-          <div className="space-y-3">
-            <div className="flex flex-col space-y-2">
-              <label className="font-semibold text-sm text-text">
-                Prompt Label
-              </label>
-              <Input
-                onChange={(e) => setDraftName(e.target.value)}
-                placeholder="Enter prompt name"
-                type="text"
-                value={draftName}
-              />
-            </div>
-
-            <div className="flex flex-col space-y-2">
-              <div className="flex flex-col gap-1">
-                <label className="font-semibold text-sm">
-                  Prompt Instructions
-                </label>
-                <p className="text-muted-foreground text-xs">
-                  Write the instructions to run after transcription.
-                </p>
-              </div>
-              <MarkdownEditor
-                onChange={setDraftText}
-                placeholder="Start writing..."
-                showMentionMenu
-                showToolbar
-                value={draftText}
-              />
-              <div className="flex flex-col gap-2">
-                <p className="text-muted-foreground/70 text-xs">
-                  Tip: Type{" "}
-                  <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
-                    @output
-                  </code>{" "}
-                  to insert the transcribed text placeholder.
-                </p>
-                {draftText.trim() &&
-                  !draftText.includes("@output") &&
-                  !draftText.includes("${output}") &&
-                  !/\[[^\]]*\]\(mention:output\)/.test(draftText) && (
-                    <div className="flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-warning">
-                      <AlertTriangle className="h-4 w-4" />
-                      <p className="text-xs">
-                        No output placeholder found. The transcript will be
-                        automatically appended to the end of your prompt.
-                      </p>
-                    </div>
-                  )}
-              </div>
-            </div>
-
-            <div className="flex gap-2 pt-2">
-              <Button
-                disabled={!(draftName.trim() && draftText.trim())}
-                onClick={handleCreatePrompt}
-              >
-                Create Prompt
-              </Button>
-              <Button onClick={handleCancelCreate} variant="secondary">
-                Cancel
-              </Button>
-            </div>
-          </div>
-        )}
+        {renderCreateSection()}
       </div>
     </SettingContainer>
   );

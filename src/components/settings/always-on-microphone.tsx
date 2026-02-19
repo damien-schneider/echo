@@ -1,6 +1,10 @@
-import { useSettings } from "../../hooks/use-settings";
-import { SettingContainer } from "../ui/SettingContainer";
-import { Switch } from "../ui/switch";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { Switch } from "@/components/ui/switch";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface AlwaysOnMicrophoneProps {
   descriptionMode?: "inline" | "tooltip";
@@ -11,9 +15,9 @@ export const AlwaysOnMicrophone = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: AlwaysOnMicrophoneProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-
-  const alwaysOnMode = getSetting("always_on_microphone");
+  const alwaysOnMode = useSetting("always_on_microphone");
+  const updating = useIsSettingUpdating("always_on_microphone");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <SettingContainer
@@ -24,7 +28,7 @@ export const AlwaysOnMicrophone = ({
     >
       <Switch
         checked={alwaysOnMode}
-        disabled={isUpdating("always_on_microphone")}
+        disabled={updating}
         onCheckedChange={(enabled) =>
           updateSetting("always_on_microphone", enabled)
         }

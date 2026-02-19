@@ -1,13 +1,17 @@
-import { useSettings } from "../../hooks/use-settings";
-import type { RecordingRetentionPeriod } from "../../lib/types";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/Select";
-import { SettingContainer } from "../ui/SettingContainer";
+} from "@/components/ui/Select";
+import { SettingContainer } from "@/components/ui/setting-container";
+import type { RecordingRetentionPeriod } from "@/lib/types";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface RecordingRetentionPeriodProps {
   descriptionMode?: "inline" | "tooltip";
@@ -18,13 +22,11 @@ export const RecordingRetentionPeriodSelector = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: RecordingRetentionPeriodProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-
   const selectedRetentionPeriod =
-    (getSetting("recording_retention_period") as
-      | RecordingRetentionPeriod
-      | undefined) || "preserve_limit";
-  const historyLimit = getSetting("history_limit") ?? 5;
+    useSetting("recording_retention_period") || "preserve_limit";
+  const historyLimit = useSetting("history_limit") ?? 5;
+  const updating = useIsSettingUpdating("recording_retention_period");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   const retentionOptions: { value: RecordingRetentionPeriod; label: string }[] =
     [
@@ -52,7 +54,7 @@ export const RecordingRetentionPeriodSelector = ({
       title="Delete Recordings"
     >
       <Select
-        disabled={isUpdating("recording_retention_period")}
+        disabled={updating}
         onValueChange={(val) =>
           handleRetentionPeriodSelect(val as RecordingRetentionPeriod)
         }

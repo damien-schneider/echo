@@ -3,10 +3,10 @@ import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import ProgressBar from "@/components/shared/progress-bar";
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { ProgressBar } from "../shared";
 
 interface UpdateCheckerProps {
   className?: string;
@@ -24,16 +24,18 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
     undefined
   );
   const isManualCheckRef = useRef(false);
+  const isCheckingRef = useRef(false);
   const downloadedBytesRef = useRef(0);
   const contentLengthRef = useRef(0);
 
   // Update checking functions
   const checkForUpdates = useCallback(async () => {
-    if (isChecking) {
+    if (isCheckingRef.current) {
       return;
     }
 
     try {
+      isCheckingRef.current = true;
       setIsChecking(true);
       const update = await check();
 
@@ -56,6 +58,7 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
     } catch (error) {
       console.error("Failed to check for updates:", error);
     } finally {
+      isCheckingRef.current = false;
       setIsChecking(false);
       isManualCheckRef.current = false;
     }
@@ -80,7 +83,7 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       }
       updateUnlisten.then((fn) => fn());
     };
-  }, [checkForUpdates, handleManualUpdateCheck]);
+  }, [checkForUpdates]);
 
   const installUpdate = async () => {
     try {
@@ -91,7 +94,6 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       const update = await check();
 
       if (!update) {
-        console.log("No update available during install attempt");
         return;
       }
 
@@ -113,6 +115,8 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
             setDownloadProgress(Math.min(progress, 100));
             break;
           }
+          default:
+            break;
         }
       });
       await relaunch();
@@ -129,11 +133,10 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
   // Update status functions
   const getUpdateStatusText = () => {
     if (isInstalling) {
-      return downloadProgress > 0 && downloadProgress < 100
-        ? `Downloading... ${downloadProgress.toString().padStart(3)}%`
-        : downloadProgress === 100
-          ? "Installing..."
-          : ""; // preparing handled by spinner only
+      if (downloadProgress > 0 && downloadProgress < 100) {
+        return `Downloading... ${downloadProgress.toString().padStart(3)}%`;
+      }
+      return downloadProgress === 100 ? "Installing..." : "";
     }
     if (showUpToDate) {
       return "Up to date";

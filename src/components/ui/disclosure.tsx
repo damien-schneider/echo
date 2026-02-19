@@ -5,8 +5,18 @@ import {
   type MotionProps,
   motion,
 } from "motion/react";
-import * as React from "react";
-import { createContext, useContext, useEffect, useId, useState } from "react";
+import {
+  type Attributes,
+  Children,
+  cloneElement,
+  createContext,
+  isValidElement,
+  type ReactNode,
+  useContext,
+  useEffect,
+  useId,
+  useState,
+} from "react";
 import { cn } from "@/lib/utils";
 
 type VariantDefinition = Record<string, string | number>;
@@ -22,7 +32,7 @@ const DisclosureContext = createContext<DisclosureContextType | undefined>(
 );
 
 export interface DisclosureProviderProps {
-  children: React.ReactNode;
+  children: ReactNode;
   open: boolean;
   onOpenChange?: (open: boolean) => void;
   variants?: { expanded: VariantDefinition; collapsed: VariantDefinition };
@@ -72,7 +82,7 @@ function useDisclosure() {
 export interface DisclosureProps {
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
   variants?: { expanded: VariantDefinition; collapsed: VariantDefinition };
   transition?: MotionProps["transition"];
@@ -94,8 +104,8 @@ export function Disclosure({
           open={openProp}
           variants={variants}
         >
-          {React.Children.toArray(children)[0]}
-          {React.Children.toArray(children)[1]}
+          {Children.toArray(children)[0]}
+          {Children.toArray(children)[1]}
         </DisclosureProvider>
       </div>
     </MotionConfig>
@@ -106,19 +116,19 @@ export function DisclosureTrigger({
   children,
   className,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   const { toggle, open } = useDisclosure();
 
   return (
     <>
-      {React.Children.map(children, (child) => {
-        if (!React.isValidElement(child)) {
+      {Children.map(children, (child) => {
+        if (!isValidElement(child)) {
           return child;
         }
         const childProps = child.props as Record<string, unknown>;
-        return React.cloneElement(child, {
+        return cloneElement(child, {
           onClick: toggle,
           role: "button",
           "aria-expanded": open,
@@ -131,7 +141,7 @@ export function DisclosureTrigger({
           },
           className: cn(className, childProps.className as string | undefined),
           ...childProps,
-        } as React.Attributes);
+        } as Attributes);
       })}
     </>
   );
@@ -141,7 +151,7 @@ export function DisclosureContent({
   children,
   className,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   className?: string;
 }) {
   const { open, variants } = useDisclosure();

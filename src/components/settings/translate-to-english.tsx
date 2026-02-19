@@ -1,10 +1,14 @@
 import { listen } from "@tauri-apps/api/event";
 import { Languages } from "lucide-react";
 import { useEffect } from "react";
-import { useModels } from "../../hooks/use-models";
-import { useSettings } from "../../hooks/use-settings";
-import { SettingContainer } from "../ui/SettingContainer";
-import { Switch } from "../ui/switch";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { Switch } from "@/components/ui/switch";
+import { useModels } from "@/hooks/use-models";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface TranslateToEnglishProps {
   descriptionMode?: "inline" | "tooltip";
@@ -21,10 +25,11 @@ export const TranslateToEnglish = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: TranslateToEnglishProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
+  const translateToEnglish = useSetting("translate_to_english");
+  const updating = useIsSettingUpdating("translate_to_english");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
   const { currentModel, loadCurrentModel, models } = useModels();
 
-  const translateToEnglish = getSetting("translate_to_english");
   const isDisabledTranslation =
     unsupportedTranslationModels.includes(currentModel);
 
@@ -60,7 +65,7 @@ export const TranslateToEnglish = ({
     >
       <Switch
         checked={translateToEnglish}
-        disabled={isUpdating("translate_to_english") || isDisabledTranslation}
+        disabled={updating || isDisabledTranslation}
         onCheckedChange={(enabled) =>
           updateSetting("translate_to_english", enabled)
         }

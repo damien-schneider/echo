@@ -46,7 +46,7 @@ export function LandingFaq() {
           {faqs.map((faq, index) => (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
-              key={index}
+              key={faq.question}
               transition={{ duration: 0.5, delay: index * 0.1 }}
               viewport={{ once: true, margin: "-50px" }}
               whileInView={{ opacity: 1, y: 0 }}

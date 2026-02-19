@@ -22,8 +22,10 @@ const Architecture = ({
 }: CpuArchitectureSvgProps) => {
   return (
     <svg
+      aria-label="CPU architecture diagram"
       className={cn("text-muted", className)}
       height={height}
+      role="img"
       viewBox="0 0 200 100"
       width={width}
     >

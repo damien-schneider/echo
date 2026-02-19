@@ -490,10 +490,36 @@ pub fn run() {
                 // ============================================================
 
                 #[cfg(target_os = "macos")]
+                #[allow(deprecated)] // cocoa crate is deprecated in favor of objc2-app-kit
                 {
-                    use tauri::TitleBarStyle;
-                    let _ = main_window.set_decorations(true);
-                    let _ = main_window.set_title_bar_style(TitleBarStyle::Overlay);
+                    use cocoa::appkit::{
+                        NSWindow, NSWindowStyleMask, NSWindowTitleVisibility,
+                    };
+                    use cocoa::base::id;
+
+                    // The window is created with decorations: false (required
+                    // for Linux to avoid GTK CSD artifacts). On macOS we
+                    // configure the NSWindow directly in a single atomic
+                    // setStyleMask_ call — this is equivalent to creating the
+                    // window with decorations: true + titleBarStyle: "Overlay",
+                    // which ensures the webview extends behind the title bar
+                    // so the traffic lights sit inside the glass window.
+                    if let Ok(ns_win) = main_window.ns_window() {
+                        unsafe {
+                            let window = ns_win as id;
+                            window.setStyleMask_(
+                                NSWindowStyleMask::NSTitledWindowMask
+                                    | NSWindowStyleMask::NSClosableWindowMask
+                                    | NSWindowStyleMask::NSMiniaturizableWindowMask
+                                    | NSWindowStyleMask::NSResizableWindowMask
+                                    | NSWindowStyleMask::NSFullSizeContentViewWindowMask,
+                            );
+                            window.setTitlebarAppearsTransparent_(true);
+                            window.setTitleVisibility_(
+                                NSWindowTitleVisibility::NSWindowTitleHidden,
+                            );
+                        }
+                    }
                 }
 
                 #[cfg(target_os = "windows")]

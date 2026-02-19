@@ -1,4 +1,5 @@
 import type React from "react";
+import { cn } from "@/lib/utils";
 
 export interface ProgressData {
   id: string;
@@ -40,9 +41,12 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     const percentage = Math.max(0, Math.min(100, item.percentage));
 
     return (
-      <div className={`flex items-center gap-3 ${className}`}>
+      <div className={cn("flex items-center gap-3", className)}>
         <progress
-          className={`${progressClasses} [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-muted/20 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-brand`}
+          className={cn(
+            progressClasses,
+            "[&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-muted/20 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-brand"
+          )}
           max={100}
           value={percentage}
         />
@@ -51,11 +55,12 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
             {showLabel && item.label && (
               <span className="mr-2">{item.label}</span>
             )}
-            {showSpeed && item.speed !== undefined && item.speed > 0 ? (
-              <span>{item.speed.toFixed(1)}MB/s</span>
-            ) : showSpeed ? (
-              <span>Downloading...</span>
-            ) : null}
+            {showSpeed &&
+              (item.speed !== undefined && item.speed > 0 ? (
+                <span>{item.speed.toFixed(1)}MB/s</span>
+              ) : (
+                <span>Downloading...</span>
+              ))}
           </div>
         )}
       </div>
@@ -64,7 +69,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 
   // Multiple progress bars
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={cn("flex items-center gap-2", className)}>
       <div className="flex gap-1">
         {progress.map((item) => {
           const percentage = Math.max(0, Math.min(100, item.percentage));

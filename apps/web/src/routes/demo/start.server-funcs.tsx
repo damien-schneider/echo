@@ -99,6 +99,7 @@ function Home() {
             className="rounded-lg bg-blue-500 px-4 py-3 font-bold text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:bg-blue-500/50"
             disabled={todo.trim().length === 0}
             onClick={submitTodo}
+            type="button"
           >
             Add todo
           </button>

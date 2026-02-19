@@ -1,7 +1,11 @@
 import { PlayCircle } from "lucide-react";
-import { useSettings } from "../../hooks/use-settings";
-import { SettingContainer } from "../ui/SettingContainer";
-import { Switch } from "../ui/switch";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { Switch } from "@/components/ui/switch";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface AutostartToggleProps {
   descriptionMode?: "inline" | "tooltip";
@@ -12,9 +16,9 @@ export const AutostartToggle = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: AutostartToggleProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-
-  const autostartEnabled = getSetting("autostart_enabled") ?? false;
+  const autostartEnabled = useSetting("autostart_enabled") ?? false;
+  const updating = useIsSettingUpdating("autostart_enabled");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <SettingContainer
@@ -26,7 +30,7 @@ export const AutostartToggle = ({
     >
       <Switch
         checked={autostartEnabled}
-        disabled={isUpdating("autostart_enabled")}
+        disabled={updating}
         onCheckedChange={(enabled) =>
           updateSetting("autostart_enabled", enabled)
         }

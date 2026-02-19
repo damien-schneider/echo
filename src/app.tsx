@@ -3,13 +3,13 @@ import { listen } from "@tauri-apps/api/event";
 import { Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
-import "./App.css";
+import "./app.css";
 import { AppHeader } from "@/components/app-header";
 import { GlassWindow } from "@/components/ui/glass-window";
 import { Spinner } from "@/components/ui/spinner";
 import { AccessibilityPermissions } from "./components/accessibility-permissions";
 import { ErrorDialog } from "./components/error-dialog";
-import Onboarding from "./components/onboarding";
+import Onboarding from "./components/onboarding/onboarding";
 import {
   SECTIONS_CONFIG,
   SidebarLayout,
@@ -18,7 +18,7 @@ import {
 import { TranscriptionResultDialog } from "./components/transcription-result-dialog";
 import { TitleBar } from "./components/ui/title-bar";
 import { useFileTranscriptionListener } from "./hooks/use-file-transcription-listener";
-import { useSettings } from "./hooks/use-settings";
+import { useSetting, useSettingsStore } from "./stores/settings-store";
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
@@ -29,20 +29,26 @@ const renderSettingsContent = (section: SidebarSection) => {
 function App() {
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null);
   const [currentSection, setCurrentSection] = useState<SidebarSection>("app");
-  const { settings, updateSetting, isLoading } = useSettings();
+  const isLoading = useSettingsStore((s) => s.isLoading);
+  const debugMode = useSetting("debug_mode");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const initialize = useSettingsStore((s) => s.initialize);
   const [isDragging, setIsDragging] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
-  const [transcriptionProgress, setTranscriptionProgress] = useState(0);
   const hasSignaledReady = useRef(false);
 
   useFileTranscriptionListener();
+
+  // Initialize settings store — this is the root component
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
 
   // Check onboarding status on mount
   useEffect(() => {
     const checkOnboardingStatus = async () => {
       try {
         // Always check if they have any models available
-        const modelsAvailable: boolean = await invoke(
+        const modelsAvailable = await invoke<boolean>(
           "has_any_models_available"
         );
         setShowOnboarding(!modelsAvailable);
@@ -65,7 +71,7 @@ function App() {
 
       if (isDebugShortcut) {
         event.preventDefault();
-        const currentDebugMode = settings?.debug_mode ?? false;
+        const currentDebugMode = debugMode ?? false;
         updateSetting("debug_mode", !currentDebugMode);
       }
     };
@@ -77,7 +83,7 @@ function App() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [settings?.debug_mode, updateSetting]);
+  }, [debugMode, updateSetting]);
 
   const handleModelSelected = () => {
     // Transition to main app - user has started a download
@@ -124,33 +130,6 @@ function App() {
       for (const unlisten of unlistenFns) {
         unlisten();
       }
-    };
-  }, []);
-
-  // Handle transcription progress
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-
-    const setupListener = async () => {
-      unlisten = await listen(
-        "file-transcription-progress",
-        (event: { payload: { status: string; progress: number } }) => {
-          const { status, progress } = event.payload;
-          if (status === "complete") {
-            setIsTranscribing(false);
-            setTranscriptionProgress(0);
-          } else {
-            setIsTranscribing(true);
-            setTranscriptionProgress(progress);
-          }
-        }
-      );
-    };
-
-    setupListener();
-
-    return () => {
-      unlisten?.();
     };
   }, []);
 

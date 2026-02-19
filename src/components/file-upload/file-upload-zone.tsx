@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event";
 import { Upload, X } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface FileTranscriptionProgress {
@@ -89,20 +89,130 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
+  const processFile = useCallback(
+    async (file: File) => {
+      setError(null);
 
-    const files = Array.from(e.dataTransfer.files);
+      // Validate file type
+      const validExtensions = [
+        "wav",
+        "wave",
+        "mp3",
+        "m4a",
+        "aac",
+        "ogg",
+        "oga",
+        "mp4",
+        "mov",
+        "avi",
+        "mkv",
+        "webm",
+        "flv",
+      ];
+      const fileExtension = file.name.split(".").pop()?.toLowerCase();
 
-    if (files.length === 0) {
-      return;
-    }
+      if (!(fileExtension && validExtensions.includes(fileExtension))) {
+        setError(
+          `Unsupported file format: .${fileExtension}. Please upload audio files (wav, mp3, m4a, ogg) or video files (mp4, mov, mkv, webm).`
+        );
+        return;
+      }
 
-    const file = files[0];
-    await processFile(file);
-  }, []);
+      // Validate file size (max 100MB)
+      const maxSize = 100 * 1024 * 1024; // 100MB
+      if (file.size > maxSize) {
+        setError(
+          `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum size is 100MB.`
+        );
+        return;
+      }
+
+      // Validate minimum file size (10KB to avoid empty files)
+      const minSize = 10 * 1024;
+      if (file.size < minSize) {
+        setError(
+          `File too small (${(file.size / 1024).toFixed(1)}KB). Minimum size is 10KB.`
+        );
+        return;
+      }
+
+      setCurrentFile(file);
+      setIsProcessing(true);
+
+      try {
+        // We need to save the file to a temp location for Tauri to access
+        const { tempDir } = await import("@tauri-apps/api/path");
+        const { open } = await import("@tauri-apps/plugin-fs");
+
+        const tempDirPath = await tempDir();
+
+        // Create a safe filename
+        const timestamp = Date.now();
+        const safeFileName = `upload-${timestamp}-${file.name}`;
+
+        // Read file as ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        // Write to temp directory using the V2 fs API
+        const tempPath = `${tempDirPath}/${safeFileName}`;
+        const fileHandle = await open(tempPath, {
+          write: true,
+          create: true,
+          truncate: true,
+        });
+        await fileHandle.write(uint8Array);
+
+        // Call the transcription command
+        const transcriptionText = await invoke<string>(
+          "transcribe_audio_file",
+          {
+            filePath: tempPath,
+          }
+        );
+
+        if (onTranscriptionComplete) {
+          onTranscriptionComplete(transcriptionText);
+        }
+
+        // Copy to clipboard
+        await navigator.clipboard.writeText(transcriptionText);
+
+        setProgress({
+          status: "complete",
+          progress: 1.0,
+          message: "Transcription complete! Copied to clipboard.",
+        });
+      } catch (err) {
+        console.error("Transcription failed:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to transcribe file"
+        );
+        setIsProcessing(false);
+        setCurrentFile(null);
+        setProgress(null);
+      }
+    },
+    [onTranscriptionComplete]
+  );
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setIsDragging(false);
+
+      const files = Array.from(e.dataTransfer.files);
+
+      if (files.length === 0) {
+        return;
+      }
+
+      const file = files[0];
+      await processFile(file);
+    },
+    [processFile]
+  );
 
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -115,109 +225,8 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
       const file = files[0];
       await processFile(file);
     },
-    []
+    [processFile]
   );
-
-  const processFile = async (file: File) => {
-    setError(null);
-
-    // Validate file type
-    const validExtensions = [
-      "wav",
-      "wave",
-      "mp3",
-      "m4a",
-      "aac",
-      "ogg",
-      "oga",
-      "mp4",
-      "mov",
-      "avi",
-      "mkv",
-      "webm",
-      "flv",
-    ];
-    const fileExtension = file.name.split(".").pop()?.toLowerCase();
-
-    if (!(fileExtension && validExtensions.includes(fileExtension))) {
-      setError(
-        `Unsupported file format: .${fileExtension}. Please upload audio files (wav, mp3, m4a, ogg) or video files (mp4, mov, mkv, webm).`
-      );
-      return;
-    }
-
-    // Validate file size (max 100MB)
-    const maxSize = 100 * 1024 * 1024; // 100MB
-    if (file.size > maxSize) {
-      setError(
-        `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum size is 100MB.`
-      );
-      return;
-    }
-
-    // Validate minimum file size (10KB to avoid empty files)
-    const minSize = 10 * 1024;
-    if (file.size < minSize) {
-      setError(
-        `File too small (${(file.size / 1024).toFixed(1)}KB). Minimum size is 10KB.`
-      );
-      return;
-    }
-
-    setCurrentFile(file);
-    setIsProcessing(true);
-
-    try {
-      // We need to save the file to a temp location for Tauri to access
-      const { tempDir } = await import("@tauri-apps/api/path");
-      const { open } = await import("@tauri-apps/plugin-fs");
-
-      const tempDirPath = await tempDir();
-
-      // Create a safe filename
-      const timestamp = Date.now();
-      const safeFileName = `upload-${timestamp}-${file.name}`;
-
-      // Read file as ArrayBuffer
-      const arrayBuffer = await file.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-
-      // Write to temp directory using the V2 fs API
-      const tempPath = `${tempDirPath}/${safeFileName}`;
-      const fileHandle = await open(tempPath, {
-        write: true,
-        create: true,
-        truncate: true,
-      });
-      await fileHandle.write(uint8Array);
-
-      // Call the transcription command
-      const transcriptionText = await invoke<string>("transcribe_audio_file", {
-        filePath: tempPath,
-      });
-
-      if (onTranscriptionComplete) {
-        onTranscriptionComplete(transcriptionText);
-      }
-
-      // Copy to clipboard
-      await navigator.clipboard.writeText(transcriptionText);
-
-      setProgress({
-        status: "complete",
-        progress: 1.0,
-        message: "Transcription complete! Copied to clipboard.",
-      });
-    } catch (err) {
-      console.error("Transcription failed:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to transcribe file"
-      );
-      setIsProcessing(false);
-      setCurrentFile(null);
-      setProgress(null);
-    }
-  };
 
   const cancelUpload = () => {
     setCurrentFile(null);
@@ -229,7 +238,8 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
   return (
     <div className={cn("w-full", className)}>
       {!(isProcessing || currentFile || progress) && (
-        <div
+        // biome-ignore lint/a11y/noNoninteractiveElementInteractions: Label wraps file input; drag events add supplementary drag-and-drop
+        <label
           className={cn(
             "relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed transition-all duration-200",
             isDragging
@@ -242,8 +252,6 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
           onDragLeave={handleDragLeave}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
-          role="button"
-          tabIndex={0}
         >
           <Upload className="pointer-events-none mb-2 h-8 w-8 text-muted-foreground" />
           <p className="pointer-events-none font-medium text-sm">
@@ -252,16 +260,14 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
           <p className="pointer-events-none text-muted-foreground text-xs">
             Supports WAV, MP3, M4A, OGG, MP4, MOV (max 100MB)
           </p>
-          <div className="pointer-events-none absolute inset-0">
-            <input
-              accept=".wav,.wave,.mp3,.m4a,.aac,.ogg,.oga,.mp4,.mov,.avi,.mkv,.webm,.flv,audio/*,video/*"
-              className="pointer-events-auto h-full w-full cursor-pointer opacity-0"
-              disabled={isProcessing}
-              onChange={handleFileSelect}
-              type="file"
-            />
-          </div>
-        </div>
+          <input
+            accept=".wav,.wave,.mp3,.m4a,.aac,.ogg,.oga,.mp4,.mov,.avi,.mkv,.webm,.flv,audio/*,video/*"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            disabled={isProcessing}
+            onChange={handleFileSelect}
+            type="file"
+          />
+        </label>
       )}
 
       {currentFile && !isProcessing && (

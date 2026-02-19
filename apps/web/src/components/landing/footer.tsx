@@ -49,8 +49,8 @@ export function Footer({
             )}
           </a>
           <ul className="mt-6 flex list-none space-x-3 md:mt-0">
-            {socialLinks.map((link, i) => (
-              <li key={i}>
+            {socialLinks.map((link) => (
+              <li key={link.label}>
                 <Button
                   asChild
                   className="h-10 w-10 rounded-full"
@@ -68,8 +68,8 @@ export function Footer({
         <div className="mt-6 border-t pt-6 md:mt-4 md:pt-8 lg:grid lg:grid-cols-10">
           <nav className="lg:col-[4/11] lg:mt-0">
             <ul className="-mx-2 -my-1 flex list-none flex-wrap lg:justify-end">
-              {mainLinks.map((link, i) => (
-                <li className="mx-2 my-1 shrink-0" key={i}>
+              {mainLinks.map((link) => (
+                <li className="mx-2 my-1 shrink-0" key={link.href}>
                   <a
                     className="text-primary text-sm underline-offset-4 hover:underline"
                     href={link.href}
@@ -82,8 +82,8 @@ export function Footer({
           </nav>
           <div className="mt-6 lg:col-[4/11] lg:mt-0">
             <ul className="-mx-3 -my-1 flex list-none flex-wrap lg:justify-end">
-              {legalLinks.map((link, i) => (
-                <li className="mx-3 my-1 shrink-0" key={i}>
+              {legalLinks.map((link) => (
+                <li className="mx-3 my-1 shrink-0" key={link.href}>
                   <a
                     className="text-muted-foreground text-sm underline-offset-4 hover:underline"
                     href={link.href}

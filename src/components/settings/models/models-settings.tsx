@@ -1,27 +1,13 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { Check, Download, Loader2, Trash2 } from "lucide-react";
 import type React from "react";
 import { useEffect } from "react";
-import { ProgressBar } from "@/components/shared";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import ProgressBar from "@/components/shared/progress-bar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type { ModelInfo } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { formatModelSize } from "@/lib/utils/format";
-import {
-  availableModelsAtom,
-  currentModelIdAtom,
-  deleteModelAtom,
-  downloadableModelsAtom,
-  downloadModelAtom,
-  downloadProgressAtom,
-  downloadStatsAtom,
-  extractingModelsAtom,
-  initializeModelsAtom,
-  type ModelStatus,
-  modelStatusAtom,
-  selectModelAtom,
-  setupModelListenersAtom,
-} from "@/stores/model-atoms";
+import { type ModelStatus, useModelStore } from "@/stores/model-store";
 
 const getStatusColor = (status: ModelStatus): string => {
   switch (status) {
@@ -209,32 +195,40 @@ const ModelCard: React.FC<ModelCardProps> = ({
 };
 
 const WhisperModelsContent = () => {
-  const availableModels = useAtomValue(availableModelsAtom);
-  const downloadableModels = useAtomValue(downloadableModelsAtom);
-  const [currentModelId] = useAtom(currentModelIdAtom);
-  const modelStatus = useAtomValue(modelStatusAtom);
-  const downloadProgress = useAtomValue(downloadProgressAtom);
-  const downloadStats = useAtomValue(downloadStatsAtom);
-  const extractingModels = useAtomValue(extractingModelsAtom);
+  const models = useModelStore((s) => s.models);
+  const currentModelId = useModelStore((s) => s.currentModelId);
+  const modelStatus = useModelStore((s) => s.modelStatus);
+  const downloadProgress = useModelStore((s) => s.downloadProgress);
+  const downloadStats = useModelStore((s) => s.downloadStats);
+  const extractingModels = useModelStore((s) => s.extractingModels);
 
-  const initializeModels = useSetAtom(initializeModelsAtom);
-  const setupListeners = useSetAtom(setupModelListenersAtom);
-  const selectModel = useSetAtom(selectModelAtom);
-  const downloadModel = useSetAtom(downloadModelAtom);
-  const deleteModel = useSetAtom(deleteModelAtom);
+  const initialize = useModelStore((s) => s.initialize);
+  const setupListeners = useModelStore((s) => s.setupListeners);
+  const selectModel = useModelStore((s) => s.selectModel);
+  const downloadModel = useModelStore((s) => s.downloadModel);
+  const deleteModel = useModelStore((s) => s.deleteModel);
+
+  const availableModels = models.filter((m) => m.is_downloaded);
+  const downloadableModels = models.filter((m) => !m.is_downloaded);
 
   useEffect(() => {
-    initializeModels();
-    const cleanupPromise = setupListeners();
+    let cancelled = false;
+    initialize();
+    let cleanup: (() => void) | undefined;
+
+    setupListeners().then((fn) => {
+      if (cancelled) {
+        fn();
+      } else {
+        cleanup = fn;
+      }
+    });
 
     return () => {
-      cleanupPromise.then((cleanup) => {
-        if (cleanup) {
-          cleanup();
-        }
-      });
+      cancelled = true;
+      cleanup?.();
     };
-  }, [initializeModels, setupListeners]);
+  }, [initialize, setupListeners]);
 
   const handleModelSelect = async (modelId: string) => {
     try {
@@ -270,7 +264,10 @@ const WhisperModelsContent = () => {
         <div className="flex items-center justify-between rounded-lg border border-border/20 bg-card px-4 py-3">
           <div className="flex items-center gap-3">
             <div
-              className={`h-3 w-3 rounded-full ${getStatusColor(modelStatus)}`}
+              className={cn(
+                "h-3 w-3 rounded-full",
+                getStatusColor(modelStatus)
+              )}
             />
             <div>
               <p className="font-medium text-sm">

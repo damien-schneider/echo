@@ -6,7 +6,7 @@
 //! saves the new value and re-initializes the portal session so the user
 //! is prompted to authorize the new shortcut.
 
-use log::{debug, error, info, warn};
+use log::{error, warn};
 use serde::Serialize;
 use tauri::AppHandle;
 

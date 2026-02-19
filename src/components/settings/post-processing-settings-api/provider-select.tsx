@@ -5,7 +5,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../../ui/Select";
+} from "@/components/ui/Select";
 
 interface DropdownOption {
   value: string;

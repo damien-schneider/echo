@@ -20,7 +20,7 @@ export const AccessibilityPermissions = () => {
 
   // Check permissions without requesting
   const checkPermissions = async (): Promise<boolean> => {
-    const hasPermissions: boolean = await checkAccessibilityPermission();
+    const hasPermissions = await checkAccessibilityPermission();
     setHasAccessibility(hasPermissions);
     setPermissionState(hasPermissions ? "granted" : "verify");
     return hasPermissions;
@@ -46,7 +46,7 @@ export const AccessibilityPermissions = () => {
   // On app boot - check permissions
   useEffect(() => {
     const initialSetup = async (): Promise<void> => {
-      const hasPermissions: boolean = await checkAccessibilityPermission();
+      const hasPermissions = await checkAccessibilityPermission();
       setHasAccessibility(hasPermissions);
       setPermissionState(hasPermissions ? "granted" : "request");
     };
@@ -73,7 +73,10 @@ export const AccessibilityPermissions = () => {
     granted: null,
   };
 
-  const config = buttonConfig[permissionState] as ButtonConfig;
+  const config = buttonConfig[permissionState];
+  if (!config) {
+    return null;
+  }
 
   return (
     <div className="flex w-full flex-col items-center gap-4 rounded-lg border border-border p-4">
@@ -86,6 +89,7 @@ export const AccessibilityPermissions = () => {
         <button
           className={`min-h-10 ${config.className}`}
           onClick={handleButtonClick}
+          type="button"
         >
           {config.text}
         </button>

@@ -1,8 +1,8 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FolderOpen, Keyboard, Mic } from "lucide-react";
-import { type ComponentProps, useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { type ComponentProps, useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   type HistoryEntry,
@@ -17,7 +17,7 @@ export const HistorySettings = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<HistoryTab>("transcriptions");
 
-  const loadHistoryEntries = async () => {
+  const loadHistoryEntries = useCallback(async () => {
     try {
       const entries = await invoke<HistoryEntry[]>("get_history_entries");
       setHistoryEntries(entries);
@@ -26,14 +26,13 @@ export const HistorySettings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadHistoryEntries();
 
     const setupListener = async () => {
       const unlisten = await listen("history-updated", () => {
-        console.log("History updated, reloading entries...");
         loadHistoryEntries();
       });
 

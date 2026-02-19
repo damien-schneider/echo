@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { FileTranscriptionCenter } from "@/components/file-transcription-center";
 import EchoLogo from "@/components/icons/echo-logo";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { Badge } from "@/components/ui/Badge";
+import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -37,7 +37,7 @@ import { ModelsSettings } from "./settings/models/models-settings";
 import { PostProcessingSettings } from "./settings/post-processing/post-processing-settings";
 import { TranscriptionSettings } from "./settings/transcription/transcription-settings";
 import { TtsSettingsPage } from "./settings/tts-settings-page";
-import UpdateChecker from "./update-checker";
+import UpdateChecker from "./update-checker/update-checker";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 

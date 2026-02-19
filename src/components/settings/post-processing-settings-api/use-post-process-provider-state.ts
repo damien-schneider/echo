@@ -1,5 +1,6 @@
-import { useSettings } from "../../../hooks/use-settings";
-import type { PostProcessProvider } from "../../../lib/types";
+import { useCallback } from "react";
+import type { PostProcessProvider } from "@/lib/types";
+import { useSetting, useSettingsStore } from "@/stores/settings-store";
 import { getDefaultBaseUrl } from "./default-providers";
 import type { ModelOption } from "./types";
 
@@ -37,22 +38,35 @@ interface PostProcessProviderState {
 }
 
 export const usePostProcessProviderState = (): PostProcessProviderState => {
-  const {
-    settings,
-    isUpdating,
-    setPostProcessProvider,
-    updatePostProcessBaseUrl,
-    updatePostProcessApiKey,
-    updatePostProcessModel,
-    fetchPostProcessModels,
-    postProcessModelOptions,
-  } = useSettings();
+  // Settings data
+  const providers = useSetting("post_process_providers") ?? [];
+  const selectedProviderIdSetting = useSetting("post_process_provider_id");
+  const apiKeys = useSetting("post_process_api_keys");
+  const models = useSetting("post_process_models");
+
+  // Store slices
+  const postProcessModelOptions = useSettingsStore(
+    (s) => s.postProcessModelOptions
+  );
+  const isUpdatingMap = useSettingsStore((s) => s.isUpdating);
+
+  // Actions (stable references)
+  const setPostProcessProvider = useSettingsStore(
+    (s) => s.setPostProcessProvider
+  );
+  const updatePostProcessSetting = useSettingsStore(
+    (s) => s.updatePostProcessSetting
+  );
+  const updatePostProcessApiKeyAction = useSettingsStore(
+    (s) => s.updatePostProcessApiKey
+  );
+  const fetchPostProcessModels = useSettingsStore(
+    (s) => s.fetchPostProcessModels
+  );
 
   // Settings are guaranteed to have providers after migration
-  const providers = settings?.post_process_providers || [];
-
   const selectedProviderId =
-    settings?.post_process_provider_id || providers[0]?.id || "openai";
+    selectedProviderIdSetting || providers[0]?.id || "openai";
 
   const selectedProvider =
     providers.find((provider) => provider.id === selectedProviderId) ||
@@ -64,10 +78,8 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
   const isBaseUrlModified =
     defaultBaseUrl !== undefined &&
     (baseUrl !== defaultBaseUrl || baseUrl === "");
-  const apiKey = (settings?.post_process_api_keys?.[selectedProviderId] ??
-    "") as string;
-  const model = (settings?.post_process_models?.[selectedProviderId] ??
-    "") as string;
+  const apiKey = apiKeys?.[selectedProviderId] ?? "";
+  const model = models?.[selectedProviderId] ?? "";
 
   const providerOptions: DropdownOption[] = providers.map((provider) => ({
     value: provider.id,
@@ -76,7 +88,7 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
 
   const handleProviderSelect = (providerId: string) => {
     if (providerId !== selectedProviderId) {
-      void setPostProcessProvider(providerId);
+      setPostProcessProvider(providerId);
     }
   };
 
@@ -86,7 +98,7 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     }
     const trimmed = value.trim();
     if (trimmed && trimmed !== baseUrl) {
-      void updatePostProcessBaseUrl(selectedProvider.id, trimmed);
+      updatePostProcessSetting("base_url", selectedProvider.id, trimmed);
     }
   };
 
@@ -95,35 +107,35 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
       return;
     }
     if (baseUrl !== defaultBaseUrl) {
-      void updatePostProcessBaseUrl(selectedProvider.id, defaultBaseUrl);
+      updatePostProcessSetting("base_url", selectedProvider.id, defaultBaseUrl);
     }
   };
 
   const handleApiKeyChange = (value: string) => {
     const trimmed = value.trim();
     if (trimmed !== apiKey) {
-      void updatePostProcessApiKey(selectedProviderId, trimmed);
+      updatePostProcessApiKeyAction(selectedProviderId, trimmed);
     }
   };
 
   const handleModelChange = (value: string) => {
     const trimmed = value.trim();
     if (trimmed !== model) {
-      void updatePostProcessModel(selectedProviderId, trimmed);
+      updatePostProcessSetting("model", selectedProviderId, trimmed);
     }
   };
 
   const handleModelSelect = (value: string) => {
-    void updatePostProcessModel(selectedProviderId, value.trim());
+    updatePostProcessSetting("model", selectedProviderId, value.trim());
   };
 
   const handleModelCreate = (value: string) => {
-    void updatePostProcessModel(selectedProviderId, value);
+    updatePostProcessSetting("model", selectedProviderId, value);
   };
 
-  const handleRefreshModels = () => {
-    void fetchPostProcessModels(selectedProviderId);
-  };
+  const handleRefreshModels = useCallback(() => {
+    fetchPostProcessModels(selectedProviderId);
+  }, [fetchPostProcessModels, selectedProviderId]);
 
   const availableModelsRaw = postProcessModelOptions[selectedProviderId] || [];
 
@@ -151,17 +163,17 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     return options;
   })();
 
-  const isBaseUrlUpdating = isUpdating(
-    `post_process_base_url:${selectedProviderId}`
+  const isBaseUrlUpdating = Boolean(
+    isUpdatingMap[`post_process_base_url:${selectedProviderId}`]
   );
-  const isApiKeyUpdating = isUpdating(
-    `post_process_api_key:${selectedProviderId}`
+  const isApiKeyUpdating = Boolean(
+    isUpdatingMap[`post_process_api_key:${selectedProviderId}`]
   );
-  const isModelUpdating = isUpdating(
-    `post_process_model:${selectedProviderId}`
+  const isModelUpdating = Boolean(
+    isUpdatingMap[`post_process_model:${selectedProviderId}`]
   );
-  const isFetchingModels = isUpdating(
-    `post_process_models_fetch:${selectedProviderId}`
+  const isFetchingModels = Boolean(
+    isUpdatingMap[`post_process_models_fetch:${selectedProviderId}`]
   );
 
   // Ollama and custom providers don't require API keys

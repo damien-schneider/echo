@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Laptop2, RefreshCw, RotateCcw } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Select,
@@ -11,14 +11,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import { SettingContainer } from "@/components/ui/SettingContainer";
+import { SettingContainer } from "@/components/ui/setting-container";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useSettings } from "@/hooks/use-settings";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsActions,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface ClamshellMicrophoneSelectorProps {
   descriptionMode?: "inline" | "tooltip";
@@ -28,15 +33,12 @@ interface ClamshellMicrophoneSelectorProps {
 export const ClamshellMicrophoneSelector: React.FC<
   ClamshellMicrophoneSelectorProps
 > = ({ descriptionMode = "tooltip", grouped = false }) => {
-  const {
-    getSetting,
-    updateSetting,
-    resetSetting,
-    isUpdating,
-    isLoading,
-    audioDevices,
-    refreshAudioDevices,
-  } = useSettings();
+  const clamshellMicRaw = useSetting("clamshell_microphone");
+  const isUpdatingClamshell = useIsSettingUpdating("clamshell_microphone");
+  const isLoading = useSettingsStore((s) => s.isLoading);
+  const audioDevices = useSettingsStore((s) => s.audioDevices);
+  const refreshAudioDevices = useSettingsStore((s) => s.refreshAudioDevices);
+  const { updateSetting, resetSetting } = useSettingsActions();
 
   const [isLaptop, setIsLaptop] = useState<boolean>(false);
 
@@ -60,9 +62,7 @@ export const ClamshellMicrophoneSelector: React.FC<
   }
 
   const selectedClamshellMicrophone =
-    getSetting("clamshell_microphone") === "default"
-      ? "Default"
-      : getSetting("clamshell_microphone") || "Default";
+    clamshellMicRaw === "default" ? "Default" : clamshellMicRaw || "Default";
 
   const handleSelect = async (deviceName: string) => {
     await updateSetting("clamshell_microphone", deviceName);
@@ -83,9 +83,7 @@ export const ClamshellMicrophoneSelector: React.FC<
       <div className="flex items-center space-x-1">
         <Select
           disabled={
-            isUpdating("clamshell_microphone") ||
-            isLoading ||
-            audioDevices.length === 0
+            isUpdatingClamshell || isLoading || audioDevices.length === 0
           }
           onValueChange={handleSelect}
           value={selectedClamshellMicrophone}
@@ -112,7 +110,7 @@ export const ClamshellMicrophoneSelector: React.FC<
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
-                  disabled={isUpdating("clamshell_microphone") || isLoading}
+                  disabled={isUpdatingClamshell || isLoading}
                   onClick={handleReset}
                   size="icon"
                   variant="outline"

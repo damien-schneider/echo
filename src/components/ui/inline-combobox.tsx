@@ -37,6 +37,14 @@ import {
 
 import { cn } from "@/lib/utils";
 
+function useRequiredComboboxContext() {
+  const ctx = useComboboxContext();
+  if (!ctx) {
+    throw new Error("Component must be used within ComboboxProvider");
+  }
+  return ctx;
+}
+
 type FilterFn = (
   item: { value: string; group?: string; keywords?: string[]; label?: string },
   search: string
@@ -61,11 +69,13 @@ const defaultFilter: FilterFn = (
   search
 ) => {
   const uniqueTerms = new Set(
-    [value, ...keywords, group, label].filter(Boolean)
+    [value, ...keywords, group, label].filter((term): term is string =>
+      Boolean(term)
+    )
   );
 
   return Array.from(uniqueTerms).some((keyword) =>
-    filterWords(keyword!, search)
+    filterWords(keyword, search)
   );
 };
 
@@ -212,7 +222,7 @@ const InlineComboboxInput = ({
     trigger,
   } = useContext(InlineComboboxContext);
 
-  const store = useComboboxContext()!;
+  const store = useRequiredComboboxContext();
   const value = store.useState("value");
 
   const ref = useComposedRef(propRef, contextRef);
@@ -306,13 +316,12 @@ const InlineComboboxItem = ({
 
   const { filter, removeInput } = useContext(InlineComboboxContext);
 
-  const store = useComboboxContext()!;
+  const store = useRequiredComboboxContext();
 
-  // Optimization: Do not subscribe to value if filter is false
-  const search = filter && store.useState("value");
+  // Always call the hook unconditionally to satisfy rules of hooks
+  const search = store.useState("value");
 
-  const visible =
-    !filter || filter({ group, keywords, label, value }, search as string);
+  const visible = !filter || filter({ group, keywords, label, value }, search);
 
   if (!visible) {
     return null;
@@ -335,7 +344,7 @@ const InlineComboboxEmpty = ({
   className,
 }: HTMLAttributes<HTMLDivElement>) => {
   const { setHasEmpty } = useContext(InlineComboboxContext);
-  const store = useComboboxContext()!;
+  const store = useRequiredComboboxContext();
   const items = store.useState("items");
 
   useEffect(() => {

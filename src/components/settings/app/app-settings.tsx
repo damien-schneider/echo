@@ -1,19 +1,19 @@
-import { CollapsibleSettingsGroup } from "@/components/ui/CollapsibleSettingsGroup";
-import { useSettings } from "@/hooks/use-settings";
-import { AudioFeedback } from "../audio-feedback";
-import { AutostartToggle } from "../autostart-toggle";
-import { ClipboardHandlingSetting } from "../clipboard-handling";
-import { EchoShortcut } from "../echo-shortcut";
-import { MicrophoneSelector } from "../microphone-selector";
-import { OutputDeviceSelector } from "../output-device-selector";
-import { PasteMethodSetting } from "../paste-method";
-import { PushToTalk } from "../push-to-talk";
-import { ShowOverlay } from "../show-overlay";
-import { StartHidden } from "../start-hidden";
-import { VolumeSlider } from "../volume-slider";
+import { AudioFeedback } from "@/components/settings/audio-feedback";
+import { AutostartToggle } from "@/components/settings/autostart-toggle";
+import { ClipboardHandlingSetting } from "@/components/settings/clipboard-handling";
+import { EchoShortcut } from "@/components/settings/echo-shortcut";
+import { MicrophoneSelector } from "@/components/settings/microphone-selector";
+import { OutputDeviceSelector } from "@/components/settings/output-device-selector";
+import { PasteMethodSetting } from "@/components/settings/paste-method";
+import { PushToTalk } from "@/components/settings/push-to-talk";
+import { ShowOverlay } from "@/components/settings/show-overlay";
+import { StartHidden } from "@/components/settings/start-hidden";
+import { VolumeSlider } from "@/components/settings/volume-slider";
+import { CollapsibleSettingsGroup } from "@/components/ui/collapsible-settings-group";
+import { useSetting } from "@/stores/settings-store";
 
 export const AppSettings = () => {
-  const { audioFeedbackEnabled } = useSettings();
+  const audioFeedbackEnabled = useSetting("audio_feedback") ?? false;
 
   return (
     <div className="mx-auto w-full max-w-3xl pb-20">

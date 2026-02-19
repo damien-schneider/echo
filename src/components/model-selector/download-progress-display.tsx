@@ -1,5 +1,7 @@
 import type React from "react";
-import { ProgressBar, type ProgressData } from "../shared";
+import ProgressBar, {
+  type ProgressData,
+} from "@/components/shared/progress-bar";
 
 interface DownloadProgress {
   model_id: string;

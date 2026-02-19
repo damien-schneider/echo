@@ -4,6 +4,142 @@
 
 export type OSType = "macos" | "windows" | "linux" | "unknown";
 
+const FUNCTION_KEY_RE = /^F\d+$/;
+const LETTER_KEY_RE = /^Key[A-Z]$/;
+const DIGIT_KEY_RE = /^Digit\d$/;
+const NUMPAD_DIGIT_RE = /^Numpad\d$/;
+
+const getMetaKeyName = (osType: OSType): string => {
+  if (osType === "macos") {
+    return "command";
+  }
+  if (osType === "windows") {
+    return "win";
+  }
+  return "super";
+};
+
+const getKeyFromCode = (code: string, osType: OSType): string | undefined => {
+  if (FUNCTION_KEY_RE.test(code)) {
+    return code.toLowerCase();
+  }
+
+  if (LETTER_KEY_RE.test(code)) {
+    return code.replace("Key", "").toLowerCase();
+  }
+
+  if (DIGIT_KEY_RE.test(code)) {
+    return code.replace("Digit", "");
+  }
+
+  if (NUMPAD_DIGIT_RE.test(code)) {
+    return code.replace("Numpad", "numpad ").toLowerCase();
+  }
+
+  const getModifierName = (baseModifier: string): string => {
+    switch (baseModifier) {
+      case "shift":
+        return "shift";
+      case "ctrl":
+        return "ctrl";
+      case "alt":
+        return osType === "macos" ? "option" : "alt";
+      case "meta":
+        return osType === "macos" ? "command" : "super";
+      default:
+        return baseModifier;
+    }
+  };
+
+  const modifierMap: Record<string, string> = {
+    ShiftLeft: getModifierName("shift"),
+    ShiftRight: getModifierName("shift"),
+    ControlLeft: getModifierName("ctrl"),
+    ControlRight: getModifierName("ctrl"),
+    AltLeft: getModifierName("alt"),
+    AltRight: getModifierName("alt"),
+    MetaLeft: getModifierName("meta"),
+    MetaRight: getModifierName("meta"),
+    OSLeft: getModifierName("meta"),
+    OSRight: getModifierName("meta"),
+    CapsLock: "caps lock",
+    Tab: "tab",
+    Enter: "enter",
+    Space: "space",
+    Backspace: "backspace",
+    Delete: "delete",
+    Escape: "esc",
+    ArrowUp: "up",
+    ArrowDown: "down",
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    Home: "home",
+    End: "end",
+    PageUp: "page up",
+    PageDown: "page down",
+    Insert: "insert",
+    PrintScreen: "print screen",
+    ScrollLock: "scroll lock",
+    Pause: "pause",
+    ContextMenu: "menu",
+    NumpadMultiply: "numpad *",
+    NumpadAdd: "numpad +",
+    NumpadSubtract: "numpad -",
+    NumpadDecimal: "numpad .",
+    NumpadDivide: "numpad /",
+    NumLock: "num lock",
+  };
+
+  if (modifierMap[code]) {
+    return modifierMap[code];
+  }
+
+  const punctuationMap: Record<string, string> = {
+    Semicolon: ";",
+    Equal: "=",
+    Comma: ",",
+    Minus: "-",
+    Period: ".",
+    Slash: "/",
+    Backquote: "`",
+    BracketLeft: "[",
+    Backslash: "\\",
+    BracketRight: "]",
+    Quote: "'",
+  };
+
+  if (punctuationMap[code]) {
+    return punctuationMap[code];
+  }
+
+  return code.toLowerCase().replace(/([a-z])([A-Z])/g, "$1 $2");
+};
+
+const getKeyFromKeyProp = (key: string, osType: OSType): string | undefined => {
+  const metaName = getMetaKeyName(osType);
+
+  const keyMap: Record<string, string> = {
+    Control: osType === "macos" ? "ctrl" : "ctrl",
+    Alt: osType === "macos" ? "option" : "alt",
+    Shift: "shift",
+    Meta: metaName,
+    OS: metaName,
+    CapsLock: "caps lock",
+    ArrowUp: "up",
+    ArrowDown: "down",
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    Escape: "esc",
+    " ": "space",
+  };
+
+  if (keyMap[key]) {
+    return keyMap[key];
+  }
+
+  return key.toLowerCase();
+};
+
 /**
  * Extract a consistent key name from a KeyboardEvent
  * This function provides cross-platform keyboard event handling
@@ -13,146 +149,14 @@ export const getKeyName = (
   e: KeyboardEvent,
   osType: OSType = "unknown"
 ): string => {
-  // Handle special cases first
   if (e.code) {
-    const code = e.code;
-
-    // Handle function keys (F1-F24)
-    if (code.match(/^F\d+$/)) {
-      return code.toLowerCase(); // F1, F2, ..., F14, F15, etc.
-    }
-
-    // Handle regular letter keys (KeyA -> a)
-    if (code.match(/^Key[A-Z]$/)) {
-      return code.replace("Key", "").toLowerCase();
-    }
-
-    // Handle digit keys (Digit0 -> 0)
-    if (code.match(/^Digit\d$/)) {
-      return code.replace("Digit", "");
-    }
-
-    // Handle numpad digit keys (Numpad0 -> numpad 0)
-    if (code.match(/^Numpad\d$/)) {
-      return code.replace("Numpad", "numpad ").toLowerCase();
-    }
-
-    // Handle modifier keys - OS-specific naming
-    const getModifierName = (baseModifier: string): string => {
-      switch (baseModifier) {
-        case "shift":
-          return "shift";
-        case "ctrl":
-          return osType === "macos" ? "ctrl" : "ctrl";
-        case "alt":
-          return osType === "macos" ? "option" : "alt";
-        case "meta":
-          // Windows key on Windows/Linux, Command key on Mac
-          if (osType === "macos") {
-            return "command";
-          }
-          return "super";
-        default:
-          return baseModifier;
-      }
-    };
-
-    const modifierMap: Record<string, string> = {
-      ShiftLeft: getModifierName("shift"),
-      ShiftRight: getModifierName("shift"),
-      ControlLeft: getModifierName("ctrl"),
-      ControlRight: getModifierName("ctrl"),
-      AltLeft: getModifierName("alt"),
-      AltRight: getModifierName("alt"),
-      MetaLeft: getModifierName("meta"),
-      MetaRight: getModifierName("meta"),
-      OSLeft: getModifierName("meta"),
-      OSRight: getModifierName("meta"),
-      CapsLock: "caps lock",
-      Tab: "tab",
-      Enter: "enter",
-      Space: "space",
-      Backspace: "backspace",
-      Delete: "delete",
-      Escape: "esc",
-      ArrowUp: "up",
-      ArrowDown: "down",
-      ArrowLeft: "left",
-      ArrowRight: "right",
-      Home: "home",
-      End: "end",
-      PageUp: "page up",
-      PageDown: "page down",
-      Insert: "insert",
-      PrintScreen: "print screen",
-      ScrollLock: "scroll lock",
-      Pause: "pause",
-      ContextMenu: "menu",
-      NumpadMultiply: "numpad *",
-      NumpadAdd: "numpad +",
-      NumpadSubtract: "numpad -",
-      NumpadDecimal: "numpad .",
-      NumpadDivide: "numpad /",
-      NumLock: "num lock",
-    };
-
-    if (modifierMap[code]) {
-      return modifierMap[code];
-    }
-
-    // Handle punctuation and special characters
-    const punctuationMap: Record<string, string> = {
-      Semicolon: ";",
-      Equal: "=",
-      Comma: ",",
-      Minus: "-",
-      Period: ".",
-      Slash: "/",
-      Backquote: "`",
-      BracketLeft: "[",
-      Backslash: "\\",
-      BracketRight: "]",
-      Quote: "'",
-    };
-
-    if (punctuationMap[code]) {
-      return punctuationMap[code];
-    }
-
-    // For any other codes, try to convert to a reasonable format
-    return code.toLowerCase().replace(/([a-z])([A-Z])/g, "$1 $2");
+    return getKeyFromCode(e.code, osType);
   }
 
-  // Fallback to e.key if e.code is not available
   if (e.key) {
-    const key = e.key;
-
-    // Handle special key names with OS-specific formatting
-    const keyMap: Record<string, string> = {
-      Control: osType === "macos" ? "ctrl" : "ctrl",
-      Alt: osType === "macos" ? "option" : "alt",
-      Shift: "shift",
-      Meta:
-        osType === "macos" ? "command" : osType === "windows" ? "win" : "super",
-      OS:
-        osType === "macos" ? "command" : osType === "windows" ? "win" : "super",
-      CapsLock: "caps lock",
-      ArrowUp: "up",
-      ArrowDown: "down",
-      ArrowLeft: "left",
-      ArrowRight: "right",
-      Escape: "esc",
-      " ": "space",
-    };
-
-    if (keyMap[key]) {
-      return keyMap[key];
-    }
-
-    return key.toLowerCase();
+    return getKeyFromKeyProp(e.key, osType);
   }
 
-  // Last resort fallback
   return `unknown-${e.keyCode || e.which || 0}`;
 };
 

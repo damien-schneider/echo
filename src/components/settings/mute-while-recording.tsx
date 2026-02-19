@@ -1,6 +1,10 @@
-import { useSettings } from "../../hooks/use-settings";
-import { SettingContainer } from "../ui/SettingContainer";
-import { Switch } from "../ui/switch";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { Switch } from "@/components/ui/switch";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface MuteWhileRecordingToggleProps {
   descriptionMode?: "inline" | "tooltip";
@@ -11,9 +15,9 @@ export const MuteWhileRecording = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: MuteWhileRecordingToggleProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-
-  const muteEnabled = getSetting("mute_while_recording") ?? false;
+  const muteEnabled = useSetting("mute_while_recording") ?? false;
+  const updating = useIsSettingUpdating("mute_while_recording");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <SettingContainer
@@ -24,7 +28,7 @@ export const MuteWhileRecording = ({
     >
       <Switch
         checked={muteEnabled}
-        disabled={isUpdating("mute_while_recording")}
+        disabled={updating}
         onCheckedChange={(enabled) =>
           updateSetting("mute_while_recording", enabled)
         }

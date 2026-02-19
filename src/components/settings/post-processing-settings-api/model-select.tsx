@@ -1,7 +1,7 @@
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,

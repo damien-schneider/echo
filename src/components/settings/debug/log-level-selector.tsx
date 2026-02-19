@@ -6,8 +6,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import { SettingContainer } from "@/components/ui/SettingContainer";
-import { useSettings } from "@/hooks/use-settings";
+import { SettingContainer } from "@/components/ui/setting-container";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 const LOG_LEVEL_OPTIONS = [
   { value: "1", label: "Error" },
@@ -26,10 +30,11 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
   descriptionMode = "tooltip",
   grouped = false,
 }) => {
-  const { settings, updateSetting, isUpdating } = useSettings();
-  const currentLevel = settings?.log_level ?? 2;
-  const isLevelUpdating = isUpdating("log_level");
+  const logLevel = useSetting("log_level");
+  const isLevelUpdating = useIsSettingUpdating("log_level");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
+  const currentLevel = logLevel ?? 2;
   const selectedValue = currentLevel.toString();
 
   const handleSelect = async (value: string) => {
@@ -38,7 +43,7 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
       return;
     }
     try {
-      await updateSetting("log_level", parsed as unknown as number);
+      await updateSetting("log_level", parsed);
     } catch (error) {
       console.error("Failed to update log level:", error);
     }
@@ -54,7 +59,7 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
     >
       <div className="space-y-1">
         <Select
-          disabled={!settings || isLevelUpdating}
+          disabled={logLevel === undefined || isLevelUpdating}
           onValueChange={handleSelect}
           value={selectedValue}
         >

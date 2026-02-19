@@ -1,4 +1,3 @@
-import { useAtomValue, useSetAtom } from "jotai";
 import {
   AlertCircle,
   Bell,
@@ -11,24 +10,20 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import {
-  clearCompletedTranscriptionsAtom,
-  fileTranscriptionsAtom,
-  removeFileTranscriptionAtom,
-} from "@/lib/atoms/file-transcription-atoms";
 import { cn } from "@/lib/utils";
+import { useFileTranscriptionStore } from "@/stores/file-transcription-store";
 
 export function FileTranscriptionCenter() {
   const [open, setOpen] = useState(false);
-  const transcriptions = useAtomValue(fileTranscriptionsAtom);
-  const removeTranscription = useSetAtom(removeFileTranscriptionAtom);
-  const clearCompleted = useSetAtom(clearCompletedTranscriptionsAtom);
+  const transcriptions = useFileTranscriptionStore((s) => s.items);
+  const removeTranscription = useFileTranscriptionStore((s) => s.removeItem);
+  const clearCompleted = useFileTranscriptionStore((s) => s.clearCompleted);
 
   const processingCount = transcriptions.filter(
     (t) => t.status !== "complete" && t.status !== "error"

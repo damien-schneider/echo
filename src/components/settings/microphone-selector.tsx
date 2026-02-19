@@ -1,14 +1,19 @@
 import { Mic, RotateCcw } from "lucide-react";
-import { useSettings } from "../../hooks/use-settings";
-import { Button } from "../ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/Select";
-import { SettingContainer } from "../ui/SettingContainer";
+} from "@/components/ui/Select";
+import { SettingContainer } from "@/components/ui/setting-container";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsActions,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface MicrophoneSelectorProps {
   descriptionMode?: "inline" | "tooltip";
@@ -19,20 +24,16 @@ export const MicrophoneSelector = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: MicrophoneSelectorProps) => {
-  const {
-    getSetting,
-    updateSetting,
-    resetSetting,
-    isUpdating,
-    isLoading,
-    audioDevices,
-    refreshAudioDevices,
-  } = useSettings();
+  const selectedMicrophoneRaw = useSetting("selected_microphone");
+  const isUpdatingMic = useIsSettingUpdating("selected_microphone");
+  const isLoading = useSettingsStore((s) => s.isLoading);
+  const audioDevices = useSettingsStore((s) => s.audioDevices);
+  const { updateSetting, resetSetting } = useSettingsActions();
 
   const selectedMicrophone =
-    getSetting("selected_microphone") === "default"
+    selectedMicrophoneRaw === "default"
       ? "Default"
-      : getSetting("selected_microphone") || "Default";
+      : selectedMicrophoneRaw || "Default";
 
   const handleMicrophoneSelect = async (deviceName: string) => {
     await updateSetting("selected_microphone", deviceName);
@@ -52,11 +53,7 @@ export const MicrophoneSelector = ({
     >
       <div className="flex items-center space-x-1">
         <Select
-          disabled={
-            isUpdating("selected_microphone") ||
-            isLoading ||
-            audioDevices.length === 0
-          }
+          disabled={isUpdatingMic || isLoading || audioDevices.length === 0}
           onValueChange={handleMicrophoneSelect}
           value={selectedMicrophone}
         >
@@ -78,7 +75,7 @@ export const MicrophoneSelector = ({
           </SelectContent>
         </Select>
         <Button
-          disabled={isUpdating("selected_microphone") || isLoading}
+          disabled={isUpdatingMic || isLoading}
           onClick={handleReset}
           size="icon"
           variant="ghost"

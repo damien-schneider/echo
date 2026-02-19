@@ -1,7 +1,11 @@
 import { EyeOff } from "lucide-react";
-import { useSettings } from "../../hooks/use-settings";
-import { SettingContainer } from "../ui/SettingContainer";
-import { Switch } from "../ui/switch";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { Switch } from "@/components/ui/switch";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface StartHiddenProps {
   descriptionMode?: "inline" | "tooltip";
@@ -12,9 +16,9 @@ export const StartHidden = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: StartHiddenProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-
-  const startHidden = getSetting("start_hidden") ?? false;
+  const startHidden = useSetting("start_hidden") ?? false;
+  const updating = useIsSettingUpdating("start_hidden");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <SettingContainer
@@ -27,7 +31,7 @@ export const StartHidden = ({
     >
       <Switch
         checked={startHidden}
-        disabled={isUpdating("start_hidden")}
+        disabled={updating}
         onCheckedChange={(enabled) => updateSetting("start_hidden", enabled)}
       />
     </SettingContainer>

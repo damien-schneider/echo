@@ -1,42 +1,44 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Timer } from "lucide-react";
 import type React from "react";
-import { useSettings } from "../../hooks/use-settings";
-import type { ModelUnloadTimeout } from "../../lib/types";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/Select";
-import { SettingContainer } from "../ui/SettingContainer";
+} from "@/components/ui/Select";
+import { SettingContainer } from "@/components/ui/setting-container";
+import type { ModelUnloadTimeout } from "@/lib/types";
+import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 interface ModelUnloadTimeoutProps {
   descriptionMode?: "tooltip" | "inline";
   grouped?: boolean;
 }
 
-const timeoutOptions = [
-  { value: "never" as ModelUnloadTimeout, label: "Never" },
-  { value: "immediately" as ModelUnloadTimeout, label: "Immediately" },
-  { value: "min2" as ModelUnloadTimeout, label: "After 2 minutes" },
-  { value: "min5" as ModelUnloadTimeout, label: "After 5 minutes" },
-  { value: "min10" as ModelUnloadTimeout, label: "After 10 minutes" },
-  { value: "min15" as ModelUnloadTimeout, label: "After 15 minutes" },
-  { value: "hour1" as ModelUnloadTimeout, label: "After 1 hour" },
+const timeoutOptions: { value: ModelUnloadTimeout; label: string }[] = [
+  { value: "never", label: "Never" },
+  { value: "immediately", label: "Immediately" },
+  { value: "min2", label: "After 2 minutes" },
+  { value: "min5", label: "After 5 minutes" },
+  { value: "min10", label: "After 10 minutes" },
+  { value: "min15", label: "After 15 minutes" },
+  { value: "hour1", label: "After 1 hour" },
 ];
 
-const debugTimeoutOptions = [
+const debugTimeoutOptions: { value: ModelUnloadTimeout; label: string }[] = [
   ...timeoutOptions,
-  { value: "sec5" as ModelUnloadTimeout, label: "After 5 seconds (Debug)" },
+  { value: "sec5", label: "After 5 seconds (Debug)" },
 ];
 
 export const ModelUnloadTimeoutSetting: React.FC<ModelUnloadTimeoutProps> = ({
   descriptionMode = "inline",
   grouped = false,
 }) => {
-  const { settings, getSetting, updateSetting } = useSettings();
+  const modelUnloadTimeout = useSetting("model_unload_timeout");
+  const debugMode = useSetting("debug_mode");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   const handleChange = async (value: string) => {
     const newTimeout = value as ModelUnloadTimeout;
@@ -49,10 +51,9 @@ export const ModelUnloadTimeoutSetting: React.FC<ModelUnloadTimeoutProps> = ({
     }
   };
 
-  const currentValue = getSetting("model_unload_timeout") ?? "never";
+  const currentValue = modelUnloadTimeout ?? "never";
 
-  const options =
-    settings?.debug_mode === true ? debugTimeoutOptions : timeoutOptions;
+  const options = debugMode === true ? debugTimeoutOptions : timeoutOptions;
 
   return (
     <SettingContainer

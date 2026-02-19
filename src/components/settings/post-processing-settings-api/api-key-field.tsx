@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Input } from "../../ui/Input";
+import { Input } from "@/components/ui/Input";
+import { cn } from "@/lib/utils";
 
 interface ApiKeyFieldProps {
   value: string;
@@ -25,7 +26,7 @@ export const ApiKeyField: React.FC<ApiKeyFieldProps> = ({
 
   return (
     <Input
-      className={`min-w-[320px] flex-1 ${className}`}
+      className={cn("min-w-[320px] flex-1", className)}
       disabled={disabled}
       onBlur={() => onBlur(localValue)}
       onChange={(event) => setLocalValue(event.target.value)}

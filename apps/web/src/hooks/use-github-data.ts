@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 
+interface GitHubReleaseAsset {
+  name: string;
+  browser_download_url: string;
+}
+
 interface GithubData {
   stars: number | null;
   version: string | null;
@@ -40,27 +45,27 @@ export function useGithubData() {
     fetch("https://api.github.com/repos/damien-schneider/Echo/releases/latest")
       .then((res) => res.json())
       .then((releaseData) => {
-        const assets = releaseData.assets as any[];
+        const assets = releaseData.assets as GitHubReleaseAsset[];
         if (!assets) {
           return;
         }
 
         const links = {
           macSilicon:
-            assets.find((a: any) => a.name.endsWith("_aarch64.dmg"))
+            assets.find((a) => a.name.endsWith("_aarch64.dmg"))
               ?.browser_download_url || "",
           macIntel:
-            assets.find((a: any) => a.name.endsWith("_x64.dmg"))
+            assets.find((a) => a.name.endsWith("_x64.dmg"))
               ?.browser_download_url || "",
           windows:
-            assets.find((a: any) => a.name.endsWith("_x64_en-US.msi"))
+            assets.find((a) => a.name.endsWith("_x64_en-US.msi"))
               ?.browser_download_url || "",
           linuxAppImage:
-            assets.find((a: any) => a.name.endsWith(".AppImage"))
+            assets.find((a) => a.name.endsWith(".AppImage"))
               ?.browser_download_url || "",
           linuxDeb:
-            assets.find((a: any) => a.name.endsWith(".deb"))
-              ?.browser_download_url || "",
+            assets.find((a) => a.name.endsWith(".deb"))?.browser_download_url ||
+            "",
         };
 
         setData((prev) => ({

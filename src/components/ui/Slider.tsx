@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { useRef } from "react";
 import { cn } from "@/lib/utils";
-import { SettingContainer } from "./SettingContainer";
+import { SettingContainer } from "./setting-container";
 
 interface SliderProps {
   value: number;
@@ -76,14 +76,47 @@ export const Slider: React.FC<SliderProps> = ({
     document.addEventListener("mouseup", handleMouseUp);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) {
+      return;
+    }
+    const largeStep = (max - min) / 10;
+    if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+      e.preventDefault();
+      onChange(Math.min(max, value + step));
+    } else if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+      e.preventDefault();
+      onChange(Math.max(min, value - step));
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      onChange(min);
+    } else if (e.key === "End") {
+      e.preventDefault();
+      onChange(max);
+    } else if (e.key === "PageUp") {
+      e.preventDefault();
+      onChange(Math.min(max, value + largeStep));
+    } else if (e.key === "PageDown") {
+      e.preventDefault();
+      onChange(Math.max(min, value - largeStep));
+    }
+  };
+
   const sliderElement = (
     <div
+      aria-label={label}
+      aria-valuemax={max}
+      aria-valuemin={min}
+      aria-valuenow={value}
       className={cn(
         "group relative flex h-8 min-w-[180px] items-center justify-between overflow-hidden rounded-lg bg-muted",
         disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
       )}
+      onKeyDown={handleKeyDown}
       onMouseDown={handleMouseDown}
       ref={trackRef}
+      role="slider"
+      tabIndex={disabled ? -1 : 0}
     >
       {/* Fill area from left to thumb */}
       <motion.div

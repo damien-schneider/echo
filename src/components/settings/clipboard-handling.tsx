@@ -1,14 +1,18 @@
 import { ClipboardCopy } from "lucide-react";
-import { useSettings } from "../../hooks/use-settings";
-import type { ClipboardHandling } from "../../lib/types";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/Select";
-import { SettingContainer } from "../ui/SettingContainer";
+} from "@/components/ui/Select";
+import { SettingContainer } from "@/components/ui/setting-container";
+import type { ClipboardHandling } from "@/lib/types";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface ClipboardHandlingProps {
   descriptionMode?: "inline" | "tooltip";
@@ -24,10 +28,9 @@ export const ClipboardHandlingSetting = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: ClipboardHandlingProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-
-  const selectedHandling = (getSetting("clipboard_handling") ||
-    "dont_modify") as ClipboardHandling;
+  const selectedHandling = useSetting("clipboard_handling") || "dont_modify";
+  const updating = useIsSettingUpdating("clipboard_handling");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <SettingContainer
@@ -38,7 +41,7 @@ export const ClipboardHandlingSetting = ({
       title="Clipboard Handling"
     >
       <Select
-        disabled={isUpdating("clipboard_handling")}
+        disabled={updating}
         onValueChange={(val) =>
           updateSetting("clipboard_handling", val as ClipboardHandling)
         }

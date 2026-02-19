@@ -2,16 +2,20 @@ import { invoke } from "@tauri-apps/api/core";
 import { type as getOsType } from "@tauri-apps/plugin-os";
 import { Clipboard, Info } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useSettings } from "../../hooks/use-settings";
-import type { PasteMethod } from "../../lib/types";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/Select";
-import { SettingContainer } from "../ui/SettingContainer";
+} from "@/components/ui/Select";
+import { SettingContainer } from "@/components/ui/setting-container";
+import type { PasteMethod } from "@/lib/types";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface PasteMethodProps {
   descriptionMode?: "inline" | "tooltip";
@@ -55,7 +59,9 @@ export const PasteMethodSetting = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: PasteMethodProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
+  const pasteMethod = useSetting("paste_method");
+  const isPasteMethodUpdating = useIsSettingUpdating("paste_method");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
   const [osType, setOsType] = useState<string>("unknown");
   const [isWayland, setIsWayland] = useState(false);
 
@@ -66,8 +72,7 @@ export const PasteMethodSetting = ({
       .catch(() => setIsWayland(false));
   }, []);
 
-  const selectedMethod = (getSetting("paste_method") ||
-    "ctrl_v") as PasteMethod;
+  const selectedMethod = pasteMethod || "ctrl_v";
 
   const pasteMethodOptions = getPasteMethodOptions(osType, isWayland);
 
@@ -86,7 +91,7 @@ export const PasteMethodSetting = ({
     >
       <div className="flex items-center gap-2">
         <Select
-          disabled={isWayland || isUpdating("paste_method")}
+          disabled={isWayland || isPasteMethodUpdating}
           onValueChange={(val) =>
             updateSetting("paste_method", val as PasteMethod)
           }

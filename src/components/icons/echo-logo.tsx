@@ -11,9 +11,11 @@ export default function EchoLogo({
   if (variant === "sm") {
     return (
       <svg
+        aria-label="Echo logo"
         className={cn("text-[#212121] dark:text-[#EFEFEF]", className)}
         fill="none"
         height={height}
+        role="img"
         viewBox="0 0 78 79"
         width={width}
         xmlns="http://www.w3.org/2000/svg"
@@ -29,9 +31,11 @@ export default function EchoLogo({
   if (variant === "full") {
     return (
       <svg
+        aria-label="Echo logo"
         className={cn("text-[#212121] dark:text-[#EFEFEF]", className)}
         fill="none"
         height={height}
+        role="img"
         viewBox="0 0 301 82"
         width={width}
         xmlns="http://www.w3.org/2000/svg"

@@ -1,5 +1,5 @@
 import type React from "react";
-import { SettingContainer } from "../../ui/SettingContainer";
+import { SettingContainer } from "@/components/ui/setting-container";
 
 interface DebugPathsProps {
   descriptionMode?: "tooltip" | "inline";

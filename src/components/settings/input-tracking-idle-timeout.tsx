@@ -8,8 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/Select";
-import { SettingContainer } from "@/components/ui/SettingContainer";
-import { useSettings } from "@/hooks/use-settings";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 interface InputTrackingIdleTimeoutProps {
   descriptionMode?: "tooltip" | "inline";
@@ -26,7 +26,8 @@ const timeoutOptions = [
 export const InputTrackingIdleTimeout: React.FC<
   InputTrackingIdleTimeoutProps
 > = ({ descriptionMode = "tooltip", grouped = false }) => {
-  const { getSetting, updateSetting } = useSettings();
+  const currentValue = useSetting("input_tracking_idle_timeout");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   const handleChange = async (value: string) => {
     const newTimeout = value === "0" ? null : Number(value);
@@ -40,8 +41,6 @@ export const InputTrackingIdleTimeout: React.FC<
       console.error("Failed to update input tracking idle timeout:", error);
     }
   };
-
-  const currentValue = getSetting("input_tracking_idle_timeout");
   // Convert null/undefined/0 to "0" string, otherwise use the number as string
   const selectValue =
     currentValue === null || currentValue === undefined || currentValue === 0

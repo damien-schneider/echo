@@ -1,8 +1,8 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/Badge";
-import { AboutDialog } from "../settings/about/about-dialog";
-import UpdateChecker from "../update-checker";
+import { AboutDialog } from "@/components/settings/about/about-dialog";
+import { Badge } from "@/components/ui/badge";
+import UpdateChecker from "@/components/update-checker/update-checker";
 
 const Footer = () => {
   const [version, setVersion] = useState("");

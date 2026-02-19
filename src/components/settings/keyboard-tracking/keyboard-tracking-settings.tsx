@@ -1,13 +1,12 @@
 import { Keyboard } from "lucide-react";
-import { CollapsibleSettingsGroup } from "@/components/ui/CollapsibleSettingsGroup";
-import { useSettings } from "@/hooks/use-settings";
-import { InputTrackingExcludedApps } from "../input-tracking-excluded-apps";
-import { InputTrackingIdleTimeout } from "../input-tracking-idle-timeout";
-import { InputTrackingToggle } from "../input-tracking-toggle";
+import { InputTrackingExcludedApps } from "@/components/settings/input-tracking-excluded-apps";
+import { InputTrackingIdleTimeout } from "@/components/settings/input-tracking-idle-timeout";
+import { InputTrackingToggle } from "@/components/settings/input-tracking-toggle";
+import { CollapsibleSettingsGroup } from "@/components/ui/collapsible-settings-group";
+import { useSetting } from "@/stores/settings-store";
 
 export const KeyboardTrackingSettings = () => {
-  const { getSetting } = useSettings();
-  const inputTrackingEnabled = getSetting("input_tracking_enabled") ?? false;
+  const inputTrackingEnabled = useSetting("input_tracking_enabled") ?? false;
 
   return (
     <div className="mx-auto w-full max-w-3xl pb-20">

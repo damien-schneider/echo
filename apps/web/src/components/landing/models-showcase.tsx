@@ -169,6 +169,26 @@ function ModelCard({
   );
 }
 
+const getSpeedLabel = (score: number): string => {
+  if (score >= 0.8) {
+    return "Very Fast";
+  }
+  if (score >= 0.5) {
+    return "Medium";
+  }
+  return "Slower";
+};
+
+const getFeatureIcon = (feature: string) => {
+  if (feature.includes("language") || feature.includes("English")) {
+    return <Languages className="h-3 w-3" />;
+  }
+  if (feature.includes("CPU") || feature.includes("GPU")) {
+    return <Cpu className="h-3 w-3" />;
+  }
+  return <Globe className="h-3 w-3" />;
+};
+
 function ModelDetail({ model }: { model: ModelData }) {
   return (
     <motion.div
@@ -221,11 +241,7 @@ function ModelDetail({ model }: { model: ModelData }) {
             <span className="text-xs">Processing</span>
           </div>
           <p className="font-medium text-foreground text-lg">
-            {model.speedScore >= 0.8
-              ? "Very Fast"
-              : model.speedScore >= 0.5
-                ? "Medium"
-                : "Slower"}
+            {getSpeedLabel(model.speedScore)}
           </p>
         </div>
       </div>
@@ -242,13 +258,7 @@ function ModelDetail({ model }: { model: ModelData }) {
               key={feature}
               transition={{ duration: 0.3, delay: i * 0.1 }}
             >
-              {feature.includes("language") || feature.includes("English") ? (
-                <Languages className="h-3 w-3" />
-              ) : feature.includes("CPU") || feature.includes("GPU") ? (
-                <Cpu className="h-3 w-3" />
-              ) : (
-                <Globe className="h-3 w-3" />
-              )}
+              {getFeatureIcon(feature)}
               {feature}
             </motion.span>
           ))}

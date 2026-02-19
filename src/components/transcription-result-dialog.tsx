@@ -2,7 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { CheckCircle2, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 interface TranscriptionResultDialogProps {
   onClose?: () => void;
@@ -39,7 +39,9 @@ export const TranscriptionResultDialog: React.FC<
     await navigator.clipboard.writeText(transcriptionText);
   };
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">

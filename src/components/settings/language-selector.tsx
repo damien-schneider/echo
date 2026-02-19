@@ -1,11 +1,9 @@
 import { listen } from "@tauri-apps/api/event";
+// biome-ignore lint/performance/noNamespaceImport: Dynamic flag component lookup by country code requires namespace import
 import * as Flags from "country-flag-icons/react/3x2";
 import { ChevronsUpDown, Globe, RotateCcw } from "lucide-react";
 import React, { useId, useState } from "react";
-import { useModels } from "../../hooks/use-models";
-import { useSettings } from "../../hooks/use-settings";
-import { LANGUAGES } from "../../lib/constants/languages";
-import { Button } from "../ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -13,9 +11,20 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "../ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { SettingContainer } from "../ui/SettingContainer";
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { useModels } from "@/hooks/use-models";
+import { LANGUAGES } from "@/lib/constants/languages";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface LanguageSelectorProps {
   descriptionMode?: "inline" | "tooltip";
@@ -29,7 +38,9 @@ const getFlagComponent = (countryCode?: string) => {
   if (!countryCode) {
     return null;
   }
-  const FlagComponent = (Flags as any)[countryCode];
+  const FlagComponent = (
+    Flags as Record<string, React.ComponentType<{ className?: string }>>
+  )[countryCode];
   return FlagComponent || null;
 };
 
@@ -38,11 +49,12 @@ export const LanguageSelector = ({
   grouped = false,
 }: LanguageSelectorProps) => {
   const id = useId();
-  const { getSetting, updateSetting, resetSetting, isUpdating } = useSettings();
+  const selectedLanguage = useSetting("selected_language") || "auto";
+  const isLanguageUpdating = useIsSettingUpdating("selected_language");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const resetSetting = useSettingsStore((s) => s.resetSetting);
   const { currentModel, loadCurrentModel } = useModels();
   const [isOpen, setIsOpen] = useState(false);
-
-  const selectedLanguage = getSetting("selected_language") || "auto";
   const isUnsupported = unsupportedModels.includes(currentModel);
 
   // Listen for model state changes to update UI reactively
@@ -96,7 +108,7 @@ export const LanguageSelector = ({
               <Button
                 aria-expanded={isOpen}
                 className="w-full min-w-[200px] justify-between"
-                disabled={isUpdating("selected_language") || isUnsupported}
+                disabled={isLanguageUpdating || isUnsupported}
                 id={id}
                 role="combobox"
                 variant="secondary"
@@ -162,7 +174,7 @@ export const LanguageSelector = ({
             </PopoverContent>
           </Popover>
           <Button
-            disabled={isUpdating("selected_language") || isUnsupported}
+            disabled={isLanguageUpdating || isUnsupported}
             onClick={handleReset}
             size="icon"
             variant="ghost"
@@ -172,7 +184,7 @@ export const LanguageSelector = ({
         </div>
       )}
 
-      {isUpdating("selected_language") && (
+      {isLanguageUpdating && (
         <div className="absolute inset-0 flex items-center justify-center rounded bg-muted/10">
           <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand border-t-transparent" />
         </div>

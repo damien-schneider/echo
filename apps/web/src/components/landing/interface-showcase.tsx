@@ -52,8 +52,10 @@ export default function InterfaceShowcase() {
             <img
               alt="Echo app interface showing the settings panel with options for shortcuts, language, microphone selection, and audio feedback"
               className="h-auto w-full"
+              height={630}
               loading="lazy"
               src="/opengraph-image.png"
+              width={1200}
             />
 
             {/* Subtle overlay gradient for depth */}

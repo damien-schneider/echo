@@ -1,8 +1,8 @@
-import { CollapsibleSettingsGroup } from "@/components/ui/CollapsibleSettingsGroup";
-import { CustomWords } from "../custom-words";
-import { LanguageSelector } from "../language-selector";
-import { ModelUnloadTimeoutSetting } from "../model-unload-timeout";
-import { TranslateToEnglish } from "../translate-to-english";
+import { CustomWords } from "@/components/settings/custom-words";
+import { LanguageSelector } from "@/components/settings/language-selector";
+import { ModelUnloadTimeoutSetting } from "@/components/settings/model-unload-timeout";
+import { TranslateToEnglish } from "@/components/settings/translate-to-english";
+import { CollapsibleSettingsGroup } from "@/components/ui/collapsible-settings-group";
 
 export const TranscriptionSettings = () => (
   <div className="mx-auto w-full max-w-3xl pb-20">

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { Input } from "../../ui/Input";
+import { Input } from "@/components/ui/Input";
+import { cn } from "@/lib/utils";
 
 interface BaseUrlFieldProps {
   value: string;
@@ -37,7 +38,7 @@ export const BaseUrlField: React.FC<BaseUrlFieldProps> = ({
 
   return (
     <Input
-      className={`min-w-[360px] flex-1 ${className}`}
+      className={cn("min-w-[360px] flex-1", className)}
       disabled={disabled}
       onBlur={() => onBlur(localValue)}
       onChange={handleChange}

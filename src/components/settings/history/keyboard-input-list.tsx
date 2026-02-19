@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Keyboard, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { type InputEntry, KeyboardInputEntry } from "./keyboard-input-entry";
 
 export const KeyboardInputList = () => {
@@ -10,7 +10,7 @@ export const KeyboardInputList = () => {
   const [loading, setLoading] = useState(true);
   const [confirmClearAll, setConfirmClearAll] = useState(false);
 
-  const loadEntries = async () => {
+  const loadEntries = useCallback(async () => {
     try {
       const data = await invoke<InputEntry[]>("get_input_entries", {
         limit: 100,
@@ -21,14 +21,13 @@ export const KeyboardInputList = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     loadEntries();
 
     const setupListener = async () => {
       const unlisten = await listen("input-entries-updated", () => {
-        console.log("Input entries updated, reloading...");
         loadEntries();
       });
       return unlisten;

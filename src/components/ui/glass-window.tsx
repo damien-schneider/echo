@@ -1,5 +1,12 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import * as React from "react";
+import {
+  type CSSProperties,
+  type HTMLAttributes,
+  type ReactNode,
+  type Ref,
+  useEffect,
+  useState,
+} from "react";
 import { getNormalizedOsPlatform } from "@/lib/os";
 import { cn } from "@/lib/utils";
 
@@ -8,8 +15,8 @@ const platform = getNormalizedOsPlatform();
 const isWindows = platform === "windows";
 const isLinux = platform === "linux";
 
-export interface GlassWindowProps extends React.HTMLAttributes<HTMLDivElement> {
-  children: React.ReactNode;
+export interface GlassWindowProps extends HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
 }
 
 /**
@@ -21,10 +28,10 @@ const GlassWindow = ({
   children,
   ref,
   ...props
-}: GlassWindowProps & { ref?: React.Ref<HTMLDivElement> }) => {
-  const [isMaximized, setIsMaximized] = React.useState(false);
+}: GlassWindowProps & { ref?: Ref<HTMLDivElement> }) => {
+  const [isMaximized, setIsMaximized] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const appWindow = getCurrentWindow();
 
     const updateIsMaximized = async () => {
@@ -37,7 +44,7 @@ const GlassWindow = ({
     };
 
     // Check initial state
-    void updateIsMaximized();
+    updateIsMaximized();
 
     // Listen for resize events to detect maximize/restore
     const unlisten = appWindow.onResized(async () => {
@@ -100,7 +107,7 @@ const GlassWindow = ({
         className
       )}
       ref={ref}
-      style={glassStyles as React.CSSProperties}
+      style={glassStyles as CSSProperties}
       {...props}
     >
       {/* Noise/grain overlay - only show when not maximized and not on Windows/Linux */}

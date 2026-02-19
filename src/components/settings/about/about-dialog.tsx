@@ -3,8 +3,18 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExternalLink, Github, Heart, Info } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
-import { CollapsibleSettingsGroup } from "@/components/ui/CollapsibleSettingsGroup";
+import { AlwaysOnMicrophone } from "@/components/settings/always-on-microphone";
+import { AppDataDirectory } from "@/components/settings/app-data-directory";
+import { ClamshellMicrophoneSelector } from "@/components/settings/clamshell-microphone-selector";
+import { LogDirectory } from "@/components/settings/debug/log-directory";
+import { LogLevelSelector } from "@/components/settings/debug/log-level-selector";
+import { WordCorrectionThreshold } from "@/components/settings/debug/word-correction-threshold";
+import { HistoryLimit } from "@/components/settings/history-limit";
+import { MuteWhileRecording } from "@/components/settings/mute-while-recording";
+import { RecordingRetentionPeriodSelector } from "@/components/settings/recording-retention-period";
+import { SoundPicker } from "@/components/settings/sound-picker";
+import { Button } from "@/components/ui/button";
+import { CollapsibleSettingsGroup } from "@/components/ui/collapsible-settings-group";
 import {
   Dialog,
   DialogContent,
@@ -13,19 +23,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { SettingContainer } from "@/components/ui/SettingContainer";
+import { SettingContainer } from "@/components/ui/setting-container";
 import { Switch } from "@/components/ui/switch";
-import { useSettings } from "@/hooks/use-settings";
-import { AlwaysOnMicrophone } from "../always-on-microphone";
-import { AppDataDirectory } from "../app-data-directory";
-import { ClamshellMicrophoneSelector } from "../clamshell-microphone-selector";
-import { LogDirectory } from "../debug/log-directory";
-import { LogLevelSelector } from "../debug/log-level-selector";
-import { WordCorrectionThreshold } from "../debug/word-correction-threshold";
-import { HistoryLimit } from "../history-limit";
-import { MuteWhileRecording } from "../mute-while-recording";
-import { RecordingRetentionPeriodSelector } from "../recording-retention-period";
-import { SoundPicker } from "../sound-picker";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface AboutDialogProps {
   trigger?: React.ReactNode;
@@ -34,9 +38,9 @@ interface AboutDialogProps {
 export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
   const [version, setVersion] = useState("");
   const [open, setOpen] = useState(false);
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-
-  const debugLoggingEnabled = getSetting("debug_logging_enabled") ?? false;
+  const debugLoggingEnabled = useSetting("debug_logging_enabled") ?? false;
+  const debugLoggingUpdating = useIsSettingUpdating("debug_logging_enabled");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   useEffect(() => {
     const fetchVersion = async () => {
@@ -167,7 +171,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
             >
               <Switch
                 checked={debugLoggingEnabled}
-                disabled={isUpdating("debug_logging_enabled")}
+                disabled={debugLoggingUpdating}
                 onCheckedChange={(value) =>
                   updateSetting("debug_logging_enabled", value)
                 }

@@ -5,16 +5,24 @@ import { AlertTriangle, Keyboard, RotateCcw } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useSettings } from "../../hooks/use-settings";
+import { Button } from "@/components/ui/button";
+import { SettingContainer } from "@/components/ui/setting-container";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   formatKeyCombination,
   getKeyName,
   normalizeKey,
   type OSType,
-} from "../../lib/utils/keyboard";
-import { Button } from "../ui/Button";
-import { SettingContainer } from "../ui/SettingContainer";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+} from "@/lib/utils/keyboard";
+import {
+  useSetting,
+  useSettingsActions,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 /** Wayland shortcut info from the portal */
 interface WaylandShortcutInfo {
@@ -32,8 +40,10 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
   descriptionMode = "tooltip",
   grouped = false,
 }) => {
-  const { getSetting, updateBinding, resetBinding, isUpdating, isLoading } =
-    useSettings();
+  const bindings = useSetting("bindings") ?? {};
+  const isLoading = useSettingsStore((s) => s.isLoading);
+  const isUpdatingMap = useSettingsStore((s) => s.isUpdating);
+  const { updateBinding, resetBinding } = useSettingsActions();
   const [keyPressed, setKeyPressed] = useState<string[]>([]);
   const [recordedKeys, setRecordedKeys] = useState<string[]>([]);
   const [editingShortcutId, setEditingShortcutId] = useState<string | null>(
@@ -47,8 +57,6 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
   >([]);
   const shortcutRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
 
-  const bindings = getSetting("bindings") || {};
-
   // Detect if running on Wayland
   useEffect(() => {
     const checkWayland = async () => {
@@ -56,12 +64,10 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
         const wayland = await invoke<boolean>("is_wayland_session");
         setIsWayland(wayland);
         if (wayland) {
-          console.log("[EchoShortcut] Running on Wayland");
           // Fetch current Wayland shortcuts
           const shortcuts = await invoke<WaylandShortcutInfo[]>(
             "get_wayland_shortcuts"
           );
-          console.log("[EchoShortcut] Wayland shortcuts:", shortcuts);
           setWaylandShortcuts(shortcuts);
         }
       } catch (error) {
@@ -80,10 +86,6 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
     const unlisten = listen<WaylandShortcutInfo[]>(
       "wayland-shortcuts-ready",
       (event) => {
-        console.log(
-          "[EchoShortcut] Received wayland-shortcuts-ready:",
-          event.payload
-        );
         setWaylandShortcuts(event.payload);
       }
     );
@@ -102,10 +104,6 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
     const unlisten = listen<WaylandShortcutInfo[]>(
       "wayland-shortcuts-changed",
       (event) => {
-        console.log(
-          "[EchoShortcut] Received wayland-shortcuts-changed:",
-          event.payload
-        );
         setWaylandShortcuts(event.payload);
       }
     );
@@ -117,7 +115,7 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
 
   // Detect and store OS type
   useEffect(() => {
-    const detectOsType = async () => {
+    const detectOsType = () => {
       try {
         const detectedType = type();
         let normalizedType: OSType;
@@ -154,35 +152,35 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
 
     let cleanup = false;
 
-    // Keyboard event listeners
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      if (cleanup) {
-        return;
-      }
-      if (e.repeat) {
-        return; // ignore auto-repeat
-      }
-      if (e.key === "Escape") {
-        // Cancel recording and restore original binding
-        if (editingShortcutId && originalBinding) {
-          try {
-            await updateBinding(editingShortcutId, originalBinding);
-            await invoke("resume_binding", { id: editingShortcutId }).catch(
-              console.error
-            );
-          } catch (error) {
-            console.error("Failed to restore original binding:", error);
-            toast.error("Failed to restore original shortcut");
-          }
-        } else if (editingShortcutId) {
+    const cancelRecording = async () => {
+      if (editingShortcutId && originalBinding) {
+        try {
+          await updateBinding(editingShortcutId, originalBinding);
           await invoke("resume_binding", { id: editingShortcutId }).catch(
             console.error
           );
+        } catch (error) {
+          console.error("Failed to restore original binding:", error);
+          toast.error("Failed to restore original shortcut");
         }
-        setEditingShortcutId(null);
-        setKeyPressed([]);
-        setRecordedKeys([]);
-        setOriginalBinding("");
+      } else if (editingShortcutId) {
+        await invoke("resume_binding", { id: editingShortcutId }).catch(
+          console.error
+        );
+      }
+      setEditingShortcutId(null);
+      setKeyPressed([]);
+      setRecordedKeys([]);
+      setOriginalBinding("");
+    };
+
+    // Keyboard event listeners
+    const handleKeyDown = async (e: KeyboardEvent) => {
+      if (cleanup || e.repeat) {
+        return;
+      }
+      if (e.key === "Escape") {
+        await cancelRecording();
         return;
       }
       e.preventDefault();
@@ -196,6 +194,29 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
         // Also add to recorded keys if not already there
         if (!recordedKeys.includes(key)) {
           setRecordedKeys((prev) => [...prev, key]);
+        }
+      }
+    };
+
+    const commitShortcut = async (bindingId: string, shortcut: string) => {
+      try {
+        await updateBinding(bindingId, shortcut);
+        await invoke("resume_binding", { id: bindingId }).catch(console.error);
+      } catch (error) {
+        console.error("Failed to change binding:", error);
+        toast.error(`Failed to set shortcut: ${error}`);
+
+        // Reset to original binding on error
+        if (originalBinding) {
+          try {
+            await updateBinding(bindingId, originalBinding);
+            await invoke("resume_binding", { id: bindingId }).catch(
+              console.error
+            );
+          } catch (resetError) {
+            console.error("Failed to reset binding:", resetError);
+            toast.error("Failed to reset shortcut to original value");
+          }
         }
       }
     };
@@ -215,42 +236,23 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
 
       // If no keys are pressed anymore, commit the shortcut
       const updatedKeyPressed = keyPressed.filter((k) => k !== key);
-      if (updatedKeyPressed.length === 0 && recordedKeys.length > 0) {
-        // Create the shortcut string from all recorded keys
-        const newShortcut = recordedKeys.join("+");
-
-        if (editingShortcutId && bindings[editingShortcutId]) {
-          try {
-            await updateBinding(editingShortcutId, newShortcut);
-            // Re-register the shortcut now that recording is finished
-            await invoke("resume_binding", { id: editingShortcutId }).catch(
-              console.error
-            );
-          } catch (error) {
-            console.error("Failed to change binding:", error);
-            toast.error(`Failed to set shortcut: ${error}`);
-
-            // Reset to original binding on error
-            if (originalBinding) {
-              try {
-                await updateBinding(editingShortcutId, originalBinding);
-                await invoke("resume_binding", { id: editingShortcutId }).catch(
-                  console.error
-                );
-              } catch (resetError) {
-                console.error("Failed to reset binding:", resetError);
-                toast.error("Failed to reset shortcut to original value");
-              }
-            }
-          }
-
-          // Exit editing mode and reset states
-          setEditingShortcutId(null);
-          setKeyPressed([]);
-          setRecordedKeys([]);
-          setOriginalBinding("");
-        }
+      if (updatedKeyPressed.length !== 0 || recordedKeys.length === 0) {
+        return;
       }
+
+      if (!(editingShortcutId && bindings[editingShortcutId])) {
+        return;
+      }
+
+      // Create the shortcut string from all recorded keys
+      const newShortcut = recordedKeys.join("+");
+      await commitShortcut(editingShortcutId, newShortcut);
+
+      // Exit editing mode and reset states
+      setEditingShortcutId(null);
+      setKeyPressed([]);
+      setRecordedKeys([]);
+      setOriginalBinding("");
     };
 
     // Add click outside handler
@@ -260,26 +262,7 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
       }
       const activeElement = shortcutRefs.current.get(editingShortcutId);
       if (activeElement && !activeElement.contains(e.target as Node)) {
-        // Cancel shortcut recording and restore original binding
-        if (editingShortcutId && originalBinding) {
-          try {
-            await updateBinding(editingShortcutId, originalBinding);
-            await invoke("resume_binding", { id: editingShortcutId }).catch(
-              console.error
-            );
-          } catch (error) {
-            console.error("Failed to restore original binding:", error);
-            toast.error("Failed to restore original shortcut");
-          }
-        } else if (editingShortcutId) {
-          invoke("resume_binding", { id: editingShortcutId }).catch(
-            console.error
-          );
-        }
-        setEditingShortcutId(null);
-        setKeyPressed([]);
-        setRecordedKeys([]);
-        setOriginalBinding("");
+        await cancelRecording();
       }
     };
 
@@ -422,7 +405,7 @@ export const EchoShortcut: React.FC<EchoShortcutProps> = ({
               </Button>
             )}
             <Button
-              disabled={isUpdating(`binding_${primaryId}`)}
+              disabled={isUpdatingMap[`binding_${primaryId}`]}
               onClick={() => resetBinding(primaryId)}
               size="icon"
               variant="ghost"

@@ -40,6 +40,8 @@ function WaveformBar({
   );
 }
 
+const WAVEFORM_BAR_IDS = Array.from({ length: 40 }, (_, i) => `bar-${i}`);
+
 export default function Waveform() {
   const time = useTime();
 
@@ -65,8 +67,8 @@ export default function Waveform() {
           </div>
 
           <div className="flex h-32 w-full items-center justify-center gap-1 px-20">
-            {Array.from({ length: 40 }).map((_, i) => (
-              <WaveformBar index={i} key={i} time={time} />
+            {WAVEFORM_BAR_IDS.map((id, index) => (
+              <WaveformBar index={index} key={id} time={time} />
             ))}
           </div>
 

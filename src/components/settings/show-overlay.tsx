@@ -1,14 +1,18 @@
 import { Layers } from "lucide-react";
-import { useSettings } from "../../hooks/use-settings";
-import type { OverlayPosition } from "../../lib/types";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/Select";
-import { SettingContainer } from "../ui/SettingContainer";
+} from "@/components/ui/Select";
+import { SettingContainer } from "@/components/ui/setting-container";
+import type { OverlayPosition } from "@/lib/types";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface ShowOverlayProps {
   descriptionMode?: "inline" | "tooltip";
@@ -25,10 +29,9 @@ export const ShowOverlay = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: ShowOverlayProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-
-  const selectedPosition = (getSetting("overlay_position") ||
-    "bottom") as OverlayPosition;
+  const selectedPosition = useSetting("overlay_position") || "bottom";
+  const updating = useIsSettingUpdating("overlay_position");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <SettingContainer
@@ -39,7 +42,7 @@ export const ShowOverlay = ({
       title="Overlay Position"
     >
       <Select
-        disabled={isUpdating("overlay_position")}
+        disabled={updating}
         onValueChange={(val) =>
           updateSetting("overlay_position", val as OverlayPosition)
         }

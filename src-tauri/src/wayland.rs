@@ -1,4 +1,5 @@
-use log::{debug, error, info, warn};
+#[cfg(target_os = "linux")]
+use log::{debug, info, warn};
 use tauri::{Runtime, WebviewWindow};
 
 /// Check if running under a Wayland session.
@@ -12,6 +13,7 @@ pub fn is_wayland() -> bool {
 }
 
 #[cfg(not(target_os = "linux"))]
+#[allow(dead_code)]
 pub fn is_wayland() -> bool {
     false
 }
@@ -86,6 +88,7 @@ pub fn init_layer_shell<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), Str
 }
 
 #[cfg(not(target_os = "linux"))]
+#[allow(dead_code)]
 pub fn init_layer_shell<R: Runtime>(_window: &WebviewWindow<R>) -> Result<(), String> {
     // No-op on other platforms
     Ok(())
@@ -139,11 +142,13 @@ pub fn present_gnome_overlay<R: Runtime>(window: &WebviewWindow<R>) {
 }
 
 #[cfg(not(target_os = "linux"))]
+#[allow(dead_code)]
 pub fn configure_gnome_overlay<R: Runtime>(_window: &WebviewWindow<R>) {
     // No-op
 }
 
 #[cfg(not(target_os = "linux"))]
+#[allow(dead_code)]
 pub fn present_gnome_overlay<R: Runtime>(_window: &WebviewWindow<R>) {
     // No-op
 }

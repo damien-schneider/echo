@@ -1,8 +1,8 @@
 import { Check, Copy } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { Button } from "./Button";
-import { SettingContainer } from "./SettingContainer";
+import { Button } from "./button";
+import { SettingContainer } from "./setting-container";
 
 interface TextDisplayProps {
   label: string;

@@ -75,10 +75,8 @@ const BreadcrumbPage = ({
 }) => (
   <span
     aria-current="page"
-    aria-disabled="true"
     className={cn("font-normal text-foreground", className)}
     ref={ref}
-    role="link"
     {...props}
   />
 );
@@ -92,7 +90,6 @@ const BreadcrumbSeparator = ({
   <li
     aria-hidden="true"
     className={cn("[&>svg]:h-3.5 [&>svg]:w-3.5", className)}
-    role="presentation"
     {...props}
   >
     {children ?? <ChevronRight />}

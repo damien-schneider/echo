@@ -2,6 +2,73 @@ import { type HTMLAttributes, useEffect, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 
+const computeStaticProcessingBar = (
+  i: number,
+  halfCount: number,
+  time: number,
+  transitionProgress: number,
+  lastActiveData: number[]
+): number => {
+  const normalizedPosition = (i - halfCount) / halfCount;
+  const centerWeight = 1 - Math.abs(normalizedPosition) * 0.4;
+  const wave1 = Math.sin(time * 1.5 + normalizedPosition * 3) * 0.25;
+  const wave2 = Math.sin(time * 0.8 - normalizedPosition * 2) * 0.2;
+  const wave3 = Math.cos(time * 2 + normalizedPosition) * 0.15;
+  const processingValue = (0.2 + wave1 + wave2 + wave3) * centerWeight;
+
+  let finalValue = processingValue;
+  if (lastActiveData.length > 0 && transitionProgress < 1) {
+    const lastValue =
+      lastActiveData[Math.min(i, lastActiveData.length - 1)] || 0;
+    finalValue =
+      lastValue * (1 - transitionProgress) +
+      processingValue * transitionProgress;
+  }
+  return Math.max(0.05, Math.min(1, finalValue));
+};
+
+const computeRollingProcessingBar = (
+  i: number,
+  barCount: number,
+  time: number,
+  transitionProgress: number,
+  lastActiveData: number[]
+): number => {
+  const normalizedPosition = (i - barCount / 2) / (barCount / 2);
+  const centerWeight = 1 - Math.abs(normalizedPosition) * 0.4;
+  const wave1 = Math.sin(time * 1.5 + i * 0.15) * 0.25;
+  const wave2 = Math.sin(time * 0.8 - i * 0.1) * 0.2;
+  const wave3 = Math.cos(time * 2 + i * 0.05) * 0.15;
+  const processingValue = (0.2 + wave1 + wave2 + wave3) * centerWeight;
+
+  let finalValue = processingValue;
+  if (lastActiveData.length > 0 && transitionProgress < 1) {
+    const lastValue =
+      lastActiveData[Math.floor((i / barCount) * lastActiveData.length)] || 0;
+    finalValue =
+      lastValue * (1 - transitionProgress) +
+      processingValue * transitionProgress;
+  }
+  return Math.max(0.05, Math.min(1, finalValue));
+};
+
+const drawWfBar = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) => {
+  if (radius > 0) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.fill();
+  } else {
+    ctx.fillRect(x, y, width, height);
+  }
+};
+
 export type LiveWaveformProps = HTMLAttributes<HTMLDivElement> & {
   active?: boolean;
   processing?: boolean;
@@ -118,7 +185,7 @@ export const LiveWaveform = ({
           transitionProgressRef.current + 0.02
         );
 
-        const processingData = [];
+        const processingData: number[] = [];
         const barCount = Math.floor(
           (containerRef.current?.getBoundingClientRect().width || 200) /
             (barWidth + barGap)
@@ -126,60 +193,28 @@ export const LiveWaveform = ({
 
         if (mode === "static") {
           const halfCount = Math.floor(barCount / 2);
-
           for (let i = 0; i < barCount; i++) {
-            const normalizedPosition = (i - halfCount) / halfCount;
-            const centerWeight = 1 - Math.abs(normalizedPosition) * 0.4;
-
-            const wave1 = Math.sin(time * 1.5 + normalizedPosition * 3) * 0.25;
-            const wave2 = Math.sin(time * 0.8 - normalizedPosition * 2) * 0.2;
-            const wave3 = Math.cos(time * 2 + normalizedPosition) * 0.15;
-            const combinedWave = wave1 + wave2 + wave3;
-            const processingValue = (0.2 + combinedWave) * centerWeight;
-
-            let finalValue = processingValue;
-            if (
-              lastActiveDataRef.current.length > 0 &&
-              transitionProgressRef.current < 1
-            ) {
-              const lastDataIndex = Math.min(
+            processingData.push(
+              computeStaticProcessingBar(
                 i,
-                lastActiveDataRef.current.length - 1
-              );
-              const lastValue = lastActiveDataRef.current[lastDataIndex] || 0;
-              finalValue =
-                lastValue * (1 - transitionProgressRef.current) +
-                processingValue * transitionProgressRef.current;
-            }
-
-            processingData.push(Math.max(0.05, Math.min(1, finalValue)));
+                halfCount,
+                time,
+                transitionProgressRef.current,
+                lastActiveDataRef.current
+              )
+            );
           }
         } else {
           for (let i = 0; i < barCount; i++) {
-            const normalizedPosition = (i - barCount / 2) / (barCount / 2);
-            const centerWeight = 1 - Math.abs(normalizedPosition) * 0.4;
-
-            const wave1 = Math.sin(time * 1.5 + i * 0.15) * 0.25;
-            const wave2 = Math.sin(time * 0.8 - i * 0.1) * 0.2;
-            const wave3 = Math.cos(time * 2 + i * 0.05) * 0.15;
-            const combinedWave = wave1 + wave2 + wave3;
-            const processingValue = (0.2 + combinedWave) * centerWeight;
-
-            let finalValue = processingValue;
-            if (
-              lastActiveDataRef.current.length > 0 &&
-              transitionProgressRef.current < 1
-            ) {
-              const lastDataIndex = Math.floor(
-                (i / barCount) * lastActiveDataRef.current.length
-              );
-              const lastValue = lastActiveDataRef.current[lastDataIndex] || 0;
-              finalValue =
-                lastValue * (1 - transitionProgressRef.current) +
-                processingValue * transitionProgressRef.current;
-            }
-
-            processingData.push(Math.max(0.05, Math.min(1, finalValue)));
+            processingData.push(
+              computeRollingProcessingBar(
+                i,
+                barCount,
+                time,
+                transitionProgressRef.current,
+                lastActiveDataRef.current
+              )
+            );
           }
         }
 
@@ -239,7 +274,9 @@ export const LiveWaveform = ({
   useEffect(() => {
     if (!active) {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        for (const track of streamRef.current.getTracks()) {
+          track.stop();
+        }
         streamRef.current = null;
         onStreamEnd?.();
       }
@@ -306,7 +343,9 @@ export const LiveWaveform = ({
 
     return () => {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        for (const track of streamRef.current.getTracks()) {
+          track.stop();
+        }
         streamRef.current = null;
         onStreamEnd?.();
       }
@@ -347,6 +386,7 @@ export const LiveWaveform = ({
 
     let rafId: number;
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Canvas animation loop with dual rendering modes requires inline branching
     const animate = (currentTime: number) => {
       // Render waveform
       const rect = canvas.getBoundingClientRect();
@@ -406,8 +446,8 @@ export const LiveWaveform = ({
           // Scrolling mode - use average of current levels
           const sourceData = audioLevelsRef.current;
           let sum = 0;
-          for (let i = 0; i < sourceData.length; i++) {
-            sum += sourceData[i];
+          for (const level of sourceData) {
+            sum += level;
           }
           const average =
             sourceData.length > 0 ? (sum / sourceData.length) * sensitivity : 0;
@@ -449,13 +489,10 @@ export const LiveWaveform = ({
       // Draw bars based on mode
       if (mode === "static") {
         // Static mode - bars in fixed positions
-        const dataToRender = processing
-          ? staticBarsRef.current
-          : active
+        const dataToRender =
+          processing || active || staticBarsRef.current.length > 0
             ? staticBarsRef.current
-            : staticBarsRef.current.length > 0
-              ? staticBarsRef.current
-              : [];
+            : [];
 
         for (let i = 0; i < barCount && i < dataToRender.length; i++) {
           const value = dataToRender[i] || 0.1;
@@ -465,14 +502,7 @@ export const LiveWaveform = ({
 
           ctx.fillStyle = computedBarColor;
           ctx.globalAlpha = 0.4 + value * 0.6;
-
-          if (barRadius > 0) {
-            ctx.beginPath();
-            ctx.roundRect(x, y, barWidth, barHeight, barRadius);
-            ctx.fill();
-          } else {
-            ctx.fillRect(x, y, barWidth, barHeight);
-          }
+          drawWfBar(ctx, x, y, barWidth, barHeight, barRadius);
         }
       } else {
         // Scrolling mode - original behavior
@@ -485,14 +515,7 @@ export const LiveWaveform = ({
 
           ctx.fillStyle = computedBarColor;
           ctx.globalAlpha = 0.4 + value * 0.6;
-
-          if (barRadius > 0) {
-            ctx.beginPath();
-            ctx.roundRect(x, y, barWidth, barHeight, barRadius);
-            ctx.fill();
-          } else {
-            ctx.fillRect(x, y, barWidth, barHeight);
-          }
+          drawWfBar(ctx, x, y, barWidth, barHeight, barRadius);
         }
       }
 
@@ -550,15 +573,18 @@ export const LiveWaveform = ({
     mode,
   ]);
 
+  let waveformAriaLabel: string;
+  if (active) {
+    waveformAriaLabel = "Live audio waveform";
+  } else if (processing) {
+    waveformAriaLabel = "Processing audio";
+  } else {
+    waveformAriaLabel = "Audio waveform idle";
+  }
+
   return (
     <div
-      aria-label={
-        active
-          ? "Live audio waveform"
-          : processing
-            ? "Processing audio"
-            : "Audio waveform idle"
-      }
+      aria-label={waveformAriaLabel}
       className={cn("relative h-full w-full", className)}
       ref={containerRef}
       role="img"

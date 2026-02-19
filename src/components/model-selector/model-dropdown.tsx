@@ -1,10 +1,7 @@
 import { ChevronDown, Trash2Icon } from "lucide-react";
 import React from "react";
-import { Button } from "@/components/ui/Button";
-import { cn } from "@/lib/utils";
-import type { ModelInfo } from "../../lib/types";
-import { formatModelSize } from "../../lib/utils/format";
-import { ProgressBar } from "../shared";
+import ProgressBar from "@/components/shared/progress-bar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,8 +9,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { ScrollArea, ScrollBar } from "../ui/scroll-area";
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import type { ModelInfo } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { formatModelSize } from "@/lib/utils/format";
 
 type ModelStatus =
   | "ready"
@@ -116,7 +116,7 @@ const ModelDropdown: React.FC<ModelDropdownProps> = ({
           title={`Model status: ${displayText}`}
           variant="ghost"
         >
-          <div className={`h-2 w-2 rounded-full ${getStatusColor(status)}`} />
+          <div className={cn("h-2 w-2 rounded-full", getStatusColor(status))} />
           <span className="max-w-28 truncate">{displayText}</span>
           <ChevronDown className="h-3 w-3" />
         </Button>

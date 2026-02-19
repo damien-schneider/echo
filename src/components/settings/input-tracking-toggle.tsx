@@ -1,7 +1,11 @@
 import { Keyboard } from "lucide-react";
-import { SettingContainer } from "@/components/ui/SettingContainer";
+import { SettingContainer } from "@/components/ui/setting-container";
 import { Switch } from "@/components/ui/switch";
-import { useSettings } from "@/hooks/use-settings";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface InputTrackingToggleProps {
   descriptionMode?: "inline" | "tooltip";
@@ -12,9 +16,9 @@ export const InputTrackingToggle = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: InputTrackingToggleProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-
-  const inputTrackingEnabled = getSetting("input_tracking_enabled") ?? false;
+  const inputTrackingEnabled = useSetting("input_tracking_enabled") ?? false;
+  const updating = useIsSettingUpdating("input_tracking_enabled");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <SettingContainer
@@ -26,7 +30,7 @@ export const InputTrackingToggle = ({
     >
       <Switch
         checked={inputTrackingEnabled}
-        disabled={isUpdating("input_tracking_enabled")}
+        disabled={updating}
         onCheckedChange={(enabled) =>
           updateSetting("input_tracking_enabled", enabled)
         }

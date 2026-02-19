@@ -1,8 +1,8 @@
 import { DownloadIcon } from "lucide-react";
 import type React from "react";
-import { Badge } from "@/components/ui/Badge";
-import type { ModelInfo } from "../../lib/types";
-import { formatModelSize } from "../../lib/utils/format";
+import { Badge } from "@/components/ui/badge";
+import type { ModelInfo } from "@/lib/types";
+import { formatModelSize } from "@/lib/utils/format";
 
 interface ModelCardProps {
   model: ModelInfo;

@@ -2,7 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { AlertCircle } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,

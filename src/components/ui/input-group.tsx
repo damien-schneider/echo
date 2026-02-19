@@ -1,7 +1,7 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { MinusIcon, PlusIcon } from "lucide-react";
 import type * as React from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,6 @@ function InputGroup({ className, ...props }: React.ComponentProps<"div">) {
         className
       )}
       data-slot="input-group"
-      role="group"
       {...props}
     />
   );
@@ -61,6 +60,7 @@ function InputGroupAddon({
   ...props
 }: React.ComponentProps<"div"> & VariantProps<typeof inputGroupAddonVariants>) {
   return (
+    // biome-ignore lint/a11y/noNoninteractiveElementInteractions lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: Click handler focuses sibling input for convenience; keyboard users can tab directly to the input
     <div
       className={cn(inputGroupAddonVariants({ align }), className)}
       data-align={align}
@@ -71,7 +71,6 @@ function InputGroupAddon({
         }
         e.currentTarget.parentElement?.querySelector("input")?.focus();
       }}
-      role="group"
       {...props}
     />
   );

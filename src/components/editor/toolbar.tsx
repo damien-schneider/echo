@@ -2,7 +2,7 @@
 
 import { Bold, Code, Italic, Strikethrough } from "lucide-react";
 import { useEditorRef } from "platejs/react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   RedoToolbarButton,
   UndoToolbarButton,

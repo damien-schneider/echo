@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { TextDisplay } from "../ui";
+import { TextDisplay } from "@/components/ui/text-display";
 
 interface AppDataDirectoryProps {
   descriptionMode?: "tooltip" | "inline";
@@ -33,9 +33,8 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
     loadAppDirectory();
   }, []);
 
-  const handleCopy = (value: string) => {
-    // Could add a toast notification here if desired
-    console.log("Copied to clipboard:", value);
+  const handleCopy = (_value: string) => {
+    // Toast notification could be added here
   };
 
   if (loading) {

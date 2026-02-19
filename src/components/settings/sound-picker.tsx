@@ -1,15 +1,16 @@
 import { PlayIcon } from "lucide-react";
 import type React from "react";
-import { useSettings } from "../../hooks/use-settings";
-import { Button } from "../ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/Select";
-import { SettingContainer } from "../ui/SettingContainer";
+} from "@/components/ui/Select";
+import { SettingContainer } from "@/components/ui/setting-container";
+import type { Settings } from "@/lib/types";
+import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 interface SoundPickerProps {
   label: string;
@@ -20,10 +21,12 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
   label,
   description,
 }) => {
-  const { getSetting, updateSetting, playTestSound, customSounds } =
-    useSettings();
+  const soundTheme = useSetting("sound_theme");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const playTestSound = useSettingsStore((s) => s.playTestSound);
+  const customSounds = useSettingsStore((s) => s.customSounds);
 
-  const selectedTheme = getSetting("sound_theme") ?? "marimba";
+  const selectedTheme = soundTheme ?? "marimba";
 
   const hasCustomSounds = customSounds.start && customSounds.stop;
 
@@ -41,8 +44,8 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
     >
       <div className="flex items-center gap-2">
         <Select
-          onValueChange={(val) =>
-            updateSetting("sound_theme", val as "marimba" | "pop" | "custom")
+          onValueChange={(val: Settings["sound_theme"]) =>
+            updateSetting("sound_theme", val)
           }
           value={selectedTheme}
         >

@@ -1,14 +1,19 @@
 import { RotateCcw, Speaker } from "lucide-react";
-import { useSettings } from "../../hooks/use-settings";
-import { Button } from "../ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/Select";
-import { SettingContainer } from "../ui/SettingContainer";
+} from "@/components/ui/Select";
+import { SettingContainer } from "@/components/ui/setting-container";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsActions,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface OutputDeviceSelectorProps {
   descriptionMode?: "inline" | "tooltip";
@@ -21,20 +26,16 @@ export const OutputDeviceSelector = ({
   grouped = false,
   disabled = false,
 }: OutputDeviceSelectorProps) => {
-  const {
-    getSetting,
-    updateSetting,
-    resetSetting,
-    isUpdating,
-    isLoading,
-    outputDevices,
-    refreshOutputDevices,
-  } = useSettings();
+  const selectedOutputDeviceRaw = useSetting("selected_output_device");
+  const isUpdatingDevice = useIsSettingUpdating("selected_output_device");
+  const isLoading = useSettingsStore((s) => s.isLoading);
+  const outputDevices = useSettingsStore((s) => s.outputDevices);
+  const { updateSetting, resetSetting } = useSettingsActions();
 
   const selectedOutputDevice =
-    getSetting("selected_output_device") === "default"
+    selectedOutputDeviceRaw === "default"
       ? "Default"
-      : getSetting("selected_output_device") || "Default";
+      : selectedOutputDeviceRaw || "Default";
 
   const handleOutputDeviceSelect = async (deviceName: string) => {
     await updateSetting("selected_output_device", deviceName);
@@ -57,7 +58,7 @@ export const OutputDeviceSelector = ({
         <Select
           disabled={
             disabled ||
-            isUpdating("selected_output_device") ||
+            isUpdatingDevice ||
             isLoading ||
             outputDevices.length === 0
           }
@@ -82,9 +83,7 @@ export const OutputDeviceSelector = ({
           </SelectContent>
         </Select>
         <Button
-          disabled={
-            disabled || isUpdating("selected_output_device") || isLoading
-          }
+          disabled={disabled || isUpdatingDevice || isLoading}
           onClick={handleReset}
           size="icon"
           variant="ghost"

@@ -1,11 +1,16 @@
 import { BookText, PlusIcon, XIcon } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { useSettings } from "../../hooks/use-settings";
-import { Button } from "../ui/Button";
-import { ButtonGroup } from "../ui/button-group";
-import { Input } from "../ui/Input";
-import { SettingContainer } from "../ui/SettingContainer";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { Input } from "@/components/ui/Input";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { cn } from "@/lib/utils";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface CustomWordsProps {
   descriptionMode?: "inline" | "tooltip";
@@ -16,9 +21,10 @@ export const CustomWords = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: CustomWordsProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
+  const customWords = useSetting("custom_words") || [];
+  const updating = useIsSettingUpdating("custom_words");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
   const [newWord, setNewWord] = useState("");
-  const customWords = getSetting("custom_words") || [];
 
   const handleAddWord = () => {
     const trimmedWord = newWord.trim();
@@ -60,7 +66,7 @@ export const CustomWords = ({
         <ButtonGroup className="w-full">
           <Input
             className="min-w-0"
-            disabled={isUpdating("custom_words")}
+            disabled={updating}
             onChange={(e) => setNewWord(e.target.value)}
             onKeyDown={handleKeyPress}
             placeholder="Add a word"
@@ -73,7 +79,7 @@ export const CustomWords = ({
               !newWord.trim() ||
               newWord.includes(" ") ||
               newWord.trim().length > 50 ||
-              isUpdating("custom_words")
+              updating
             }
             onClick={handleAddWord}
             size="icon"
@@ -85,14 +91,17 @@ export const CustomWords = ({
       </SettingContainer>
       {customWords.length > 0 && (
         <div
-          className={`p-2 px-4 ${grouped ? "" : "rounded-lg border border-border/20"}`}
+          className={cn(
+            "p-2 px-4",
+            !grouped && "rounded-lg border border-border/20"
+          )}
         >
           <ButtonGroup className="w-full flex-wrap gap-1">
             {customWords.map((word) => (
               <Button
                 aria-label={`Remove ${word}`}
                 className="gap-1 text-muted-foreground hover:text-foreground"
-                disabled={isUpdating("custom_words")}
+                disabled={updating}
                 key={word}
                 onClick={() => handleRemoveWord(word)}
                 size="xs"

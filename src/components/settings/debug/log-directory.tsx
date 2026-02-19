@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { Button } from "../../ui/Button";
-import { SettingContainer } from "../../ui/SettingContainer";
+import { Button } from "@/components/ui/button";
+import { SettingContainer } from "@/components/ui/setting-container";
 
 interface LogDirectoryProps {
   descriptionMode?: "tooltip" | "inline";
@@ -25,7 +25,7 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
       } catch (err) {
         const errorMessage =
           err && typeof err === "object" && "message" in err
-            ? String((err as any).message)
+            ? String(err.message)
             : "Failed to load log directory";
         setError(errorMessage);
       } finally {
@@ -47,6 +47,39 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
     }
   };
 
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="animate-pulse">
+          <div className="h-8 rounded bg-gray-100" />
+        </div>
+      );
+    }
+    if (error) {
+      return (
+        <div className="rounded border border-red-200 bg-red-50 p-3 text-red-600 text-xs">
+          Error loading log directory: {error}
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1 break-all rounded border border-mid-gray/80 bg-mid-gray/10 px-2 py-2 font-mono text-xs">
+          {logDir}
+        </div>
+        <Button
+          className="px-3 py-2"
+          disabled={!logDir}
+          onClick={handleOpen}
+          size="sm"
+          variant="secondary"
+        >
+          Open
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <SettingContainer
       description="Location on disk where Handy writes rotated log files"
@@ -55,30 +88,7 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
       layout="stacked"
       title="Log Directory"
     >
-      {loading ? (
-        <div className="animate-pulse">
-          <div className="h-8 rounded bg-gray-100" />
-        </div>
-      ) : error ? (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-red-600 text-xs">
-          Error loading log directory: {error}
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1 break-all rounded border border-mid-gray/80 bg-mid-gray/10 px-2 py-2 font-mono text-xs">
-            {logDir}
-          </div>
-          <Button
-            className="px-3 py-2"
-            disabled={!logDir}
-            onClick={handleOpen}
-            size="sm"
-            variant="secondary"
-          >
-            Open
-          </Button>
-        </div>
-      )}
+      {renderContent()}
     </SettingContainer>
   );
 };

@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Search, SearchSlash } from "lucide-react";
 import { motion } from "motion/react";
-import * as React from "react";
+import { useState } from "react";
 import EchoFooter from "@/components/landing/footer";
 import {
   Accordion,
@@ -18,8 +18,8 @@ export const Route = createFileRoute("/faq")({
 });
 
 function FaqPage() {
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [activeCategory, setActiveCategory] = React.useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
 
   const categories = [
     { id: "all", label: "All" },

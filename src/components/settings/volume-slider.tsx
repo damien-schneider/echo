@@ -1,13 +1,13 @@
 import { Volume2 } from "lucide-react";
 import type React from "react";
-import { useSettings } from "../../hooks/use-settings";
-import { Slider } from "../ui/Slider";
+import { Slider } from "@/components/ui/Slider";
+import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 export const VolumeSlider: React.FC<{ disabled?: boolean }> = ({
   disabled = false,
 }) => {
-  const { getSetting, updateSetting } = useSettings();
-  const audioFeedbackVolume = getSetting("audio_feedback_volume") ?? 0.5;
+  const audioFeedbackVolume = useSetting("audio_feedback_volume") ?? 0.5;
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <Slider

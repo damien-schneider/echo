@@ -1,8 +1,12 @@
 import { Bell } from "lucide-react";
 import type React from "react";
-import { useSettings } from "../../hooks/use-settings";
-import { SettingContainer } from "../ui/SettingContainer";
-import { Switch } from "../ui/switch";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { Switch } from "@/components/ui/switch";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 interface AudioFeedbackProps {
   descriptionMode?: "inline" | "tooltip";
@@ -13,8 +17,9 @@ export const AudioFeedback: React.FC<AudioFeedbackProps> = ({
   descriptionMode = "tooltip",
   grouped = false,
 }) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
-  const audioFeedbackEnabled = getSetting("audio_feedback");
+  const audioFeedbackEnabled = useSetting("audio_feedback");
+  const updating = useIsSettingUpdating("audio_feedback");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
 
   return (
     <div className="flex flex-col">
@@ -27,7 +32,7 @@ export const AudioFeedback: React.FC<AudioFeedbackProps> = ({
       >
         <Switch
           checked={audioFeedbackEnabled}
-          disabled={isUpdating("audio_feedback")}
+          disabled={updating}
           onCheckedChange={(enabled) =>
             updateSetting("audio_feedback", enabled)
           }

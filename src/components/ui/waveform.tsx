@@ -1,8 +1,31 @@
 "use client";
 
-import { type HTMLAttributes, useEffect, useRef, useState } from "react";
+import {
+  type HTMLAttributes,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { cn } from "@/lib/utils";
+
+const drawWfBar = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) => {
+  if (radius > 0) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.fill();
+  } else {
+    ctx.fillRect(x, y, width, height);
+  }
+};
 
 export type WaveformProps = HTMLAttributes<HTMLDivElement> & {
   data?: number[];
@@ -85,14 +108,7 @@ export const Waveform = ({
 
         ctx.fillStyle = computedBarColor;
         ctx.globalAlpha = 0.3 + value * 0.7;
-
-        if (barRadius > 0) {
-          ctx.beginPath();
-          ctx.roundRect(x, y, barWidth, barHeight, barRadius);
-          ctx.fill();
-        } else {
-          ctx.fillRect(x, y, barWidth, barHeight);
-        }
+        drawWfBar(ctx, x, y, barWidth, barHeight, barRadius);
       }
 
       if (fadeEdges && fadeWidth > 0 && rect.width > 0) {
@@ -252,6 +268,7 @@ export const ScrollingWaveform = ({
       return;
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Canvas animation loop with multi-mode rendering
     const animate = (currentTime: number) => {
       const deltaTime = lastTimeRef.current
         ? (currentTime - lastTimeRef.current) / 1000
@@ -267,8 +284,8 @@ export const ScrollingWaveform = ({
         "#000";
 
       const step = barWidth + barGap;
-      for (let i = 0; i < barsRef.current.length; i++) {
-        barsRef.current[i].x -= speed * deltaTime;
+      for (const bar of barsRef.current) {
+        bar.x -= speed * deltaTime;
       }
 
       barsRef.current = barsRef.current.filter(
@@ -277,9 +294,9 @@ export const ScrollingWaveform = ({
 
       while (
         barsRef.current.length === 0 ||
-        barsRef.current[barsRef.current.length - 1].x < rect.width
+        barsRef.current.at(-1).x < rect.width
       ) {
-        const lastBar = barsRef.current[barsRef.current.length - 1];
+        const lastBar = barsRef.current.at(-1);
         const nextX = lastBar ? lastBar.x + step : rect.width;
 
         let newHeight: number;
@@ -323,14 +340,7 @@ export const ScrollingWaveform = ({
 
           ctx.fillStyle = computedBarColor;
           ctx.globalAlpha = 0.3 + bar.height * 0.7;
-
-          if (barRadius > 0) {
-            ctx.beginPath();
-            ctx.roundRect(bar.x, y, barWidth, barHeight, barRadius);
-            ctx.fill();
-          } else {
-            ctx.fillRect(bar.x, y, barWidth, barHeight);
-          }
+          drawWfBar(ctx, bar.x, y, barWidth, barHeight, barRadius);
         }
       }
 
@@ -423,20 +433,23 @@ export const AudioScrubber = ({
     }
   }, [currentTime, duration, isDragging]);
 
-  const handleScrub = (clientX: number) => {
-    const container = containerRef.current;
-    if (!container) {
-      return;
-    }
+  const handleScrub = useCallback(
+    (clientX: number) => {
+      const container = containerRef.current;
+      if (!container) {
+        return;
+      }
 
-    const rect = container.getBoundingClientRect();
-    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    const progress = x / rect.width;
-    const newTime = progress * duration;
+      const rect = container.getBoundingClientRect();
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const progress = x / rect.width;
+      const newTime = progress * duration;
 
-    setLocalProgress(progress);
-    onSeek?.(newTime);
-  };
+      setLocalProgress(progress);
+      onSeek?.(newTime);
+    },
+    [duration, onSeek]
+  );
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -551,7 +564,7 @@ export const MicrophoneWaveform = ({
           transitionProgressRef.current + 0.02
         );
 
-        const processingData = [];
+        const processingData: number[] = [];
         const barCount = 45;
 
         for (let i = 0; i < barCount; i++) {
@@ -616,7 +629,9 @@ export const MicrophoneWaveform = ({
   useEffect(() => {
     if (!active) {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        for (const track of streamRef.current.getTracks()) {
+          track.stop();
+        }
       }
       if (
         audioContextRef.current &&
@@ -666,7 +681,7 @@ export const MicrophoneWaveform = ({
           const relevantData = dataArray.slice(startFreq, endFreq);
 
           const halfLength = Math.floor(relevantData.length / 2);
-          const normalizedData = [];
+          const normalizedData: number[] = [];
 
           for (let i = halfLength - 1; i >= 0; i--) {
             const value = Math.min(1, (relevantData[i] / 255) * sensitivity);
@@ -694,7 +709,9 @@ export const MicrophoneWaveform = ({
 
     return () => {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        for (const track of streamRef.current.getTracks()) {
+          track.stop();
+        }
       }
       if (
         audioContextRef.current &&
@@ -830,6 +847,19 @@ export const LiveMicrophoneWaveform = ({
     return () => resizeObserver.disconnect();
   }, []);
 
+  const processAudioBlob = useCallback(async (blob: Blob) => {
+    try {
+      const arrayBuffer = await blob.arrayBuffer();
+      if (audioContextRef.current) {
+        const audioBuffer =
+          await audioContextRef.current.decodeAudioData(arrayBuffer);
+        audioBufferRef.current = audioBuffer;
+      }
+    } catch (error) {
+      console.error("Error processing audio:", error);
+    }
+  }, []);
+
   useEffect(() => {
     if (!active) {
       if (
@@ -839,7 +869,9 @@ export const LiveMicrophoneWaveform = ({
         mediaRecorderRef.current.stop();
       }
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        for (const track of streamRef.current.getTracks()) {
+          track.stop();
+        }
       }
       // Process recorded audio when stopping
       if (enableAudioPlayback && audioChunksRef.current.length > 0) {
@@ -906,7 +938,9 @@ export const LiveMicrophoneWaveform = ({
         mediaRecorderRef.current.stop();
       }
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        for (const track of streamRef.current.getTracks()) {
+          track.stop();
+        }
       }
       if (sourceNodeRef.current) {
         sourceNodeRef.current.stop();
@@ -926,99 +960,96 @@ export const LiveMicrophoneWaveform = ({
     processAudioBlob,
   ]);
 
-  async function processAudioBlob(blob: Blob) {
-    try {
-      const arrayBuffer = await blob.arrayBuffer();
-      if (audioContextRef.current) {
-        const audioBuffer =
-          await audioContextRef.current.decodeAudioData(arrayBuffer);
-        audioBufferRef.current = audioBuffer;
+  const playScrubSound = useCallback(
+    (position: number, direction: number) => {
+      if (
+        !(
+          enableAudioPlayback &&
+          audioBufferRef.current &&
+          audioContextRef.current
+        )
+      ) {
+        return;
       }
-    } catch (error) {
-      console.error("Error processing audio:", error);
-    }
-  }
 
-  const playScrubSound = (position: number, direction: number) => {
-    if (
-      !(
-        enableAudioPlayback &&
-        audioBufferRef.current &&
-        audioContextRef.current
-      )
-    ) {
-      return;
-    }
+      if (scrubSourceRef.current) {
+        try {
+          scrubSourceRef.current.stop();
+        } catch {
+          /* AudioNode may already be stopped */
+        }
+      }
 
-    if (scrubSourceRef.current) {
-      try {
-        scrubSourceRef.current.stop();
-      } catch {}
-    }
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBufferRef.current;
 
-    const source = audioContextRef.current.createBufferSource();
-    source.buffer = audioBufferRef.current;
+      const speed = Math.abs(direction);
+      const playbackRate =
+        direction > 0
+          ? Math.min(3, 1 + speed * 0.1)
+          : Math.max(-3, -1 - speed * 0.1);
 
-    const speed = Math.abs(direction);
-    const playbackRate =
-      direction > 0
-        ? Math.min(3, 1 + speed * 0.1)
-        : Math.max(-3, -1 - speed * 0.1);
+      source.playbackRate.value = playbackRate;
 
-    source.playbackRate.value = playbackRate;
+      const filter = audioContextRef.current.createBiquadFilter();
+      filter.type = "lowpass";
+      filter.frequency.value = Math.max(200, 2000 - speed * 100);
 
-    const filter = audioContextRef.current.createBiquadFilter();
-    filter.type = "lowpass";
-    filter.frequency.value = Math.max(200, 2000 - speed * 100);
+      source.connect(filter);
+      filter.connect(audioContextRef.current.destination);
 
-    source.connect(filter);
-    filter.connect(audioContextRef.current.destination);
+      const startTime = Math.max(
+        0,
+        Math.min(position, audioBufferRef.current.duration - 0.1)
+      );
+      source.start(0, startTime, 0.1);
+      scrubSourceRef.current = source;
+    },
+    [enableAudioPlayback]
+  );
 
-    const startTime = Math.max(
-      0,
-      Math.min(position, audioBufferRef.current.duration - 0.1)
-    );
-    source.start(0, startTime, 0.1);
-    scrubSourceRef.current = source;
-  };
+  const playFromPosition = useCallback(
+    (position: number) => {
+      if (
+        !(
+          enableAudioPlayback &&
+          audioBufferRef.current &&
+          audioContextRef.current
+        )
+      ) {
+        return;
+      }
 
-  const playFromPosition = (position: number) => {
-    if (
-      !(
-        enableAudioPlayback &&
-        audioBufferRef.current &&
-        audioContextRef.current
-      )
-    ) {
-      return;
-    }
+      if (sourceNodeRef.current) {
+        try {
+          sourceNodeRef.current.stop();
+        } catch {
+          /* AudioNode may already be stopped */
+        }
+      }
 
-    if (sourceNodeRef.current) {
-      try {
-        sourceNodeRef.current.stop();
-      } catch {}
-    }
+      const source = audioContextRef.current.createBufferSource();
+      source.buffer = audioBufferRef.current;
+      source.playbackRate.value = playbackRate;
+      source.connect(audioContextRef.current.destination);
 
-    const source = audioContextRef.current.createBufferSource();
-    source.buffer = audioBufferRef.current;
-    source.playbackRate.value = playbackRate;
-    source.connect(audioContextRef.current.destination);
+      const startTime = Math.max(
+        0,
+        Math.min(position, audioBufferRef.current.duration)
+      );
+      source.start(0, startTime);
+      sourceNodeRef.current = source;
 
-    const startTime = Math.max(
-      0,
-      Math.min(position, audioBufferRef.current.duration)
-    );
-    source.start(0, startTime);
-    sourceNodeRef.current = source;
+      playbackStartTimeRef.current =
+        audioContextRef.current.currentTime - startTime;
+      setPlaybackPosition(startTime);
 
-    playbackStartTimeRef.current =
-      audioContextRef.current.currentTime - startTime;
-    setPlaybackPosition(startTime);
-
-    source.onended = () => {
-      setPlaybackPosition(null);
-    };
-  };
+      source.onended = () => {
+        setPlaybackPosition(null);
+      };
+    },
+    [enableAudioPlayback, playbackRate]
+  );
 
   useEffect(() => {
     if (playbackPosition === null || !audioBufferRef.current) {
@@ -1100,6 +1131,7 @@ export const LiveMicrophoneWaveform = ({
       return;
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Canvas animation loop with multi-mode rendering
     const animate = (currentTime: number) => {
       if (active && currentTime - lastUpdateRef.current > updateRate) {
         lastUpdateRef.current = currentTime;
@@ -1111,8 +1143,8 @@ export const LiveMicrophoneWaveform = ({
           analyserRef.current.getByteFrequencyData(dataArray);
 
           let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
+          for (const val of dataArray) {
+            sum += val;
           }
           const average = (sum / dataArray.length / 255) * sensitivity;
 
@@ -1142,7 +1174,7 @@ export const LiveMicrophoneWaveform = ({
         const offsetInBars = Math.floor(dragOffset / step);
 
         for (let i = 0; i < barCount; i++) {
-          let dataIndex;
+          let dataIndex: number;
 
           if (active) {
             dataIndex = dataToRender.length - 1 - i;
@@ -1168,14 +1200,7 @@ export const LiveMicrophoneWaveform = ({
 
               ctx.fillStyle = computedBarColor;
               ctx.globalAlpha = 0.3 + value * 0.7;
-
-              if (barRadius > 0) {
-                ctx.beginPath();
-                ctx.roundRect(x, y, barWidth, barHeight, barRadius);
-                ctx.fill();
-              } else {
-                ctx.fillRect(x, y, barWidth, barHeight);
-              }
+              drawWfBar(ctx, x, y, barWidth, barHeight, barRadius);
             }
           }
         }
@@ -1310,7 +1335,9 @@ export const LiveMicrophoneWaveform = ({
       if (scrubSourceRef.current) {
         try {
           scrubSourceRef.current.stop();
-        } catch {}
+        } catch {
+          /* AudioNode may already be stopped */
+        }
       }
     };
 
@@ -1334,6 +1361,7 @@ export const LiveMicrophoneWaveform = ({
   ]);
 
   return (
+    // biome-ignore lint/a11y/noNoninteractiveElementInteractions lint/a11y/noStaticElementInteractions lint/a11y/useAriaPropsSupportedByRole: Custom interactive waveform visualization with conditional slider role
     <div
       aria-label={
         !active && historyRef.current.length > 0
@@ -1356,6 +1384,24 @@ export const LiveMicrophoneWaveform = ({
         !active && historyRef.current.length > 0 && "cursor-pointer",
         className
       )}
+      onKeyDown={(e) => {
+        if (active || historyRef.current.length === 0) {
+          return;
+        }
+        const step = barWidth + barGap;
+        const maxBars = historyRef.current.length;
+        const viewWidth =
+          containerRef.current?.getBoundingClientRect().width || 0;
+        const viewBars = Math.floor(viewWidth / step);
+        const maxOffset = Math.max(0, (maxBars - viewBars) * step);
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+          e.preventDefault();
+          setDragOffset?.(Math.max(0, dragOffset - step * 5));
+        } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+          e.preventDefault();
+          setDragOffset?.(Math.min(maxOffset, dragOffset + step * 5));
+        }
+      }}
       onMouseDown={handleMouseDown}
       ref={containerRef}
       role={!active && historyRef.current.length > 0 ? "slider" : undefined}
@@ -1445,7 +1491,9 @@ export const RecordingWaveform = ({
   useEffect(() => {
     if (!recording) {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        for (const track of streamRef.current.getTracks()) {
+          track.stop();
+        }
       }
       if (
         audioContextRef.current &&
@@ -1497,7 +1545,9 @@ export const RecordingWaveform = ({
 
     return () => {
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop());
+        for (const track of streamRef.current.getTracks()) {
+          track.stop();
+        }
       }
       if (
         audioContextRef.current &&
@@ -1519,6 +1569,7 @@ export const RecordingWaveform = ({
       return;
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Canvas animation loop with multi-mode rendering
     const animate = (currentTime: number) => {
       if (recording && currentTime - lastUpdateRef.current > updateRate) {
         lastUpdateRef.current = currentTime;
@@ -1530,8 +1581,8 @@ export const RecordingWaveform = ({
           analyserRef.current.getByteFrequencyData(dataArray);
 
           let sum = 0;
-          for (let i = 0; i < dataArray.length; i++) {
-            sum += dataArray[i];
+          for (const val of dataArray) {
+            sum += val;
           }
           const average = (sum / dataArray.length / 255) * sensitivity;
 
@@ -1576,14 +1627,7 @@ export const RecordingWaveform = ({
 
           ctx.fillStyle = computedBarColor;
           ctx.globalAlpha = 0.3 + value * 0.7;
-
-          if (barRadius > 0) {
-            ctx.beginPath();
-            ctx.roundRect(x, y, barWidth, barHeight, barRadius);
-            ctx.fill();
-          } else {
-            ctx.fillRect(x, y, barWidth, barHeight);
-          }
+          drawWfBar(ctx, x, y, barWidth, barHeight, barRadius);
         }
 
         if (!recording && isRecordingComplete && showHandle) {
@@ -1631,18 +1675,21 @@ export const RecordingWaveform = ({
     barColor,
   ]);
 
-  const handleScrub = (clientX: number) => {
-    const container = containerRef.current;
-    if (!container || recording || !isRecordingComplete) {
-      return;
-    }
+  const handleScrub = useCallback(
+    (clientX: number) => {
+      const container = containerRef.current;
+      if (!container || recording || !isRecordingComplete) {
+        return;
+      }
 
-    const rect = container.getBoundingClientRect();
-    const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-    const position = x / rect.width;
+      const rect = container.getBoundingClientRect();
+      const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+      const position = x / rect.width;
 
-    setViewPosition(position);
-  };
+      setViewPosition(position);
+    },
+    [recording, isRecordingComplete]
+  );
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (recording || !isRecordingComplete) {
@@ -1677,6 +1724,7 @@ export const RecordingWaveform = ({
   }, [isDragging, handleScrub]);
 
   return (
+    // biome-ignore lint/a11y/noNoninteractiveElementInteractions lint/a11y/noStaticElementInteractions lint/a11y/useAriaPropsSupportedByRole: Custom interactive waveform visualization with conditional slider role
     <div
       aria-label={
         isRecordingComplete && !recording
@@ -1693,6 +1741,18 @@ export const RecordingWaveform = ({
         isRecordingComplete && !recording && "cursor-pointer",
         className
       )}
+      onKeyDown={(e) => {
+        if (recording || !isRecordingComplete) {
+          return;
+        }
+        if (e.key === "ArrowLeft" || e.key === "ArrowDown") {
+          e.preventDefault();
+          setViewPosition(Math.max(0, viewPosition - 0.05));
+        } else if (e.key === "ArrowRight" || e.key === "ArrowUp") {
+          e.preventDefault();
+          setViewPosition(Math.min(1, viewPosition + 0.05));
+        }
+      }}
       onMouseDown={handleMouseDown}
       ref={containerRef}
       role={isRecordingComplete && !recording ? "slider" : undefined}

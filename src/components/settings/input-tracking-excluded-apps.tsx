@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Ban, Loader2, Plus, X } from "lucide-react";
 import { useState } from "react";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -16,8 +16,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { SettingContainer } from "@/components/ui/SettingContainer";
-import { useSettings } from "@/hooks/use-settings";
+import { SettingContainer } from "@/components/ui/setting-container";
+import { cn } from "@/lib/utils";
+import {
+  useIsSettingUpdating,
+  useSetting,
+  useSettingsStore,
+} from "@/stores/settings-store";
 
 type InstalledApp = [string, string]; // [name, bundle_id]
 
@@ -30,14 +35,16 @@ export const InputTrackingExcludedApps = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: InputTrackingExcludedAppsProps) => {
-  const { getSetting, updateSetting, isUpdating } = useSettings();
+  const excludedApps = useSetting("input_tracking_excluded_apps") ?? [];
+  const inputTrackingEnabled = useSetting("input_tracking_enabled") ?? false;
+  const isUpdatingExcluded = useIsSettingUpdating(
+    "input_tracking_excluded_apps"
+  );
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
   const [installedApps, setInstalledApps] = useState<InstalledApp[]>([]);
   const [open, setOpen] = useState(false);
   const [loadingApps, setLoadingApps] = useState(false);
   const [appsLoaded, setAppsLoaded] = useState(false);
-
-  const excludedApps = getSetting("input_tracking_excluded_apps") ?? [];
-  const inputTrackingEnabled = getSetting("input_tracking_enabled") ?? false;
 
   // Lazy load apps only when popover opens
   const fetchApps = async () => {
@@ -101,10 +108,7 @@ export const InputTrackingExcludedApps = ({
       >
         <Popover onOpenChange={handleOpenChange} open={open}>
           <PopoverTrigger asChild>
-            <Button
-              disabled={isUpdating("input_tracking_excluded_apps")}
-              variant="outline"
-            >
+            <Button disabled={isUpdatingExcluded} variant="outline">
               <Plus className="mr-1.5 h-4 w-4" />
               Add App
             </Button>
@@ -152,7 +156,10 @@ export const InputTrackingExcludedApps = ({
       </SettingContainer>
       {excludedApps.length > 0 && (
         <div
-          className={`p-2 px-4 ${grouped ? "" : "rounded-lg border border-border/20"}`}
+          className={cn(
+            "p-2 px-4",
+            !grouped && "rounded-lg border border-border/20"
+          )}
         >
           <div className="flex flex-wrap gap-1.5">
             {excludedApps.map((bundleId) => (
@@ -167,7 +174,7 @@ export const InputTrackingExcludedApps = ({
                 <button
                   aria-label={`Remove ${getAppName(bundleId)}`}
                   className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20"
-                  disabled={isUpdating("input_tracking_excluded_apps")}
+                  disabled={isUpdatingExcluded}
                   onClick={() => removeApp(bundleId)}
                   type="button"
                 >

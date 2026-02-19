@@ -136,7 +136,7 @@ export default function Navbar() {
               <Moon className="h-5 w-5" />
             )}
           </Button>
-          <button onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          <button onClick={() => setIsMenuOpen(!isMenuOpen)} type="button">
             {isMenuOpen ? <X /> : <Menu />}
           </button>
         </div>

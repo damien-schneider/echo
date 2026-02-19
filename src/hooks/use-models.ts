@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface ModelInfo {
   id: string;
@@ -41,7 +41,7 @@ export const useModels = () => {
   const [hasAnyModels, setHasAnyModels] = useState(false);
   const [isFirstRun, setIsFirstRun] = useState(false);
 
-  const loadModels = async () => {
+  const loadModels = useCallback(async () => {
     try {
       const modelList = await invoke<ModelInfo[]>("get_available_models");
       setModels(modelList);
@@ -51,18 +51,18 @@ export const useModels = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadCurrentModel = async () => {
+  const loadCurrentModel = useCallback(async () => {
     try {
       const current = await invoke<string>("get_current_model");
       setCurrentModel(current);
     } catch (err) {
       console.error("Failed to load current model:", err);
     }
-  };
+  }, []);
 
-  const checkFirstRun = async () => {
+  const checkFirstRun = useCallback(async () => {
     try {
       const hasModels = await invoke<boolean>("has_any_models_available");
       setHasAnyModels(hasModels);
@@ -72,7 +72,7 @@ export const useModels = () => {
       console.error("Failed to check model availability:", err);
       return false;
     }
-  };
+  }, []);
 
   const selectModel = async (modelId: string) => {
     try {

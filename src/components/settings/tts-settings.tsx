@@ -1,22 +1,21 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useAtom } from "jotai";
 import { CheckCircle, Loader2, Play, Volume2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { settingsAtom, updateSettingAtom } from "@/stores/settings-atoms";
+import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 const DEFAULT_PREVIEW_TEXT = "This is a preview of the text to speech voice.";
 
 export function TtsSettings() {
-  const [settings] = useAtom(settingsAtom);
-  const [, updateSetting] = useAtom(updateSettingAtom);
+  const ttsEnabled = useSetting("tts_enabled");
+  const updateSetting = useSettingsStore((s) => s.updateSetting);
   const [playing, setPlaying] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [previewText, setPreviewText] = useState(DEFAULT_PREVIEW_TEXT);
 
-  const isEnabled = settings?.tts_enabled ?? false;
+  const isEnabled = ttsEnabled ?? false;
 
   const handlePreview = async () => {
     if (!previewText.trim()) {
@@ -37,10 +36,6 @@ export function TtsSettings() {
       setPlaying(false);
     }
   };
-
-  if (!settings) {
-    return null;
-  }
 
   return (
     <div className="space-y-6">

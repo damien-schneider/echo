@@ -1,10 +1,15 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { ThemeProvider } from "../providers";
+import { ThemeProvider } from "@/providers/theme-provider";
 import RecordingOverlay from "./recording-overlay";
-import "../App.css";
+import "../app.css";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+const rootElement = document.getElementById("root");
+if (!rootElement) {
+  throw new Error("Missing root element");
+}
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ThemeProvider defaultTheme="system" storageKey="echo-ui-theme">
       <RecordingOverlay />

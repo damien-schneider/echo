@@ -5,14 +5,14 @@ import { useEffect, useRef, useState } from "react";
 import { LiveWaveform } from "@/components/ui/live-waveform";
 import "./recording-overlay.css";
 import { motion } from "motion/react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import {
   TEXT_CONTAINER_HEIGHT,
   WAVEFORM_CONTAINER_HEIGHT,
   WAVEFORM_CONTAINER_WIDTH,
 } from "@/lib/constants/overlay";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/providers";
+import { useTheme } from "@/providers/theme-provider";
 
 type OverlayState = "recording" | "transcribing" | "warning";
 type OverlayPositionPref = "top" | "bottom";
@@ -35,34 +35,37 @@ const RecordingOverlay = () => {
   useEffect(() => {
     const setupEventListeners = async () => {
       // Listen for overlay-position event from Rust
-      const unlistenPosition = await listen("overlay-position", (event) => {
-        const position = event.payload as OverlayPositionPref;
-        setPositionPref(position);
-      });
+      const unlistenPosition = await listen<OverlayPositionPref>(
+        "overlay-position",
+        (event) => {
+          setPositionPref(event.payload);
+        }
+      );
 
       // Listen for show-overlay event from Rust
-      const unlistenShow = await listen("show-overlay", (event) => {
-        // Handle both simple string state and object with message
-        if (typeof event.payload === "string") {
-          const newState = event.payload as OverlayState;
-          setState(newState);
-          setWarningMessage("");
-          // Only reset streaming text when starting a NEW recording
-          if (newState === "recording") {
-            setStreamingText("");
-          }
-        } else if (
-          typeof event.payload === "object" &&
-          event.payload !== null
-        ) {
-          const payload = event.payload as WarningPayload;
-          if (payload.state === "warning") {
+      const unlistenShow = await listen<OverlayState | WarningPayload>(
+        "show-overlay",
+        (event) => {
+          // Handle both simple string state and object with message
+          if (typeof event.payload === "string") {
+            const newState = event.payload;
+            setState(newState);
+            setWarningMessage("");
+            // Only reset streaming text when starting a NEW recording
+            if (newState === "recording") {
+              setStreamingText("");
+            }
+          } else if (
+            typeof event.payload === "object" &&
+            event.payload !== null &&
+            event.payload.state === "warning"
+          ) {
             setState("warning");
-            setWarningMessage(payload.message || "Please wait...");
+            setWarningMessage(event.payload.message || "Please wait...");
           }
+          setIsVisible(true);
         }
-        setIsVisible(true);
-      });
+      );
 
       // Listen for hide-overlay event from Rust
       const unlistenHide = await listen("hide-overlay", () => {
@@ -70,16 +73,15 @@ const RecordingOverlay = () => {
       });
 
       // Listen for mic-level event from Rust
-      const unlistenMic = await listen("mic-level", (event) => {
-        setAudioLevels(event.payload as number[]);
+      const unlistenMic = await listen<number[]>("mic-level", (event) => {
+        setAudioLevels(event.payload);
       });
 
       // Listen for transcription progress
-      const unlistenProgress = await listen(
+      const unlistenProgress = await listen<string>(
         "transcription-progress",
         (event) => {
-          const text = event.payload as string;
-          setStreamingText(text);
+          setStreamingText(event.payload);
         }
       );
 

@@ -1,7 +1,64 @@
 import { Pause, Play } from "lucide-react";
 import type React from "react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+
+const drawBarShape = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number
+) => {
+  if (radius > 0) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, radius);
+    ctx.fill();
+  } else {
+    ctx.fillRect(x, y, width, height);
+  }
+};
+
+const resolveWaveformColors = (
+  canvas: HTMLCanvasElement,
+  activeColor: string | undefined,
+  inactiveColor: string | undefined
+) => ({
+  active:
+    activeColor ||
+    getComputedStyle(canvas).getPropertyValue("--color-primary").trim() ||
+    "#FAA2CA",
+  inactive:
+    inactiveColor ||
+    getComputedStyle(canvas).getPropertyValue("--foreground") ||
+    "rgba(128, 128, 128, 0.3)",
+});
+
+const drawPartialBar = (
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  radius: number,
+  fillRatio: number,
+  activeColor: string,
+  inactiveColor: string
+) => {
+  ctx.fillStyle = inactiveColor;
+  ctx.globalAlpha = 0.4;
+  drawBarShape(ctx, x, y, width, height, radius);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, width * fillRatio, height);
+  ctx.clip();
+  ctx.fillStyle = activeColor;
+  ctx.globalAlpha = 1;
+  drawBarShape(ctx, x, y, width, height, radius);
+  ctx.restore();
+};
 
 interface AudioPlayerProps {
   src: string;
@@ -45,8 +102,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const durationRef = useRef(0);
 
   // Generate consistent waveform data based on the src
-  const waveformData = (() => {
-    // Generate seeded random values for consistent waveform
+  const waveformData = useMemo(() => {
     const seed = src
       .split("")
       .reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -55,7 +111,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       return x - Math.floor(x);
     };
     return Array.from({ length: barCount }, (_, i) => 0.15 + random(i) * 0.7);
-  })();
+  }, [src, barCount]);
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -102,7 +158,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, []);
 
   // Render waveform
-  const renderWaveform = () => {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Already extracted helpers, remaining complexity is inherent to waveform rendering
+  const renderWaveform = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) {
       return;
@@ -120,14 +177,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       durationRef.current > 0
         ? currentTimeRef.current / durationRef.current
         : 0;
-    const computedActiveColor =
-      activeColor ||
-      getComputedStyle(canvas).getPropertyValue("--color-primary").trim() ||
-      "#FAA2CA";
-    const computedInactiveColor =
-      inactiveColor ||
-      getComputedStyle(canvas).getPropertyValue("--foreground") ||
-      "rgba(128, 128, 128, 0.3)";
+    const colors = resolveWaveformColors(canvas, activeColor, inactiveColor);
 
     const step = barWidth + barGap;
     const totalWidth = barCount * step - barGap;
@@ -140,63 +190,44 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       const x = startX + i * step;
       const y = centerY - barHeight / 2;
 
-      // Calculate if this bar should be filled based on progress
       const barProgress = (i + 1) / barCount;
-      const isFilled = barProgress <= progress;
-
-      // For the bar that's currently being crossed, calculate partial fill
       const previousBarProgress = i / barCount;
       const isPartiallyFilled =
         previousBarProgress < progress && barProgress > progress;
 
       if (isPartiallyFilled) {
-        // Calculate how much of this bar should be filled
         const fillRatio =
           (progress - previousBarProgress) /
           (barProgress - previousBarProgress);
-
-        // Draw inactive (unfilled) part first
-        ctx.fillStyle = computedInactiveColor;
-        ctx.globalAlpha = 0.4;
-        if (barRadius > 0) {
-          ctx.beginPath();
-          ctx.roundRect(x, y, barWidth, barHeight, barRadius);
-          ctx.fill();
-        } else {
-          ctx.fillRect(x, y, barWidth, barHeight);
-        }
-
-        // Draw active (filled) part with clipping
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(x, y, barWidth * fillRatio, barHeight);
-        ctx.clip();
-        ctx.fillStyle = computedActiveColor;
-        ctx.globalAlpha = 1;
-        if (barRadius > 0) {
-          ctx.beginPath();
-          ctx.roundRect(x, y, barWidth, barHeight, barRadius);
-          ctx.fill();
-        } else {
-          ctx.fillRect(x, y, barWidth, barHeight);
-        }
-        ctx.restore();
+        drawPartialBar(
+          ctx,
+          x,
+          y,
+          barWidth,
+          barHeight,
+          barRadius,
+          fillRatio,
+          colors.active,
+          colors.inactive
+        );
       } else {
-        ctx.fillStyle = isFilled ? computedActiveColor : computedInactiveColor;
+        const isFilled = barProgress <= progress;
+        ctx.fillStyle = isFilled ? colors.active : colors.inactive;
         ctx.globalAlpha = isFilled ? 1 : 0.4;
-
-        if (barRadius > 0) {
-          ctx.beginPath();
-          ctx.roundRect(x, y, barWidth, barHeight, barRadius);
-          ctx.fill();
-        } else {
-          ctx.fillRect(x, y, barWidth, barHeight);
-        }
+        drawBarShape(ctx, x, y, barWidth, barHeight, barRadius);
       }
     }
 
     ctx.globalAlpha = 1;
-  };
+  }, [
+    activeColor,
+    inactiveColor,
+    barWidth,
+    barGap,
+    barCount,
+    barRadius,
+    waveformData,
+  ]);
 
   // Watch for theme changes to re-render with new colors
   useEffect(() => {
@@ -309,23 +340,26 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   }, [renderWaveform]);
 
   // Calculate time from click position
-  const getTimeFromPosition = (clientX: number) => {
-    const container = containerRef.current;
-    if (!container) {
-      return 0;
-    }
+  const getTimeFromPosition = useCallback(
+    (clientX: number) => {
+      const container = containerRef.current;
+      if (!container) {
+        return 0;
+      }
 
-    const rect = container.getBoundingClientRect();
-    const step = barWidth + barGap;
-    const totalWidth = barCount * step - barGap;
-    const startX = (rect.width - totalWidth) / 2;
+      const rect = container.getBoundingClientRect();
+      const step = barWidth + barGap;
+      const totalWidth = barCount * step - barGap;
+      const startX = (rect.width - totalWidth) / 2;
 
-    const x = clientX - rect.left;
-    const relativeX = x - startX;
-    const progress = Math.max(0, Math.min(1, relativeX / totalWidth));
+      const x = clientX - rect.left;
+      const relativeX = x - startX;
+      const progress = Math.max(0, Math.min(1, relativeX / totalWidth));
 
-    return progress * duration;
-  };
+      return progress * duration;
+    },
+    [barWidth, barGap, barCount, duration]
+  );
 
   // Mouse/touch handlers for scrubbing
   const handlePointerDown = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -404,12 +438,15 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <audio preload="metadata" ref={audioRef} src={src} />
+      <audio preload="metadata" ref={audioRef} src={src}>
+        <track kind="captions" />
+      </audio>
 
       <button
         aria-label={isPlaying ? "Pause" : "Play"}
         className="shrink-0 cursor-pointer text-text transition-colors hover:text-brand"
         onClick={togglePlay}
+        type="button"
       >
         {isPlaying ? (
           <Pause fill="currentColor" height={20} width={20} />

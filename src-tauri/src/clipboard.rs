@@ -194,6 +194,7 @@ fn copy_to_clipboard(text: &str, app_handle: &AppHandle) -> Result<(), String> {
 
 pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
     let settings = get_settings(&app_handle);
+    #[allow(unused_mut)] // mutated only on Linux/Wayland
     let mut paste_method = settings.paste_method;
 
     // On Wayland, force clipboard-only mode — auto-paste is not supported

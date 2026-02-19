@@ -1,8 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import type React from "react";
-import { useEffect, useState } from "react";
-import type { ModelInfo } from "../../lib/types";
+import { useCallback, useEffect, useState } from "react";
+import type { ModelInfo } from "@/lib/types";
 import DownloadProgressDisplay from "./download-progress-display";
 import ModelDropdown from "./model-dropdown";
 
@@ -55,6 +55,56 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
     new Set()
   );
 
+  const loadModels = useCallback(async () => {
+    try {
+      const modelList = await invoke<ModelInfo[]>("get_available_models");
+      setModels(modelList);
+    } catch (err) {
+      console.error("Failed to load models:", err);
+    }
+  }, []);
+
+  const loadCurrentModel = useCallback(async () => {
+    try {
+      const current = await invoke<string>("get_current_model");
+      setCurrentModelId(current);
+
+      if (current) {
+        // Check if model is actually loaded
+        const transcriptionStatus = await invoke<string | null>(
+          "get_transcription_model_status"
+        );
+        if (transcriptionStatus === current) {
+          setModelStatus("ready");
+        } else {
+          setModelStatus("unloaded");
+        }
+      } else {
+        setModelStatus("none");
+      }
+    } catch (err) {
+      console.error("Failed to load current model:", err);
+      setModelStatus("error");
+      setModelError("Failed to check model status");
+    }
+  }, []);
+
+  const handleModelSelect = useCallback(
+    async (modelId: string) => {
+      try {
+        setModelError(null);
+        await invoke("set_active_model", { modelId });
+        setCurrentModelId(modelId);
+      } catch (err) {
+        const errorMsg = `${err}`;
+        setModelError(errorMsg);
+        setModelStatus("error");
+        onError?.(errorMsg);
+      }
+    },
+    [onError]
+  );
+
   useEffect(() => {
     loadModels();
     loadCurrentModel();
@@ -63,7 +113,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
     const modelStateUnlisten = listen<ModelStateEvent>(
       "model-state-changed",
       (event) => {
-        const { event_type, model_id, model_name, error } = event.payload;
+        const { event_type, model_id, error } = event.payload;
 
         switch (event_type) {
           case "loading_started":
@@ -84,6 +134,8 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
           case "unloaded":
             setModelStatus("unloaded");
             setModelError(null);
+            break;
+          default:
             break;
         }
       }
@@ -222,52 +274,32 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
     };
   }, [handleModelSelect, loadCurrentModel, loadModels]);
 
-  async function loadModels() {
-    try {
-      const modelList = await invoke<ModelInfo[]>("get_available_models");
-      setModels(modelList);
-    } catch (err) {
-      console.error("Failed to load models:", err);
+  const getExtractingText = (): string | null => {
+    if (extractingModels.size === 0) {
+      return null;
     }
-  }
-
-  async function loadCurrentModel() {
-    try {
-      const current = await invoke<string>("get_current_model");
-      setCurrentModelId(current);
-
-      if (current) {
-        // Check if model is actually loaded
-        const transcriptionStatus = await invoke<string | null>(
-          "get_transcription_model_status"
-        );
-        if (transcriptionStatus === current) {
-          setModelStatus("ready");
-        } else {
-          setModelStatus("unloaded");
-        }
-      } else {
-        setModelStatus("none");
-      }
-    } catch (err) {
-      console.error("Failed to load current model:", err);
-      setModelStatus("error");
-      setModelError("Failed to check model status");
+    if (extractingModels.size === 1) {
+      const [modelId] = Array.from(extractingModels);
+      const model = models.find((m) => m.id === modelId);
+      return `Extracting ${model?.name || "Model"}...`;
     }
-  }
+    return `Extracting ${extractingModels.size} models...`;
+  };
 
-  async function handleModelSelect(modelId: string) {
-    try {
-      setModelError(null);
-      await invoke("set_active_model", { modelId });
-      setCurrentModelId(modelId);
-    } catch (err) {
-      const errorMsg = `${err}`;
-      setModelError(errorMsg);
-      setModelStatus("error");
-      onError?.(errorMsg);
+  const getDownloadingText = (): string | null => {
+    if (modelDownloadProgress.size === 0) {
+      return null;
     }
-  }
+    if (modelDownloadProgress.size === 1) {
+      const [progress] = Array.from(modelDownloadProgress.values());
+      const percentage = Math.max(
+        0,
+        Math.min(100, Math.round(progress.percentage))
+      );
+      return `Downloading ${percentage}%`;
+    }
+    return `Downloading ${modelDownloadProgress.size} models...`;
+  };
 
   const handleModelDownload = async (modelId: string) => {
     try {
@@ -284,25 +316,14 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({ onError }) => {
   const getCurrentModel = () => models.find((m) => m.id === currentModelId);
 
   const getModelDisplayText = (): string => {
-    if (extractingModels.size > 0) {
-      if (extractingModels.size === 1) {
-        const [modelId] = Array.from(extractingModels);
-        const model = models.find((m) => m.id === modelId);
-        return `Extracting ${model?.name || "Model"}...`;
-      }
-      return `Extracting ${extractingModels.size} models...`;
+    const extractingText = getExtractingText();
+    if (extractingText) {
+      return extractingText;
     }
 
-    if (modelDownloadProgress.size > 0) {
-      if (modelDownloadProgress.size === 1) {
-        const [progress] = Array.from(modelDownloadProgress.values());
-        const percentage = Math.max(
-          0,
-          Math.min(100, Math.round(progress.percentage))
-        );
-        return `Downloading ${percentage}%`;
-      }
-      return `Downloading ${modelDownloadProgress.size} models...`;
+    const downloadingText = getDownloadingText();
+    if (downloadingText) {
+      return downloadingText;
     }
 
     const currentModel = getCurrentModel();

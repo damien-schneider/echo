@@ -2,7 +2,7 @@ import { Check, Copy, RefreshCw, RotateCcw, Star, Trash2 } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { AudioPlayer } from "@/components/ui/audio-player";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Tooltip,
@@ -71,7 +71,6 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       await deleteAudio(entry.id);
     } catch (error) {
       console.error("Failed to delete entry:", error);
-      alert("Failed to delete entry. Please try again.");
       setConfirmDelete(false);
     }
   };
@@ -86,7 +85,6 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       await onRetranscribe(entry.id);
     } catch (error) {
       console.error("Failed to retranscribe entry:", error);
-      alert("Failed to retranscribe. Please try again.");
     } finally {
       setIsRetranscribing(false);
     }
@@ -102,7 +100,6 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       await onReprocess(entry.id);
     } catch (error) {
       console.error("Failed to reprocess entry:", error);
-      alert("Failed to reprocess. Please try again.");
     } finally {
       setIsReprocessing(false);
     }

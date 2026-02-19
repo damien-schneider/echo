@@ -145,7 +145,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
         }
 
         match builder.build() {
-            Ok(window) => {
+            Ok(_window) => {
                 // Initialize Layer Shell on Wayland for proper overlay behavior
                 #[cfg(target_os = "linux")]
                 if is_wayland_session {

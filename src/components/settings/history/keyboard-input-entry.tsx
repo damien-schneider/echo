@@ -2,7 +2,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Check, Copy, Trash2 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Tooltip,

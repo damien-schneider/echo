@@ -1,9 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App";
-import { ThemeProvider } from "./providers";
+import App from "./app";
+import { ThemeProvider } from "./providers/theme-provider";
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+const rootElement = document.getElementById("root");
+if (!rootElement) {
+  throw new Error("Missing root element");
+}
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <ThemeProvider defaultTheme="system" storageKey="echo-ui-theme">
       <App />
