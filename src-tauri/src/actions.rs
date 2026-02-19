@@ -500,3 +500,67 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     );
     map
 });
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::settings::{get_default_settings, LLMPrompt};
+
+    /// Helper: returns settings with a fully-configured post-processing setup.
+    fn settings_with_post_process() -> AppSettings {
+        let mut s = get_default_settings();
+        s.post_process_enabled = true;
+        s.post_process_provider_id = "ollama".to_string();
+        s.post_process_models
+            .insert("ollama".to_string(), "llama3".to_string());
+        s.post_process_prompts = vec![LLMPrompt {
+            id: "test_prompt".to_string(),
+            name: "Test".to_string(),
+            prompt: "Fix this: ${output}".to_string(),
+        }];
+        s.post_process_selected_prompt_id = Some("test_prompt".to_string());
+        s
+    }
+
+    #[tokio::test]
+    async fn disabled_returns_none() {
+        let mut s = settings_with_post_process();
+        s.post_process_enabled = false;
+        let result = maybe_post_process_transcription(&s, "hello world").await;
+        assert!(result.is_none(), "Should return None when disabled");
+    }
+
+    #[tokio::test]
+    async fn no_provider_returns_none() {
+        let mut s = settings_with_post_process();
+        s.post_process_provider_id = "nonexistent_provider".to_string();
+        let result = maybe_post_process_transcription(&s, "hello world").await;
+        assert!(
+            result.is_none(),
+            "Should return None when provider is invalid"
+        );
+    }
+
+    #[tokio::test]
+    async fn no_model_returns_none() {
+        let mut s = settings_with_post_process();
+        s.post_process_models
+            .insert("ollama".to_string(), "".to_string());
+        let result = maybe_post_process_transcription(&s, "hello world").await;
+        assert!(
+            result.is_none(),
+            "Should return None when model is empty"
+        );
+    }
+
+    #[tokio::test]
+    async fn no_prompt_returns_none() {
+        let mut s = settings_with_post_process();
+        s.post_process_selected_prompt_id = None;
+        let result = maybe_post_process_transcription(&s, "hello world").await;
+        assert!(
+            result.is_none(),
+            "Should return None when no prompt is selected"
+        );
+    }
+}

@@ -1,12 +1,12 @@
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, write_settings, ModelUnloadTimeout};
+use crate::settings::{self, ModelUnloadTimeout};
 use tauri::{AppHandle, State};
 
 #[tauri::command]
 pub fn set_model_unload_timeout(app: AppHandle, timeout: ModelUnloadTimeout) {
-    let mut settings = get_settings(&app);
-    settings.model_unload_timeout = timeout;
-    write_settings(&app, settings);
+    settings::update_settings(&app, |s| {
+        s.model_unload_timeout = timeout;
+    });
 }
 
 #[tauri::command]

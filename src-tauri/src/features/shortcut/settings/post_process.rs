@@ -26,26 +26,26 @@ pub fn change_post_process_base_url_setting(
     provider_id: String,
     base_url: String,
 ) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    let label = settings
-        .post_process_provider(&provider_id)
-        .map(|provider| provider.label.clone())
-        .ok_or_else(|| format!("Provider '{}' not found", provider_id))?;
+    settings::try_update_settings(&app, |s| {
+        let label = s
+            .post_process_provider(&provider_id)
+            .map(|provider| provider.label.clone())
+            .ok_or_else(|| format!("Provider '{}' not found", provider_id))?;
 
-    let provider = settings
-        .post_process_provider_mut(&provider_id)
-        .expect("Provider looked up above must exist");
+        let provider = s
+            .post_process_provider_mut(&provider_id)
+            .expect("Provider looked up above must exist");
 
-    if !provider.allow_base_url_edit {
-        return Err(format!(
-            "Provider '{}' does not allow editing the base URL",
-            label
-        ));
-    }
+        if !provider.allow_base_url_edit {
+            return Err(format!(
+                "Provider '{}' does not allow editing the base URL",
+                label
+            ));
+        }
 
-    provider.base_url = base_url;
-    settings::write_settings(&app, settings);
-    Ok(())
+        provider.base_url = base_url.clone();
+        Ok(())
+    })
 }
 
 /// Change post-process API key setting.
@@ -55,11 +55,12 @@ pub fn change_post_process_api_key_setting(
     provider_id: String,
     api_key: String,
 ) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    validate_provider_exists(&settings, &provider_id)?;
-    settings.post_process_api_keys.insert(provider_id, api_key);
-    settings::write_settings(&app, settings);
-    Ok(())
+    settings::try_update_settings(&app, |s| {
+        validate_provider_exists(s, &provider_id)?;
+        s.post_process_api_keys
+            .insert(provider_id.clone(), api_key.clone());
+        Ok(())
+    })
 }
 
 /// Change post-process model setting.
@@ -69,21 +70,22 @@ pub fn change_post_process_model_setting(
     provider_id: String,
     model: String,
 ) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    validate_provider_exists(&settings, &provider_id)?;
-    settings.post_process_models.insert(provider_id, model);
-    settings::write_settings(&app, settings);
-    Ok(())
+    settings::try_update_settings(&app, |s| {
+        validate_provider_exists(s, &provider_id)?;
+        s.post_process_models
+            .insert(provider_id.clone(), model.clone());
+        Ok(())
+    })
 }
 
 /// Set the active post-process provider.
 #[tauri::command]
 pub fn set_post_process_provider(app: AppHandle, provider_id: String) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    validate_provider_exists(&settings, &provider_id)?;
-    settings.post_process_provider_id = provider_id;
-    settings::write_settings(&app, settings);
-    Ok(())
+    settings::try_update_settings(&app, |s| {
+        validate_provider_exists(s, &provider_id)?;
+        s.post_process_provider_id = provider_id.clone();
+        Ok(())
+    })
 }
 
 /// Add a new post-process prompt.
@@ -93,9 +95,6 @@ pub fn add_post_process_prompt(
     name: String,
     prompt: String,
 ) -> Result<LLMPrompt, String> {
-    let mut settings = settings::get_settings(&app);
-
-    // Generate unique ID using timestamp and random component
     let id = format!("prompt_{}", chrono::Utc::now().timestamp_millis());
 
     let new_prompt = LLMPrompt {
@@ -104,10 +103,12 @@ pub fn add_post_process_prompt(
         prompt,
     };
 
-    settings.post_process_prompts.push(new_prompt.clone());
-    settings::write_settings(&app, settings);
+    let result = new_prompt.clone();
+    settings::update_settings(&app, |s| {
+        s.post_process_prompts.push(new_prompt);
+    });
 
-    Ok(new_prompt)
+    Ok(result)
 }
 
 /// Update an existing post-process prompt.
@@ -118,48 +119,39 @@ pub fn update_post_process_prompt(
     name: String,
     prompt: String,
 ) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-
-    if let Some(existing_prompt) = settings
-        .post_process_prompts
-        .iter_mut()
-        .find(|p| p.id == id)
-    {
-        existing_prompt.name = name;
-        existing_prompt.prompt = prompt;
-        settings::write_settings(&app, settings);
-        Ok(())
-    } else {
-        Err(format!("Prompt with id '{}' not found", id))
-    }
+    settings::try_update_settings(&app, |s| {
+        if let Some(existing_prompt) = s.post_process_prompts.iter_mut().find(|p| p.id == id) {
+            existing_prompt.name = name.clone();
+            existing_prompt.prompt = prompt.clone();
+            Ok(())
+        } else {
+            Err(format!("Prompt with id '{}' not found", id))
+        }
+    })
 }
 
 /// Delete a post-process prompt.
 #[tauri::command]
 pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
+    settings::try_update_settings(&app, |s| {
+        if s.post_process_prompts.len() <= 1 {
+            return Err("Cannot delete the last prompt".to_string());
+        }
 
-    // Don't allow deleting the last prompt
-    if settings.post_process_prompts.len() <= 1 {
-        return Err("Cannot delete the last prompt".to_string());
-    }
+        let original_len = s.post_process_prompts.len();
+        s.post_process_prompts.retain(|p| p.id != id);
 
-    // Find and remove the prompt
-    let original_len = settings.post_process_prompts.len();
-    settings.post_process_prompts.retain(|p| p.id != id);
+        if s.post_process_prompts.len() == original_len {
+            return Err(format!("Prompt with id '{}' not found", id));
+        }
 
-    if settings.post_process_prompts.len() == original_len {
-        return Err(format!("Prompt with id '{}' not found", id));
-    }
+        if s.post_process_selected_prompt_id.as_ref() == Some(&id) {
+            s.post_process_selected_prompt_id =
+                s.post_process_prompts.first().map(|p| p.id.clone());
+        }
 
-    // If the deleted prompt was selected, select the first one or None
-    if settings.post_process_selected_prompt_id.as_ref() == Some(&id) {
-        settings.post_process_selected_prompt_id =
-            settings.post_process_prompts.first().map(|p| p.id.clone());
-    }
-
-    settings::write_settings(&app, settings);
-    Ok(())
+        Ok(())
+    })
 }
 
 /// Fetch available models from a post-process provider.
@@ -316,29 +308,23 @@ async fn fetch_models_manual(
 /// Set the selected post-process prompt.
 #[tauri::command]
 pub fn set_post_process_selected_prompt(app: AppHandle, id: Option<String>) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-
-    if let Some(prompt_id) = &id {
-        // Verify the prompt exists
-        if !settings
-            .post_process_prompts
-            .iter()
-            .any(|p| &p.id == prompt_id)
-        {
-            return Err(format!("Prompt with id '{}' not found", prompt_id));
+    settings::try_update_settings(&app, |s| {
+        if let Some(prompt_id) = &id {
+            if !s.post_process_prompts.iter().any(|p| &p.id == prompt_id) {
+                return Err(format!("Prompt with id '{}' not found", prompt_id));
+            }
         }
-    }
 
-    settings.post_process_selected_prompt_id = id;
-    settings::write_settings(&app, settings);
-    Ok(())
+        s.post_process_selected_prompt_id = id.clone();
+        Ok(())
+    })
 }
 
 /// Change post-process enabled setting.
 #[tauri::command]
 pub fn change_post_process_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    settings.post_process_enabled = enabled;
-    settings::write_settings(&app, settings);
+    settings::update_settings(&app, |s| {
+        s.post_process_enabled = enabled;
+    });
     Ok(())
 }

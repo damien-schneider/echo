@@ -1,11 +1,17 @@
 #[cfg(debug_assertions)]
 use log::debug;
 use log::warn;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri_plugin_log::LogLevel;
 use tauri_plugin_store::StoreExt;
+
+/// Global mutex that serialises all settings reads-and-writes so no
+/// concurrent command can read stale state and clobber another command's update.
+static SETTINGS_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ShortcutBinding {
@@ -608,12 +614,7 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
 
     if let Some(settings_value) = store.get("settings") {
         match serde_json::from_value::<AppSettings>(settings_value.clone()) {
-            Ok(mut settings) => {
-                if apply_settings_migrations_from_raw(&mut settings, Some(&settings_value)) {
-                    store.set("settings", serde_json::to_value(&settings).unwrap());
-                }
-                settings
-            }
+            Ok(settings) => settings,
             Err(_) => {
                 let default_settings = get_default_settings();
                 store.set("settings", serde_json::to_value(&default_settings).unwrap());
@@ -633,6 +634,34 @@ pub fn write_settings(app: &AppHandle, settings: AppSettings) {
         .expect("Failed to initialize store");
 
     store.set("settings", serde_json::to_value(&settings).unwrap());
+}
+
+/// Atomically read-modify-write settings under the global lock.
+///
+/// The closure receives a mutable reference to the current `AppSettings`.
+/// After it returns, the modified settings are written back to the store.
+pub fn update_settings<F>(app: &AppHandle, f: F)
+where
+    F: FnOnce(&mut AppSettings),
+{
+    let _guard = SETTINGS_LOCK.lock().expect("settings lock poisoned");
+    let mut settings = get_settings(app);
+    f(&mut settings);
+    write_settings(app, settings);
+}
+
+/// Like [`update_settings`] but the closure can fail.
+///
+/// If the closure returns `Err`, the settings are **not** written back.
+pub fn try_update_settings<F>(app: &AppHandle, f: F) -> Result<(), String>
+where
+    F: FnOnce(&mut AppSettings) -> Result<(), String>,
+{
+    let _guard = SETTINGS_LOCK.lock().expect("settings lock poisoned");
+    let mut settings = get_settings(app);
+    f(&mut settings)?;
+    write_settings(app, settings);
+    Ok(())
 }
 
 pub fn get_bindings(app: &AppHandle) -> HashMap<String, ShortcutBinding> {
@@ -657,4 +686,89 @@ pub fn get_history_limit(app: &AppHandle) -> usize {
 pub fn get_recording_retention_period(app: &AppHandle) -> RecordingRetentionPeriod {
     let settings = get_settings(app);
     settings.recording_retention_period
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn enabled_false_survives_serialization() {
+        let mut settings = get_default_settings();
+        settings.post_process_enabled = false;
+
+        let json = serde_json::to_value(&settings).unwrap();
+        let deserialized: AppSettings = serde_json::from_value(json).unwrap();
+
+        assert!(
+            !deserialized.post_process_enabled,
+            "post_process_enabled should remain false after round-trip serialization"
+        );
+    }
+
+    #[test]
+    fn migration_preserves_enabled_flag() {
+        let mut settings = get_default_settings();
+        settings.post_process_enabled = false;
+        // Ensure the auto-select prompt migration won't fire by pre-setting prompt
+        settings.post_process_selected_prompt_id =
+            Some("default_improve_transcriptions".to_string());
+
+        let raw = serde_json::to_value(&settings).unwrap();
+        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
+
+        assert!(
+            !settings.post_process_enabled,
+            "post_process_enabled should remain false after migrations"
+        );
+    }
+
+    /// Simulates the race scenario: two sequential updates to different fields
+    /// should both be preserved because each goes through the lock.
+    /// (Without Tauri runtime we can't call update_settings, so we test the
+    /// serialization pattern that the lock protects.)
+    #[test]
+    fn sequential_updates_to_different_fields_both_preserved() {
+        let mut settings = get_default_settings();
+
+        // Simulate first command: disable post-processing
+        settings.post_process_enabled = false;
+        let json = serde_json::to_value(&settings).unwrap();
+        let mut after_first: AppSettings = serde_json::from_value(json).unwrap();
+
+        // Simulate second command: change model (on the result of the first write)
+        after_first
+            .post_process_models
+            .insert("ollama".to_string(), "llama3".to_string());
+        let json = serde_json::to_value(&after_first).unwrap();
+        let final_settings: AppSettings = serde_json::from_value(json).unwrap();
+
+        // Both changes should be preserved
+        assert!(
+            !final_settings.post_process_enabled,
+            "post_process_enabled should remain false after model update"
+        );
+        assert_eq!(
+            final_settings.post_process_models.get("ollama").unwrap(),
+            "llama3",
+            "model should be updated"
+        );
+    }
+
+    /// Verifies that the SETTINGS_LOCK is a true global singleton.
+    #[test]
+    fn settings_lock_is_singleton() {
+        let guard1 = SETTINGS_LOCK.try_lock();
+        assert!(guard1.is_ok(), "First lock should succeed");
+
+        // While held, a second attempt should fail
+        let guard2 = SETTINGS_LOCK.try_lock();
+        assert!(guard2.is_err(), "Second lock should fail while first is held");
+
+        drop(guard1);
+
+        // After releasing, lock should succeed again
+        let guard3 = SETTINGS_LOCK.try_lock();
+        assert!(guard3.is_ok(), "Lock should succeed after release");
+    }
 }

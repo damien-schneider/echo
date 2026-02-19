@@ -33,11 +33,9 @@ pub async fn change_binding(
     id: String,
     binding: String,
 ) -> Result<BindingResponse, String> {
-    let mut settings = settings::get_settings(&app);
-
-    // Get the binding to modify
-    let binding_to_modify = match settings.bindings.get(&id) {
-        Some(binding) => binding.clone(),
+    // Read current binding to get the old value (for X11 unregister).
+    let binding_to_modify = match settings::get_settings(&app).bindings.get(&id).cloned() {
+        Some(b) => b,
         None => {
             let error_msg = format!("Binding with id '{}' not found", id);
             error!("change_binding error: {}", error_msg);
@@ -59,11 +57,11 @@ pub async fn change_binding(
     let mut updated_binding = binding_to_modify.clone();
     updated_binding.current_binding = binding.clone();
 
-    // Update the binding in the settings (we save before re-init so Wayland reads the new value)
-    settings
-        .bindings
-        .insert(id.clone(), updated_binding.clone());
-    settings::write_settings(&app, settings);
+    // Atomically update the binding in the settings (we save before re-init so Wayland reads the new value)
+    let ub = updated_binding.clone();
+    settings::update_settings(&app, |s| {
+        s.bindings.insert(id.clone(), ub);
+    });
 
     // Platform-specific: register the new shortcut
     #[cfg(target_os = "linux")]

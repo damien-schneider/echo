@@ -86,9 +86,9 @@ pub fn set_log_level(app: AppHandle, level: u8) -> Result<(), String> {
     );
 
     // Also persist to settings for the UI (store LogLevel as enum value)
-    let mut settings = settings::get_settings(&app);
-    settings.log_level = pl_level;
-    settings::write_settings(&app, settings);
+    settings::update_settings(&app, |s| {
+        s.log_level = pl_level;
+    });
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 use crate::managers::model::{ModelInfo, ModelManager};
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings::{get_settings, write_settings};
+use crate::settings;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
@@ -61,18 +61,19 @@ pub async fn set_active_model(
         .load_model(&model_id)
         .map_err(|e| e.to_string())?;
 
-    // Update settings
-    let mut settings = get_settings(&app_handle);
-    settings.selected_model = model_id.clone();
-    write_settings(&app_handle, settings);
+    // Update settings atomically
+    let model_id_clone = model_id.clone();
+    settings::update_settings(&app_handle, |s| {
+        s.selected_model = model_id_clone;
+    });
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_current_model(app_handle: AppHandle) -> Result<String, String> {
-    let settings = get_settings(&app_handle);
-    Ok(settings.selected_model)
+    let s = settings::get_settings(&app_handle);
+    Ok(s.selected_model)
 }
 
 #[tauri::command]

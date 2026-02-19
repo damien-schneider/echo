@@ -1,4 +1,4 @@
-use crate::settings::{get_settings, write_settings};
+use crate::settings;
 use anyhow::Result;
 use flate2::read::GzDecoder;
 use futures_util::StreamExt;
@@ -285,10 +285,10 @@ impl ModelManager {
 
     fn auto_select_model_if_needed(&self) -> Result<()> {
         // Check if we have a selected model in settings
-        let settings = get_settings(&self.app_handle);
+        let current = settings::get_settings(&self.app_handle);
 
         // If no model is selected or selected model is empty
-        if settings.selected_model.is_empty() {
+        if current.selected_model.is_empty() {
             // Find the first available (downloaded) model
             let models = self.available_models.lock().unwrap();
             if let Some(available_model) = models.values().find(|model| model.is_downloaded) {
@@ -298,12 +298,13 @@ impl ModelManager {
                     available_model.name
                 );
 
-                // Update settings with the selected model
-                let mut updated_settings = settings;
-                updated_settings.selected_model = available_model.id.clone();
-                write_settings(&self.app_handle, updated_settings);
+                let model_id = available_model.id.clone();
+                drop(models); // Release the models lock before acquiring settings lock
+                settings::update_settings(&self.app_handle, |s| {
+                    s.selected_model = model_id.clone();
+                });
 
-                log::info!("Successfully auto-selected model: {}", available_model.id);
+                log::info!("Successfully auto-selected model: {}", model_id);
             }
         }
 

@@ -14,11 +14,11 @@ pub fn change_input_tracking_setting(app: AppHandle, enabled: bool) -> Result<()
         enabled
     );
 
-    let mut settings = settings::get_settings(&app);
-    settings.input_tracking_enabled = enabled;
-    settings::write_settings(&app, settings);
+    settings::update_settings(&app, |s| {
+        s.input_tracking_enabled = enabled;
+    });
 
-    // Update the input tracker manager state
+    // Side effect outside lock: update the input tracker manager state
     if let Some(manager) = app.try_state::<Arc<std::sync::Mutex<InputTrackerManager>>>() {
         log::info!("[InputTracker] Found manager state, updating...");
         if let Ok(mut tracker) = manager.lock() {
@@ -44,14 +44,15 @@ pub fn change_input_tracking_excluded_apps(
         apps.len()
     );
 
-    let mut settings = settings::get_settings(&app);
-    settings.input_tracking_excluded_apps = apps.clone();
-    settings::write_settings(&app, settings);
+    let apps_for_manager = apps.clone();
+    settings::update_settings(&app, |s| {
+        s.input_tracking_excluded_apps = apps;
+    });
 
-    // Update the input tracker manager
+    // Side effect outside lock: update the input tracker manager
     if let Some(manager) = app.try_state::<Arc<std::sync::Mutex<InputTrackerManager>>>() {
         if let Ok(tracker) = manager.lock() {
-            tracker.set_excluded_apps(apps);
+            tracker.set_excluded_apps(apps_for_manager);
         }
     }
 
@@ -69,11 +70,11 @@ pub fn change_input_tracking_idle_timeout(
         timeout_secs
     );
 
-    let mut settings = settings::get_settings(&app);
-    settings.input_tracking_idle_timeout = timeout_secs;
-    settings::write_settings(&app, settings);
+    settings::update_settings(&app, |s| {
+        s.input_tracking_idle_timeout = timeout_secs;
+    });
 
-    // Update the input tracker manager
+    // Side effect outside lock: update the input tracker manager
     if let Some(manager) = app.try_state::<Arc<std::sync::Mutex<InputTrackerManager>>>() {
         if let Ok(tracker) = manager.lock() {
             // 0 means disabled, None also means disabled

@@ -1,7 +1,7 @@
 use crate::audio_feedback;
 use crate::audio_toolkit::audio::{list_input_devices, list_output_devices};
 use crate::managers::audio::{AudioRecordingManager, MicrophoneMode};
-use crate::settings::{get_settings, write_settings};
+use crate::settings;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
@@ -38,12 +38,11 @@ pub struct AudioDevice {
 
 #[tauri::command]
 pub fn update_microphone_mode(app: AppHandle, always_on: bool) -> Result<(), String> {
-    // Update settings
-    let mut settings = get_settings(&app);
-    settings.always_on_microphone = always_on;
-    write_settings(&app, settings);
+    settings::update_settings(&app, |s| {
+        s.always_on_microphone = always_on;
+    });
 
-    // Update the audio manager mode
+    // Side effect outside lock: update the audio manager mode
     let rm = app.state::<Arc<AudioRecordingManager>>();
     let new_mode = if always_on {
         MicrophoneMode::AlwaysOn
@@ -57,8 +56,8 @@ pub fn update_microphone_mode(app: AppHandle, always_on: bool) -> Result<(), Str
 
 #[tauri::command]
 pub fn get_microphone_mode(app: AppHandle) -> Result<bool, String> {
-    let settings = get_settings(&app);
-    Ok(settings.always_on_microphone)
+    let s = settings::get_settings(&app);
+    Ok(s.always_on_microphone)
 }
 
 #[tauri::command]
@@ -83,15 +82,15 @@ pub fn get_available_microphones() -> Result<Vec<AudioDevice>, String> {
 
 #[tauri::command]
 pub fn set_selected_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.selected_microphone = if device_name == "default" {
-        None
-    } else {
-        Some(device_name)
-    };
-    write_settings(&app, settings);
+    settings::update_settings(&app, |s| {
+        s.selected_microphone = if device_name == "default" {
+            None
+        } else {
+            Some(device_name.clone())
+        };
+    });
 
-    // Update the audio manager to use the new device
+    // Side effect outside lock: update the audio manager to use the new device
     let rm = app.state::<Arc<AudioRecordingManager>>();
     rm.update_selected_device()
         .map_err(|e| format!("Failed to update selected device: {}", e))?;
@@ -101,15 +100,15 @@ pub fn set_selected_microphone(app: AppHandle, device_name: String) -> Result<()
 
 #[tauri::command]
 pub fn set_clamshell_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.clamshell_microphone = if device_name == "default" {
-        None
-    } else {
-        Some(device_name)
-    };
-    write_settings(&app, settings);
+    settings::update_settings(&app, |s| {
+        s.clamshell_microphone = if device_name == "default" {
+            None
+        } else {
+            Some(device_name.clone())
+        };
+    });
 
-    // Restart the recorder if necessary so we pick up the new device
+    // Side effect outside lock: restart the recorder if necessary so we pick up the new device
     let rm = app.state::<Arc<AudioRecordingManager>>();
     rm.update_selected_device()
         .map_err(|e| format!("Failed to update clamshell device: {}", e))?;
@@ -119,17 +118,15 @@ pub fn set_clamshell_microphone(app: AppHandle, device_name: String) -> Result<(
 
 #[tauri::command]
 pub fn get_selected_microphone(app: AppHandle) -> Result<String, String> {
-    let settings = get_settings(&app);
-    Ok(settings
-        .selected_microphone
+    let s = settings::get_settings(&app);
+    Ok(s.selected_microphone
         .unwrap_or_else(|| "default".to_string()))
 }
 
 #[tauri::command]
 pub fn get_clamshell_microphone(app: AppHandle) -> Result<String, String> {
-    let settings = get_settings(&app);
-    Ok(settings
-        .clamshell_microphone
+    let s = settings::get_settings(&app);
+    Ok(s.clamshell_microphone
         .unwrap_or_else(|| "default".to_string()))
 }
 
@@ -155,21 +152,20 @@ pub fn get_available_output_devices() -> Result<Vec<AudioDevice>, String> {
 
 #[tauri::command]
 pub fn set_selected_output_device(app: AppHandle, device_name: String) -> Result<(), String> {
-    let mut settings = get_settings(&app);
-    settings.selected_output_device = if device_name == "default" {
-        None
-    } else {
-        Some(device_name)
-    };
-    write_settings(&app, settings);
+    settings::update_settings(&app, |s| {
+        s.selected_output_device = if device_name == "default" {
+            None
+        } else {
+            Some(device_name.clone())
+        };
+    });
     Ok(())
 }
 
 #[tauri::command]
 pub fn get_selected_output_device(app: AppHandle) -> Result<String, String> {
-    let settings = get_settings(&app);
-    Ok(settings
-        .selected_output_device
+    let s = settings::get_settings(&app);
+    Ok(s.selected_output_device
         .unwrap_or_else(|| "default".to_string()))
 }
 
