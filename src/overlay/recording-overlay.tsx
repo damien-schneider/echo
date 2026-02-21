@@ -149,17 +149,12 @@ const RecordingOverlay = () => {
   }, [streamingText]);
 
   return (
-    <div
-      className={cn(
-        "pointer-events-none fixed inset-0",
-        !isVisible && "opacity-0"
-      )}
-    >
+    <div className="pointer-events-none fixed inset-0">
       {/* Waveform container - positioned at top, centered horizontally */}
       <motion.div
         animate={{
           opacity: isVisible ? 1 : 0,
-          filter: isVisible ? "blur(0px)" : "blur(12px)",
+          scale: isVisible ? 1 : 0.96,
         }}
         className={cn(
           "pointer-events-auto fixed left-1/2 flex -translate-x-1/2 items-center justify-center rounded-xl border border-foreground/10 bg-background px-1",
@@ -167,24 +162,15 @@ const RecordingOverlay = () => {
             ? "overlay-waveform-top"
             : "overlay-waveform-bottom"
         )}
-        initial={{
-          opacity: 0,
-          filter: "blur(12px)",
-        }}
+        initial={false}
         style={{
           height: `${WAVEFORM_CONTAINER_HEIGHT}px`,
           width: `${WAVEFORM_CONTAINER_WIDTH}px`,
+          willChange: "opacity, transform",
         }}
         transition={{
-          type: "spring",
-          stiffness: 300,
-          damping: 30,
-          mass: 0.8,
-          opacity: {
-            type: "spring",
-            stiffness: 400,
-            damping: 35,
-          },
+          type: "tween",
+          duration: 0.15,
         }}
       >
         {/* Warning state content */}

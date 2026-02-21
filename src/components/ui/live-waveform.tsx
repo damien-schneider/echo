@@ -162,6 +162,8 @@ export const LiveWaveform = ({
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.scale(dpr, dpr);
+        // Pre-warm the 2D context by forcing eager allocation
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
 
       gradientCacheRef.current = null;
@@ -390,6 +392,13 @@ export const LiveWaveform = ({
     const animate = (currentTime: number) => {
       // Render waveform
       const rect = canvas.getBoundingClientRect();
+
+      // Pre-initialize bars with placeholders when active starts
+      if (active && staticBarsRef.current.length === 0 && mode === "static") {
+        const barCount = Math.floor(rect.width / (barWidth + barGap));
+        staticBarsRef.current = new Array(barCount).fill(0.05);
+        needsRedrawRef.current = true;
+      }
 
       // Update audio data if active
       if (active && currentTime - lastUpdateRef.current > updateRate) {
