@@ -1,11 +1,18 @@
 import { listen } from "@tauri-apps/api/event";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check } from "@tauri-apps/plugin-updater";
+import { RefreshCw } from "lucide-react";
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ProgressBar from "@/components/shared/progress-bar";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 
 interface UpdateCheckerProps {
@@ -13,7 +20,6 @@ interface UpdateCheckerProps {
 }
 
 const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
-  // Update checking state
   const [isChecking, setIsChecking] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false);
@@ -28,7 +34,6 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
   const downloadedBytesRef = useRef(0);
   const contentLengthRef = useRef(0);
 
-  // Update checking functions
   const checkForUpdates = useCallback(async () => {
     if (isCheckingRef.current) {
       return;
@@ -72,7 +77,6 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
   useEffect(() => {
     checkForUpdates();
 
-    // Listen for update check events
     const updateUnlisten = listen("check-for-updates", () => {
       handleManualUpdateCheck();
     });
@@ -130,23 +134,6 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
     }
   };
 
-  // Update status functions
-  const getUpdateStatusText = () => {
-    if (isInstalling) {
-      if (downloadProgress > 0 && downloadProgress < 100) {
-        return `Downloading... ${downloadProgress.toString().padStart(3)}%`;
-      }
-      return downloadProgress === 100 ? "Installing..." : "";
-    }
-    if (showUpToDate) {
-      return "Up to date";
-    }
-    if (updateAvailable) {
-      return "Update available";
-    }
-    return "Check for updates";
-  };
-
   const getUpdateStatusAction = () => {
     if (updateAvailable && !isInstalling) {
       return installUpdate;
@@ -162,40 +149,72 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
     !isUpdateDisabled && (updateAvailable || !isChecking);
 
   const showSpinner = isChecking || (isInstalling && downloadProgress === 0);
+  const isDownloading =
+    isInstalling && downloadProgress > 0 && downloadProgress < 100;
+  const showStatusText = updateAvailable || showUpToDate;
+
+  const renderIconButton = () => (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            className="text-muted-foreground hover:text-foreground"
+            disabled={!isUpdateClickable}
+            onClick={getUpdateStatusAction()}
+            size="xs"
+            variant="ghost"
+          >
+            {showSpinner ? (
+              <Spinner className="size-3!" />
+            ) : (
+              <RefreshCw className="size-3!" />
+            )}
+            <span className="sr-only">Check for updates</span>
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          {showSpinner ? "Checking..." : "Check for updates"}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+
+  const renderStatusText = () => (
+    <Button
+      className={cn(
+        "items-center gap-2",
+        updateAvailable
+          ? "text-brand hover:text-brand/80"
+          : "text-muted-foreground"
+      )}
+      disabled={!isUpdateClickable}
+      onClick={getUpdateStatusAction()}
+      size="xs"
+      variant="ghost"
+    >
+      {updateAvailable ? "Update available" : "Up to date"}
+    </Button>
+  );
+
+  const renderProgressBar = () => (
+    <ProgressBar
+      progress={[{ id: "update", percentage: downloadProgress }]}
+      size="large"
+    />
+  );
+
+  const renderContent = () => {
+    if (isDownloading) {
+      return renderProgressBar();
+    }
+    if (showStatusText) {
+      return renderStatusText();
+    }
+    return renderIconButton();
+  };
 
   return (
-    <div className={cn("flex items-center gap-3", className)}>
-      <Button
-        className={cn(
-          "min-w-32 items-center gap-2",
-          updateAvailable
-            ? "font-medium text-brand hover:text-brand/80"
-            : "text-text/60 hover:text-text/80"
-        )}
-        disabled={!isUpdateClickable}
-        onClick={getUpdateStatusAction()}
-        size="xs"
-        variant="ghost"
-      >
-        {showSpinner ? (
-          <Spinner className="size-3" />
-        ) : (
-          <span className="tabular-nums">{getUpdateStatusText()}</span>
-        )}
-      </Button>
-
-      {isInstalling && downloadProgress > 0 && downloadProgress < 100 && (
-        <ProgressBar
-          progress={[
-            {
-              id: "update",
-              percentage: downloadProgress,
-            },
-          ]}
-          size="large"
-        />
-      )}
-    </div>
+    <div className={cn("flex items-center", className)}>{renderContent()}</div>
   );
 };
 

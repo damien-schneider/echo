@@ -1,4 +1,3 @@
-import { getVersion } from "@tauri-apps/api/app";
 import {
   AudioLines,
   Box,
@@ -9,11 +8,9 @@ import {
   Speech,
 } from "lucide-react";
 import type React from "react";
-import { useEffect, useState } from "react";
 import { FileTranscriptionCenter } from "@/components/file-transcription-center";
 import EchoLogo from "@/components/icons/echo-logo";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { Badge } from "@/components/ui/badge";
 import {
   Sidebar,
   SidebarContent,
@@ -37,7 +34,6 @@ import { ModelsSettings } from "./settings/models/models-settings";
 import { PostProcessingSettings } from "./settings/post-processing/post-processing-settings";
 import { TranscriptionSettings } from "./settings/transcription/transcription-settings";
 import { TtsSettingsPage } from "./settings/tts-settings-page";
-import UpdateChecker from "./update-checker/update-checker";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
@@ -90,22 +86,6 @@ export const SECTIONS_CONFIG = {
 } as const satisfies Record<string, SectionConfig>;
 
 function SidebarVersionFooter() {
-  const [version, setVersion] = useState("");
-
-  useEffect(() => {
-    const fetchVersion = async () => {
-      try {
-        const appVersion = await getVersion();
-        setVersion(appVersion);
-      } catch (error) {
-        console.error("Failed to get app version:", error);
-        setVersion("0.1.2");
-      }
-    };
-
-    fetchVersion();
-  }, []);
-
   return (
     <SidebarFooter className="select-none" data-tauri-drag-region>
       <SidebarMenu>
@@ -116,16 +96,8 @@ function SidebarVersionFooter() {
           <FileTranscriptionCenter />
         </SidebarMenuItem>
         <SidebarMenuItem>
-          <div className="flex items-center justify-between py-1.5">
-            <div className="flex items-center gap-2">
-              <AboutDialog />
-              <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-                <UpdateChecker />
-                <Badge size="sm" variant="outline">
-                  v{version}
-                </Badge>
-              </div>
-            </div>
+          <div className="flex items-center py-1.5">
+            <AboutDialog />
           </div>
         </SidebarMenuItem>
       </SidebarMenu>
