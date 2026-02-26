@@ -60,54 +60,17 @@ const GlassWindow = ({
     };
   }, []);
   // Determine window styles based on platform and state
-  const getGlassStyles = () => {
-    // Windows or maximized: no border radius, solid background
-    if (isMaximized || isWindows) {
-      return {
-        borderRadius: "0",
-        background: "var(--window-background)",
-        border: "none",
-        boxShadow: "none",
-      };
-    }
-
-    // Linux: rounded corners with solid background (no glassmorphism).
-    // Uses a subtle 1px border that follows the border-radius to give
-    // a clean window edge, similar to native GNOME apps. The inset
-    // box-shadow at the top adds a slight highlight for depth.
-    // No outward box-shadow — Mutter (GNOME compositor) provides its
-    // own window shadow on Wayland.
-    if (isLinux) {
-      return {
-        borderRadius: "var(--window-radius)",
-        background: "var(--window-background)",
-        border: "1px solid var(--window-border)",
-        boxShadow: "inset 0 1px 0 0 var(--window-border-highlight)",
-      };
-    }
-
-    // macOS: full glassmorphism
-    return {
-      borderRadius: "var(--window-radius)",
-      background: "var(--window-background)",
-      border: "1px solid var(--window-border)",
-      boxShadow:
-        "var(--window-shadow), inset 0 1px 0 0 var(--window-border-highlight)",
-      backdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
-      WebkitBackdropFilter: "blur(80px) saturate(200%) brightness(1.1)",
-    };
-  };
-
-  const glassStyles = getGlassStyles();
 
   return (
     <div
       className={cn(
-        "relative flex h-screen flex-col overflow-hidden",
+        "relative flex h-screen flex-col bg-background/90 rounded-[1.25rem] backdrop-blur-sm",
         className
       )}
       ref={ref}
-      style={glassStyles as CSSProperties}
+      style={{
+        boxShadow: "var(--window-shadow)"
+      }}
       {...props}
     >
       {/* Noise/grain overlay - only show when not maximized and not on Windows/Linux */}
@@ -118,13 +81,13 @@ const GlassWindow = ({
           style={{
             borderRadius: "var(--window-radius)",
             opacity: 0.04,
-            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
           }}
         />
       )}
-      <div className="relative z-10 flex flex-1 flex-col overflow-hidden">
+
         {children}
-      </div>
+
     </div>
   );
 };

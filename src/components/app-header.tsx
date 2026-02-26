@@ -25,7 +25,7 @@ export function AppHeader() {
     >
       <UpdateChecker />
       {version && (
-        <Badge className="text-muted-foreground" size="sm" variant="outline">
+        <Badge className="text-muted-foreground bg-secondary rounded-full border-0" size="sm" variant="outline">
           v{version}
         </Badge>
       )}

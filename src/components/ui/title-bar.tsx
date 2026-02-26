@@ -75,7 +75,7 @@ const TitleBar = ({
   if (isMacOS) {
     return (
       <div
-        className={cn("h-8 shrink-0 bg-transparent!", className)}
+        className={cn("h-8 shrink-0 bg-transparent! pl-4", className)}
         data-tauri-drag-region
         ref={ref}
         style={{
