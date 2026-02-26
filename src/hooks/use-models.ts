@@ -3,25 +3,25 @@ import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useState } from "react";
 
 interface ModelInfo {
-  id: string;
-  name: string;
+  accuracy_score: number;
   description: string;
   filename: string;
-  url?: string;
-  size_mb: number;
+  id: string;
+  is_directory: boolean;
   is_downloaded: boolean;
   is_downloading: boolean;
+  name: string;
   partial_size: number;
-  is_directory: boolean;
-  accuracy_score: number;
+  size_mb: number;
   speed_score: number;
+  url?: string;
 }
 
 interface DownloadProgress {
-  model_id: string;
   downloaded: number;
-  total: number;
+  model_id: string;
   percentage: number;
+  total: number;
 }
 
 export const useModels = () => {

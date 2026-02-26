@@ -5,11 +5,11 @@ import { cn } from "@/lib/utils";
 import { Disclosure, DisclosureContent, DisclosureTrigger } from "./disclosure";
 
 interface CollapsibleSettingsGroupProps {
-  title: string;
-  description?: string;
   children: React.ReactNode;
-  defaultOpen?: boolean;
   className?: string;
+  defaultOpen?: boolean;
+  description?: string;
+  title: string;
 }
 
 export const CollapsibleSettingsGroup: React.FC<

@@ -6,15 +6,15 @@ import { Button } from "./button";
 import { SettingContainer } from "./setting-container";
 
 interface TextDisplayProps {
-  label: string;
+  copyable?: boolean;
   description: string;
-  value: string;
   descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
-  placeholder?: string;
-  copyable?: boolean;
+  label: string;
   monospace?: boolean;
   onCopy?: (value: string) => void;
+  placeholder?: string;
+  value: string;
 }
 
 export const TextDisplay: React.FC<TextDisplayProps> = ({

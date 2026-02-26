@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/dialog";
 
 interface ErrorPayload {
-  title?: string;
-  message: string;
   details?: string;
+  message: string;
+  title?: string;
 }
 
 export const ErrorDialog: React.FC = () => {

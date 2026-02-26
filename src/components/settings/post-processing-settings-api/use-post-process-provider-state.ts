@@ -5,39 +5,39 @@ import { getDefaultBaseUrl } from "./default-providers";
 import type { ModelOption } from "./types";
 
 interface DropdownOption {
-  value: string;
   label: string;
+  value: string;
 }
 
 /** `true` = supports tools, `false` = does not, `null` = unknown / checking */
 export type ToolSupportStatus = boolean | null;
 
 interface PostProcessProviderState {
-  enabled: boolean;
-  providerOptions: DropdownOption[];
-  selectedProviderId: string;
-  selectedProvider: PostProcessProvider | undefined;
-  isCustomProvider: boolean;
-  isOllamaProvider: boolean;
-  isLocalProvider: boolean;
+  apiKey: string;
   baseUrl: string;
   defaultBaseUrl: string | undefined;
-  isBaseUrlModified: boolean;
+  enabled: boolean;
+  handleApiKeyChange: (value: string) => void;
   handleBaseUrlChange: (value: string) => void;
   handleBaseUrlReset: () => void;
-  isBaseUrlUpdating: boolean;
-  apiKey: string;
-  handleApiKeyChange: (value: string) => void;
-  isApiKeyUpdating: boolean;
-  model: string;
   handleModelChange: (value: string) => void;
-  modelOptions: ModelOption[];
-  isModelUpdating: boolean;
-  isFetchingModels: boolean;
-  handleProviderSelect: (providerId: string) => void;
-  handleModelSelect: (value: string) => void;
   handleModelCreate: (value: string) => void;
+  handleModelSelect: (value: string) => void;
+  handleProviderSelect: (providerId: string) => void;
   handleRefreshModels: () => void;
+  isApiKeyUpdating: boolean;
+  isBaseUrlModified: boolean;
+  isBaseUrlUpdating: boolean;
+  isCustomProvider: boolean;
+  isFetchingModels: boolean;
+  isLocalProvider: boolean;
+  isModelUpdating: boolean;
+  isOllamaProvider: boolean;
+  model: string;
+  modelOptions: ModelOption[];
+  providerOptions: DropdownOption[];
+  selectedProvider: PostProcessProvider | undefined;
+  selectedProviderId: string;
   toolSupport: ToolSupportStatus;
 }
 

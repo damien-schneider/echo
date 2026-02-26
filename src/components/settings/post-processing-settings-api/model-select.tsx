@@ -19,16 +19,16 @@ import { cn } from "@/lib/utils";
 import type { ModelOption } from "./types";
 
 interface ModelSelectProps {
-  value: string;
-  options: ModelOption[];
-  disabled?: boolean;
-  placeholder?: string;
-  isLoading?: boolean;
   allowCreate?: boolean;
-  onSelect: (value: string) => void;
-  onCreate?: (value: string) => void;
-  onBlur: () => void;
   className?: string;
+  disabled?: boolean;
+  isLoading?: boolean;
+  onBlur: () => void;
+  onCreate?: (value: string) => void;
+  onSelect: (value: string) => void;
+  options: ModelOption[];
+  placeholder?: string;
+  value: string;
 }
 
 export const ModelSelect: React.FC<ModelSelectProps> = ({

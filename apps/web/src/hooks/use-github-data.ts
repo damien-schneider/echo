@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 
 interface GitHubReleaseAsset {
-  name: string;
   browser_download_url: string;
+  name: string;
 }
 
 interface GithubData {
-  stars: number | null;
-  version: string | null;
   downloadLinks: {
     macSilicon: string;
     macIntel: string;
@@ -15,6 +13,8 @@ interface GithubData {
     linuxAppImage: string;
     linuxDeb: string;
   };
+  stars: number | null;
+  version: string | null;
 }
 
 export function useGithubData() {

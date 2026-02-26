@@ -10,8 +10,8 @@ type PermissionState = "request" | "verify" | "granted";
 
 // Define button configuration type
 interface ButtonConfig {
-  text: string;
   className: string;
+  text: string;
 }
 
 export const AccessibilityPermissions = () => {

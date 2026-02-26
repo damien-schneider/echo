@@ -9,15 +9,15 @@ import {
 } from "./tooltip";
 
 interface SettingContainerProps {
-  title: string;
-  description: string;
   children: React.ReactNode;
+  description: string;
   descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
-  layout?: "horizontal" | "stacked";
   disabled?: boolean;
-  tooltipPosition?: "top" | "bottom";
+  grouped?: boolean;
   icon?: React.ReactNode;
+  layout?: "horizontal" | "stacked";
+  title: string;
+  tooltipPosition?: "top" | "bottom";
 }
 
 export const SettingContainer: React.FC<SettingContainerProps> = ({

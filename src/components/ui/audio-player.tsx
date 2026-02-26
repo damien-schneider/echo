@@ -61,15 +61,15 @@ const drawPartialBar = (
 };
 
 interface AudioPlayerProps {
-  src: string;
-  className?: string;
-  barWidth?: number;
+  activeColor?: string;
+  barCount?: number;
   barGap?: number;
   barRadius?: number;
-  barCount?: number;
+  barWidth?: number;
+  className?: string;
   height?: number;
-  activeColor?: string;
   inactiveColor?: string;
+  src: string;
 }
 
 export const AudioPlayer: React.FC<AudioPlayerProps> = ({

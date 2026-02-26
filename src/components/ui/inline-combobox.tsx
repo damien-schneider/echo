@@ -55,9 +55,9 @@ interface InlineComboboxContextValue {
   inputProps: UseComboboxInputResult["props"];
   inputRef: RefObject<HTMLInputElement | null>;
   removeInput: UseComboboxInputResult["removeInput"];
+  setHasEmpty: (hasEmpty: boolean) => void;
   showTrigger: boolean;
   trigger: string;
-  setHasEmpty: (hasEmpty: boolean) => void;
 }
 
 const InlineComboboxContext = createContext<InlineComboboxContextValue>(
@@ -82,12 +82,12 @@ const defaultFilter: FilterFn = (
 interface InlineComboboxProps {
   children: ReactNode;
   element: TElement;
-  trigger: string;
   filter?: FilterFn | false;
   hideWhenNoValue?: boolean;
-  showTrigger?: boolean;
-  value?: string;
   setValue?: (value: string) => void;
+  showTrigger?: boolean;
+  trigger: string;
+  value?: string;
 }
 
 const InlineCombobox = ({

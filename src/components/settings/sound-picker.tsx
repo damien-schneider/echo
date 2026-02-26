@@ -13,8 +13,8 @@ import type { Settings } from "@/lib/types";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 interface SoundPickerProps {
-  label: string;
   description: string;
+  label: string;
 }
 
 export const SoundPicker: React.FC<SoundPickerProps> = ({

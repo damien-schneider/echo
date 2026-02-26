@@ -3,11 +3,11 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 interface ApiKeyFieldProps {
-  value: string;
-  onBlur: (value: string) => void;
-  disabled: boolean;
-  placeholder?: string;
   className?: string;
+  disabled: boolean;
+  onBlur: (value: string) => void;
+  placeholder?: string;
+  value: string;
 }
 
 export const ApiKeyField: React.FC<ApiKeyFieldProps> = ({

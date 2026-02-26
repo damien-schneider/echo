@@ -35,10 +35,10 @@ function formatDate(iso: string): string {
 }
 
 interface ContentNode {
-  type: "heading" | "paragraph" | "list";
+  items?: string[];
   key: string;
   text?: string;
-  items?: string[];
+  type: "heading" | "paragraph" | "list";
 }
 
 function parseContent(raw: string): ContentNode[] {

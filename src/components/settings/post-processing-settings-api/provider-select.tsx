@@ -8,15 +8,15 @@ import {
 } from "@/components/ui/select";
 
 interface DropdownOption {
-  value: string;
   label: string;
+  value: string;
 }
 
 interface ProviderSelectProps {
+  disabled?: boolean;
+  onChange: (value: string) => void;
   options: DropdownOption[];
   value: string;
-  onChange: (value: string) => void;
-  disabled?: boolean;
 }
 
 export const ProviderSelect: React.FC<ProviderSelectProps> = ({

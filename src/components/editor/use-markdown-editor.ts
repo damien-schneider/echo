@@ -125,12 +125,12 @@ const MENTION_PLUGINS = [
 ];
 
 interface UseMarkdownEditorOptions {
-  content?: string;
-  onUpdate?: (markdown: string) => void;
-  placeholder?: string;
   autoFocus?: boolean;
+  content?: string;
   editable?: boolean;
   enableMentions?: boolean;
+  onUpdate?: (markdown: string) => void;
+  placeholder?: string;
 }
 
 export function useMarkdownEditor({

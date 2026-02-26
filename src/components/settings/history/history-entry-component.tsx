@@ -12,22 +12,22 @@ import {
 } from "@/components/ui/tooltip";
 
 export interface HistoryEntry {
-  id: number;
   file_name: string;
-  timestamp: number;
+  id: number;
   saved: boolean;
+  timestamp: number;
   title: string;
   transcription_text: string;
 }
 
 export interface HistoryEntryProps {
-  entry: HistoryEntry;
-  onToggleSaved: () => void;
-  onCopyText: () => void;
-  onRetranscribe: (id: number) => Promise<void>;
-  onReprocess: (id: number) => Promise<void>;
-  getAudioUrl: (fileName: string) => Promise<string | null>;
   deleteAudio: (id: number) => Promise<void>;
+  entry: HistoryEntry;
+  getAudioUrl: (fileName: string) => Promise<string | null>;
+  onCopyText: () => void;
+  onReprocess: (id: number) => Promise<void>;
+  onRetranscribe: (id: number) => Promise<void>;
+  onToggleSaved: () => void;
 }
 
 export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({

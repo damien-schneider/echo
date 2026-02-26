@@ -4,23 +4,23 @@ import ProgressBar, {
 } from "@/components/shared/progress-bar";
 
 interface DownloadProgress {
-  model_id: string;
   downloaded: number;
-  total: number;
+  model_id: string;
   percentage: number;
+  total: number;
 }
 
 interface DownloadStats {
-  startTime: number;
   lastUpdate: number;
-  totalDownloaded: number;
   speed: number;
+  startTime: number;
+  totalDownloaded: number;
 }
 
 interface DownloadProgressDisplayProps {
+  className?: string;
   downloadProgress: Map<string, DownloadProgress>;
   downloadStats: Map<string, DownloadStats>;
-  className?: string;
 }
 
 const DownloadProgressDisplay: React.FC<DownloadProgressDisplayProps> = ({

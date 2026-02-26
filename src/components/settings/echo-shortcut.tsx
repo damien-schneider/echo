@@ -26,9 +26,9 @@ import {
 
 /** Wayland shortcut info from the portal */
 interface WaylandShortcutInfo {
+  has_printable_key: boolean;
   id: string;
   trigger: string;
-  has_printable_key: boolean;
 }
 
 interface EchoShortcutProps {

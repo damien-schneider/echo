@@ -7,16 +7,16 @@ import { useMarkdownEditor } from "./use-markdown-editor";
 import "./editor.css";
 
 interface MarkdownEditorProps {
-  value?: string;
+  autoFocus?: boolean;
+  className?: string;
+  editable?: boolean;
+  editorClassName?: string;
   onChange?: (markdown: string) => void;
   placeholder?: string;
-  className?: string;
-  editorClassName?: string;
-  autoFocus?: boolean;
-  editable?: boolean;
-  showToolbar?: boolean;
   /** Enable @mention functionality with custom items like @output */
   showMentionMenu?: boolean;
+  showToolbar?: boolean;
+  value?: string;
 }
 
 export function MarkdownEditor({

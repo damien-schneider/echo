@@ -69,14 +69,14 @@ const noop = () => {
 };
 
 interface ModelCardProps {
-  model: ModelInfo;
+  downloadProgress?: { percentage: number };
+  downloadSpeed?: number;
   isActive: boolean;
   isDownloading: boolean;
   isExtracting: boolean;
-  downloadProgress?: { percentage: number };
-  downloadSpeed?: number;
-  onSelect: () => void;
+  model: ModelInfo;
   onDelete: () => void;
+  onSelect: () => void;
 }
 
 const ModelCard: React.FC<ModelCardProps> = ({

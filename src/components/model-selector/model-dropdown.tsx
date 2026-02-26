@@ -46,22 +46,22 @@ const getStatusColor = (status: ModelStatus): string => {
 };
 
 interface DownloadProgress {
-  model_id: string;
   downloaded: number;
-  total: number;
+  model_id: string;
   percentage: number;
+  total: number;
 }
 
 interface ModelDropdownProps {
-  models: ModelInfo[];
   currentModelId: string;
-  downloadProgress: Map<string, DownloadProgress>;
-  onModelSelect: (modelId: string) => void;
-  onModelDownload: (modelId: string) => void;
-  onModelDelete: (modelId: string) => Promise<void>;
-  onError?: (error: string) => void;
-  status: ModelStatus;
   displayText: string;
+  downloadProgress: Map<string, DownloadProgress>;
+  models: ModelInfo[];
+  onError?: (error: string) => void;
+  onModelDelete: (modelId: string) => Promise<void>;
+  onModelDownload: (modelId: string) => void;
+  onModelSelect: (modelId: string) => void;
+  status: ModelStatus;
 }
 
 const ModelDropdown: React.FC<ModelDropdownProps> = ({

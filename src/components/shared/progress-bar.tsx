@@ -3,17 +3,17 @@ import { cn } from "@/lib/utils";
 
 export interface ProgressData {
   id: string;
+  label?: string;
   percentage: number;
   speed?: number;
-  label?: string;
 }
 
 interface ProgressBarProps {
-  progress: ProgressData[];
   className?: string;
-  size?: "small" | "medium" | "large";
-  showSpeed?: boolean;
+  progress: ProgressData[];
   showLabel?: boolean;
+  showSpeed?: boolean;
+  size?: "small" | "medium" | "large";
 }
 
 const ProgressBar: React.FC<ProgressBarProps> = ({

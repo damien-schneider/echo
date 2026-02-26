@@ -1,9 +1,9 @@
 import type React from "react";
 
 interface SettingsGroupProps {
-  title?: string;
-  description?: string;
   children: React.ReactNode;
+  description?: string;
+  title?: string;
 }
 
 export const SettingsGroup: React.FC<SettingsGroupProps> = ({

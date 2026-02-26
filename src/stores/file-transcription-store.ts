@@ -1,22 +1,22 @@
 import { create } from "zustand";
 
 export interface FileTranscriptionItem {
-  id: string;
+  error?: string;
   fileName: string;
-  status: "extracting" | "processing" | "transcribing" | "complete" | "error";
-  progress: number;
+  id: string;
   message: string;
+  progress: number;
+  status: "extracting" | "processing" | "transcribing" | "complete" | "error";
   text?: string;
   timestamp: number;
-  error?: string;
 }
 
 interface FileTranscriptionStore {
-  items: FileTranscriptionItem[];
   addItem: (item: FileTranscriptionItem) => void;
-  updateItem: (id: string, updates: Partial<FileTranscriptionItem>) => void;
-  removeItem: (id: string) => void;
   clearCompleted: () => void;
+  items: FileTranscriptionItem[];
+  removeItem: (id: string) => void;
+  updateItem: (id: string, updates: Partial<FileTranscriptionItem>) => void;
 }
 
 export const useFileTranscriptionStore = create<FileTranscriptionStore>(

@@ -4,19 +4,19 @@ import { cn } from "@/lib/utils";
 import { SettingContainer } from "./setting-container";
 
 interface SliderProps {
-  value: number;
-  onChange: (value: number) => void;
-  min: number;
-  max: number;
-  step?: number;
-  disabled?: boolean;
-  label: string;
   description?: string;
   descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
-  showValue?: boolean;
+  disabled?: boolean;
   formatValue?: (value: number) => string;
+  grouped?: boolean;
   icon?: React.ReactNode;
+  label: string;
+  max: number;
+  min: number;
+  onChange: (value: number) => void;
+  showValue?: boolean;
+  step?: number;
+  value: number;
 }
 
 const spring = {

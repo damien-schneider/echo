@@ -13,24 +13,24 @@ export type ModelStatus =
   | "none";
 
 interface ModelStateEvent {
+  error?: string;
   event_type: string;
   model_id?: string;
   model_name?: string;
-  error?: string;
 }
 
 interface DownloadProgress {
-  model_id: string;
   downloaded: number;
-  total: number;
+  model_id: string;
   percentage: number;
+  total: number;
 }
 
 interface DownloadStats {
-  startTime: number;
   lastUpdate: number;
-  totalDownloaded: number;
   speed: number;
+  startTime: number;
+  totalDownloaded: number;
 }
 
 const getStatusText = (
@@ -59,22 +59,22 @@ const getStatusText = (
 };
 
 interface ModelStore {
-  models: ModelInfo[];
   currentModelId: string;
-  modelStatus: ModelStatus;
-  modelError: string | null;
+  deleteModel: (modelId: string) => Promise<void>;
+  downloadModel: (modelId: string) => Promise<void>;
   downloadProgress: Map<string, DownloadProgress>;
   downloadStats: Map<string, DownloadStats>;
   extractingModels: Set<string>;
+  getModelDisplayText: () => string;
+  initialize: () => Promise<void>;
+  loadCurrentModel: () => Promise<void>;
 
   loadModels: () => Promise<void>;
-  loadCurrentModel: () => Promise<void>;
+  modelError: string | null;
+  modelStatus: ModelStatus;
+  models: ModelInfo[];
   selectModel: (modelId: string) => Promise<void>;
-  downloadModel: (modelId: string) => Promise<void>;
-  deleteModel: (modelId: string) => Promise<void>;
-  initialize: () => Promise<void>;
   setupListeners: () => Promise<() => void>;
-  getModelDisplayText: () => string;
 }
 
 export const useModelStore = create<ModelStore>((set, get) => ({

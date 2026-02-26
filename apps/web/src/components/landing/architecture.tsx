@@ -1,14 +1,14 @@
 import { cn } from "@/lib/utils";
 
 export interface CpuArchitectureSvgProps {
-  className?: string;
-  width?: string;
-  height?: string;
-  showCpuConnections?: boolean;
-  lineMarkerSize?: number;
-  animateText?: boolean;
   animateLines?: boolean;
   animateMarkers?: boolean;
+  animateText?: boolean;
+  className?: string;
+  height?: string;
+  lineMarkerSize?: number;
+  showCpuConnections?: boolean;
+  width?: string;
 }
 
 const Architecture = ({

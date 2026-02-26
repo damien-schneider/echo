@@ -7,17 +7,17 @@ import DownloadProgressDisplay from "./download-progress-display";
 import ModelDropdown from "./model-dropdown";
 
 interface ModelStateEvent {
+  error?: string;
   event_type: string;
   model_id?: string;
   model_name?: string;
-  error?: string;
 }
 
 interface DownloadProgress {
-  model_id: string;
   downloaded: number;
-  total: number;
+  model_id: string;
   percentage: number;
+  total: number;
 }
 
 type ModelStatus =
@@ -30,10 +30,10 @@ type ModelStatus =
   | "none";
 
 interface DownloadStats {
-  startTime: number;
   lastUpdate: number;
-  totalDownloaded: number;
   speed: number;
+  startTime: number;
+  totalDownloaded: number;
 }
 
 interface ModelSelectorProps {

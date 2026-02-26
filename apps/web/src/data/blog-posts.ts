@@ -1,12 +1,12 @@
 export interface BlogPost {
-  slug: string;
-  title: string;
+  category: string;
+  content: string;
   description: string;
   publishedAt: string;
   readingTime: string;
-  category: string;
+  slug: string;
   tags: string[];
-  content: string;
+  title: string;
 }
 
 const post1Content =

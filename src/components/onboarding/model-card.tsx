@@ -5,11 +5,11 @@ import type { ModelInfo } from "@/lib/types";
 import { formatModelSize } from "@/lib/utils/format";
 
 interface ModelCardProps {
-  model: ModelInfo;
-  variant?: "default" | "featured";
-  disabled?: boolean;
   className?: string;
+  disabled?: boolean;
+  model: ModelInfo;
   onSelect: (modelId: string) => void;
+  variant?: "default" | "featured";
 }
 
 const ModelCard: React.FC<ModelCardProps> = ({

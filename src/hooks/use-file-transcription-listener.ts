@@ -12,15 +12,15 @@ function generateUniqueId(): string {
 }
 
 interface FileTranscriptionProgress {
-  status: string;
-  progress: number;
-  message: string;
   fileName?: string;
+  message: string;
+  progress: number;
+  status: string;
 }
 
 interface TranscriptionCompletePayload {
-  text: string;
   fileName: string;
+  text: string;
 }
 
 function mapStatusToItemStatus(

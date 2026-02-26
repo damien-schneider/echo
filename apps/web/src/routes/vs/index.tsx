@@ -45,18 +45,18 @@ type ComparisonSlug =
   | "/vs/apple-dictation";
 
 interface Comparison {
-  slug: ComparisonSlug;
-  competitor: string;
-  headline: string;
-  description: string;
   badges: string[];
+  competitor: string;
+  description: string;
+  headline: string;
+  slug: ComparisonSlug;
 }
 
 interface ComparisonGroup {
   category: string;
-  label: string;
   description: string;
   items: Comparison[];
+  label: string;
 }
 
 const COMPARISON_GROUPS: ComparisonGroup[] = [

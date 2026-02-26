@@ -7,14 +7,14 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface FileTranscriptionProgress {
-  status: string;
-  progress: number;
   message: string;
+  progress: number;
+  status: string;
 }
 
 export interface FileUploadZoneProps {
-  onTranscriptionComplete?: (text: string) => void;
   className?: string;
+  onTranscriptionComplete?: (text: string) => void;
 }
 
 export const FileUploadZone: React.FC<FileUploadZoneProps> = ({

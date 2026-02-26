@@ -38,7 +38,7 @@ import { PostProcessingSettings } from "./settings/post-processing/post-processi
 import { TranscriptionSettings } from "./settings/transcription/transcription-settings";
 import { TtsSettingsPage } from "./settings/tts-settings-page";
 
-const isMacOS = getNormalizedOsPlatform() === "mac";
+const _isMacOS = getNormalizedOsPlatform() === "mac";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
@@ -47,9 +47,9 @@ interface IconProps {
 }
 
 interface SectionConfig {
-  label: string;
-  icon: React.ComponentType<IconProps>;
   component: React.ComponentType;
+  icon: React.ComponentType<IconProps>;
+  label: string;
 }
 
 export const SECTIONS_CONFIG = {

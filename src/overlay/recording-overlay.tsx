@@ -8,8 +8,8 @@ import { cn } from "@/lib/utils";
 type OverlayState = "recording" | "transcribing" | "warning" | "tool";
 
 interface WarningPayload {
-  state: "warning" | "tool";
   message: string;
+  state: "warning" | "tool";
 }
 
 const NOTCH_HEIGHT = 42;

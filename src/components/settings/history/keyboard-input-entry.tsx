@@ -12,13 +12,13 @@ import {
 } from "@/components/ui/tooltip";
 
 export interface InputEntry {
-  id: number;
-  app_name: string;
   app_bundle_id: string | null;
-  window_title: string | null;
+  app_name: string;
   content: string;
-  timestamp: number;
   duration_ms: number;
+  id: number;
+  timestamp: number;
+  window_title: string | null;
 }
 
 interface KeyboardInputEntryProps {

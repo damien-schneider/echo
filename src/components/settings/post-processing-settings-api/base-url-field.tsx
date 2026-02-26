@@ -3,12 +3,12 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 interface BaseUrlFieldProps {
-  value: string;
+  className?: string;
+  disabled: boolean;
   onBlur: (value: string) => void;
   onChange?: (value: string) => void;
-  disabled: boolean;
   placeholder?: string;
-  className?: string;
+  value: string;
 }
 
 export const BaseUrlField: React.FC<BaseUrlFieldProps> = ({

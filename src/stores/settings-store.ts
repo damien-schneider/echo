@@ -136,43 +136,43 @@ const settingUpdaters: {
 };
 
 interface SettingsStore {
-  settings: Settings | null;
-  isLoading: boolean;
-  isUpdating: Record<string, boolean>;
   audioDevices: AudioDevice[];
-  outputDevices: AudioDevice[];
+  checkCustomSounds: () => Promise<void>;
+  checkModelToolSupport: (
+    providerId: string,
+    model: string
+  ) => Promise<boolean | null>;
   customSounds: { start: boolean; stop: boolean };
-  postProcessModelOptions: Record<string, string[]>;
-  modelToolSupport: Record<string, boolean | null>;
+  fetchPostProcessModels: (providerId: string) => Promise<string[]>;
 
   initialize: () => Promise<void>;
-  refreshSettings: () => Promise<void>;
+  isLoading: boolean;
+  isUpdating: Record<string, boolean>;
+  modelToolSupport: Record<string, boolean | null>;
+  outputDevices: AudioDevice[];
+  playTestSound: (soundType: "start" | "stop") => Promise<void>;
+  postProcessModelOptions: Record<string, string[]>;
   refreshAudioDevices: () => Promise<void>;
   refreshOutputDevices: () => Promise<void>;
-  checkCustomSounds: () => Promise<void>;
-  updateSetting: (
-    key: keyof Settings,
-    value: Settings[keyof Settings]
-  ) => Promise<void>;
-  resetSetting: (key: keyof Settings) => Promise<void>;
-  updateBinding: (id: string, binding: string) => Promise<void>;
+  refreshSettings: () => Promise<void>;
   resetBinding: (id: string) => Promise<void>;
+  resetSetting: (key: keyof Settings) => Promise<void>;
   setPostProcessProvider: (providerId: string) => Promise<void>;
+  settings: Settings | null;
+  updateBinding: (id: string, binding: string) => Promise<void>;
+  updatePostProcessApiKey: (
+    providerId: string,
+    apiKey: string
+  ) => Promise<void>;
   updatePostProcessSetting: (
     settingType: "base_url" | "api_key" | "model",
     providerId: string,
     value: string
   ) => Promise<void>;
-  updatePostProcessApiKey: (
-    providerId: string,
-    apiKey: string
+  updateSetting: (
+    key: keyof Settings,
+    value: Settings[keyof Settings]
   ) => Promise<void>;
-  fetchPostProcessModels: (providerId: string) => Promise<string[]>;
-  checkModelToolSupport: (
-    providerId: string,
-    model: string
-  ) => Promise<boolean | null>;
-  playTestSound: (soundType: "start" | "stop") => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({

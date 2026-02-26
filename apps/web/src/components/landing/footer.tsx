@@ -3,26 +3,26 @@ import EchoLogo from "@/components/icons/echo-logo";
 import { Button } from "@/components/ui/button";
 
 interface FooterProps {
-  logo?: React.ReactNode;
   brandName: string;
+  copyright: {
+    text: string;
+    license?: string;
+  };
+  legalLinks: Array<{
+    href: string;
+    label: string;
+  }>;
+  logo?: React.ReactNode;
+  mainLinks: Array<{
+    href: string;
+    label: string;
+  }>;
   showBrandName?: boolean;
   socialLinks: Array<{
     icon: React.ReactNode;
     href: string;
     label: string;
   }>;
-  mainLinks: Array<{
-    href: string;
-    label: string;
-  }>;
-  legalLinks: Array<{
-    href: string;
-    label: string;
-  }>;
-  copyright: {
-    text: string;
-    license?: string;
-  };
 }
 
 export function Footer({

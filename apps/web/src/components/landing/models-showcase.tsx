@@ -10,14 +10,14 @@ import {
 import { useRef, useState } from "react";
 
 interface ModelData {
+  accuracy: number;
+  engine: string;
   id: string;
   name: string;
-  tagline: string;
-  accuracy: number;
-  speed: number;
-  size: string;
-  engine: string;
   recommended?: boolean;
+  size: string;
+  speed: number;
+  tagline: string;
 }
 
 const models: ModelData[] = [

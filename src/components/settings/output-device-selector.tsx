@@ -17,8 +17,8 @@ import {
 
 interface OutputDeviceSelectorProps {
   descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
   disabled?: boolean;
+  grouped?: boolean;
 }
 
 export const OutputDeviceSelector = ({

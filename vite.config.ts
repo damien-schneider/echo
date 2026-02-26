@@ -17,17 +17,17 @@ export default defineConfig(async () => ({
   ],
   resolve: {
     alias: {
-      "@": resolve(__dirname, "./src"),
+      "@": resolve(import.meta.dirname, "./src"),
     },
   },
   // Multiple entry points for main app and overlay
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
-        overlay: resolve(__dirname, "src/overlay/index.html"),
+        main: resolve(import.meta.dirname, "index.html"),
+        overlay: resolve(import.meta.dirname, "src/overlay/index.html"),
         "startup-loading-screen": resolve(
-          __dirname,
+          import.meta.dirname,
           "startup-loading-screen.html"
         ),
       },

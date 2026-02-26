@@ -1,4 +1,4 @@
 export interface ModelOption {
-  value: string;
   label: string;
+  value: string;
 }
