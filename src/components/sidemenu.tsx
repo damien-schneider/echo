@@ -27,7 +27,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getNormalizedOsPlatform } from "@/lib/os";
 import { cn } from "@/lib/utils";
 import { AboutDialog } from "./settings/about/about-dialog";
 import { AppSettings } from "./settings/app/app-settings";
@@ -37,8 +36,6 @@ import { ModelsSettings } from "./settings/models/models-settings";
 import { PostProcessingSettings } from "./settings/post-processing/post-processing-settings";
 import { TranscriptionSettings } from "./settings/transcription/transcription-settings";
 import { TtsSettingsPage } from "./settings/tts-settings-page";
-
-const _isMacOS = getNormalizedOsPlatform() === "mac";
 
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 
