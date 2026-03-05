@@ -199,7 +199,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
                 #[allow(deprecated)]
                 {
                     use cocoa::appkit::NSWindow;
-                    use cocoa::base::id;
+                    use cocoa::base::{id, NO};
 
                     if let Ok(ns_win) = _window.ns_window() {
                         unsafe {
@@ -207,7 +207,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
                             // NSStatusWindowLevel (25) — above the menu bar
                             window.setLevel_(25);
                             // Prevent macOS from constraining the frame below the menu bar
-                            window.setMovable_(false);
+                            window.setMovable_(NO);
                         }
                         debug!("[Overlay] Set NSWindow level to NSStatusWindowLevel");
                     }

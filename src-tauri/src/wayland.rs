@@ -161,6 +161,7 @@ pub fn present_gnome_overlay<R: Runtime>(_window: &WebviewWindow<R>) {
 /// Describes the focus policy for a GNOME overlay window.
 /// Extracted so the configuration decisions can be tested on any platform.
 #[derive(Debug, PartialEq)]
+#[cfg(any(target_os = "linux", test))]
 pub struct GnomeOverlayFocusPolicy {
     /// Whether the window should accept keyboard focus
     pub accept_focus: bool,
@@ -174,6 +175,7 @@ pub struct GnomeOverlayFocusPolicy {
 
 /// Returns the focus policy for a GNOME overlay window.
 /// The overlay must never steal focus from the user's active application.
+#[cfg(any(target_os = "linux", test))]
 pub fn gnome_overlay_focus_policy() -> GnomeOverlayFocusPolicy {
     GnomeOverlayFocusPolicy {
         accept_focus: false,

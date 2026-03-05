@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)] // objc 0.2.x macros emit spurious cfg(feature = "cargo-clippy") checks
+
 mod actions;
 mod audio_feedback;
 pub mod audio_toolkit;

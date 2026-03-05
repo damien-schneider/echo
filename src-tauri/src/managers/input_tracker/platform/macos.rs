@@ -6,7 +6,6 @@ use super::ActiveAppInfo;
 /// Uses native Cocoa NSWorkspace APIs and Accessibility APIs for reliable detection
 /// including overlay/panel apps like Raycast and Spotlight
 #[allow(deprecated)]
-#[allow(unexpected_cfgs)] // cfg warnings from objc macros - not our concern
 pub fn get_active_app_info() -> ActiveAppInfo {
     use cocoa::base::{id, nil};
     use objc::{class, msg_send, sel, sel_impl};
@@ -40,7 +39,6 @@ pub fn get_active_app_info() -> ActiveAppInfo {
 }
 
 #[allow(deprecated)]
-#[allow(unexpected_cfgs)]
 fn extract_app_info(app: cocoa::base::id) -> ActiveAppInfo {
     use cocoa::base::{id, nil};
     use objc::{msg_send, sel, sel_impl};
@@ -95,7 +93,6 @@ fn extract_app_info(app: cocoa::base::id) -> ActiveAppInfo {
 
 /// Get the focused application using macOS Accessibility API
 /// This catches overlay apps like Raycast that don't become "frontmost" in the traditional sense
-#[allow(unexpected_cfgs)]
 #[allow(deprecated)]
 fn get_focused_app_via_accessibility() -> Option<ActiveAppInfo> {
     use std::ffi::c_void;
