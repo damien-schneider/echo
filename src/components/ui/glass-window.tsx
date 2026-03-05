@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 const platform = getNormalizedOsPlatform();
 const isWindows = platform === "windows";
 const isLinux = platform === "linux";
+const isMacos = platform === "mac";
 
 export interface GlassWindowProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
@@ -63,8 +64,9 @@ const GlassWindow = ({
   return (
     <div
       className={cn(
-        "relative flex h-screen flex-col rounded-[1.125rem] backdrop-blur-sm",
-        isLinux ? "bg-background" : "bg-background/90",
+        "relative flex h-screen flex-col",
+        isMacos ? "bg-background/90 backdrop-blur-sm" : "bg-background",
+        !isWindows && "rounded-[1.125rem]",
         className
       )}
       ref={ref}
