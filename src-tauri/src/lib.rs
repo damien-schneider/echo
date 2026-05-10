@@ -7,10 +7,8 @@ mod clipboard;
 mod commands;
 mod features;
 mod helpers;
-mod llm_client;
 mod logging;
 mod managers;
-mod tools;
 mod overlay;
 mod settings;
 #[cfg(unix)]
@@ -693,6 +691,7 @@ pub fn run() {
             commands::history::delete_history_entry,
             commands::history::retranscribe_history_entry,
             commands::history::reprocess_history_entry,
+            commands::history::get_history_entry_transcription,
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
             commands::file_transcription::transcribe_audio_file,
@@ -719,13 +718,18 @@ pub fn run() {
             commands::meeting::get_meeting_segments,
             commands::meeting::list_meetings,
             commands::meeting::delete_meeting,
-            commands::meeting::generate_meeting_summary,
             commands::meeting::export_meeting,
             commands::meeting::rename_meeting_speaker,
             commands::meeting::is_system_audio_available,
             commands::meeting::get_meeting_audio_path,
             commands::meeting::retranscribe_meeting,
+            commands::meeting::get_meeting_transcript_for_summary,
+            commands::meeting::save_meeting_summary,
             commands::tts::preview_tts,
+            commands::voice_tools::execute_change_sound_theme,
+            commands::voice_tools::execute_create_note,
+            commands::voice_tools::execute_open_application,
+            commands::voice_tools::finalize_transcription,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

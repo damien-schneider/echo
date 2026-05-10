@@ -3,7 +3,9 @@ import { listen } from "@tauri-apps/api/event";
 import { FolderOpen, Keyboard, Mic } from "lucide-react";
 import { type ComponentProps, useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { runPostProcess } from "@/lib/llm/post-process";
 import { cn } from "@/lib/utils";
+import { useSettingsStore } from "@/stores/settings-store";
 import {
   type HistoryEntry,
   HistoryEntryComponent,
@@ -99,7 +101,34 @@ export const HistorySettings = () => {
 
   const reprocessEntry = async (id: number) => {
     try {
-      await invoke("reprocess_history_entry", { id });
+      const settings = useSettingsStore.getState().settings;
+      if (!settings) {
+        throw new Error("Settings not loaded");
+      }
+      const transcription = await invoke<string>(
+        "get_history_entry_transcription",
+        { id }
+      );
+      const result = await runPostProcess(transcription, settings);
+
+      // For history reprocessing, only text results matter — tools are ignored
+      const postProcessedText = result.kind === "text" ? result.content : null;
+      let postProcessPrompt: string | null = null;
+      if (postProcessedText && settings.post_process_selected_prompt_id) {
+        const prompts = settings.post_process_prompts ?? [];
+        const prompt = prompts.find(
+          (p) => p.id === settings.post_process_selected_prompt_id
+        );
+        if (prompt) {
+          postProcessPrompt = prompt.prompt;
+        }
+      }
+
+      await invoke("reprocess_history_entry", {
+        id,
+        postProcessedText,
+        postProcessPrompt,
+      });
     } catch (error) {
       console.error("Failed to reprocess entry:", error);
       throw error;

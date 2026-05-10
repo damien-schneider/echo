@@ -1,7 +1,13 @@
-import { Download } from "lucide-react";
+import { ChevronDown, Download } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type { ExportFormat } from "@/lib/types";
 import { useMeetingStore } from "@/stores/meeting-store";
 
@@ -46,19 +52,24 @@ export const MeetingExport = ({
   };
 
   return (
-    <div className="flex items-center gap-1.5">
-      {FORMATS.map((f) => (
-        <Button
-          disabled={exporting}
-          key={f.value}
-          onClick={() => handleExport(f.value)}
-          size="sm"
-          variant="outline"
-        >
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button disabled={exporting} size="sm" variant="outline">
           <Download className="mr-1 size-3" />
-          {f.label}
+          Export
+          <ChevronDown className="ml-1 size-3" />
         </Button>
-      ))}
-    </div>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {FORMATS.map((f) => (
+          <DropdownMenuItem
+            key={f.value}
+            onSelect={() => handleExport(f.value)}
+          >
+            {f.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };

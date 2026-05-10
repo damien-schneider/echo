@@ -19,6 +19,7 @@ import { TranscriptionResultDialog } from "./components/transcription-result-dia
 import { TitleBar } from "./components/ui/title-bar";
 import { useFileTranscriptionListener } from "./hooks/use-file-transcription-listener";
 import { useMeetingListener } from "./hooks/use-meeting-listener";
+import { mountTranscriptionBridge } from "./lib/llm/transcription-bridge";
 import { useSetting, useSettingsStore } from "./stores/settings-store";
 
 const renderSettingsContent = (section: SidebarSection) => {
@@ -39,6 +40,17 @@ function App() {
 
   useFileTranscriptionListener();
   useMeetingListener();
+
+  // Mount the transcription bridge (Rust → AI SDK → Rust)
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    mountTranscriptionBridge(() => useSettingsStore.getState().settings).then(
+      (fn) => {
+        unlisten = fn;
+      }
+    );
+    return () => unlisten?.();
+  }, []);
 
   // Initialize settings store — this is the root component
   useEffect(() => {

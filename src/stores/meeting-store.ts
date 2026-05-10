@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
+import { generateMeetingSummary } from "@/lib/llm/meeting-summary";
 import type { ExportFormat, Meeting, MeetingSegment } from "@/lib/types";
+import { useSettingsStore } from "@/stores/settings-store";
 
 interface MeetingStore {
   // Actions
@@ -99,7 +101,16 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   },
 
   generateSummary: async (id) => {
-    await invoke<string>("generate_meeting_summary", { id });
+    const settings = useSettingsStore.getState().settings;
+    if (!settings) {
+      throw new Error("Settings not loaded");
+    }
+    const transcript = await invoke<string>(
+      "get_meeting_transcript_for_summary",
+      { meetingId: id }
+    );
+    const summary = await generateMeetingSummary(transcript, settings);
+    await invoke("save_meeting_summary", { meetingId: id, summary });
     // Refresh the selected meeting to get the summary
     const meeting = await invoke<Meeting>("get_meeting", { id });
     set({ selectedMeeting: meeting });

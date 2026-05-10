@@ -141,6 +141,8 @@ pub async fn reprocess_history_entry(
     history_manager: State<'_, Arc<HistoryManager>>,
     tts_manager: State<'_, Arc<TtsManager>>,
     id: i64,
+    post_processed_text: Option<String>,
+    post_process_prompt: Option<String>,
 ) -> Result<String, String> {
     use log::{error, info};
 
@@ -151,36 +153,9 @@ pub async fn reprocess_history_entry(
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("History entry not found: {}", id))?;
 
-    // Use the original transcription text for reprocessing
-    let transcription = &entry.transcription_text;
-
-    let settings = get_settings(&app);
-    let mut final_text = transcription.clone();
-    let mut post_processed_text: Option<String> = None;
-    let mut post_process_prompt: Option<String> = None;
-
-    // Try post-processing
-    match crate::actions::maybe_post_process_transcription(&app, &settings, transcription).await {
-        crate::tools::PostProcessOutcome::Text(processed_text) => {
-            final_text = processed_text.clone();
-            post_processed_text = Some(processed_text);
-
-            // Get the prompt that was used
-            if let Some(prompt_id) = &settings.post_process_selected_prompt_id {
-                if let Some(prompt) = settings
-                    .post_process_prompts
-                    .iter()
-                    .find(|p| &p.id == prompt_id)
-                {
-                    post_process_prompt = Some(prompt.prompt.clone());
-                }
-            }
-        }
-        crate::tools::PostProcessOutcome::ToolExecuted(_) | crate::tools::PostProcessOutcome::Empty => {
-            // For reprocessing from history, tool executions are ignored —
-            // we only care about text corrections.
-        }
-    }
+    let final_text = post_processed_text
+        .clone()
+        .unwrap_or_else(|| entry.transcription_text.clone());
 
     // Update the history entry with the new post-processed text
     history_manager
@@ -189,6 +164,7 @@ pub async fn reprocess_history_entry(
         .map_err(|e| format!("Failed to update history entry: {}", e))?;
 
     // Trigger TTS if enabled and post-processing was successful
+    let settings = get_settings(&app);
     if settings.tts_enabled && post_processed_text.is_some() {
         let tts_manager_clone = Arc::clone(&tts_manager);
         let text_to_speak = final_text.clone();
@@ -201,4 +177,19 @@ pub async fn reprocess_history_entry(
     }
 
     Ok(final_text)
+}
+
+/// Get the original transcription text for a history entry (for frontend reprocessing).
+#[tauri::command]
+pub async fn get_history_entry_transcription(
+    history_manager: State<'_, Arc<HistoryManager>>,
+    id: i64,
+) -> Result<String, String> {
+    let entry = history_manager
+        .get_entry_by_id(id)
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("History entry not found: {}", id))?;
+
+    Ok(entry.transcription_text)
 }

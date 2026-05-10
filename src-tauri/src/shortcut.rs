@@ -566,11 +566,6 @@ pub async fn fetch_post_process_models(
         ));
     }
 
-    // TODO: In the future, we can use async-openai's models API:
-    // let client = crate::llm_client::create_client(provider, api_key)?;
-    // let response = client.models().list().await?;
-    // return Ok(response.data.iter().map(|m| m.id.clone()).collect());
-
     // For now, use manual HTTP request to have more control over the endpoint
     fetch_models_manual(provider, api_key).await
 }

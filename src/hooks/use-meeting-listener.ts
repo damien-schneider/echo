@@ -51,6 +51,16 @@ export function useMeetingListener() {
           state.loadMeetings();
         })
       );
+
+      // Auto-summary requested by backend when meeting completes
+      unlisten.push(
+        await listen<number>("meeting-auto-summary-requested", (event) => {
+          if (cancelled) {
+            return;
+          }
+          store.getState().generateSummary(event.payload);
+        })
+      );
     };
 
     setup();
