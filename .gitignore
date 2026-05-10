@@ -28,4 +28,9 @@ dist-ssr
 recording_*
 .crush/
 
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
 .env

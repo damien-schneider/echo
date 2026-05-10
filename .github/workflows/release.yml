@@ -3,50 +3,14 @@ name: "Release"
 on: workflow_dispatch
 
 jobs:
-  build-validation:
-    permissions:
-      contents: write
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - platform: "macos-latest"
-            args: "--target aarch64-apple-darwin"
-            target: "aarch64-apple-darwin"
-          - platform: "macos-latest"
-            args: "--target x86_64-apple-darwin"
-            target: "x86_64-apple-darwin"
-          - platform: "ubuntu-22.04"
-            args: "--bundles deb"
-            target: "x86_64-unknown-linux-gnu"
-          - platform: "ubuntu-24.04"
-            args: "--bundles appimage,rpm"
-            target: "x86_64-unknown-linux-gnu"
-          - platform: "windows-latest"
-            args: ""
-            target: "x86_64-pc-windows-msvc"
-          - platform: "windows-11-arm"
-            args: "--target aarch64-pc-windows-msvc"
-            target: "aarch64-pc-windows-msvc"
-    uses: ./.github/workflows/build.yml
-    with:
-      platform: ${{ matrix.platform }}
-      target: ${{ matrix.target }}
-      build-args: ${{ matrix.args }}
-      sign-binaries: ${{ !contains(matrix.platform, 'windows') }}
-      asset-prefix: "echo"
-      upload-artifacts: false
-      is-debug-build: false
-    secrets: inherit
-
   create-release:
     permissions:
       contents: write
-    needs: build-validation
     runs-on: ubuntu-latest
     outputs:
       release-id: ${{ steps.create-release.outputs.result }}
       version: ${{ steps.get-version.outputs.version }}
+      tag: v${{ steps.get-version.outputs.version }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -60,6 +24,16 @@ jobs:
           VERSION=$(grep -o '"version": "[^"]*"' src-tauri/tauri.conf.json | cut -d'"' -f4)
           echo "Application version from tauri.conf.json: $VERSION"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag does not already exist
+        shell: bash
+        run: |
+          TAG_NAME="v${{ steps.get-version.outputs.version }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG_NAME already exists. Bump the version in package.json/Cargo.toml/tauri.conf.json before releasing."
+            exit 1
+          fi
+          echo "Tag $TAG_NAME is available."
 
       - name: Get previous tag
         id: get-previous-tag
@@ -122,16 +96,11 @@ jobs:
         shell: bash
         run: |
           TAG_NAME="v${{ steps.get-version.outputs.version }}"
-          # Check if tag already exists
-          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-            echo "Tag $TAG_NAME already exists, skipping tag creation"
-          else
-            echo "Creating tag $TAG_NAME"
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
-            git push origin "$TAG_NAME"
-          fi
+          echo "Creating tag $TAG_NAME"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+          git push origin "$TAG_NAME"
 
       - name: Create Draft Release
         id: create-release
@@ -155,14 +124,14 @@ jobs:
                 repo: context.repo.repo,
                 tag_name: currentTag,
               };
-              
+
               // Only add previous_tag_name if it's not the first release and looks like a tag
               if (!isFirstRelease && previousTag.startsWith('v')) {
                 generateOptions.previous_tag_name = previousTag;
               }
-              
+
               const { data: autoNotes } = await github.rest.repos.generateReleaseNotes(generateOptions);
-              
+
               // Combine both: use commit-based notes as primary, append auto-generated PR info
               if (autoNotes && autoNotes.body) {
                 combinedNotes = releaseNotes + '\n\n---\n\n' + autoNotes.body;
@@ -189,7 +158,9 @@ jobs:
       contents: write
     needs: create-release
     strategy:
-      fail-fast: false
+      # Cancel sibling builds on first failure so the partial draft can be
+      # cleaned up immediately instead of burning compute on doomed jobs.
+      fail-fast: true
       matrix:
         include:
           - platform: "macos-latest" # for Arm based macs (M1 and above).
@@ -223,3 +194,33 @@ jobs:
       upload-artifacts: false
       release-id: ${{ needs.create-release.outputs.release-id }}
     secrets: inherit
+
+  cleanup-on-failure:
+    # Runs only when create-release succeeded but a downstream job failed or
+    # was cancelled. Deletes the orphan draft + tag so the next attempt can
+    # reuse the same version cleanly.
+    needs: [create-release, publish-tauri]
+    if: always() && needs.create-release.result == 'success' && needs.publish-tauri.result != 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Delete draft release and tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release-id }}
+          TAG: ${{ needs.create-release.outputs.tag }}
+          REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          echo "Publish failed — cleaning up draft release $TAG (id=$RELEASE_ID)"
+          gh api -X DELETE "repos/$REPO/releases/$RELEASE_ID" \
+            && echo "Deleted draft release $RELEASE_ID" \
+            || echo "Could not delete draft release (may already be gone)"
+          git push origin --delete "$TAG" \
+            && echo "Deleted remote tag $TAG" \
+            || echo "Could not delete tag (may already be gone)"
+          echo "::warning::Release $TAG aborted. Fix the failing platform and re-run the workflow."

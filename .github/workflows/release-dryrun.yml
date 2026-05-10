@@ -1,0 +1,48 @@
+name: "Release Dry Run"
+
+# Same matrix as release.yml but never tags, never drafts, never uploads.
+# Use this from any branch to verify all 6 platforms still build before
+# triggering the real Release workflow.
+#
+# Trigger via UI: Actions → Release Dry Run → Run workflow (pick branch).
+# Or CLI:        gh workflow run release-dryrun.yml --ref <branch>
+
+on: workflow_dispatch
+
+jobs:
+  dryrun:
+    permissions:
+      contents: read
+    strategy:
+      # See every platform failure in one run instead of bailing on the first.
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"
+            args: "--target aarch64-apple-darwin"
+            target: "aarch64-apple-darwin"
+          - platform: "macos-latest"
+            args: "--target x86_64-apple-darwin"
+            target: "x86_64-apple-darwin"
+          - platform: "ubuntu-22.04"
+            args: "--bundles deb"
+            target: "x86_64-unknown-linux-gnu"
+          - platform: "ubuntu-24.04"
+            args: "--bundles appimage,rpm"
+            target: "x86_64-unknown-linux-gnu"
+          - platform: "windows-latest"
+            args: ""
+            target: "x86_64-pc-windows-msvc"
+          - platform: "windows-11-arm"
+            args: "--target aarch64-pc-windows-msvc"
+            target: "aarch64-pc-windows-msvc"
+    uses: ./.github/workflows/build.yml
+    with:
+      platform: ${{ matrix.platform }}
+      target: ${{ matrix.target }}
+      build-args: ${{ matrix.args }}
+      sign-binaries: false
+      asset-prefix: "echo-dryrun"
+      upload-artifacts: false
+      is-debug-build: false
+    secrets: inherit
