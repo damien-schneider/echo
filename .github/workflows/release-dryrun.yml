@@ -12,7 +12,10 @@ on: workflow_dispatch
 jobs:
   dryrun:
     permissions:
-      contents: read
+      # Match the called build.yml which declares `contents: write` for the
+      # tauri-action step. Caller must grant at least as much, even though
+      # this dry-run never uploads anything.
+      contents: write
     strategy:
       # See every platform failure in one run instead of bailing on the first.
       fail-fast: false
