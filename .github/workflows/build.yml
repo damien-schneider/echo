@@ -312,20 +312,54 @@ jobs:
 
           echo "✅ All required secrets are present"
 
+      # Forward signing credentials to subsequent steps via $GITHUB_ENV.
+      # Empty values must NOT be forwarded — tauri-bundler treats the mere
+      # presence of APPLE_CERTIFICATE (even empty) as a signal to run
+      # `security import`, which then fails with "parameters not valid".
+      # Setting envs only when they have content avoids that trap, which
+      # is what broke the Release Dry Run workflow on macOS.
+      - name: Configure signing env
+        if: inputs.sign-binaries
+        shell: bash
+        env:
+          APPLE_ID_VAL: ${{ secrets.APPLE_ID }}
+          APPLE_ID_PASSWORD_VAL: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_PASSWORD_VAL: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID_VAL: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE_VAL: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD_VAL: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY_VAL: ${{ steps.verify-certificate.outputs.cert-id }}
+          AZURE_CLIENT_ID_VAL: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET_VAL: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID_VAL: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          set_if_present() {
+            local name="$1"
+            local val="$2"
+            if [ -n "$val" ]; then
+              local delim
+              delim="ghaenv_$(date +%s%N)"
+              printf '%s<<%s\n%s\n%s\n' "$name" "$delim" "$val" "$delim" >> "$GITHUB_ENV"
+            fi
+          }
+          set_if_present APPLE_ID                   "$APPLE_ID_VAL"
+          set_if_present APPLE_ID_PASSWORD          "$APPLE_ID_PASSWORD_VAL"
+          set_if_present APPLE_PASSWORD             "$APPLE_PASSWORD_VAL"
+          set_if_present APPLE_TEAM_ID              "$APPLE_TEAM_ID_VAL"
+          set_if_present APPLE_CERTIFICATE          "$APPLE_CERTIFICATE_VAL"
+          set_if_present APPLE_CERTIFICATE_PASSWORD "$APPLE_CERTIFICATE_PASSWORD_VAL"
+          set_if_present APPLE_SIGNING_IDENTITY     "$APPLE_SIGNING_IDENTITY_VAL"
+          set_if_present AZURE_CLIENT_ID            "$AZURE_CLIENT_ID_VAL"
+          set_if_present AZURE_CLIENT_SECRET        "$AZURE_CLIENT_SECRET_VAL"
+          set_if_present AZURE_TENANT_ID            "$AZURE_TENANT_ID_VAL"
+
       - name: Build with Tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_ID: ${{ inputs.sign-binaries && secrets.APPLE_ID || '' }}
-          APPLE_ID_PASSWORD: ${{ inputs.sign-binaries && secrets.APPLE_ID_PASSWORD || '' }}
-          APPLE_PASSWORD: ${{ inputs.sign-binaries && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ inputs.sign-binaries && secrets.APPLE_TEAM_ID || '' }}
-          APPLE_CERTIFICATE: ${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          APPLE_SIGNING_IDENTITY: ${{ inputs.sign-binaries && steps.verify-certificate.outputs.cert-id || '' }}
-          AZURE_CLIENT_ID: ${{ inputs.sign-binaries && secrets.AZURE_CLIENT_ID || '' }}
-          AZURE_CLIENT_SECRET: ${{ inputs.sign-binaries && secrets.AZURE_CLIENT_SECRET || '' }}
-          AZURE_TENANT_ID: ${{ inputs.sign-binaries && secrets.AZURE_TENANT_ID || '' }}
+          # APPLE_*/AZURE_* signing creds are injected by the previous step
+          # via $GITHUB_ENV when sign-binaries is true; intentionally absent
+          # here so they're never set to empty strings.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
           # Disable AVX/AVX2 for Linux to ensure broad compatibility
