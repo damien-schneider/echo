@@ -63,12 +63,15 @@ impl DiarizationManager {
             samples.len() as f32 / 16000.0
         );
 
+        // Loaded fresh per call. Acceptable because diarize() runs once at
+        // meeting end. If we ever stream live diarization, cache the instance
+        // on DiarizationManager.
         let mut sortformer = Sortformer::with_config(
             &model_path,
             None,
             DiarizationConfig::callhome(),
         )
-        .map_err(|e| anyhow::anyhow!("Failed to load Sortformer: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to load Sortformer from {:?}: {}", model_path, e))?;
 
         // Sortformer expects 16 kHz mono. Channels=1 since DiarizationManager's
         // caller (meeting.rs:450) already downmixes to mono before this point.
