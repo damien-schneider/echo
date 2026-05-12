@@ -1,11 +1,12 @@
 //! Speaker diarization manager.
 //!
 //! Runs offline speaker diarization on full audio to identify "who spoke when",
-//! using sherpa-rs (sherpa-onnx) with pyannote segmentation and 3D-Speaker embedding models.
+//! using NVIDIA Sortformer (single end-to-end transformer model, max 4 speakers)
+//! via the parakeet-rs crate.
 
 use anyhow::{Context, Result};
 use log::info;
-use sherpa_rs::diarize::{Diarize, DiarizeConfig};
+use parakeet_rs::sortformer::{DiarizationConfig, Sortformer};
 use std::sync::Arc;
 use tauri::AppHandle;
 
@@ -38,53 +39,50 @@ impl DiarizationManager {
     }
 
     /// Run speaker diarization on 16kHz mono f32 samples.
+    ///
+    /// `threshold` is preserved for API compatibility but not used by Sortformer
+    /// (Sortformer is end-to-end and does not expose a clustering threshold).
     pub fn diarize(
         &self,
         samples: &[f32],
-        threshold: f32,
+        _threshold: f32,
     ) -> Result<Vec<DiarizationSegment>> {
-        let segmentation_dir = self
+        let model_dir = self
             .model_manager
-            .get_model_path(SEGMENTATION_MODEL_ID)
-            .context("Segmentation model not available")?;
-
-        let segmentation_model = segmentation_dir.join(SEGMENTATION_ONNX_FILENAME);
-        if !segmentation_model.exists() {
-            anyhow::bail!(
-                "Segmentation .onnx file not found at {:?}",
-                segmentation_model
-            );
-        }
-
-        let embedding_model = self
-            .model_manager
-            .get_model_path(EMBEDDING_MODEL_ID)
-            .context("Embedding model not available")?;
+            .get_model_path(DIARIZATION_MODEL_ID)
+            .context("Diarization model not available")?;
+        let model_path = model_dir.join(DIARIZATION_ONNX_FILENAME);
+        anyhow::ensure!(
+            model_path.exists(),
+            "Sortformer .onnx file not found at {:?}",
+            model_path
+        );
 
         info!(
-            "Running speaker diarization on {:.1}s of audio",
+            "Running Sortformer diarization on {:.1}s of audio",
             samples.len() as f32 / 16000.0
         );
 
-        let config = DiarizeConfig {
-            num_clusters: Some(-1), // auto-detect number of speakers
-            threshold: Some(threshold),
-            ..Default::default()
-        };
+        let mut sortformer = Sortformer::with_config(
+            &model_path,
+            None,
+            DiarizationConfig::callhome(),
+        )
+        .map_err(|e| anyhow::anyhow!("Failed to load Sortformer: {}", e))?;
 
-        let mut diarizer = Diarize::new(&segmentation_model, &embedding_model, config)
-            .map_err(|e| anyhow::anyhow!("Failed to create diarizer: {}", e))?;
+        // Sortformer expects 16 kHz mono. Channels=1 since DiarizationManager's
+        // caller (meeting.rs:450) already downmixes to mono before this point.
+        let raw_segments = sortformer
+            .diarize(samples.to_vec(), 16_000, 1)
+            .map_err(|e| anyhow::anyhow!("Sortformer inference failed: {}", e))?;
 
-        let segments = diarizer
-            .compute(samples.to_vec(), None)
-            .map_err(|e| anyhow::anyhow!("Diarization failed: {}", e))?;
-
-        let result: Vec<DiarizationSegment> = segments
+        let result: Vec<DiarizationSegment> = raw_segments
             .into_iter()
             .map(|seg| DiarizationSegment {
-                start_ms: (seg.start * 1000.0) as i64,
-                end_ms: (seg.end * 1000.0) as i64,
-                speaker_id: seg.speaker,
+                // Sortformer returns sample offsets at 16 kHz; ms = samples / 16.
+                start_ms: (seg.start / 16) as i64,
+                end_ms: (seg.end / 16) as i64,
+                speaker_id: seg.speaker_id as i32,
             })
             .collect();
 
