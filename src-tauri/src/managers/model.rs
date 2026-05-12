@@ -183,35 +183,16 @@ impl ModelManager {
             },
         );
 
-        // Diarization models (speaker segmentation + embedding)
+        // Diarization model (NVIDIA Sortformer end-to-end, 4-speaker max)
         available_models.insert(
-            "diarization-segmentation".to_string(),
+            "diarization-sortformer".to_string(),
             ModelInfo {
-                id: "diarization-segmentation".to_string(),
-                name: "Speaker Segmentation".to_string(),
-                description: "Identifies when different speakers are talking".to_string(),
-                filename: "sherpa-onnx-pyannote-segmentation-3-0".to_string(),
-                url: Some("https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2".to_string()),
-                size_mb: 6,
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: true,
-                engine_type: EngineType::Diarization,
-                accuracy_score: 0.0,
-                speed_score: 0.0,
-            },
-        );
-
-        available_models.insert(
-            "diarization-embedding".to_string(),
-            ModelInfo {
-                id: "diarization-embedding".to_string(),
-                name: "Speaker Embedding".to_string(),
-                description: "Creates voice signatures to distinguish speakers".to_string(),
-                filename: "3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx".to_string(),
-                url: Some("https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/3dspeaker_speech_eres2net_base_sv_zh-cn_3dspeaker_16k.onnx".to_string()),
-                size_mb: 70,
+                id: "diarization-sortformer".to_string(),
+                name: "NVIDIA Sortformer".to_string(),
+                description: "End-to-end speaker diarization (max 4 speakers)".to_string(),
+                filename: "diar_streaming_sortformer_4spk-v2.onnx".to_string(),
+                url: Some("https://huggingface.co/altunenes/parakeet-rs/resolve/main/diar_streaming_sortformer_4spk-v2.onnx".to_string()),
+                size_mb: 470, // verified via HEAD: 492 MB
                 is_downloaded: false,
                 is_downloading: false,
                 partial_size: 0,

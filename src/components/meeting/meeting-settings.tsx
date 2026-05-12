@@ -12,10 +12,8 @@ import {
 } from "@/stores/settings-store";
 
 interface DiarizationStatus {
-  embedding_downloaded: boolean;
-  embedding_downloading: boolean;
-  segmentation_downloaded: boolean;
-  segmentation_downloading: boolean;
+  downloaded: boolean;
+  downloading: boolean;
 }
 
 const useDiarizationStatus = (enabled: boolean) => {
@@ -65,12 +63,8 @@ export const MeetingSettings = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const diarizationStatus = useDiarizationStatus(diarizationEnabled);
 
-  const modelsReady =
-    diarizationStatus?.segmentation_downloaded &&
-    diarizationStatus?.embedding_downloaded;
-  const modelsDownloading =
-    diarizationStatus?.segmentation_downloading ||
-    diarizationStatus?.embedding_downloading;
+  const modelsReady = diarizationStatus?.downloaded;
+  const modelsDownloading = diarizationStatus?.downloading;
 
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-border/20">

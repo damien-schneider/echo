@@ -54,29 +54,18 @@ pub fn change_meeting_diarization_setting(
         s.meeting_diarization_enabled = enabled;
     });
 
-    // Auto-download diarization models when enabling
+    // Auto-download diarization model when enabling
     if enabled {
-        let segmentation_needs_download = model_manager
-            .get_model_info("diarization-segmentation")
-            .map(|m| !m.is_downloaded && !m.is_downloading)
-            .unwrap_or(false);
-        let embedding_needs_download = model_manager
-            .get_model_info("diarization-embedding")
+        let needs_download = model_manager
+            .get_model_info("diarization-sortformer")
             .map(|m| !m.is_downloaded && !m.is_downloading)
             .unwrap_or(false);
 
-        if segmentation_needs_download || embedding_needs_download {
+        if needs_download {
             let mm = model_manager.inner().clone();
             tauri::async_runtime::spawn(async move {
-                if segmentation_needs_download {
-                    if let Err(e) = mm.download_model("diarization-segmentation").await {
-                        log::error!("Failed to download segmentation model: {}", e);
-                    }
-                }
-                if embedding_needs_download {
-                    if let Err(e) = mm.download_model("diarization-embedding").await {
-                        log::error!("Failed to download embedding model: {}", e);
-                    }
+                if let Err(e) = mm.download_model("diarization-sortformer").await {
+                    log::error!("Failed to download diarization model: {}", e);
                 }
             });
         }
@@ -90,21 +79,16 @@ pub fn get_diarization_status(
     app: AppHandle,
 ) -> Result<DiarizationStatus, String> {
     let model_manager = app.state::<Arc<ModelManager>>();
-    let seg = model_manager.get_model_info("diarization-segmentation");
-    let emb = model_manager.get_model_info("diarization-embedding");
+    let model = model_manager.get_model_info("diarization-sortformer");
 
     Ok(DiarizationStatus {
-        segmentation_downloaded: seg.as_ref().map(|m| m.is_downloaded).unwrap_or(false),
-        segmentation_downloading: seg.as_ref().map(|m| m.is_downloading).unwrap_or(false),
-        embedding_downloaded: emb.as_ref().map(|m| m.is_downloaded).unwrap_or(false),
-        embedding_downloading: emb.as_ref().map(|m| m.is_downloading).unwrap_or(false),
+        downloaded: model.as_ref().map(|m| m.is_downloaded).unwrap_or(false),
+        downloading: model.as_ref().map(|m| m.is_downloading).unwrap_or(false),
     })
 }
 
 #[derive(serde::Serialize)]
 pub struct DiarizationStatus {
-    pub segmentation_downloaded: bool,
-    pub segmentation_downloading: bool,
-    pub embedding_downloaded: bool,
-    pub embedding_downloading: bool,
+    pub downloaded: bool,
+    pub downloading: bool,
 }

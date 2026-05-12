@@ -11,9 +11,8 @@ use tauri::AppHandle;
 
 use super::model::ModelManager;
 
-const SEGMENTATION_MODEL_ID: &str = "diarization-segmentation";
-const EMBEDDING_MODEL_ID: &str = "diarization-embedding";
-const SEGMENTATION_ONNX_FILENAME: &str = "model.onnx";
+const DIARIZATION_MODEL_ID: &str = "diarization-sortformer";
+const DIARIZATION_ONNX_FILENAME: &str = "diar_streaming_sortformer_4spk-v2.onnx";
 
 #[derive(Debug, Clone)]
 pub struct DiarizationSegment {
@@ -33,15 +32,9 @@ impl DiarizationManager {
         })
     }
 
-    /// Check if both diarization models are downloaded and ready.
+    /// Check if the diarization model is downloaded and ready.
     pub fn is_available(&self) -> bool {
-        self.model_manager
-            .get_model_path(SEGMENTATION_MODEL_ID)
-            .is_ok()
-            && self
-                .model_manager
-                .get_model_path(EMBEDDING_MODEL_ID)
-                .is_ok()
+        self.model_manager.get_model_path(DIARIZATION_MODEL_ID).is_ok()
     }
 
     /// Run speaker diarization on 16kHz mono f32 samples.
