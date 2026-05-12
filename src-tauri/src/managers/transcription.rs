@@ -10,13 +10,11 @@ use std::thread;
 use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter};
 use transcribe_rs::{
-    engines::{
-        parakeet::{
-            ParakeetEngine, ParakeetInferenceParams, ParakeetModelParams, TimestampGranularity,
-        },
-        whisper::{WhisperEngine, WhisperInferenceParams},
+    onnx::{
+        parakeet::{ParakeetModel, ParakeetParams, TimestampGranularity},
+        Quantization,
     },
-    TranscriptionEngine,
+    whisper_cpp::{WhisperEngine, WhisperInferenceParams},
 };
 
 #[derive(Clone, Debug, Serialize)]
@@ -29,7 +27,7 @@ pub struct ModelStateEvent {
 
 enum LoadedEngine {
     Whisper(WhisperEngine),
-    Parakeet(ParakeetEngine),
+    Parakeet(ParakeetModel),
 }
 
 #[derive(Clone)]
@@ -152,12 +150,6 @@ impl TranscriptionManager {
 
         {
             let mut engine = self.engine.lock().unwrap();
-            if let Some(ref mut loaded_engine) = *engine {
-                match loaded_engine {
-                    LoadedEngine::Whisper(ref mut whisper) => whisper.unload_model(),
-                    LoadedEngine::Parakeet(ref mut parakeet) => parakeet.unload_model(),
-                }
-            }
             *engine = None; // Drop the engine to free memory
         }
         {
@@ -223,8 +215,7 @@ impl TranscriptionManager {
         // Create appropriate engine based on model type
         let loaded_engine = match model_info.engine_type {
             EngineType::Whisper => {
-                let mut engine = WhisperEngine::new();
-                engine.load_model(&model_path).map_err(|e| {
+                let engine = WhisperEngine::load(&model_path).map_err(|e| {
                     let error_msg = format!("Failed to load whisper model {}: {}", model_id, e);
                     let _ = self.app_handle.emit(
                         "model-state-changed",
@@ -240,23 +231,20 @@ impl TranscriptionManager {
                 LoadedEngine::Whisper(engine)
             }
             EngineType::Parakeet => {
-                let mut engine = ParakeetEngine::new();
-                engine
-                    .load_model_with_params(&model_path, ParakeetModelParams::int8())
-                    .map_err(|e| {
-                        let error_msg =
-                            format!("Failed to load parakeet model {}: {}", model_id, e);
-                        let _ = self.app_handle.emit(
-                            "model-state-changed",
-                            ModelStateEvent {
-                                event_type: "loading_failed".to_string(),
-                                model_id: Some(model_id.to_string()),
-                                model_name: Some(model_info.name.clone()),
-                                error: Some(error_msg.clone()),
-                            },
-                        );
-                        anyhow::anyhow!(error_msg)
-                    })?;
+                let engine = ParakeetModel::load(&model_path, &Quantization::Int8).map_err(|e| {
+                    let error_msg =
+                        format!("Failed to load parakeet model {}: {}", model_id, e);
+                    let _ = self.app_handle.emit(
+                        "model-state-changed",
+                        ModelStateEvent {
+                            event_type: "loading_failed".to_string(),
+                            model_id: Some(model_id.to_string()),
+                            model_name: Some(model_info.name.clone()),
+                            error: Some(error_msg.clone()),
+                        },
+                    );
+                    anyhow::anyhow!(error_msg)
+                })?;
                 LoadedEngine::Parakeet(engine)
             }
             EngineType::Diarization => {
@@ -388,17 +376,17 @@ impl TranscriptionManager {
                     };
 
                     whisper_engine
-                        .transcribe_samples(audio, Some(params))
+                        .transcribe_with(&audio, &params)
                         .map_err(|e| anyhow::anyhow!("Whisper transcription failed: {}", e))?
                 }
                 LoadedEngine::Parakeet(parakeet_engine) => {
-                    let params = ParakeetInferenceParams {
-                        timestamp_granularity: TimestampGranularity::Segment,
+                    let params = ParakeetParams {
+                        timestamp_granularity: Some(TimestampGranularity::Segment),
                         ..Default::default()
                     };
 
                     parakeet_engine
-                        .transcribe_samples(audio, Some(params))
+                        .transcribe_with(&audio, &params)
                         .map_err(|e| anyhow::anyhow!("Parakeet transcription failed: {}", e))?
                 }
             }
