@@ -63,8 +63,8 @@ export const MeetingSettings = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const diarizationStatus = useDiarizationStatus(diarizationEnabled);
 
-  const modelsReady = diarizationStatus?.downloaded;
-  const modelsDownloading = diarizationStatus?.downloading;
+  const modelReady = diarizationStatus?.downloaded;
+  const modelDownloading = diarizationStatus?.downloading;
 
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-border/20">
@@ -100,19 +100,17 @@ export const MeetingSettings = () => {
             }
           />
         </SettingContainer>
-        {diarizationEnabled && diarizationStatus && !modelsReady && (
+        {diarizationEnabled && diarizationStatus && !modelReady && (
           <div className="flex items-center gap-2 px-4 pb-2 text-muted-foreground text-xs">
-            {modelsDownloading ? (
+            {modelDownloading ? (
               <>
                 <Loader2 className="size-3 animate-spin" />
-                <span>Downloading speaker detection models…</span>
+                <span>Downloading speaker detection model…</span>
               </>
             ) : (
               <>
                 <Download className="size-3" />
-                <span>
-                  Speaker detection models will download automatically
-                </span>
+                <span>Speaker detection model will download automatically</span>
               </>
             )}
           </div>

@@ -11,7 +11,7 @@ use tauri::AppHandle;
 
 use super::model::ModelManager;
 
-const DIARIZATION_MODEL_ID: &str = "diarization-sortformer";
+pub const DIARIZATION_MODEL_ID: &str = "diarization-sortformer";
 const DIARIZATION_ONNX_FILENAME: &str = "diar_streaming_sortformer_4spk-v2.onnx";
 
 #[derive(Debug, Clone)]

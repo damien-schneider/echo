@@ -1,5 +1,6 @@
 //! Meeting settings commands.
 
+use crate::managers::diarization::DIARIZATION_MODEL_ID;
 use crate::managers::model::ModelManager;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager, State};
@@ -57,14 +58,14 @@ pub fn change_meeting_diarization_setting(
     // Auto-download diarization model when enabling
     if enabled {
         let needs_download = model_manager
-            .get_model_info("diarization-sortformer")
+            .get_model_info(DIARIZATION_MODEL_ID)
             .map(|m| !m.is_downloaded && !m.is_downloading)
             .unwrap_or(false);
 
         if needs_download {
             let mm = model_manager.inner().clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = mm.download_model("diarization-sortformer").await {
+                if let Err(e) = mm.download_model(DIARIZATION_MODEL_ID).await {
                     log::error!("Failed to download diarization model: {}", e);
                 }
             });
@@ -79,7 +80,7 @@ pub fn get_diarization_status(
     app: AppHandle,
 ) -> Result<DiarizationStatus, String> {
     let model_manager = app.state::<Arc<ModelManager>>();
-    let model = model_manager.get_model_info("diarization-sortformer");
+    let model = model_manager.get_model_info(DIARIZATION_MODEL_ID);
 
     Ok(DiarizationStatus {
         downloaded: model.as_ref().map(|m| m.is_downloaded).unwrap_or(false),
