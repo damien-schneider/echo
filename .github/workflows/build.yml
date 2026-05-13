@@ -249,6 +249,12 @@ jobs:
           # passes them through to its `cmake -DCMAKE_C_COMPILER=...` invocation.
           Add-Content -Path $env:GITHUB_ENV -Value "CC=clang-cl"
           Add-Content -Path $env:GITHUB_ENV -Value "CXX=clang-cl"
+          # whisper.cpp/ggml uses try/catch (gguf.cpp). cmake-rs's default
+          # CXX flags disable C++ exceptions on Windows + clang-cl, causing
+          # `cannot use 'try' with exceptions disabled` errors. /EHsc enables
+          # the standard C++ exception model. cmake-rs appends $env:CXXFLAGS
+          # to its CMAKE_CXX_FLAGS, so this lands in the cmake invocation.
+          Add-Content -Path $env:GITHUB_ENV -Value "CXXFLAGS=/EHsc"
           # cmake-rs defaults to the "Visual Studio 17 2022" generator on Windows,
           # which injects -T host=x64 -A ARM64 flags that prevent ClangCL toolset
           # selection from working. Switch to Ninja so CC=clang-cl is respected
