@@ -170,8 +170,12 @@ jobs:
           if [ ! -f "$HOME/onnxruntime/build/Linux/Release/libonnxruntime.so" ]; then
             git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime "$HOME/onnxruntime"
             cd "$HOME/onnxruntime"
+            # --compile_no_warning_as_error: ORT v1.24.2 has -Werror + array-bounds
+            # bug in mlas/sqnbitgemm_kernel_avx2_int8_blklen32.h:1677 that fails
+            # the build on AVX2-capable targets. Disable Werror so warnings
+            # don't kill the compile.
             ./build.sh --config Release --parallel --skip_tests \
-              --build_shared_lib \
+              --build_shared_lib --compile_no_warning_as_error \
               --cmake_extra_defines CMAKE_POSITION_INDEPENDENT_CODE=ON onnxruntime_BUILD_UNIT_TESTS=OFF
           fi
           echo "ORT_LIB_LOCATION=$HOME/onnxruntime/build/Linux/Release" >> "$GITHUB_ENV"
@@ -245,13 +249,13 @@ jobs:
           # passes them through to its `cmake -DCMAKE_C_COMPILER=...` invocation.
           Add-Content -Path $env:GITHUB_ENV -Value "CC=clang-cl"
           Add-Content -Path $env:GITHUB_ENV -Value "CXX=clang-cl"
-          Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_GENERATOR_TOOLSET=ClangCL"
           # cmake-rs defaults to the "Visual Studio 17 2022" generator on Windows,
-          # which injects -T host=x64 -A ARM64 flags that conflict with
-          # CMAKE_GENERATOR_TOOLSET=ClangCL (env vars are ignored when the VS
-          # generator is active). Switch to Ninja so CC/CXX are respected cleanly.
-          # Ninja ships with VS build tools on GitHub runners; choco ensures it is
-          # on PATH regardless of runner image version.
+          # which injects -T host=x64 -A ARM64 flags that prevent ClangCL toolset
+          # selection from working. Switch to Ninja so CC=clang-cl is respected
+          # and the generator-side toolset spec is dropped entirely (Ninja
+          # ignores -T toolset arguments).
+          # IMPORTANT: do NOT also set CMAKE_GENERATOR_TOOLSET — Ninja errors
+          # out with "Generator Ninja does not support toolset specification".
           choco install ninja -y
           Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_GENERATOR=Ninja"
           Write-Host "clang-cl path: $llvmBin"
@@ -327,6 +331,7 @@ jobs:
               --parallel \
               --skip_tests \
               --build_shared_lib \
+              --compile_no_warning_as_error \
               --build_dir build/MacOS_x86_64 \
               --osx_arch x86_64 \
               --apple_deploy_target 10.15 \
