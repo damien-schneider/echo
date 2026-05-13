@@ -1,7 +1,14 @@
-//! End-to-end Sortformer diarization test against a 2-speaker fixture.
+//! Sortformer integration tests.
 //!
-//! Skips when either the fixture WAV or the Sortformer ONNX model is absent,
-//! so the test stays inert in CI until a maintainer provides both.
+//! Two tests:
+//! 1. `sortformer_loads_and_runs_on_synthetic_audio` — programmatic smoke
+//!    test that proves the parakeet-rs + ort + ONNX chain works end-to-end
+//!    on the current platform. Skips when the model isn't downloaded.
+//! 2. `sortformer_diarizes_two_speakers_within_tolerance` — accuracy test
+//!    against a real 2-speaker fixture. Skips when fixture absent.
+//!
+//! Both tests skip silently when their inputs are missing, so they stay
+//! inert in CI runs that don't have the 470MB Sortformer model.
 
 use anyhow::Result;
 use parakeet_rs::sortformer::{DiarizationConfig, Sortformer};
@@ -59,6 +66,64 @@ fn sortformer_model_path() -> Option<PathBuf> {
          diarization-sortformer/diar_streaming_sortformer_4spk-v2.onnx",
     );
     candidate.exists().then_some(candidate)
+}
+
+/// Generate 30s of 16 kHz mono audio with two distinguishable halves.
+/// Each half is a sine carrier + harmonics + low noise — won't fool Sortformer
+/// into clean speaker boundaries (it's trained on real voices) but exercises
+/// the full inference path: ONNX session, mel features, transformer forward.
+fn synthetic_two_voice_audio(seconds: usize) -> Vec<f32> {
+    use std::f32::consts::TAU;
+    let sample_rate = 16_000;
+    let n = seconds * sample_rate;
+    let half = n / 2;
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let t = i as f32 / sample_rate as f32;
+        // Half 1: lower fundamental ~120 Hz (male-ish range)
+        // Half 2: higher fundamental ~220 Hz (female-ish range)
+        let f0: f32 = if i < half { 120.0 } else { 220.0 };
+        let s = 0.4 * (TAU * f0 * t).sin()
+            + 0.2 * (TAU * f0 * 2.0 * t).sin()
+            + 0.1 * (TAU * f0 * 3.0 * t).sin();
+        // Pseudo-noise via deterministic LCG so the test is reproducible
+        let noise = ((i.wrapping_mul(1103515245).wrapping_add(12345) >> 16) & 0x7FFF) as f32
+            / 32768.0
+            - 0.5;
+        out.push(s + noise * 0.05);
+    }
+    out
+}
+
+#[test]
+fn sortformer_loads_and_runs_on_synthetic_audio() -> Result<()> {
+    let Some(model_path) = sortformer_model_path() else {
+        eprintln!("skip: Sortformer model not downloaded locally");
+        return Ok(());
+    };
+
+    let audio = synthetic_two_voice_audio(30);
+
+    let mut sortformer = Sortformer::with_config(
+        &model_path,
+        None,
+        DiarizationConfig::callhome(),
+    )?;
+    let segments = sortformer.diarize(audio, 16_000, 1)?;
+
+    // Strong assertion: the inference path doesn't panic and returns a Vec.
+    // Weak assertion on segment count: synthetic audio may produce 0 to many
+    // segments. We accept any non-panicking result. The point of this test
+    // is to catch dep/ABI/ONNX format breakage at the platform level, not
+    // to validate diarization quality.
+    eprintln!("synthetic audio produced {} segments", segments.len());
+    for (i, s) in segments.iter().enumerate() {
+        eprintln!(
+            "  seg {i}: {}-{} samples (speaker {})",
+            s.start, s.end, s.speaker_id
+        );
+    }
+    Ok(())
 }
 
 #[test]
