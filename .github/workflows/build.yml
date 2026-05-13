@@ -98,6 +98,15 @@ jobs:
           # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
           targets: ${{ contains(inputs.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
+      - name: Ensure rustup PATH is correct (macOS)
+        if: contains(inputs.platform, 'macos')
+        run: |
+          rustup self update || true
+          rustup default stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          rustc --version
+          cargo --version
+
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -175,6 +184,27 @@ jobs:
           vulkan-query-version: 1.4.309.0
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true
+
+      - name: Configure clang-cl for whisper.cpp (Windows ARM64)
+        if: contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64')
+        shell: pwsh
+        run: |
+          # whisper.cpp's CMakeLists.txt rejects MSVC on ARM and demands clang.
+          # GitHub's windows-11-arm runner ships LLVM 18+ which provides clang-cl.
+          $llvmBin = "C:\Program Files\LLVM\bin"
+          if (-not (Test-Path "$llvmBin\clang-cl.exe")) {
+            Write-Error "clang-cl.exe not found at $llvmBin — runner image change?"
+            exit 1
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $llvmBin
+          # Force whisper-rs-sys's build script (cmake-rs crate) to use clang-cl.
+          # CC/CXX must be reachable by name, not absolute path — cmake-rs
+          # passes them through to its `cmake -DCMAKE_C_COMPILER=...` invocation.
+          Add-Content -Path $env:GITHUB_ENV -Value "CC=clang-cl"
+          Add-Content -Path $env:GITHUB_ENV -Value "CXX=clang-cl"
+          Add-Content -Path $env:GITHUB_ENV -Value "CMAKE_GENERATOR_TOOLSET=ClangCL"
+          Write-Host "clang-cl path: $llvmBin"
+          & "$llvmBin\clang-cl.exe" --version
 
       - name: Install trusted-signing-cli
         if: contains(inputs.platform, 'windows') && inputs.sign-binaries
