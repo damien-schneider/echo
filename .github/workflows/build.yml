@@ -111,7 +111,11 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
-          key: ${{ inputs.platform }}-${{ inputs.target }}
+          # windows-11-arm builds whisper.cpp with clang-cl (whisper.cpp's
+          # CMakeLists.txt rejects MSVC on ARM). The toolchain bytes get
+          # baked into target/.../CMakeCache.txt, so cache must be partitioned
+          # to avoid "toolset mismatch" errors when switching/replaying.
+          key: ${{ inputs.platform }}-${{ inputs.target }}${{ contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64') && '-clangcl' || '' }}
 
       - name: install dependencies (ubuntu 24.04)
         if: contains(inputs.platform, 'ubuntu-24.04')
@@ -136,6 +140,42 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libasound2-dev libopenblas-dev libx11-dev libxtst-dev libxrandr-dev libspeechd-dev libgtk-layer-shell-dev
+
+      - name: Cache ONNX Runtime build (ubuntu-22.04)
+        if: contains(inputs.platform, 'ubuntu-22.04')
+        uses: actions/cache@v4
+        with:
+          path: ~/onnxruntime/build/Linux/Release
+          key: onnxruntime-v1.21.0-ubuntu-22.04-${{ runner.arch }}
+          # No restore-keys: we want exact version match or rebuild from scratch.
+
+      - name: Build ONNX Runtime from source (ubuntu-22.04 glibc compat)
+        if: contains(inputs.platform, 'ubuntu-22.04')
+        env:
+          ORT_VERSION: "v1.21.0"
+        run: |
+          set -euxo pipefail
+          # ort 2.0.0-rc.12 prebuilt binaries were compiled against glibc 2.38+
+          # (`__isoc23_strtoll` symbols), but ubuntu-22.04 ships glibc 2.35.
+          # Compile ORT from source against the local glibc to avoid
+          # "undefined symbol" link errors. Cached across runs by ORT_VERSION.
+          sudo apt-get install -y python3 python3-pip cmake build-essential ninja-build
+          if [ ! -f "$HOME/onnxruntime/build/Linux/Release/libonnxruntime.so" ]; then
+            git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime "$HOME/onnxruntime"
+            cd "$HOME/onnxruntime"
+            ./build.sh \
+              --config Release \
+              --parallel \
+              --skip_tests \
+              --skip_submodule_update \
+              --build_shared_lib \
+              --cmake_extra_defines CMAKE_POSITION_INDEPENDENT_CODE=ON onnxruntime_BUILD_UNIT_TESTS=OFF
+          fi
+          echo "ORT_LIB_LOCATION=$HOME/onnxruntime/build/Linux/Release" >> "$GITHUB_ENV"
+          echo "ORT_STRATEGY=system" >> "$GITHUB_ENV"
+          # ort-sys reads ORT_LIB_LOCATION to find the prebuilt .so/.a;
+          # ORT_STRATEGY=system tells it to skip the download step entirely.
+          # See https://ort.pyke.io/setup/linking#bring-your-own-onnx-runtime
 
       - name: Install Vulkan SDK (Windows x64)
         if: contains(inputs.platform, 'windows') && !contains(inputs.target, 'aarch64')
@@ -248,6 +288,40 @@ jobs:
       - name: rustup install target
         if: ${{ inputs.target != '' && !contains(inputs.target, 'unknown-linux-gnu') && !contains(inputs.target, 'x86_64-pc-windows-msvc') }}
         run: rustup target add ${{ inputs.target }}
+
+      - name: Cache ONNX Runtime build (macOS x86_64)
+        if: contains(inputs.platform, 'macos') && contains(inputs.target, 'x86_64')
+        uses: actions/cache@v4
+        with:
+          path: ~/onnxruntime/build/MacOS_x86_64/Release
+          key: onnxruntime-v1.21.0-macos-x86_64
+
+      - name: Build ONNX Runtime from source (macOS x86_64 cross-compile)
+        if: contains(inputs.platform, 'macos') && contains(inputs.target, 'x86_64')
+        env:
+          ORT_VERSION: "v1.21.0"
+        run: |
+          set -euxo pipefail
+          # ort 2.0.0-rc.12 dropped x86_64-apple-darwin from prebuilt CDN.
+          # Cross-compile ORT on this arm64 runner targeting x86_64. Cached
+          # by ORT_VERSION across runs to avoid 30+ min rebuild.
+          if [ ! -f "$HOME/onnxruntime/build/MacOS_x86_64/Release/libonnxruntime.dylib" ]; then
+            brew install cmake ninja
+            git clone --depth 1 --branch "$ORT_VERSION" https://github.com/microsoft/onnxruntime "$HOME/onnxruntime"
+            cd "$HOME/onnxruntime"
+            ./build.sh \
+              --config Release \
+              --parallel \
+              --skip_tests \
+              --skip_submodule_update \
+              --build_shared_lib \
+              --build_dir build/MacOS_x86_64 \
+              --osx_arch x86_64 \
+              --apple_deploy_target 10.15 \
+              --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF
+          fi
+          echo "ORT_LIB_LOCATION=$HOME/onnxruntime/build/MacOS_x86_64/Release" >> "$GITHUB_ENV"
+          echo "ORT_STRATEGY=system" >> "$GITHUB_ENV"
 
       - name: import Apple Developer Certificate
         if: contains(inputs.platform, 'macos') && inputs.sign-binaries
