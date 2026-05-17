@@ -163,9 +163,11 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
             }
             if let Some(ml) = ml_ptr.upgrade() {
                 // SAFETY: introspector callback runs on the mainloop thread
-                // under PA's internal lock. RefCell borrow_mut never races.
+                // under PA's internal lock. Reborrow the *mut Mainloop from
+                // RefCell::as_ptr into a &mut to call signal(); see the
+                // identical pattern in the state callback above.
                 unsafe {
-                    (*ml.as_ptr()).borrow_mut().signal(false);
+                    (&mut *ml.as_ptr()).signal(false);
                 }
             }
         });
