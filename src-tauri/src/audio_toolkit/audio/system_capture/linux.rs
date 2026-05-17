@@ -7,7 +7,6 @@
 
 use anyhow::{anyhow, Context, Result};
 use log::{debug, warn};
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -119,8 +118,13 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
                         // SAFETY: PA's threaded mainloop serializes state-callback
                         // invocations under its own lock; we hold the lock at
                         // the wait-loop above before signal() races with us.
+                        // RefCell::as_ptr gives us a *mut Mainloop directly,
+                        // so reborrow into &mut. Avoid `borrow_mut()` here:
+                        // pulling `BorrowMut` into scope would steal method
+                        // resolution for every Rc<RefCell<_>>.borrow_mut()
+                        // elsewhere in this module.
                         unsafe {
-                            (*ml.as_ptr()).borrow_mut().signal(false);
+                            (&mut *ml.as_ptr()).signal(false);
                         }
                     }
                 }
