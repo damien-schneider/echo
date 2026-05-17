@@ -3,7 +3,7 @@
 use crate::managers::diarization::DIARIZATION_MODEL_ID;
 use crate::managers::model::ModelManager;
 use std::sync::Arc;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager};
 
 use crate::settings;
 
@@ -45,40 +45,24 @@ pub fn change_meeting_chunk_duration_setting(
     Ok(())
 }
 
+/// Update the model the live-streaming worker uses during a meeting. Smaller
+/// is better here — `tiny` and `base` are designed for low-latency decode.
 #[tauri::command]
-pub fn change_meeting_diarization_setting(
-    app: AppHandle,
-    model_manager: State<'_, Arc<ModelManager>>,
-    enabled: bool,
-) -> Result<(), String> {
-    settings::update_settings(&app, |s| {
-        s.meeting_diarization_enabled = enabled;
-    });
-
-    // Auto-download diarization model when enabling
-    if enabled {
-        let needs_download = model_manager
-            .get_model_info(DIARIZATION_MODEL_ID)
-            .map(|m| !m.is_downloaded && !m.is_downloading)
-            .unwrap_or(false);
-
-        if needs_download {
-            let mm = model_manager.inner().clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = mm.download_model(DIARIZATION_MODEL_ID).await {
-                    log::error!("Failed to download diarization model: {}", e);
-                }
-            });
-        }
+pub fn change_realtime_model_setting(app: AppHandle, model_id: String) -> Result<(), String> {
+    let trimmed = model_id.trim().to_string();
+    if trimmed.is_empty() {
+        return Err("model_id cannot be empty".to_string());
     }
-
+    settings::update_settings(&app, |s| {
+        s.realtime_model = trimmed;
+    });
     Ok(())
 }
 
+/// Status of the diarization model download. Frontend polls this so it can
+/// gate the "Start meeting" button until the model is on disk.
 #[tauri::command]
-pub fn get_diarization_status(
-    app: AppHandle,
-) -> Result<DiarizationStatus, String> {
+pub fn get_diarization_status(app: AppHandle) -> Result<DiarizationStatus, String> {
     let model_manager = app.state::<Arc<ModelManager>>();
     let model = model_manager.get_model_info(DIARIZATION_MODEL_ID);
 
@@ -86,6 +70,25 @@ pub fn get_diarization_status(
         downloaded: model.as_ref().map(|m| m.is_downloaded).unwrap_or(false),
         downloading: model.as_ref().map(|m| m.is_downloading).unwrap_or(false),
     })
+}
+
+/// Trigger an auto-download of the diarization model if it's missing. Used by
+/// the frontend as a fallback in case the boot-time auto-download was skipped
+/// (e.g. previous run aborted mid-download).
+#[tauri::command]
+pub async fn ensure_diarization_model(app: AppHandle) -> Result<(), String> {
+    let model_manager = app.state::<Arc<ModelManager>>().inner().clone();
+    let needs_download = model_manager
+        .get_model_info(DIARIZATION_MODEL_ID)
+        .map(|m| !m.is_downloaded && !m.is_downloading)
+        .unwrap_or(false);
+    if needs_download {
+        model_manager
+            .download_model(DIARIZATION_MODEL_ID)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[derive(serde::Serialize)]

@@ -100,11 +100,23 @@ windows = { version = "0.61.3", features = [
     "Win32_System_Threading",
     "Win32_Foundation",
 ] }
+# WASAPI loopback capture for system audio (used by audio_toolkit::system_capture).
+wasapi = "0.23"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 cocoa = "0.26"
 objc = "0.2"
 libc = "0.2"
+# ScreenCaptureKit bindings for system audio capture (audio capture lives behind the macos_13_0 feature).
+screencapturekit = { version = "2.1", features = ["macos_13_0"] }
+# Cargo merges features additively across target sections for the same crate
+# version, so this enables `whisper-metal` only on macOS without rebuilding
+# whisper.cpp's Metal kernels on Linux/Windows where they'd fail to link.
+transcribe-rs = { version = "=0.3.11", features = ["whisper-metal"] }
+
+[target.'cfg(target_os = "linux")'.dependencies.libpulse-binding]
+version = "2.30"
+default-features = false
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2.5.1"

@@ -186,6 +186,12 @@ pub struct AppSettings {
     pub autostart_enabled: bool,
     #[serde(default = "default_model")]
     pub selected_model: String,
+    /// Model used by the realtime streaming worker during a meeting. Kept
+    /// separate from `selected_model` so the batch (post-stop) pass can use a
+    /// big high-quality model while the live decode uses something CPU can
+    /// keep up with.
+    #[serde(default = "default_realtime_model")]
+    pub realtime_model: String,
     #[serde(default = "default_always_on_microphone")]
     pub always_on_microphone: bool,
     #[serde(default)]
@@ -255,8 +261,6 @@ pub struct AppSettings {
     pub meeting_auto_summary: bool,
     #[serde(default = "default_meeting_chunk_duration_secs")]
     pub meeting_chunk_duration_secs: u32,
-    #[serde(default)]
-    pub meeting_diarization_enabled: bool,
     #[serde(default = "default_diarization_threshold")]
     pub meeting_diarization_threshold: f32,
 }
@@ -271,6 +275,10 @@ fn default_sound_theme() -> SoundTheme {
 
 fn default_model() -> String {
     "".to_string()
+}
+
+fn default_realtime_model() -> String {
+    "tiny".to_string()
 }
 
 fn default_always_on_microphone() -> bool {
@@ -466,6 +474,7 @@ pub fn get_default_settings() -> AppSettings {
         start_hidden: default_start_hidden(),
         autostart_enabled: default_autostart_enabled(),
         selected_model: "".to_string(),
+        realtime_model: default_realtime_model(),
         always_on_microphone: false,
         selected_microphone: None,
         clamshell_microphone: None,
@@ -500,7 +509,6 @@ pub fn get_default_settings() -> AppSettings {
         meeting_system_audio_device: None,
         meeting_auto_summary: false,
         meeting_chunk_duration_secs: default_meeting_chunk_duration_secs(),
-        meeting_diarization_enabled: false,
         meeting_diarization_threshold: default_diarization_threshold(),
     }
 }

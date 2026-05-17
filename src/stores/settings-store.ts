@@ -139,8 +139,8 @@ const settingUpdaters: {
     invoke("change_meeting_chunk_duration_setting", {
       durationSecs: value,
     }),
-  meeting_diarization_enabled: (value) =>
-    invoke("change_meeting_diarization_setting", { enabled: value }),
+  realtime_model: (value) =>
+    invoke("change_realtime_model_setting", { modelId: value }),
   post_process_enabled: (value) =>
     invoke("change_post_process_enabled_setting", { enabled: value }),
   voice_commands_enabled: (value) =>

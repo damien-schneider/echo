@@ -5,6 +5,8 @@ pub mod export;
 pub mod history;
 pub mod input_tracker;
 pub mod meeting;
+pub mod meeting_streaming;
 pub mod model;
+pub mod streaming;
 pub mod transcription;
 pub mod tts;

@@ -4,7 +4,7 @@ use crate::settings::{get_settings, ModelUnloadTimeout};
 use anyhow::Result;
 use log::{debug, error, info, warn};
 use serde::Serialize;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime};
@@ -33,6 +33,12 @@ enum LoadedEngine {
 #[derive(Clone)]
 pub struct TranscriptionManager {
     engine: Arc<Mutex<Option<LoadedEngine>>>,
+    /// Separate engine slot used by the realtime streaming worker, holding
+    /// whatever model `settings.realtime_model` points at. Decoupled from the
+    /// main `engine` so the batch (post-stop) pass and the live worker don't
+    /// fight over the same Mutex AND can use different model sizes.
+    streaming_engine: Arc<Mutex<Option<LoadedEngine>>>,
+    streaming_model_id: Arc<Mutex<Option<String>>>,
     model_manager: Arc<ModelManager>,
     app_handle: AppHandle,
     current_model_id: Arc<Mutex<Option<String>>>,
@@ -50,12 +56,19 @@ pub struct TranscriptionManager {
     /// Generation counter for the current streaming session, used to discard
     /// stale streaming chunks that belong to a previous recording.
     active_generation: Arc<AtomicU64>,
+    /// Number of active long-lived consumers (e.g. realtime meeting workers)
+    /// that need the model to stay loaded across `transcribe()` calls. While
+    /// non-zero, the `Immediately` unload path is suppressed so each decode
+    /// doesn't trigger a full reload cycle.
+    keepalive_users: Arc<AtomicUsize>,
 }
 
 impl TranscriptionManager {
     pub fn new(app_handle: &AppHandle, model_manager: Arc<ModelManager>) -> Result<Self> {
         let manager = Self {
             engine: Arc::new(Mutex::new(None)),
+            streaming_engine: Arc::new(Mutex::new(None)),
+            streaming_model_id: Arc::new(Mutex::new(None)),
             model_manager,
             app_handle: app_handle.clone(),
             current_model_id: Arc::new(Mutex::new(None)),
@@ -74,6 +87,7 @@ impl TranscriptionManager {
             streaming_in_progress: Arc::new(AtomicBool::new(false)),
             adaptive_max_samples: Arc::new(Mutex::new(None)),
             active_generation: Arc::new(AtomicU64::new(0)),
+            keepalive_users: Arc::new(AtomicUsize::new(0)),
         };
 
         // Start the idle watcher
@@ -176,11 +190,46 @@ impl TranscriptionManager {
         Ok(())
     }
 
+    /// Build a [`LoadedEngine`] from a model id. Shared between the main
+    /// `load_model` path and the streaming-engine path so both honour the
+    /// same model registry / engine-type contract.
+    fn build_engine(&self, model_id: &str) -> Result<LoadedEngine> {
+        let model_info = self
+            .model_manager
+            .get_model_info(model_id)
+            .ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
+        if !model_info.is_downloaded {
+            return Err(anyhow::anyhow!("Model not downloaded"));
+        }
+        let model_path = self.model_manager.get_model_path(model_id)?;
+        match model_info.engine_type {
+            EngineType::Whisper => {
+                let engine = WhisperEngine::load(&model_path).map_err(|e| {
+                    anyhow::anyhow!("Failed to load whisper model {}: {}", model_id, e)
+                })?;
+                Ok(LoadedEngine::Whisper(engine))
+            }
+            EngineType::Parakeet => {
+                let engine = ParakeetModel::load(&model_path, &Quantization::Int8).map_err(|e| {
+                    anyhow::anyhow!("Failed to load parakeet model {}: {}", model_id, e)
+                })?;
+                Ok(LoadedEngine::Parakeet(engine))
+            }
+            EngineType::Diarization => Err(anyhow::anyhow!(
+                "Diarization models cannot be used for transcription"
+            )),
+        }
+    }
+
     pub fn load_model(&self, model_id: &str) -> Result<()> {
         let load_start = std::time::Instant::now();
         debug!("Starting to load model: {}", model_id);
 
-        // Emit loading started event
+        let model_name = self
+            .model_manager
+            .get_model_info(model_id)
+            .map(|m| m.name);
+
         let _ = self.app_handle.emit(
             "model-state-changed",
             ModelStateEvent {
@@ -191,70 +240,22 @@ impl TranscriptionManager {
             },
         );
 
-        let model_info = self
-            .model_manager
-            .get_model_info(model_id)
-            .ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
-
-        if !model_info.is_downloaded {
-            let error_msg = "Model not downloaded";
-            let _ = self.app_handle.emit(
-                "model-state-changed",
-                ModelStateEvent {
-                    event_type: "loading_failed".to_string(),
-                    model_id: Some(model_id.to_string()),
-                    model_name: Some(model_info.name.clone()),
-                    error: Some(error_msg.to_string()),
-                },
-            );
-            return Err(anyhow::anyhow!(error_msg));
-        }
-
-        let model_path = self.model_manager.get_model_path(model_id)?;
-
-        // Create appropriate engine based on model type
-        let loaded_engine = match model_info.engine_type {
-            EngineType::Whisper => {
-                let engine = WhisperEngine::load(&model_path).map_err(|e| {
-                    let error_msg = format!("Failed to load whisper model {}: {}", model_id, e);
-                    let _ = self.app_handle.emit(
-                        "model-state-changed",
-                        ModelStateEvent {
-                            event_type: "loading_failed".to_string(),
-                            model_id: Some(model_id.to_string()),
-                            model_name: Some(model_info.name.clone()),
-                            error: Some(error_msg.clone()),
-                        },
-                    );
-                    anyhow::anyhow!(error_msg)
-                })?;
-                LoadedEngine::Whisper(engine)
-            }
-            EngineType::Parakeet => {
-                let engine = ParakeetModel::load(&model_path, &Quantization::Int8).map_err(|e| {
-                    let error_msg =
-                        format!("Failed to load parakeet model {}: {}", model_id, e);
-                    let _ = self.app_handle.emit(
-                        "model-state-changed",
-                        ModelStateEvent {
-                            event_type: "loading_failed".to_string(),
-                            model_id: Some(model_id.to_string()),
-                            model_name: Some(model_info.name.clone()),
-                            error: Some(error_msg.clone()),
-                        },
-                    );
-                    anyhow::anyhow!(error_msg)
-                })?;
-                LoadedEngine::Parakeet(engine)
-            }
-            EngineType::Diarization => {
-                return Err(anyhow::anyhow!(
-                    "Diarization models cannot be used for transcription"
-                ));
+        let loaded_engine = match self.build_engine(model_id) {
+            Ok(eng) => eng,
+            Err(e) => {
+                let _ = self.app_handle.emit(
+                    "model-state-changed",
+                    ModelStateEvent {
+                        event_type: "loading_failed".to_string(),
+                        model_id: Some(model_id.to_string()),
+                        model_name: model_name.clone(),
+                        error: Some(e.to_string()),
+                    },
+                );
+                return Err(e);
             }
         };
 
-        // Update the current engine and model ID
         {
             let mut engine = self.engine.lock().unwrap();
             *engine = Some(loaded_engine);
@@ -264,24 +265,57 @@ impl TranscriptionManager {
             *current_model = Some(model_id.to_string());
         }
 
-        // Emit loading completed event
         let _ = self.app_handle.emit(
             "model-state-changed",
             ModelStateEvent {
                 event_type: "loading_completed".to_string(),
                 model_id: Some(model_id.to_string()),
-                model_name: Some(model_info.name.clone()),
+                model_name: model_name.clone(),
                 error: None,
             },
         );
 
-        let load_duration = load_start.elapsed();
         debug!(
             "Successfully loaded transcription model: {} (took {}ms)",
             model_id,
-            load_duration.as_millis()
+            load_start.elapsed().as_millis()
         );
         Ok(())
+    }
+
+    /// Load a (typically smaller) model into the streaming engine slot. Safe
+    /// to call repeatedly with the same id — re-using the already-loaded
+    /// engine. The streaming engine is never auto-unloaded by the idle
+    /// watcher; the caller is responsible for [`unload_streaming_model`] on
+    /// shutdown.
+    pub fn load_streaming_model(&self, model_id: &str) -> Result<()> {
+        {
+            let current = self.streaming_model_id.lock().unwrap();
+            if current.as_deref() == Some(model_id)
+                && self.streaming_engine.lock().unwrap().is_some()
+            {
+                return Ok(());
+            }
+        }
+        let load_start = std::time::Instant::now();
+        let engine = self.build_engine(model_id)?;
+        *self.streaming_engine.lock().unwrap() = Some(engine);
+        *self.streaming_model_id.lock().unwrap() = Some(model_id.to_string());
+        info!(
+            "Streaming model loaded: {} ({}ms)",
+            model_id,
+            load_start.elapsed().as_millis()
+        );
+        Ok(())
+    }
+
+    pub fn unload_streaming_model(&self) {
+        let mut engine = self.streaming_engine.lock().unwrap();
+        if engine.is_some() {
+            *engine = None;
+            *self.streaming_model_id.lock().unwrap() = None;
+            debug!("Streaming engine unloaded");
+        }
     }
 
     /// Kicks off the model loading in a background thread if it's not already loaded
@@ -309,7 +343,112 @@ impl TranscriptionManager {
         current_model.clone()
     }
 
+    /// Increment the keepalive counter — while non-zero, transcribe() will
+    /// NOT honor the `Immediately` model_unload_timeout setting after each
+    /// call. Pair with [`release_keepalive`].
+    pub fn acquire_keepalive(&self) {
+        let prev = self.keepalive_users.fetch_add(1, Ordering::SeqCst);
+        debug!("transcription keepalive acquired (now {})", prev + 1);
+    }
+
+    /// Counterpart to [`acquire_keepalive`].
+    pub fn release_keepalive(&self) {
+        let prev = self.keepalive_users.fetch_sub(1, Ordering::SeqCst);
+        debug!("transcription keepalive released (now {})", prev.saturating_sub(1));
+    }
+
+    /// Same as [`transcribe`], but routes through the dedicated streaming
+    /// engine (typically a smaller model than the batch one) and uses every
+    /// available CPU thread. Falls back to the main engine if the streaming
+    /// engine isn't loaded — preserves behaviour for callers that haven't
+    /// opted into the dual-engine setup.
+    pub fn transcribe_for_streaming(&self, audio: Vec<f32>) -> Result<String> {
+        let n_threads = std::thread::available_parallelism()
+            .map(|n| n.get() as i32)
+            .unwrap_or(4);
+        if self.streaming_engine.lock().unwrap().is_some() {
+            return self.transcribe_with_engine(&self.streaming_engine, audio, Some(n_threads));
+        }
+        self.transcribe_inner(audio, Some(n_threads))
+    }
+
     pub fn transcribe(&self, audio: Vec<f32>) -> Result<String> {
+        self.transcribe_inner(audio, None)
+    }
+
+    /// Engine-agnostic decode. `engine_slot` is one of `self.engine` or
+    /// `self.streaming_engine`. Does NOT honour the auto-unload / keepalive
+    /// policy — those only make sense for the main engine.
+    fn transcribe_with_engine(
+        &self,
+        engine_slot: &Arc<Mutex<Option<LoadedEngine>>>,
+        audio: Vec<f32>,
+        n_threads_override: Option<i32>,
+    ) -> Result<String> {
+        if audio.is_empty() {
+            return Ok(String::new());
+        }
+        let settings = get_settings(&self.app_handle);
+        let st = std::time::Instant::now();
+        let result = {
+            let mut engine_guard = engine_slot.lock().unwrap();
+            let engine = engine_guard
+                .as_mut()
+                .ok_or_else(|| anyhow::anyhow!("Streaming engine not loaded"))?;
+            match engine {
+                LoadedEngine::Whisper(whisper_engine) => {
+                    let whisper_language = if settings.selected_language == "auto" {
+                        None
+                    } else {
+                        let normalized = if matches!(
+                            settings.selected_language.as_str(),
+                            "zh-Hans" | "zh-Hant"
+                        ) {
+                            "zh".to_string()
+                        } else {
+                            settings.selected_language.clone()
+                        };
+                        Some(normalized)
+                    };
+                    let params = WhisperInferenceParams {
+                        language: whisper_language,
+                        translate: settings.translate_to_english,
+                        n_threads: n_threads_override.unwrap_or(0),
+                        ..Default::default()
+                    };
+                    whisper_engine
+                        .transcribe_with(&audio, &params)
+                        .map_err(|e| anyhow::anyhow!("Whisper transcription failed: {}", e))?
+                }
+                LoadedEngine::Parakeet(parakeet_engine) => {
+                    let params = ParakeetParams {
+                        timestamp_granularity: Some(TimestampGranularity::Segment),
+                        ..Default::default()
+                    };
+                    parakeet_engine
+                        .transcribe_with(&audio, &params)
+                        .map_err(|e| anyhow::anyhow!("Parakeet transcription failed: {}", e))?
+                }
+            }
+        };
+
+        let corrected = if settings.custom_words.is_empty() {
+            result.text
+        } else {
+            apply_custom_words(
+                &result.text,
+                &settings.custom_words,
+                settings.word_correction_threshold,
+            )
+        };
+        debug!(
+            "Streaming decode in {}ms",
+            st.elapsed().as_millis()
+        );
+        Ok(corrected.trim().to_string())
+    }
+
+    fn transcribe_inner(&self, audio: Vec<f32>, n_threads_override: Option<i32>) -> Result<String> {
         // Update last activity timestamp
         self.last_activity.store(
             SystemTime::now()
@@ -372,6 +511,7 @@ impl TranscriptionManager {
                     let params = WhisperInferenceParams {
                         language: whisper_language,
                         translate: settings.translate_to_english,
+                        n_threads: n_threads_override.unwrap_or(0),
                         ..Default::default()
                     };
 
@@ -415,8 +555,13 @@ impl TranscriptionManager {
             translation_note
         );
 
-        // Check if we should immediately unload the model after transcription
-        if settings.model_unload_timeout == ModelUnloadTimeout::Immediately {
+        // Check if we should immediately unload the model after transcription.
+        // Suppressed while a long-lived keepalive is held (e.g. by the
+        // realtime streaming worker) — otherwise every interim decode would
+        // pay a full reload cost.
+        if settings.model_unload_timeout == ModelUnloadTimeout::Immediately
+            && self.keepalive_users.load(Ordering::Relaxed) == 0
+        {
             info!("Immediately unloading model after transcription");
             if let Err(e) = self.unload_model() {
                 error!("Failed to immediately unload model: {}", e);

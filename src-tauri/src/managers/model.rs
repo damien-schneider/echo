@@ -66,6 +66,55 @@ impl ModelManager {
 
         let mut available_models = HashMap::new();
 
+        // Realtime-suited models (sub-150 MB). Used as the default
+        // `realtime_model` for live meeting transcription where decode latency
+        // dominates UX. Hosted on the official ggerganov/whisper.cpp HF mirror.
+        available_models.insert(
+            "tiny".to_string(),
+            ModelInfo {
+                id: "tiny".to_string(),
+                name: "Whisper Tiny".to_string(),
+                description: "Smallest model. Fast enough for live transcription on CPU."
+                    .to_string(),
+                filename: "ggml-tiny.bin".to_string(),
+                url: Some(
+                    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
+                        .to_string(),
+                ),
+                size_mb: 75,
+                is_downloaded: false,
+                is_downloading: false,
+                partial_size: 0,
+                is_directory: false,
+                engine_type: EngineType::Whisper,
+                accuracy_score: 0.35,
+                speed_score: 0.98,
+            },
+        );
+
+        available_models.insert(
+            "base".to_string(),
+            ModelInfo {
+                id: "base".to_string(),
+                name: "Whisper Base".to_string(),
+                description: "Good live-transcription baseline. Recommended realtime model."
+                    .to_string(),
+                filename: "ggml-base.bin".to_string(),
+                url: Some(
+                    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
+                        .to_string(),
+                ),
+                size_mb: 142,
+                is_downloaded: false,
+                is_downloading: false,
+                partial_size: 0,
+                is_directory: false,
+                engine_type: EngineType::Whisper,
+                accuracy_score: 0.45,
+                speed_score: 0.95,
+            },
+        );
+
         // TODO this should be read from a JSON file or something..
         available_models.insert(
             "small".to_string(),

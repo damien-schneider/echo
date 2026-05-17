@@ -8,7 +8,7 @@ mod commands;
 mod features;
 mod helpers;
 mod logging;
-mod managers;
+pub mod managers;
 mod overlay;
 mod settings;
 #[cfg(unix)]
@@ -103,6 +103,25 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         DiarizationManager::new(app_handle, model_manager.clone())
             .expect("Failed to initialize diarization manager"),
     );
+
+    // Speaker detection is mandatory for meetings — kick off the model download
+    // immediately on boot if it isn't already present, so the user doesn't have
+    // to flip a setting to obtain it.
+    {
+        use crate::managers::diarization::DIARIZATION_MODEL_ID;
+        let needs_download = model_manager
+            .get_model_info(DIARIZATION_MODEL_ID)
+            .map(|m| !m.is_downloaded && !m.is_downloading)
+            .unwrap_or(false);
+        if needs_download {
+            let mm = model_manager.clone();
+            tauri::async_runtime::spawn(async move {
+                if let Err(e) = mm.download_model(DIARIZATION_MODEL_ID).await {
+                    log::error!("Auto-download of diarization model failed: {}", e);
+                }
+            });
+        }
+    }
 
     // Add managers to Tauri's managed state
     app_handle.manage(recording_manager.clone());
@@ -708,8 +727,9 @@ pub fn run() {
             shortcut::settings::meeting::change_meeting_system_audio_device_setting,
             shortcut::settings::meeting::change_meeting_auto_summary_setting,
             shortcut::settings::meeting::change_meeting_chunk_duration_setting,
-            shortcut::settings::meeting::change_meeting_diarization_setting,
+            shortcut::settings::meeting::change_realtime_model_setting,
             shortcut::settings::meeting::get_diarization_status,
+            shortcut::settings::meeting::ensure_diarization_model,
             // Meeting commands
             commands::meeting::start_meeting,
             commands::meeting::stop_meeting,

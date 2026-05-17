@@ -23,6 +23,8 @@ pub async fn stop_meeting(
     meeting_manager: State<'_, Arc<MeetingManager>>,
 ) -> Result<(), String> {
     meeting_manager
+        .inner()
+        .clone()
         .stop_meeting()
         .await
         .map_err(|e| e.to_string())

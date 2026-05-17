@@ -1,6 +1,12 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
-import type { MeetingSegment, MeetingStatus } from "@/lib/types";
+import type {
+  MeetingBatchProgress,
+  MeetingSegment,
+  MeetingStatus,
+  StreamingFinal,
+  StreamingInterim,
+} from "@/lib/types";
 import { useMeetingStore } from "@/stores/meeting-store";
 
 export function useMeetingListener() {
@@ -20,6 +26,39 @@ export function useMeetingListener() {
         })
       );
 
+      // Streaming interim text (greyed) updates while recording
+      unlisten.push(
+        await listen<StreamingInterim>("meeting-streaming-interim", (event) => {
+          if (cancelled) {
+            return;
+          }
+          store.getState().applyStreamingInterim(event.payload);
+        })
+      );
+
+      // Streaming finalized segment from LA-2 commit while recording
+      unlisten.push(
+        await listen<StreamingFinal>("meeting-streaming-final", (event) => {
+          if (cancelled) {
+            return;
+          }
+          store.getState().applyStreamingFinal(event.payload);
+        })
+      );
+
+      // Batch transcription progress (during processing phase after stop)
+      unlisten.push(
+        await listen<MeetingBatchProgress>(
+          "meeting-batch-progress",
+          (event) => {
+            if (cancelled) {
+              return;
+            }
+            store.getState().applyBatchProgress(event.payload);
+          }
+        )
+      );
+
       // Status transitions
       unlisten.push(
         await listen<MeetingStatus>("meeting-status-changed", (event) => {
@@ -28,7 +67,18 @@ export function useMeetingListener() {
           }
           const status = event.payload;
           if (status === "complete") {
-            store.getState().setStatus("idle");
+            // Backend just finished the batch pass. Clear all live recording
+            // state so the next start_meeting boots from a clean slate, and
+            // refresh the meetings list so the just-finished meeting shows up.
+            useMeetingStore.setState({
+              status: "idle",
+              currentMeetingId: null,
+              elapsedMs: 0,
+              liveSegments: [],
+              streamingFinals: [],
+              interimSegments: { mic: null, system: null },
+              batchProgress: {},
+            });
             store.getState().loadMeetings();
           } else if (status === "processing") {
             store.getState().setStatus("processing");

@@ -93,6 +93,7 @@ export const SettingsSchema = z.object({
   start_hidden: z.boolean().optional().default(false),
   autostart_enabled: z.boolean().optional().default(false),
   selected_model: z.string(),
+  realtime_model: z.string().optional().default("tiny"),
   always_on_microphone: z.boolean(),
   selected_microphone: z.string().nullable().optional(),
   clamshell_microphone: z.string().nullable().optional(),
@@ -134,7 +135,6 @@ export const SettingsSchema = z.object({
   meeting_system_audio_device: z.string().nullable().optional(),
   meeting_auto_summary: z.boolean().optional().default(false),
   meeting_chunk_duration_secs: z.number().optional().default(30),
-  meeting_diarization_enabled: z.boolean().optional().default(false),
   meeting_diarization_threshold: z.number().optional().default(0.5),
 });
 
@@ -201,6 +201,39 @@ export const MeetingSegmentSchema = z.object({
   audio_source: z.string(),
 });
 export type MeetingSegment = z.infer<typeof MeetingSegmentSchema>;
+
+export const StreamingSourceSchema = z.enum(["mic", "system"]);
+export type StreamingSource = z.infer<typeof StreamingSourceSchema>;
+
+export const StreamingInterimSchema = z.object({
+  meeting_id: z.number(),
+  source: StreamingSourceSchema,
+  committed_text: z.string(),
+  tentative_text: z.string(),
+  segment_start_ms: z.number(),
+});
+export type StreamingInterim = z.infer<typeof StreamingInterimSchema>;
+
+export const StreamingFinalSchema = z.object({
+  meeting_id: z.number(),
+  source: StreamingSourceSchema,
+  text: z.string(),
+  start_ms: z.number(),
+  end_ms: z.number(),
+});
+export type StreamingFinal = z.infer<typeof StreamingFinalSchema>;
+
+export const BatchPhaseSchema = z.enum(["transcribing", "diarizing", "done"]);
+export type BatchPhase = z.infer<typeof BatchPhaseSchema>;
+
+export const MeetingBatchProgressSchema = z.object({
+  meeting_id: z.number(),
+  source: z.string(),
+  phase: BatchPhaseSchema,
+  chunks_done: z.number(),
+  chunks_total: z.number(),
+});
+export type MeetingBatchProgress = z.infer<typeof MeetingBatchProgressSchema>;
 
 export const MeetingSchema = z.object({
   id: z.number(),
