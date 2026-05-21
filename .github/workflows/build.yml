@@ -51,7 +51,7 @@ jobs:
     runs-on: ${{ inputs.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
@@ -147,7 +147,7 @@ jobs:
 
       - name: Cache ONNX Runtime build (ubuntu-22.04)
         if: contains(inputs.platform, 'ubuntu-22.04')
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/onnxruntime/build/Linux/Release
           key: onnxruntime-v1.24.2-ubuntu-22.04-${{ runner.arch }}
@@ -298,7 +298,7 @@ jobs:
         run: bun install --cpu=arm64
 
       - name: Cache Turborepo outputs
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: .turbo
           key: turbo-${{ runner.os }}-${{ inputs.platform }}-${{ inputs.target }}-${{ hashFiles('bun.lock') }}
@@ -312,7 +312,7 @@ jobs:
 
       - name: Cache ONNX Runtime build (macOS x86_64)
         if: contains(inputs.platform, 'macos') && contains(inputs.target, 'x86_64')
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/onnxruntime/build/MacOS_x86_64/Release
           key: onnxruntime-v1.24.2-macos-x86_64
@@ -510,7 +510,7 @@ jobs:
 
       - name: Upload artifacts (macOS)
         if: inputs.upload-artifacts && contains(inputs.platform, 'macos')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.asset-prefix }}-${{ inputs.target }}
           path: |
@@ -571,7 +571,7 @@ jobs:
 
       - name: Upload artifacts (Linux)
         if: inputs.upload-artifacts && contains(inputs.platform, 'ubuntu')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.asset-prefix }}-${{ inputs.platform }}-${{ inputs.target }}
           path: |
@@ -582,7 +582,7 @@ jobs:
 
       - name: Upload artifacts (Windows)
         if: inputs.upload-artifacts && contains(inputs.platform, 'windows')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.asset-prefix }}-${{ inputs.target }}
           path: |
