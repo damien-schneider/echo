@@ -1,0 +1,31 @@
+# Normalize line endings so Windows checkouts don't corrupt scripts or
+# trip up tooling. Text files are stored with LF in the repo.
+* text=auto eol=lf
+
+# Shell scripts must keep LF — CRLF breaks the shebang on Linux/macOS.
+*.sh text eol=lf
+
+# Windows batch/PowerShell scripts expect CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary assets — never normalize.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.onnx binary
+*.bin binary
+*.gguf binary
+*.dylib binary
+*.dll binary
+*.so binary
+*.wav binary
+*.mp3 binary

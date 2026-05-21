@@ -128,35 +128,81 @@ fn pcm_s16le_to_f32(bytes: &[u8]) -> Vec<f32> {
         .collect()
 }
 
-/// Find FFmpeg executable in common locations
+/// The bare ffmpeg executable name for the current platform.
+const FFMPEG_BIN: &str = if cfg!(windows) {
+    "ffmpeg.exe"
+} else {
+    "ffmpeg"
+};
+
+/// Common ffmpeg install locations, per platform.
+fn ffmpeg_common_paths() -> &'static [&'static str] {
+    #[cfg(target_os = "windows")]
+    {
+        &[
+            r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+            r"C:\ffmpeg\bin\ffmpeg.exe",
+        ]
+    }
+    #[cfg(target_os = "macos")]
+    {
+        &[
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg",
+        ]
+    }
+    #[cfg(target_os = "linux")]
+    {
+        &[
+            "/usr/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/snap/bin/ffmpeg",
+        ]
+    }
+}
+
+/// Find FFmpeg executable: prefer PATH, fall back to common install locations.
 fn find_ffmpeg() -> Result<String> {
-    // Check if ffmpeg is in PATH
-    if let Ok(output) = Command::new("which").arg("ffmpeg").output() {
+    // `ffmpeg` resolves through PATH natively when spawned on every platform;
+    // probing it with `-version` is the most reliable cross-platform check.
+    if Command::new(FFMPEG_BIN)
+        .arg("-version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
+        return Ok(FFMPEG_BIN.to_string());
+    }
+
+    // Explicit PATH lookup via the platform's locator command
+    // (`where` on Windows, `which` elsewhere).
+    let locator = if cfg!(windows) { "where" } else { "which" };
+    if let Ok(output) = Command::new(locator).arg("ffmpeg").output() {
         if output.status.success() {
-            let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !path.is_empty() {
-                return Ok(path);
+            // `where` may return multiple lines; take the first non-empty one.
+            if let Some(path) = String::from_utf8_lossy(&output.stdout)
+                .lines()
+                .map(str::trim)
+                .find(|l| !l.is_empty())
+            {
+                return Ok(path.to_string());
             }
         }
     }
 
-    // Check common macOS locations
-    let common_paths = [
-        "/opt/homebrew/bin/ffmpeg",
-        "/usr/local/bin/ffmpeg",
-        "/usr/bin/ffmpeg",
-    ];
-
-    for path in common_paths {
+    // Check common install locations for the current platform.
+    for path in ffmpeg_common_paths() {
         if std::path::Path::new(path).exists() {
-            return Ok(path.to_string());
+            return Ok((*path).to_string());
         }
     }
 
     Err(anyhow::anyhow!(
         "FFmpeg not found. Please install FFmpeg to process video files.\n\
         On macOS: brew install ffmpeg\n\
-        On Windows: Download from https://ffmpeg.org/download.html"
+        On Windows: winget install ffmpeg (or download from https://ffmpeg.org/download.html)\n\
+        On Linux: sudo apt install ffmpeg"
     ))
 }
 
@@ -505,4 +551,63 @@ fn resample_audio(samples: Vec<f32>, from_rate: u32, to_rate: u32) -> Result<Vec
     );
 
     Ok(resampled)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ffmpeg_bin_has_exe_suffix_only_on_windows() {
+        if cfg!(windows) {
+            assert_eq!(FFMPEG_BIN, "ffmpeg.exe");
+        } else {
+            assert_eq!(FFMPEG_BIN, "ffmpeg");
+        }
+    }
+
+    #[test]
+    fn ffmpeg_common_paths_are_absolute_and_non_empty() {
+        let paths = ffmpeg_common_paths();
+        assert!(!paths.is_empty(), "current platform must list fallbacks");
+        for p in paths {
+            assert!(
+                std::path::Path::new(p).is_absolute(),
+                "fallback path must be absolute: {p}"
+            );
+        }
+    }
+
+    #[test]
+    fn find_ffmpeg_never_panics() {
+        // ffmpeg may or may not be installed on the runner; either way the
+        // function must return cleanly. A missing binary yields the install
+        // hint rather than a panic or a hang.
+        match find_ffmpeg() {
+            Ok(path) => assert!(!path.is_empty()),
+            Err(e) => assert!(e.to_string().contains("FFmpeg not found")),
+        }
+    }
+
+    #[test]
+    fn audio_format_extension_match_is_case_insensitive() {
+        // Windows filesystems are case-insensitive; an uppercase extension
+        // must classify identically to its lowercase form.
+        assert!(matches!(
+            AudioFormat::from_path("clip.WAV"),
+            AudioFormat::Wav
+        ));
+        assert!(matches!(
+            AudioFormat::from_path("clip.Mp3"),
+            AudioFormat::Mp3
+        ));
+        assert!(matches!(
+            AudioFormat::from_path("recording.MP4"),
+            AudioFormat::Video
+        ));
+        assert!(matches!(
+            AudioFormat::from_path("notes.txt"),
+            AudioFormat::Unsupported
+        ));
+    }
 }
