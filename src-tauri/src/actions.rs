@@ -83,6 +83,42 @@ async fn maybe_convert_chinese_variant(
     }
 }
 
+/// Run the dictation cleanup pass on the raw transcript. Thin wrapper
+/// around [`cleanup_or_filter`] that also resolves the per-call
+/// [`CleanupContext`] from the supplied `AppSettings`.
+///
+/// Returns empty string for whisper hallucinations (preserves existing
+/// "drop attractor strings" behavior on the dictation path), raw text
+/// when cleanup is disabled or the manager is not loaded, and cleaned
+/// text otherwise.
+fn apply_dictation_cleanup(
+    app: &AppHandle,
+    raw: &str,
+    settings: &AppSettings,
+) -> String {
+    use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
+    use crate::managers::cleanup_apply::cleanup_or_filter;
+
+    let cleanup_state = match app.try_state::<CleanupState>() {
+        Some(s) => s.inner().clone(),
+        None => {
+            // No cleanup state registered (unit-test harness or very
+            // early in startup). Behave like cleanup_enabled = false:
+            // pass the text through unchanged but DO run the
+            // hallucination filter so we never paste an attractor
+            // string.
+            return if crate::managers::meeting_streaming::is_whisper_hallucination(raw) {
+                String::new()
+            } else {
+                raw.to_string()
+            };
+        }
+    };
+    cleanup_or_filter(raw, &cleanup_state, settings, || {
+        build_context_from_app_settings(settings)
+    })
+}
+
 impl ShortcutAction for TranscribeAction {
     fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
         let start_time = Instant::now();
@@ -244,9 +280,25 @@ impl ShortcutAction for TranscribeAction {
                             transcription_time.elapsed(),
                             transcription
                         );
+                        let settings = get_settings(&ah);
+                        // Phase 1 cleanup pass: run the on-device
+                        // disfluency/punctuation cleanup *before* any
+                        // downstream branch (Chinese variant conversion
+                        // or frontend AI SDK post-process). The frontend
+                        // will see the cleaned text as its "raw" input,
+                        // so cloud post-processing (if enabled) layers
+                        // on top of local cleanup rather than competing.
+                        //
+                        // When cleanup_enabled = false this is a pure
+                        // pass-through (no LLM call, no lock taken
+                        // beyond a settings read), preserving the
+                        // existing behavior. The helper also enforces
+                        // the hallucination filter, so a transcription
+                        // that decodes to a known whisper attractor
+                        // becomes "" and the empty-branch below kicks in.
+                        let transcription =
+                            apply_dictation_cleanup(&ah, &transcription, &settings);
                         if !transcription.is_empty() {
-                            let settings = get_settings(&ah);
-
                             if let Some(converted_text) =
                                 maybe_convert_chinese_variant(&settings, &transcription).await
                             {

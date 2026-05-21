@@ -23,7 +23,10 @@ use tauri::{AppHandle, Emitter};
 
 use super::streaming::{PipelineEvent, StreamingConfig, StreamingPipeline};
 use super::transcription::TranscriptionManager;
+use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
+use crate::managers::cleanup_apply::cleanup_or_filter;
 use crate::settings;
+use tauri::Manager as _;
 
 /// Energy threshold below which a frame is considered silence. Calibrated
 /// against typical USB-mic self-noise floor (~ -40 dBFS) — anything quieter
@@ -333,15 +336,35 @@ fn run_worker(
     let mut sys_chunks = 0usize;
     let mut decode_errs = 0usize;
     let mut decode_oks = 0usize;
+    // Cleanup state lookup is best-effort: if it's not registered (e.g. in a
+    // unit-test harness that doesn't construct the full Tauri app), we
+    // fall back to None and the helper short-circuits to the
+    // hallucination filter.
+    let cleanup_state: Option<CleanupState> = app_handle
+        .try_state::<CleanupState>()
+        .map(|s| s.inner().clone());
+    let app_handle_for_decode = app_handle.clone();
     let mut decode_for = |samples: &[f32]| -> String {
         match transcription_manager.transcribe_for_streaming(samples.to_vec()) {
             Ok(text) => {
                 decode_oks += 1;
-                if is_whisper_hallucination(&text) {
-                    debug!("dropped whisper hallucination: {text:?}");
-                    return String::new();
+                // Re-read settings each decode so toggling cleanup mid-meeting
+                // takes effect immediately (the read is cheap and serialised
+                // through SETTINGS_LOCK).
+                let settings_snapshot = settings::get_settings(&app_handle_for_decode);
+                let cleaned = if let Some(state) = cleanup_state.as_ref() {
+                    cleanup_or_filter(&text, state, &settings_snapshot, || {
+                        build_context_from_app_settings(&settings_snapshot)
+                    })
+                } else if is_whisper_hallucination(&text) {
+                    String::new()
+                } else {
+                    text.clone()
+                };
+                if cleaned.is_empty() && !text.is_empty() {
+                    debug!("dropped whisper hallucination or cleanup-empty: {text:?}");
                 }
-                text
+                cleaned
             }
             Err(e) => {
                 decode_errs += 1;

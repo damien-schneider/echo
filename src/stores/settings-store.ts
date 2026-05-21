@@ -53,6 +53,10 @@ const DEFAULT_SETTINGS: Partial<Settings> = {
   recording_retention_period: "preserve_limit",
   mute_while_recording: false,
   tts_enabled: false,
+  cleanup_enabled: false,
+  cleanup_model_id: "qwen2.5-1.5b-instruct-q4_k_m",
+  cleanup_app_context_enabled: false,
+  cleanup_dictionary: [],
 };
 
 const DEFAULT_AUDIO_DEVICE: AudioDevice = {
@@ -145,6 +149,14 @@ const settingUpdaters: {
     invoke("change_post_process_enabled_setting", { enabled: value }),
   voice_commands_enabled: (value) =>
     invoke("change_voice_commands_enabled_setting", { enabled: value }),
+  cleanup_enabled: (value) =>
+    invoke("change_cleanup_enabled_setting", { enabled: value }),
+  cleanup_model_id: (value) =>
+    invoke("change_cleanup_model_id_setting", { modelId: value }),
+  cleanup_app_context_enabled: (value) =>
+    invoke("change_cleanup_app_context_enabled_setting", { enabled: value }),
+  cleanup_dictionary: (value) =>
+    invoke("update_cleanup_dictionary", { dictionary: value }),
 };
 
 interface SettingsStore {

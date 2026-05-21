@@ -29,6 +29,16 @@ pub struct LLMPrompt {
     pub prompt: String,
 }
 
+/// Single entry of the on-device cleanup dictionary. `canonical` is the
+/// spelling we want preserved verbatim in cleaned output; `variants` are
+/// alternative spellings or phonetic mistranscriptions to map onto it.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct DictionaryEntrySetting {
+    pub canonical: String,
+    #[serde(default)]
+    pub variants: Vec<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PostProcessProvider {
     pub id: String,
@@ -263,6 +273,21 @@ pub struct AppSettings {
     pub meeting_chunk_duration_secs: u32,
     #[serde(default = "default_diarization_threshold")]
     pub meeting_diarization_threshold: f32,
+    /// Enable the on-device transcription cleanup pass (Qwen 2.5 1.5B GGUF).
+    /// Privacy-first: defaults to false.
+    #[serde(default = "default_cleanup_enabled")]
+    pub cleanup_enabled: bool,
+    /// Identifier of the cleanup GGUF model to load.
+    #[serde(default = "default_cleanup_model_id")]
+    pub cleanup_model_id: String,
+    /// When true, the cleanup prompt may include the name of the focused
+    /// application (e.g. to set register). Defaults to false for privacy.
+    #[serde(default = "default_cleanup_app_context_enabled")]
+    pub cleanup_app_context_enabled: bool,
+    /// User-provided dictionary of canonical names / variants to preserve
+    /// verbatim during cleanup.
+    #[serde(default)]
+    pub cleanup_dictionary: Vec<DictionaryEntrySetting>,
 }
 
 fn default_audio_feedback_volume() -> f32 {
@@ -342,6 +367,18 @@ fn default_diarization_threshold() -> f32 {
 
 fn default_post_process_provider_id() -> String {
     "openai".to_string()
+}
+
+fn default_cleanup_enabled() -> bool {
+    false
+}
+
+fn default_cleanup_model_id() -> String {
+    "qwen2.5-1.5b-instruct-q4_k_m".to_string()
+}
+
+fn default_cleanup_app_context_enabled() -> bool {
+    false
 }
 
 fn default_debug_logging_enabled() -> bool {
@@ -510,6 +547,10 @@ pub fn get_default_settings() -> AppSettings {
         meeting_auto_summary: false,
         meeting_chunk_duration_secs: default_meeting_chunk_duration_secs(),
         meeting_diarization_threshold: default_diarization_threshold(),
+        cleanup_enabled: default_cleanup_enabled(),
+        cleanup_model_id: default_cleanup_model_id(),
+        cleanup_app_context_enabled: default_cleanup_app_context_enabled(),
+        cleanup_dictionary: Vec::new(),
     }
 }
 
@@ -794,6 +835,59 @@ mod tests {
             "llama3",
             "model should be updated"
         );
+    }
+
+    #[test]
+    fn default_cleanup_disabled() {
+        let s = get_default_settings();
+        assert!(!s.cleanup_enabled, "cleanup_enabled must default to false");
+        assert!(
+            !s.cleanup_app_context_enabled,
+            "cleanup_app_context_enabled must default to false"
+        );
+        assert_eq!(s.cleanup_model_id, "qwen2.5-1.5b-instruct-q4_k_m");
+        assert!(s.cleanup_dictionary.is_empty());
+    }
+
+    #[test]
+    fn dictionary_serialization_roundtrip() {
+        let entries = vec![
+            DictionaryEntrySetting {
+                canonical: "Anthropic".to_string(),
+                variants: vec!["anthropics".to_string(), "anth".to_string()],
+            },
+            DictionaryEntrySetting {
+                canonical: "Damien".to_string(),
+                variants: Vec::new(),
+            },
+        ];
+        let j = serde_json::to_value(&entries).unwrap();
+        let back: Vec<DictionaryEntrySetting> = serde_json::from_value(j).unwrap();
+        assert_eq!(back.len(), 2);
+        assert_eq!(back[0].canonical, "Anthropic");
+        assert_eq!(back[0].variants, vec!["anthropics", "anth"]);
+        assert_eq!(back[1].canonical, "Damien");
+        assert!(back[1].variants.is_empty());
+    }
+
+    #[test]
+    fn cleanup_settings_survive_full_settings_roundtrip() {
+        let mut s = get_default_settings();
+        s.cleanup_enabled = true;
+        s.cleanup_app_context_enabled = true;
+        s.cleanup_dictionary
+            .push(DictionaryEntrySetting {
+                canonical: "Echo".to_string(),
+                variants: vec!["eko".to_string()],
+            });
+
+        let json = serde_json::to_value(&s).unwrap();
+        let back: AppSettings = serde_json::from_value(json).unwrap();
+
+        assert!(back.cleanup_enabled);
+        assert!(back.cleanup_app_context_enabled);
+        assert_eq!(back.cleanup_dictionary.len(), 1);
+        assert_eq!(back.cleanup_dictionary[0].canonical, "Echo");
     }
 
     /// Verifies that the SETTINGS_LOCK is a true global singleton.

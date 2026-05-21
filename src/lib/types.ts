@@ -81,6 +81,13 @@ export const PostProcessProviderSchema = z.object({
 
 export type PostProcessProvider = z.infer<typeof PostProcessProviderSchema>;
 
+export const DictionaryEntrySchema = z.object({
+  canonical: z.string(),
+  variants: z.array(z.string()).optional().default([]),
+});
+
+export type DictionaryEntry = z.infer<typeof DictionaryEntrySchema>;
+
 export const SettingsSchema = z.object({
   bindings: ShortcutBindingsMapSchema,
   push_to_talk: z.boolean(),
@@ -136,6 +143,13 @@ export const SettingsSchema = z.object({
   meeting_auto_summary: z.boolean().optional().default(false),
   meeting_chunk_duration_secs: z.number().optional().default(30),
   meeting_diarization_threshold: z.number().optional().default(0.5),
+  cleanup_enabled: z.boolean().optional().default(false),
+  cleanup_model_id: z
+    .string()
+    .optional()
+    .default("qwen2.5-1.5b-instruct-q4_k_m"),
+  cleanup_app_context_enabled: z.boolean().optional().default(false),
+  cleanup_dictionary: z.array(DictionaryEntrySchema).optional().default([]),
 });
 
 export const BindingResponseSchema = z.object({

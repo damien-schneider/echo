@@ -4,13 +4,13 @@ mod actions;
 mod audio_feedback;
 pub mod audio_toolkit;
 mod clipboard;
-mod commands;
+pub mod commands;
 mod features;
 mod helpers;
 mod logging;
 pub mod managers;
 mod overlay;
-mod settings;
+pub mod settings;
 #[cfg(unix)]
 mod signal_handle;
 mod startup;
@@ -132,6 +132,26 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(tts_manager.clone());
     app_handle.manage(meeting_manager.clone());
     app_handle.manage(diarization_manager.clone());
+
+    // Cleanup model state — lazy-loaded on first cleanup_init call.
+    // Set the HF cache root ONCE here, on the main thread, before any
+    // mistral.rs / hf-hub call could read `HF_HOME`. Safer than letting
+    // `CleanupManager::init` mutate env vars from an async task (which
+    // would race with other threads under the 2024 edition's `unsafe
+    // set_var`).
+    if let Ok(model_dir) = app_handle.path().app_data_dir() {
+        let cleanup_cache = model_dir.join("models").join("cleanup");
+        if let Err(e) = std::fs::create_dir_all(&cleanup_cache) {
+            log::warn!(
+                "Failed to create cleanup model cache dir {}: {e}",
+                cleanup_cache.display()
+            );
+        }
+        managers::cleanup::set_hf_cache_root(&cleanup_cache);
+    } else {
+        log::warn!("Could not resolve app_data_dir; HF_HOME left at default");
+    }
+    app_handle.manage(commands::cleanup::new_state());
 
     // Start input tracker if enabled in settings
     {
@@ -666,6 +686,11 @@ pub fn run() {
             shortcut::settings::post_process::set_post_process_selected_prompt,
             shortcut::settings::post_process::check_model_tool_support,
             shortcut::settings::post_process::change_voice_commands_enabled_setting,
+            // Cleanup settings commands
+            shortcut::settings::cleanup::change_cleanup_enabled_setting,
+            shortcut::settings::cleanup::change_cleanup_model_id_setting,
+            shortcut::settings::cleanup::change_cleanup_app_context_enabled_setting,
+            shortcut::settings::cleanup::update_cleanup_dictionary,
             // Input tracking settings commands
             shortcut::settings::input_tracking::change_input_tracking_setting,
             shortcut::settings::input_tracking::change_input_tracking_excluded_apps,
@@ -746,6 +771,9 @@ pub fn run() {
             commands::meeting::get_meeting_transcript_for_summary,
             commands::meeting::save_meeting_summary,
             commands::tts::preview_tts,
+            commands::cleanup::cleanup_init,
+            commands::cleanup::cleanup_test,
+            commands::cleanup::cleanup_is_loaded,
             commands::voice_tools::execute_change_sound_theme,
             commands::voice_tools::execute_create_note,
             commands::voice_tools::execute_open_application,

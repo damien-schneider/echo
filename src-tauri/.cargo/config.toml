@@ -1,0 +1,6 @@
+[env]
+# mistralrs-quant + mistralrs-paged-attn try to precompile .metal -> .air at
+# build time which requires the Apple Metal Toolchain (separate Xcode component).
+# Setting this to "0" makes the kernels JIT-compile at first use instead.
+# Alternative: `xcodebuild -downloadComponent MetalToolchain` to enable precompile.
+MISTRALRS_METAL_PRECOMPILE = "0"

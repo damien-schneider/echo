@@ -20,6 +20,8 @@ use super::meeting_streaming::{
     is_whisper_hallucination, StreamingSource, StreamingWorker, StreamingWorkerHandle,
 };
 use super::transcription::TranscriptionManager;
+use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
+use crate::managers::cleanup_apply::cleanup_or_filter;
 use crate::audio_toolkit::audio::save_wav_file;
 use crate::audio_toolkit::audio::system_capture::{
     create_system_capture, is_system_audio_available, SystemAudioCapture,
@@ -599,24 +601,36 @@ impl MeetingManager {
             let chunk = &samples[pos..end];
 
             match transcription_manager.transcribe(chunk.to_vec()) {
-                Ok(text)
-                    if !text.trim().is_empty() && !is_whisper_hallucination(&text) =>
-                {
-                    let chunk_duration_ms = ((end - pos) as i64 * 1000) / 16_000;
-                    let segment = MeetingSegment {
-                        id: 0,
-                        meeting_id,
-                        speaker_label: speaker_label.to_string(),
-                        start_ms: offset_ms,
-                        end_ms: offset_ms + chunk_duration_ms,
-                        text: text.trim().to_string(),
-                        confidence: None,
-                        audio_source: source.as_str().to_string(),
-                    };
-                    if let Err(e) = self.insert_segment(&segment) {
-                        error!("Failed to insert meeting segment: {}", e);
+                Ok(text) if !text.trim().is_empty() => {
+                    // Funnel through cleanup_or_filter so hallucinations
+                    // are still dropped *and* (when enabled) the LLM
+                    // cleanup pass runs. Returns "" for hallucinations or
+                    // empty input, raw otherwise (cleanup off / not
+                    // loaded), cleaned otherwise.
+                    let trimmed = text.trim().to_string();
+                    let final_text = self.apply_cleanup_filter(&trimmed);
+                    if final_text.is_empty() {
+                        debug!(
+                            "Skipped chunk at {}ms (empty or hallucination): {:?}",
+                            offset_ms, trimmed
+                        );
                     } else {
-                        let _ = self.app_handle.emit("meeting-segment-added", &segment);
+                        let chunk_duration_ms = ((end - pos) as i64 * 1000) / 16_000;
+                        let segment = MeetingSegment {
+                            id: 0,
+                            meeting_id,
+                            speaker_label: speaker_label.to_string(),
+                            start_ms: offset_ms,
+                            end_ms: offset_ms + chunk_duration_ms,
+                            text: final_text,
+                            confidence: None,
+                            audio_source: source.as_str().to_string(),
+                        };
+                        if let Err(e) = self.insert_segment(&segment) {
+                            error!("Failed to insert meeting segment: {}", e);
+                        } else {
+                            let _ = self.app_handle.emit("meeting-segment-added", &segment);
+                        }
                     }
                 }
                 Ok(text) => {
@@ -640,6 +654,30 @@ impl MeetingManager {
         }
 
         emit_progress(chunks_done, BatchPhase::Done);
+    }
+
+    /// Apply hallucination filter and (optionally) cleanup LLM to a single
+    /// piece of transcript text. Centralizes the call into
+    /// [`cleanup_or_filter`] so the chunked / diarized batch paths stay
+    /// in sync with the streaming path.
+    fn apply_cleanup_filter(&self, text: &str) -> String {
+        let settings = settings::get_settings(&self.app_handle);
+        let cleanup_state = match self.app_handle.try_state::<CleanupState>() {
+            Some(s) => s.inner().clone(),
+            None => {
+                // No cleanup state registered (test harness). Fall back to
+                // hallucination filter only — same behavior as pre-cleanup
+                // code, just routed through the helper module to keep one
+                // source of truth.
+                if is_whisper_hallucination(text) {
+                    return String::new();
+                }
+                return text.to_string();
+            }
+        };
+        cleanup_or_filter(text, &cleanup_state, &settings, || {
+            build_context_from_app_settings(&settings)
+        })
     }
 
     /// Run speaker diarization on the full audio, then transcribe each speaker segment.
@@ -725,23 +763,30 @@ impl MeetingManager {
             let chunk = &samples[start_sample..end_sample];
 
             match transcription_manager.transcribe(chunk.to_vec()) {
-                Ok(text)
-                    if !text.trim().is_empty() && !is_whisper_hallucination(&text) =>
-                {
-                    let segment = MeetingSegment {
-                        id: 0,
-                        meeting_id,
-                        speaker_label: format!("Speaker {}", seg.speaker_id),
-                        start_ms: seg.start_ms,
-                        end_ms: seg.end_ms,
-                        text: text.trim().to_string(),
-                        confidence: None,
-                        audio_source: source.as_str().to_string(),
-                    };
-                    if let Err(e) = self.insert_segment(&segment) {
-                        error!("Failed to insert diarized segment: {}", e);
+                Ok(text) if !text.trim().is_empty() => {
+                    let trimmed = text.trim().to_string();
+                    let final_text = self.apply_cleanup_filter(&trimmed);
+                    if final_text.is_empty() {
+                        debug!(
+                            "Skipped diarized segment at {}ms (empty or hallucination): {:?}",
+                            seg.start_ms, trimmed
+                        );
                     } else {
-                        let _ = self.app_handle.emit("meeting-segment-added", &segment);
+                        let segment = MeetingSegment {
+                            id: 0,
+                            meeting_id,
+                            speaker_label: format!("Speaker {}", seg.speaker_id),
+                            start_ms: seg.start_ms,
+                            end_ms: seg.end_ms,
+                            text: final_text,
+                            confidence: None,
+                            audio_source: source.as_str().to_string(),
+                        };
+                        if let Err(e) = self.insert_segment(&segment) {
+                            error!("Failed to insert diarized segment: {}", e);
+                        } else {
+                            let _ = self.app_handle.emit("meeting-segment-added", &segment);
+                        }
                     }
                 }
                 Ok(text) => {

@@ -113,6 +113,9 @@ screencapturekit = { version = "2.1", features = ["macos_13_0"] }
 # version, so this enables `whisper-metal` only on macOS without rebuilding
 # whisper.cpp's Metal kernels on Linux/Windows where they'd fail to link.
 transcribe-rs = { version = "=0.3.11", features = ["whisper-metal"] }
+# On-device transcription cleanup LLM via mistral.rs (Metal backend).
+# Pinned to a known-good rev — see managers::cleanup.
+mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", rev = "0ed6f6ca2c1dc835c494f303ed30444b2ad7c83e", features = ["metal"] }
 
 [target.'cfg(target_os = "linux")'.dependencies.libpulse-binding]
 version = "2.30"

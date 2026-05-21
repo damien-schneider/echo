@@ -1,5 +1,6 @@
 import {
   AudioLines,
+  BookText,
   Box,
   History,
   Keyboard,
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { MeetingPage } from "./meeting/meeting-page";
 import { AboutDialog } from "./settings/about/about-dialog";
 import { AppSettings } from "./settings/app/app-settings";
+import { CleanupSettings } from "./settings/cleanup/cleanup-settings";
 import { HistorySettings } from "./settings/history/history-settings";
 import { KeyboardTrackingSettings } from "./settings/keyboard-tracking/keyboard-tracking-settings";
 import { ModelsSettings } from "./settings/models/models-settings";
@@ -66,6 +68,11 @@ export const SECTIONS_CONFIG = {
     label: "Post Processing",
     icon: Sparkles,
     component: PostProcessingSettings,
+  },
+  cleanup: {
+    label: "On-Device Cleanup",
+    icon: BookText,
+    component: CleanupSettings,
   },
   "text-to-speech": {
     label: "Text-to-Speech",
