@@ -113,6 +113,14 @@ screencapturekit = { version = "2.1", features = ["macos_13_0"] }
 # version, so this enables `whisper-metal` only on macOS without rebuilding
 # whisper.cpp's Metal kernels on Linux/Windows where they'd fail to link.
 transcribe-rs = { version = "=0.3.11", features = ["whisper-metal"] }
+# Direct workspace dep on whisper-rs to flip its `coreml` feature on
+# whisper-rs-sys via Cargo's feature unification — transcribe-rs 0.3.11 does
+# not expose a `whisper-coreml` feature, so we enable it here. At runtime
+# whisper.cpp auto-loads a sibling `.mlmodelc` next to each `ggml-*.bin` when
+# present; if no CoreML model is on disk, behaviour is identical to the
+# Metal+CPU path. See scripts/convert-whisper-coreml.sh for conversion and
+# BUILD.md ("Optional: CoreML acceleration") for setup.
+whisper-rs = { version = "=0.16.0", default-features = false, features = ["coreml"] }
 # On-device transcription cleanup LLM via mistral.rs (Metal backend).
 # Pinned to a known-good rev — see managers::cleanup.
 mistralrs = { git = "https://github.com/EricLBuehler/mistral.rs", rev = "0ed6f6ca2c1dc835c494f303ed30444b2ad7c83e", features = ["metal"] }

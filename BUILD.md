@@ -54,3 +54,57 @@ bun install
 
 ### 3. Download Required Models
 Echo requires a VAD (Voice Activity Detection) model to function
+
+## Optional: CoreML acceleration for whisper.cpp on Apple Silicon
+
+On macOS, Echo builds whisper.cpp with the `coreml` feature enabled by default.
+At runtime, whisper.cpp will look for a sibling `*-encoder.mlmodelc/` directory
+next to each `ggml-*.bin` model and, when present, offload the encoder onto the
+Apple Neural Engine for roughly a 2-3x encoder-pass speedup. Without the
+`.mlmodelc`, the model just falls back to the Metal+CPU path — no error.
+
+The CoreML model files are NOT bundled (each adds 30-300 MB), so this is opt-in
+per machine.
+
+### One-time setup
+
+1. Install Xcode Command Line Tools (required for `coremlcompiler`):
+   ```bash
+   xcode-select --install
+   ```
+2. Install the Python dependencies in a venv:
+   ```bash
+   python3 -m venv /tmp/whisper-coreml-venv
+   source /tmp/whisper-coreml-venv/bin/activate
+   pip install --upgrade pip
+   pip install ane_transformers openai-whisper coremltools torch
+   ```
+
+### Convert your downloaded models
+
+From the activated venv, run the conversion script. It defaults to Echo's
+macOS models directory (`~/Library/Application Support/com.echo.app/models`):
+
+```bash
+scripts/convert-whisper-coreml.sh
+# or, with an explicit directory:
+scripts/convert-whisper-coreml.sh /path/to/models
+```
+
+For each `ggml-*.bin` it recognises, the script generates a sibling
+`*-encoder.mlmodelc/` next to the `.bin`. Conversion of `large-v3-turbo` can
+take 10-15 min on an M-series Mac.
+
+### Verify CoreML is active
+
+Restart Echo and check the logs after loading a Whisper model. You should see:
+
+```
+Whisper model <id>: CoreML encoder found at .../ggml-<id>-encoder.mlmodelc — Apple Neural Engine should activate
+```
+
+If you instead see a `no sibling *-encoder.mlmodelc` debug line, the model is
+running on Metal+CPU only.
+
+> Note: each model directory roughly doubles in size (the `.bin` plus a similar-sized
+> `.mlmodelc/`). Delete the `.mlmodelc/` to revert to the Metal+CPU path.
