@@ -1,8 +1,9 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ExternalLink, Github, Heart, Info } from "lucide-react";
+import { ExternalLink, Heart, Info } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
+import GithubIcon from "@/components/icons/github-icon";
 import { AlwaysOnMicrophone } from "@/components/settings/always-on-microphone";
 import { AppDataDirectory } from "@/components/settings/app-data-directory";
 import { ClamshellMicrophoneSelector } from "@/components/settings/clamshell-microphone-selector";
@@ -123,7 +124,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
                 size="sm"
                 variant="outline"
               >
-                <Github className="h-4 w-4" />
+                <GithubIcon className="h-4 w-4" />
                 GitHub
                 <ExternalLink className="h-3 w-3" />
               </Button>

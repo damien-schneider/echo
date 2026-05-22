@@ -1,5 +1,5 @@
-import { Github } from "lucide-react";
 import EchoLogo from "@/components/icons/echo-logo";
+import GithubIcon from "@/components/icons/github-icon";
 import { Button } from "@/components/ui/button";
 
 interface FooterProps {
@@ -148,7 +148,7 @@ export default function EchoFooter() {
       showBrandName={false}
       socialLinks={[
         {
-          icon: <Github className="h-5 w-5" />,
+          icon: <GithubIcon className="h-5 w-5" />,
           href: "https://github.com/damien-schneider/Echo",
           label: "GitHub",
         },

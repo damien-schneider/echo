@@ -3,7 +3,13 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { motion, useInView } from "motion/react";
 import { useEffect, useRef } from "react";
-import { DoubleSide, type Mesh, Vector3 } from "three";
+import {
+  type BufferGeometry,
+  DoubleSide,
+  type Mesh,
+  type ShaderMaterial,
+  Vector3,
+} from "three";
 import EchoLogo from "@/components/icons/echo-logo";
 import { useGithubData } from "@/hooks/use-github-data";
 
@@ -20,7 +26,7 @@ function ShaderPlane({
   uniforms: { [key: string]: { value: unknown } };
   isActive: boolean;
 }) {
-  const meshRef = useRef<Mesh>(null);
+  const meshRef = useRef<Mesh<BufferGeometry, ShaderMaterial>>(null);
   const { size, invalidate: requestFrame } = useThree();
 
   useFrame((state) => {

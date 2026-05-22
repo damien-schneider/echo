@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Github } from "lucide-react";
+import GithubIcon from "@/components/icons/github-icon";
 import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 import { H1, H2, InlineCode, List, P } from "@/components/ui/typography";
@@ -62,7 +62,7 @@ function ContributingPage() {
               rel="noopener noreferrer"
               target="_blank"
             >
-              <Github className="h-5 w-5" />
+              <GithubIcon className="h-5 w-5" />
               Visit GitHub Repository
             </a>
           </Button>
