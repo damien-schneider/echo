@@ -386,6 +386,27 @@ jobs:
           echo "cert-id=$CERT_ID" >> $GITHUB_OUTPUT
           echo "Certificate imported."
 
+      - name: Sign the Polish runtime (macOS)
+        if: contains(inputs.platform, 'macos') && inputs.sign-binaries
+        shell: bash
+        env:
+          POLISH_RUNTIME_TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          # Tauri signs the app and its sidecars, never the binaries it copies
+          # in as resources, and notarization rejects every unsigned Mach-O in
+          # the bundle. The runtime is fetched here so it can be signed before
+          # the build picks it up; preparing it is idempotent, so the build's
+          # own call finds the marker and leaves these signatures alone.
+          bun run prepare:polish-runtime
+          for BINARY in src-tauri/resources/polish-runtime/*; do
+            if [ -f "$BINARY" ] && file "$BINARY" | grep -q "Mach-O"; then
+              codesign --force --timestamp --options runtime \
+                --sign "${{ steps.verify-certificate.outputs.cert-id }}" "$BINARY"
+              codesign --verify --strict "$BINARY"
+            fi
+          done
+
       - name: Patch asset name pattern
         id: patch-release-name
         shell: bash
