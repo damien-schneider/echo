@@ -66,9 +66,12 @@ fn store_command_sender(app: &AppHandle, sender: mpsc::Sender<WaylandCommand>) {
     let Some(state) = app.try_state::<ManagedWaylandCommandSender>() else {
         return;
     };
-    if let Ok(mut state) = state.lock() {
-        *state = Some(sender);
-    }
+    // Same reason as `command_sender`: the guard has to be a local so it is
+    // dropped before the state it borrows from.
+    let Ok(mut stored) = state.lock() else {
+        return;
+    };
+    *stored = Some(sender);
 }
 
 async fn manager_task(
@@ -373,9 +376,11 @@ fn command_sender(app: &AppHandle) -> Result<mpsc::Sender<WaylandCommand>, Strin
     let state = app
         .try_state::<ManagedWaylandCommandSender>()
         .ok_or("Wayland manager not initialized")?;
-    state
+    // Cloned into a local: a guard held by the tail expression outlives `state`
+    // itself, which is what it borrows from.
+    let sender = state
         .lock()
         .map_err(|error| format!("Lock error: {error}"))?
-        .clone()
-        .ok_or_else(|| "Wayland manager failed to start".to_string())
+        .clone();
+    sender.ok_or_else(|| "Wayland manager failed to start".to_string())
 }
