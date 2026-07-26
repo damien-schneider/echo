@@ -2,16 +2,26 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-26
+
 ### Added
+- **Polish**: proofread the current selection with a local model. A llama.cpp server ships with the app, binds to loopback behind a per-run key, and never sends the text anywhere.
 - Recording activity now provides an explicit action to finish and transcribe the captured audio.
 
 ### Changed
+- The Polish model is released after ten idle minutes and reloaded on the next correction, instead of holding its weights for the life of the app.
+- The Polish server runs on half the machine's cores, capped at eight, so a correction no longer competes with whatever the user is doing.
 - Side-docked overlay controls stay visible in a compact vertical toolbar that trims idle padding and expands smoothly on hover.
 - Right-docked resident controls keep their screen-edge inset while expanding and reliably release hover after native or DOM pointer exit.
 - Resident controls use smaller square-rounded action buttons, a muted always-visible six-dot drag handle without button-like hover feedback, and an inset border instead of a clipped outer shadow.
 - Dragging the resident HUD now previews its nearest dock target, keeps classic 10px corner and inverse-edge radii flush to the screen, centers the grip and three controls, and avoids snap flicker near corners.
 - Recording, transcription, polishing, and chat now open from a top-center notch HUD while resident controls remain docked; the HUD joins the physical Mac notch when present, expands for live transcript text, and traces activity gradients around its edge without filling the center.
 - Long dictation pauses retain a bounded silence separator and trigger a quality batch decode at stop, preserving speech from every utterance without making short recordings slower.
+
+### Fixed
+- Polish no longer reports "No text selected" when the selection lives in a terminal or an editor that answers the copy shortcut slowly.
+- The clipboard is restored after a Polish on macOS: legacy pasteboard type names the system refuses to write back are no longer part of the snapshot.
+- A clipboard that cannot be put back is logged instead of costing the user the correction they asked for.
 
 ## [0.3.0] - 2025-07-11
 
