@@ -9,78 +9,78 @@ import EchoLogo from "@/components/icons/echo-logo";
 const SCENES = [
   {
     id: "notes",
+    lines: [
+      { text: "Q4 Planning Session", type: "heading" as const },
+      { text: "Maya Chen, Josh Rivera, Li Wei Zhang", type: "meta" as const },
+      { text: "", type: "blank" as const },
+      {
+        text: "The backend migration finished ahead of schedule.",
+        type: "text" as const,
+      },
+      {
+        text: "Design team flagged two accessibility issues in the nav.",
+        type: "text" as const,
+      },
+      { text: "", type: "blank" as const },
+    ],
+    notchText: "We agreed to push the launch to March fifteenth...",
     tab: "Taking notes",
     titleBar: "Meeting Notes — Notion",
-    lines: [
-      { type: "heading" as const, text: "Q4 Planning Session" },
-      { type: "meta" as const, text: "Maya Chen, Josh Rivera, Li Wei Zhang" },
-      { type: "blank" as const, text: "" },
-      {
-        type: "text" as const,
-        text: "The backend migration finished ahead of schedule.",
-      },
-      {
-        type: "text" as const,
-        text: "Design team flagged two accessibility issues in the nav.",
-      },
-      { type: "blank" as const, text: "" },
-    ],
     transcribed:
       "We agreed to push the launch to March fifteenth to give the design team two extra weeks for the accessibility audit.",
-    notchText: "We agreed to push the launch to March fifteenth...",
   },
   {
     id: "email",
+    lines: [
+      { text: "From: sarah.chen@acme.co", type: "meta" as const },
+      {
+        text: "Subject: Re: Project timeline update",
+        type: "meta" as const,
+      },
+      { text: "", type: "blank" as const },
+      {
+        text: "Hi — checking if we're still on track for the Feb deadline?",
+        type: "text" as const,
+      },
+      { text: "", type: "divider" as const },
+      { text: "Reply:", type: "meta" as const },
+    ],
+    notchText: "Hi Sarah, yes we're on track...",
     tab: "Composing email",
     titleBar: "Re: Project timeline — Mail",
-    lines: [
-      { type: "meta" as const, text: "From: sarah.chen@acme.co" },
-      {
-        type: "meta" as const,
-        text: "Subject: Re: Project timeline update",
-      },
-      { type: "blank" as const, text: "" },
-      {
-        type: "text" as const,
-        text: "Hi — checking if we're still on track for the Feb deadline?",
-      },
-      { type: "divider" as const, text: "" },
-      { type: "meta" as const, text: "Reply:" },
-    ],
     transcribed:
       "Hi Sarah, yes we're on track. The backend wrapped yesterday and frontend should be done by Thursday. I'll send the staging link once deployed.",
-    notchText: "Hi Sarah, yes we're on track...",
   },
   {
     id: "code",
-    tab: "Code comments",
-    titleBar: "auth-middleware.ts — VS Code",
     lines: [
       {
-        type: "code" as const,
         text: "export async function validateToken(token: string) {",
+        type: "code" as const,
       },
       {
-        type: "code" as const,
         text: "  const decoded = jwt.verify(token, SECRET);",
+        type: "code" as const,
       },
       {
-        type: "code" as const,
         text: "  const user = await db.users.findById(decoded.sub);",
-      },
-      { type: "blank" as const, text: "" },
-      { type: "code" as const, text: "  if (!user || user.deletedAt) {" },
-      {
         type: "code" as const,
-        text: "    throw new AuthError('Invalid token');",
       },
-      { type: "code" as const, text: "  }" },
-      { type: "blank" as const, text: "" },
-      { type: "comment-prefix" as const, text: "  // " },
+      { text: "", type: "blank" as const },
+      { text: "  if (!user || user.deletedAt) {", type: "code" as const },
+      {
+        text: "    throw new AuthError('Invalid token');",
+        type: "code" as const,
+      },
+      { text: "  }", type: "code" as const },
+      { text: "", type: "blank" as const },
+      { text: "  // ", type: "comment-prefix" as const },
     ],
+    notchText: "Check if the user's session has been revoked...",
+    tab: "Code comments",
+    titleBar: "auth-middleware.ts — VS Code",
     transcribed:
       "Check if the user's session has been revoked in Redis before allowing the request through",
-    notchText: "Check if the user's session has been revoked...",
   },
 ];
 
@@ -92,11 +92,11 @@ function SceneNotch({ text }: { text: string }) {
   return (
     <div className="absolute top-0 left-1/2 z-20 -translate-x-1/2">
       <motion.div
-        animate={{ opacity: 1, y: 0, scale: 1 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
         className="flex flex-col overflow-hidden rounded-b-2xl bg-black shadow-lg"
-        initial={{ opacity: 0, y: -8, scale: 0.9 }}
+        initial={{ opacity: 0, scale: 0.9, y: -8 }}
         style={{ width: 240 }}
-        transition={{ duration: 0.4, delay: 0.3, ease: [0.34, 1.56, 0.64, 1] }}
+        transition={{ delay: 0.3, duration: 0.4, ease: [0.34, 1.56, 0.64, 1] }}
       >
         <div className="flex items-center justify-between px-3 pt-1.5 pb-1">
           <EchoLogo className="h-3 w-3 text-white/60" variant="sm" />
@@ -106,9 +106,9 @@ function SceneNotch({ text }: { text: string }) {
                 className="w-[2px] rounded-full bg-white"
                 key={`nb-${d}`}
                 style={{
+                  animation: `scene-notch-pulse 1.2s ease-in-out infinite ${d}ms`,
                   height: `${25 + d * 0.05}%`,
                   opacity: 0.5,
-                  animation: `scene-notch-pulse 1.2s ease-in-out infinite ${d}ms`,
                 }}
               />
             ))}
@@ -271,7 +271,7 @@ const notchCSS = `
 export default function VoiceDemo() {
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
+  const isInView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <section className="bg-background py-24 md:py-36" ref={ref}>
@@ -302,7 +302,7 @@ export default function VoiceDemo() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
           className="mb-10 flex justify-center"
           initial={{ opacity: 0, y: 12 }}
-          transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
+          transition={{ delay: 0.15, duration: 0.6, ease: "easeOut" }}
         >
           <div className="inline-flex gap-1 rounded-full border border-border/60 bg-secondary/50 p-1">
             {SCENES.map((s, i) => (
@@ -321,9 +321,9 @@ export default function VoiceDemo() {
                     className="absolute inset-0 rounded-full bg-background shadow-sm"
                     layoutId="demo-tab"
                     transition={{
-                      type: "spring",
-                      stiffness: 400,
                       damping: 30,
+                      stiffness: 400,
+                      type: "spring",
                     }}
                   />
                 )}
@@ -339,7 +339,7 @@ export default function VoiceDemo() {
             isInView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.96 }
           }
           initial={{ opacity: 0, scale: 0.96 }}
-          transition={{ duration: 0.8, delay: 0.25, ease: "easeOut" }}
+          transition={{ delay: 0.25, duration: 0.8, ease: "easeOut" }}
         >
           <AnimatePresence mode="wait">
             <DesktopScene key={SCENES[active].id} scene={SCENES[active]} />

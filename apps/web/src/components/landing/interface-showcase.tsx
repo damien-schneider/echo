@@ -18,49 +18,49 @@ import EchoLogo from "@/components/icons/echo-logo";
 /* ── Sidebar items ─────────────────────────────────────────────────── */
 
 const sidebarItems = [
-  { icon: Settings2, label: "App Settings", active: false },
-  { icon: AudioLines, label: "Transcription", active: false },
-  { icon: Sparkles, label: "Post Processing", active: false },
-  { icon: Speech, label: "Text-to-Speech", active: false },
-  { icon: Keyboard, label: "Keyboard", active: false },
-  { icon: Box, label: "Models", active: false },
-  { icon: History, label: "History", active: true },
+  { active: false, icon: Settings2, label: "App Settings" },
+  { active: false, icon: AudioLines, label: "Transcription" },
+  { active: false, icon: Sparkles, label: "Post Processing" },
+  { active: false, icon: Speech, label: "Text-to-Speech" },
+  { active: false, icon: Keyboard, label: "Keyboard" },
+  { active: false, icon: Box, label: "Models" },
+  { active: true, icon: History, label: "History" },
 ];
 
 /* ── Transcription history data ────────────────────────────────────── */
 
 const historyEntries = [
   {
+    duration: "8.3s",
+    expanded: true,
     id: 1,
     text: "We agreed to push the launch to March fifteenth to give the design team two extra weeks for the accessibility audit.",
     time: "2 min ago",
-    duration: "8.3s",
     words: 24,
-    expanded: true,
   },
   {
+    duration: "5.1s",
+    expanded: false,
     id: 2,
     text: "The backend migration finished ahead of schedule. We can start QA testing by Thursday.",
     time: "14 min ago",
-    duration: "5.1s",
     words: 15,
-    expanded: false,
   },
   {
+    duration: "4.7s",
+    expanded: false,
     id: 3,
     text: "Check if the user's session has been revoked in Redis before allowing the request through.",
     time: "28 min ago",
-    duration: "4.7s",
     words: 16,
-    expanded: false,
   },
   {
+    duration: "3.9s",
+    expanded: false,
     id: 4,
     text: "Hi Sarah, yes we're on track. The frontend should be done by Thursday.",
     time: "1 hr ago",
-    duration: "3.9s",
     words: 13,
-    expanded: false,
   },
 ];
 
@@ -73,7 +73,7 @@ function FloatingNotch() {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       className="absolute top-0 left-1/2 z-20 -translate-x-1/2"
       initial={{ opacity: 0, scale: 0.8, y: -10 }}
-      transition={{ duration: 0.5, delay: 1, ease: [0.34, 1.56, 0.64, 1] }}
+      transition={{ delay: 1, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
     >
       <div
         className="flex flex-col overflow-hidden rounded-b-3xl bg-black shadow-2xl shadow-black/40"
@@ -87,9 +87,9 @@ function FloatingNotch() {
                 className="w-[2.5px] rounded-full bg-white"
                 key={`nb-${d}`}
                 style={{
+                  animation: `iface-pulse 1.2s ease-in-out infinite ${d}ms`,
                   height: `${25 + d * 0.05}%`,
                   opacity: 0.6,
-                  animation: `iface-pulse 1.2s ease-in-out infinite ${d}ms`,
                 }}
               />
             ))}
@@ -108,9 +108,9 @@ function FloatingNotch() {
           <div
             className="h-full w-full"
             style={{
+              animation: "iface-sweep 2.4s ease-in-out infinite",
               background:
                 "linear-gradient(90deg, transparent, rgba(255,255,255,0.5) 50%, transparent)",
-              animation: "iface-sweep 2.4s ease-in-out infinite",
             }}
           />
         </div>
@@ -240,11 +240,11 @@ function FakeAppWindow() {
 
 export default function InterfaceShowcase() {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const isInView = useInView(ref, { margin: "-100px", once: true });
 
   const { scrollYProgress } = useScroll({
-    target: ref,
     offset: ["start end", "end start"],
+    target: ref,
   });
 
   const appScale = useTransform(scrollYProgress, [0.1, 0.4], [0.92, 1]);
@@ -287,8 +287,8 @@ export default function InterfaceShowcase() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 40 }}
           className="relative mx-auto max-w-3xl"
           initial={{ opacity: 0, y: 40 }}
-          style={{ scale: appScale, rotateX: appRotateX, perspective: 1200 }}
-          transition={{ duration: 0.9, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          style={{ perspective: 1200, rotateX: appRotateX, scale: appScale }}
+          transition={{ delay: 0.2, duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
         >
           <div className="absolute inset-0 scale-[0.97] transform rounded-3xl bg-brand/[0.04] blur-2xl dark:bg-brand/[0.06]" />
           <div className="relative">

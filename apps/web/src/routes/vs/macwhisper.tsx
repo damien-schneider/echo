@@ -7,129 +7,129 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/macwhisper")({
+  component: MacWhisperPage,
   head: () => ({
     meta: [
       {
         title: "Echo vs MacWhisper — Free Whisper App with Live Dictation",
       },
       {
+        content:
+          "MacWhisper transcribes files. Echo types for you in real time — global shortcut, auto-paste into any app, Windows and Linux support. Free forever, open source.",
         name: "description",
-        content:
-          "MacWhisper transcribes files. Echo types for you in real time — global shortcut, auto-paste into any app, Windows and Linux support. Free forever, open source.",
       },
       {
-        property: "og:title",
         content: "Echo vs MacWhisper — Free Whisper App with Live Dictation",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "MacWhisper transcribes files. Echo types for you in real time — global shortcut, auto-paste into any app, Windows and Linux support. Free forever, open source.",
+        property: "og:description",
       },
     ],
   }),
-  component: MacWhisperPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "Free basic · $79.99 lifetime Pro · $8.99/mo",
+    echo: "Free forever",
     echoPositive: true,
+    feature: "Price",
   },
   {
-    feature: "Primary Use Case",
-    echo: "Real-time voice dictation (speak → types for you)",
     competitor: "File transcription (existing audio/video files)",
+    echo: "Real-time voice dictation (speak → types for you)",
     echoPositive: false,
+    feature: "Primary Use Case",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux",
     competitor: "macOS only",
+    echo: "macOS, Windows, Linux",
     echoPositive: true,
+    feature: "Platforms",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License — fully auditable",
     competitor: "Proprietary closed source",
+    echo: "MIT License — fully auditable",
     echoPositive: true,
+    feature: "Open Source",
   },
   {
-    feature: "Account Required",
-    echo: "Never",
     competitor: "Not required",
+    echo: "Never",
     echoPositive: false,
+    feature: "Account Required",
   },
   {
-    feature: "Global Shortcut / Auto-Paste",
-    echo: "Yes — speak, it types in any app",
     competitor: "No global dictation shortcut",
+    echo: "Yes — speak, it types in any app",
     echoPositive: true,
+    feature: "Global Shortcut / Auto-Paste",
   },
   {
-    feature: "Voice Activity Detection",
-    echo: "Yes — auto-detects speech start/stop",
     competitor: "Manual recording",
+    echo: "Yes — auto-detects speech start/stop",
     echoPositive: true,
+    feature: "Voice Activity Detection",
   },
   {
-    feature: "LLM Post-Processing",
-    echo: "Optional AI refinement",
     competitor: "Not available",
+    echo: "Optional AI refinement",
     echoPositive: true,
+    feature: "LLM Post-Processing",
   },
   {
-    feature: "File Transcription",
-    echo: "Supported",
     competitor: "Yes — batch file processing",
+    echo: "Supported",
     echoPositive: false,
+    feature: "File Transcription",
   },
   {
-    feature: "Export Formats (SRT/VTT/docx)",
-    echo: "Not available",
     competitor: "Yes — SRT, VTT, docx, PDF",
+    echo: "Not available",
     echoPositive: false,
+    feature: "Export Formats (SRT/VTT/docx)",
   },
   {
-    feature: "Speaker Diarization",
-    echo: "Not yet",
     competitor: "Yes (Pro)",
+    echo: "Not yet",
     echoPositive: false,
+    feature: "Speaker Diarization",
   },
   {
-    feature: "100+ Languages",
-    echo: "Yes — Whisper supports 100+",
     competitor: "Yes — 100+ languages",
+    echo: "Yes — Whisper supports 100+",
     echoPositive: false,
+    feature: "100+ Languages",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "Built for Dictation, Not Transcription",
     description:
       "MacWhisper excels at converting existing audio files into text. Echo is built for the opposite workflow: you press a shortcut, speak, and it types directly into whatever app is in front of you — email, code editor, document, chat.",
     icon: "◈",
+    title: "Built for Dictation, Not Transcription",
   },
   {
-    title: "Cross-Platform and Free",
     description:
       "MacWhisper is macOS-only and costs up to $79.99 for Pro. Echo is free forever and runs on macOS, Windows, and Linux. If you use more than one operating system, Echo is the only choice.",
     icon: "⊕",
+    title: "Cross-Platform and Free",
   },
   {
-    title: "Open Source Transparency",
     description:
       "MacWhisper is closed source. Echo is MIT-licensed — every line of code is publicly auditable. You can see exactly how your audio is handled, contribute improvements, or fork the project entirely.",
     icon: "◎",
+    title: "Open Source Transparency",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -203,7 +203,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -213,8 +213,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -334,7 +334,7 @@ function MacWhisperPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Ready to switch?

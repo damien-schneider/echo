@@ -20,10 +20,10 @@ function formatDuration(ms: number | null | undefined): string {
 
 function formatDate(timestamp: number): string {
   return new Date(timestamp * 1000).toLocaleDateString(undefined, {
-    month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    month: "short",
   });
 }
 

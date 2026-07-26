@@ -7,6 +7,7 @@ import "./app.css";
 import { AppHeader } from "@/components/app-header";
 import { GlassWindow } from "@/components/ui/glass-window";
 import { Spinner } from "@/components/ui/spinner";
+import { useShortcutFailureToasts } from "@/features/shortcuts/use-shortcut-failure-toasts";
 import { AccessibilityPermissions } from "./components/accessibility-permissions";
 import { ErrorDialog } from "./components/error-dialog";
 import Onboarding from "./components/onboarding/onboarding";
@@ -20,6 +21,12 @@ import { TitleBar } from "./components/ui/title-bar";
 import { useFileTranscriptionListener } from "./hooks/use-file-transcription-listener";
 import { useMeetingListener } from "./hooks/use-meeting-listener";
 import { mountTranscriptionBridge } from "./lib/llm/transcription-bridge";
+import {
+  initialModelState,
+  type ModelState,
+  subscribeModelState,
+} from "./lib/model-state";
+import { listenCancellable } from "./lib/tauri-listener";
 import { useSetting, useSettingsStore } from "./stores/settings-store";
 
 const renderSettingsContent = (section: SidebarSection) => {
@@ -37,31 +44,34 @@ function App() {
   const initialize = useSettingsStore((s) => s.initialize);
   const [isDragging, setIsDragging] = useState(false);
   const hasSignaledReady = useRef(false);
+  const [modelState, setModelState] = useState<ModelState>(initialModelState());
 
   useFileTranscriptionListener();
   useMeetingListener();
+  useShortcutFailureToasts();
 
-  // Mount the transcription bridge (Rust → AI SDK → Rust)
-  useEffect(() => {
-    let unlisten: (() => void) | undefined;
-    mountTranscriptionBridge(() => useSettingsStore.getState().settings).then(
-      (fn) => {
-        unlisten = fn;
-      }
-    );
-    return () => unlisten?.();
-  }, []);
+  useEffect(
+    () =>
+      listenCancellable(() =>
+        mountTranscriptionBridge(() => useSettingsStore.getState().settings)
+      ),
+    []
+  );
 
-  // Initialize settings store — this is the root component
+  useEffect(
+    () => listenCancellable(() => subscribeModelState(setModelState)),
+    []
+  );
+
+  // Focus prewarm disabled — Mutex contention starves stop-flow decode (see lib.rs::initialize_core_logic).
+
   useEffect(() => {
     initialize();
   }, [initialize]);
 
-  // Check onboarding status on mount
   useEffect(() => {
     const checkOnboardingStatus = async () => {
       try {
-        // Always check if they have any models available
         const modelsAvailable = await invoke<boolean>(
           "has_any_models_available"
         );
@@ -74,10 +84,8 @@ function App() {
     checkOnboardingStatus();
   }, []);
 
-  // Handle keyboard shortcuts for debug mode toggle
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      // Check for Ctrl+Shift+D (Windows/Linux) or Cmd+Shift+D (macOS)
       const isDebugShortcut =
         event.shiftKey &&
         event.key.toLowerCase() === "d" &&
@@ -90,17 +98,14 @@ function App() {
       }
     };
 
-    // Add event listener when component mounts
     document.addEventListener("keydown", handleKeyDown);
 
-    // Cleanup event listener when component unmounts
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [debugMode, updateSetting]);
 
   const handleModelSelected = () => {
-    // Transition to main app - user has started a download
     setShowOnboarding(false);
   };
 
@@ -119,7 +124,6 @@ function App() {
     }
   }, [isInitializing]);
 
-  // Handle drag events for file drop overlay
   useEffect(() => {
     const unlistenFns: (() => void)[] = [];
 
@@ -167,7 +171,7 @@ function App() {
   }
 
   return (
-    <GlassWindow>
+    <GlassWindow data-model-state={modelState}>
       <TitleBar />
       <Toaster />
       <AppHeader />

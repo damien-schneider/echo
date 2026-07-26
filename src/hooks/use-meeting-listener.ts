@@ -16,7 +16,6 @@ export function useMeetingListener() {
     const store = useMeetingStore;
 
     const setup = async () => {
-      // Live segment added during recording
       unlisten.push(
         await listen<MeetingSegment>("meeting-segment-added", (event) => {
           if (cancelled) {
@@ -26,7 +25,6 @@ export function useMeetingListener() {
         })
       );
 
-      // Streaming interim text (greyed) updates while recording
       unlisten.push(
         await listen<StreamingInterim>("meeting-streaming-interim", (event) => {
           if (cancelled) {
@@ -36,7 +34,7 @@ export function useMeetingListener() {
         })
       );
 
-      // Streaming finalized segment from LA-2 commit while recording
+      // LA-2 commit during recording.
       unlisten.push(
         await listen<StreamingFinal>("meeting-streaming-final", (event) => {
           if (cancelled) {
@@ -46,7 +44,6 @@ export function useMeetingListener() {
         })
       );
 
-      // Batch transcription progress (during processing phase after stop)
       unlisten.push(
         await listen<MeetingBatchProgress>(
           "meeting-batch-progress",
@@ -59,7 +56,6 @@ export function useMeetingListener() {
         )
       );
 
-      // Status transitions
       unlisten.push(
         await listen<MeetingStatus>("meeting-status-changed", (event) => {
           if (cancelled) {
@@ -67,17 +63,15 @@ export function useMeetingListener() {
           }
           const status = event.payload;
           if (status === "complete") {
-            // Backend just finished the batch pass. Clear all live recording
-            // state so the next start_meeting boots from a clean slate, and
-            // refresh the meetings list so the just-finished meeting shows up.
+            // Reset live state for clean next start_meeting; refresh list.
             useMeetingStore.setState({
-              status: "idle",
+              batchProgress: {},
               currentMeetingId: null,
               elapsedMs: 0,
-              liveSegments: [],
-              streamingFinals: [],
               interimSegments: { mic: null, system: null },
-              batchProgress: {},
+              liveSegments: [],
+              status: "idle",
+              streamingFinals: [],
             });
             store.getState().loadMeetings();
           } else if (status === "processing") {
@@ -88,7 +82,6 @@ export function useMeetingListener() {
         })
       );
 
-      // Summary generated
       unlisten.push(
         await listen<number>("meeting-summary-generated", (event) => {
           if (cancelled) {
@@ -102,7 +95,6 @@ export function useMeetingListener() {
         })
       );
 
-      // Auto-summary requested by backend when meeting completes
       unlisten.push(
         await listen<number>("meeting-auto-summary-requested", (event) => {
           if (cancelled) {

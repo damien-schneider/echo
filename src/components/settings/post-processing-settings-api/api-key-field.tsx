@@ -19,7 +19,6 @@ export const ApiKeyField: React.FC<ApiKeyFieldProps> = ({
 }) => {
   const [localValue, setLocalValue] = useState(value);
 
-  // Sync with prop changes
   React.useEffect(() => {
     setLocalValue(value);
   }, [value]);

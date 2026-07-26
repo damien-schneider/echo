@@ -26,30 +26,28 @@ const getPasteMethodOptions = (
   osType: string,
   isWayland: boolean
 ): { value: string; label: string }[] => {
-  // On Wayland, only clipboard-only is available (auto-paste not supported)
+  // Wayland: no auto-paste.
   if (isWayland) {
-    return [{ value: "clipboard_only", label: "Clipboard Only" }];
+    return [{ label: "Clipboard Only", value: "clipboard_only" }];
   }
 
-  const baseOptions = [{ value: "ctrl_v", label: "Clipboard (Ctrl+V)" }];
+  const baseOptions = [{ label: "Clipboard (Ctrl+V)", value: "ctrl_v" }];
 
-  // Direct input only available on Linux (X11)
-  // On macOS it causes cascading suffix duplication in terminals like Ghostty
+  // Linux/X11 only — macOS causes cascading suffix duplication in Ghostty.
   if (osType === "linux") {
-    baseOptions.push({ value: "direct", label: "Direct" });
+    baseOptions.push({ label: "Direct", value: "direct" });
   }
 
-  // Add Shift+Insert option for Windows and Linux only
   if (osType === "windows" || osType === "linux") {
     baseOptions.push({
-      value: "shift_insert",
       label: "Clipboard (Shift+Insert)",
+      value: "shift_insert",
     });
   }
 
   baseOptions.push({
-    value: "clipboard_only",
     label: "Clipboard Only (no paste)",
+    value: "clipboard_only",
   });
 
   return baseOptions;

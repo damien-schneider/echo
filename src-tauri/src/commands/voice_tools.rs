@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-use crate::actions::OPERATION_GENERATION;
+use crate::actions::{sanitize_dictation_output, FINALIZE_DONE, OPERATION_GENERATION};
 use crate::managers::history::HistoryManager;
 use crate::managers::tts::TtsManager;
 use crate::overlay::show_tool_overlay;
@@ -175,10 +175,7 @@ pub fn execute_open_application(app_name: String) -> ToolResult {
             };
         }
 
-        if let Ok(_) = std::process::Command::new("xdg-open")
-            .arg(app_name)
-            .spawn()
-        {
+        if let Ok(_) = std::process::Command::new("xdg-open").arg(app_name).spawn() {
             info!("[Tools] Opened application via xdg-open: {}", app_name);
             return ToolResult {
                 display_message: format!("Opened {}", app_name),
@@ -188,10 +185,7 @@ pub fn execute_open_application(app_name: String) -> ToolResult {
 
         match std::process::Command::new(&lowercase_name).spawn() {
             Ok(_) => {
-                info!(
-                    "[Tools] Opened application via direct exec: {}",
-                    app_name
-                );
+                info!("[Tools] Opened application via direct exec: {}", app_name);
                 ToolResult {
                     display_message: format!("Opened {}", app_name),
                     success: true,
@@ -232,11 +226,20 @@ pub async fn finalize_transcription(
     audio_samples: Option<Vec<f32>>,
     post_process_prompt: Option<String>,
 ) -> Result<(), String> {
+    // Record that the frontend round-trip completed for this generation. The
+    // watchdog spawned by `TranscribeAction::stop` checks this before firing,
+    // so even the stale-skip path below counts as "handled" — we never want
+    // the watchdog to clobber the UI when the frontend did call back.
+    FINALIZE_DONE.store(op_generation, Ordering::SeqCst);
+
     // Staleness check: if generation has moved on, this result is outdated
     if OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
         debug!("finalize_transcription: stale op_generation, skipping");
         return Ok(());
     }
+
+    let text = sanitize_dictation_output(&text);
+    let original_transcription = sanitize_dictation_output(&original_transcription);
 
     let hm = app.state::<Arc<HistoryManager>>();
     let tts_manager = app.state::<Arc<TtsManager>>();

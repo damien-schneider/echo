@@ -19,15 +19,15 @@ interface GithubData {
 
 export function useGithubData() {
   const [data, setData] = useState<GithubData>({
-    stars: null,
-    version: null,
     downloadLinks: {
-      macSilicon: "",
-      macIntel: "",
-      windows: "",
       linuxAppImage: "",
       linuxDeb: "",
+      macIntel: "",
+      macSilicon: "",
+      windows: "",
     },
+    stars: null,
+    version: null,
   });
 
   useEffect(() => {
@@ -51,27 +51,27 @@ export function useGithubData() {
         }
 
         const links = {
-          macSilicon:
-            assets.find((a) => a.name.endsWith("_aarch64.dmg"))
-              ?.browser_download_url || "",
-          macIntel:
-            assets.find((a) => a.name.endsWith("_x64.dmg"))
-              ?.browser_download_url || "",
-          windows:
-            assets.find((a) => a.name.endsWith("_x64_en-US.msi"))
-              ?.browser_download_url || "",
           linuxAppImage:
             assets.find((a) => a.name.endsWith(".AppImage"))
               ?.browser_download_url || "",
           linuxDeb:
             assets.find((a) => a.name.endsWith(".deb"))?.browser_download_url ||
             "",
+          macIntel:
+            assets.find((a) => a.name.endsWith("_x64.dmg"))
+              ?.browser_download_url || "",
+          macSilicon:
+            assets.find((a) => a.name.endsWith("_aarch64.dmg"))
+              ?.browser_download_url || "",
+          windows:
+            assets.find((a) => a.name.endsWith("_x64_en-US.msi"))
+              ?.browser_download_url || "",
         };
 
         setData((prev) => ({
           ...prev,
-          version: releaseData.tag_name,
           downloadLinks: links,
+          version: releaseData.tag_name,
         }));
       })
       .catch((err) => console.error("Failed to fetch latest release", err));

@@ -7,7 +7,7 @@
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "bun run pipeline",
+    "beforeBuildCommand": "bun run prepare:polish-runtime && bun run pipeline",
     "frontendDist": "../dist"
   },
   "app": {

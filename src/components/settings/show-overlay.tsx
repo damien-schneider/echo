@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { SettingContainer } from "@/components/ui/setting-container";
-import type { OverlayPosition } from "@/lib/types";
+import { type OverlayPosition, OverlayPositionSchema } from "@/lib/types";
 import {
   useIsSettingUpdating,
   useSetting,
@@ -19,33 +19,41 @@ interface ShowOverlayProps {
   grouped?: boolean;
 }
 
-const overlayOptions = [
-  { value: "none", label: "None" },
-  { value: "bottom", label: "Bottom" },
-  { value: "top", label: "Top" },
+const overlayOptions: ReadonlyArray<{
+  label: string;
+  value: OverlayPosition;
+}> = [
+  { label: "Docked edge", value: "edge" },
+  { label: "Bottom bar", value: "bottom" },
+  { label: "Top bar", value: "top" },
+  { label: "Hidden", value: "none" },
 ];
 
 export const ShowOverlay = ({
   descriptionMode = "tooltip",
   grouped = false,
 }: ShowOverlayProps) => {
-  const selectedPosition = useSetting("overlay_position") || "bottom";
+  const selectedPosition = useSetting("overlay_position") || "edge";
   const updating = useIsSettingUpdating("overlay_position");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
+  const changePosition = (value: string) => {
+    const parsed = OverlayPositionSchema.safeParse(value);
+    if (parsed.success) {
+      updateSetting("overlay_position", parsed.data);
+    }
+  };
 
   return (
     <SettingContainer
-      description="Display visual feedback overlay during recording and transcription"
+      description="Dock the control to any screen edge and drag it along the screen border"
       descriptionMode={descriptionMode}
       grouped={grouped}
       icon={<Layers className="h-4 w-4" />}
-      title="Overlay Position"
+      title="Overlay"
     >
       <Select
         disabled={updating}
-        onValueChange={(val) =>
-          updateSetting("overlay_position", val as OverlayPosition)
-        }
+        onValueChange={changePosition}
         value={selectedPosition}
       >
         <SelectTrigger>

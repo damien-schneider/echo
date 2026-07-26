@@ -1,15 +1,6 @@
 #!/usr/bin/env bun
-/**
- * Script to bump the version across all configuration files:
- * - package.json
- * - src-tauri/Cargo.toml
- * - src-tauri/tauri.conf.json
- *
- * Usage:
- *   bun run version <version>
- *   bun run version 1.0.0
- *   bun run version patch|minor|major
- */
+// Bump version across package.json, src-tauri/Cargo.toml, src-tauri/tauri.conf.json.
+// Usage: bun run version <x.y.z | major|minor|patch>
 
 import { execSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
@@ -64,7 +55,7 @@ function updatePackageJson(version: string): void {
 
 function updateCargoToml(version: string): void {
   let content = readFileSync(CARGO_TOML, "utf-8");
-  // Match version in [package] section (first occurrence)
+  // First match = [package] section.
   content = content.replace(VERSION_REGEX, `$1${version}$2`);
   writeFileSync(CARGO_TOML, content);
   console.log(`✓ Updated Cargo.toml to ${version}`);
@@ -114,7 +105,6 @@ function main(): void {
 
   console.log(`\n✓ All files updated to version ${newVersion}`);
 
-  // Run cargo check to update Cargo.lock
   console.log("\n⏳ Running cargo check to update Cargo.lock...");
   execSync("cargo check", {
     cwd: join(rootDir, "src-tauri"),
@@ -122,7 +112,6 @@ function main(): void {
   });
   console.log("✓ Cargo.lock updated");
 
-  // Run ultracite fix to format updated files
   console.log("\n⏳ Running ultracite fix...");
   execSync("bunx ultracite fix", {
     cwd: rootDir,

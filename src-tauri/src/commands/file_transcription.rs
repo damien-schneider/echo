@@ -1,6 +1,6 @@
 use crate::audio_toolkit::audio::decode_audio_file;
 use crate::managers::history::HistoryManager;
-use crate::managers::transcription::TranscriptionManager;
+use crate::managers::transcription::{transcription_timeout, TranscriptionManager};
 use log::{error, info};
 use rusqlite::params;
 use serde::Serialize;
@@ -166,8 +166,13 @@ pub async fn transcribe_audio_file(
         }
     });
 
-    // Transcribe the audio
-    let transcription_result = transcription_manager.transcribe(audio_samples.clone());
+    // Transcribe the audio with a wall-clock cap derived from the audio
+    // length — a hung whisper FFI here used to leave
+    // `is_file_transcription_active` true forever, which blocks dictation.
+    let transcription_result = transcription_manager.transcribe_with_timeout(
+        audio_samples.clone(),
+        transcription_timeout(audio_samples.len()),
+    );
 
     // Signal progress thread to stop
     progress_complete.store(true, Ordering::SeqCst);

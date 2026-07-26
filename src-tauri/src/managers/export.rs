@@ -6,11 +6,7 @@ use crate::managers::meeting::{
 };
 
 /// Export meeting transcript in the requested format.
-pub fn export(
-    meeting: &Meeting,
-    segments: &[MeetingSegment],
-    format: &ExportFormat,
-) -> String {
+pub fn export(meeting: &Meeting, segments: &[MeetingSegment], format: &ExportFormat) -> String {
     match format {
         ExportFormat::Srt => export_srt(segments),
         ExportFormat::Vtt => export_vtt(segments),
@@ -144,7 +140,10 @@ mod tests {
     #[test]
     fn srt_contains_arrow_separator() {
         let output = export_srt(&sample_segments());
-        assert!(output.contains(" --> "), "SRT cues need --> between timestamps");
+        assert!(
+            output.contains(" --> "),
+            "SRT cues need --> between timestamps"
+        );
     }
 
     #[test]
@@ -165,7 +164,10 @@ mod tests {
     #[test]
     fn vtt_starts_with_header() {
         let output = export_vtt(&sample_segments());
-        assert!(output.starts_with("WEBVTT\n\n"), "VTT must start with WEBVTT header");
+        assert!(
+            output.starts_with("WEBVTT\n\n"),
+            "VTT must start with WEBVTT header"
+        );
     }
 
     #[test]
@@ -179,7 +181,10 @@ mod tests {
     #[test]
     fn vtt_uses_voice_tags() {
         let output = export_vtt(&sample_segments());
-        assert!(output.contains("<v Alice>"), "VTT must use <v Speaker> tags");
+        assert!(
+            output.contains("<v Alice>"),
+            "VTT must use <v Speaker> tags"
+        );
         assert!(output.contains("<v Bob>"));
     }
 
@@ -255,15 +260,24 @@ mod tests {
         let segments = sample_segments();
 
         let srt = export(&meeting, &segments, &ExportFormat::Srt);
-        assert!(srt.starts_with("1\n"), "SRT should start with sequence number");
+        assert!(
+            srt.starts_with("1\n"),
+            "SRT should start with sequence number"
+        );
 
         let vtt = export(&meeting, &segments, &ExportFormat::Vtt);
         assert!(vtt.starts_with("WEBVTT"), "VTT should start with header");
 
         let txt = export(&meeting, &segments, &ExportFormat::Txt);
-        assert!(txt.starts_with("[00:00:00]"), "TXT should start with timestamp");
+        assert!(
+            txt.starts_with("[00:00:00]"),
+            "TXT should start with timestamp"
+        );
 
         let md = export(&meeting, &segments, &ExportFormat::Markdown);
-        assert!(md.starts_with("# Weekly"), "Markdown should start with title heading");
+        assert!(
+            md.starts_with("# Weekly"),
+            "Markdown should start with title heading"
+        );
     }
 }

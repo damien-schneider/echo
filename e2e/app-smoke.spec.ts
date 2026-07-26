@@ -1,5 +1,5 @@
+import { test } from "@e2e/fixtures";
 import { expect } from "@playwright/test";
-import { test } from "./fixtures";
 
 test("app shell renders without crashing", async ({ page }) => {
   await page.goto("/", { waitUntil: "domcontentloaded" });

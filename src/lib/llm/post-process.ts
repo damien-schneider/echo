@@ -4,9 +4,9 @@ import { createLlmModel } from "./providers";
 import { voiceTools } from "./tools";
 
 const POST_PROCESS_RESULT_KINDS = {
+  empty: "empty",
   text: "text",
   tool: "tool",
-  empty: "empty",
 } as const;
 
 type PostProcessResultKind =
@@ -20,50 +20,42 @@ export interface PostProcessResult {
 
 const MAX_TOOL_STEPS = 5;
 
-/**
- * Run LLM post-processing on a transcription.
- * Mirrors the Rust `maybe_post_process_transcription` logic:
- *   1. Find active provider / model / prompt
- *   2. Build messages (with tools if voice-commands enabled)
- *   3. Call the LLM with tool-loop (max 5 steps)
- *   4. Return discriminated result
- */
+// Mirrors Rust `maybe_post_process_transcription`. Tool-loop max 5 steps.
 export async function runPostProcess(
   transcription: string,
   settings: Settings
 ): Promise<PostProcessResult> {
   if (!settings.post_process_enabled) {
-    return { kind: "empty", content: transcription };
+    return { content: transcription, kind: "empty" };
   }
 
   const provider = settings.post_process_providers.find(
     (p) => p.id === settings.post_process_provider_id
   );
   if (!provider) {
-    return { kind: "empty", content: transcription };
+    return { content: transcription, kind: "empty" };
   }
 
   const model = settings.post_process_models[provider.id] ?? "";
   if (!model.trim()) {
-    return { kind: "empty", content: transcription };
+    return { content: transcription, kind: "empty" };
   }
 
   const selectedPromptId = settings.post_process_selected_prompt_id;
   if (!selectedPromptId) {
-    return { kind: "empty", content: transcription };
+    return { content: transcription, kind: "empty" };
   }
 
   const promptConfig = settings.post_process_prompts.find(
     (p) => p.id === selectedPromptId
   );
   if (!promptConfig?.prompt.trim()) {
-    return { kind: "empty", content: transcription };
+    return { content: transcription, kind: "empty" };
   }
 
   const apiKey = settings.post_process_api_keys[provider.id] ?? "";
   const llmModel = createLlmModel(provider, apiKey, model);
 
-  // Substitute mention placeholders
   const mentionRegex = /\[[^\]]*\]\(mention:output\)/g;
   const outputPlaceholder = ["$", "{output}"].join("");
   const processedPrompt = promptConfig.prompt
@@ -74,8 +66,7 @@ export async function runPostProcess(
   const useTools = settings.voice_commands_enabled ?? false;
 
   if (useTools) {
-    // Voice-commands mode: system message carries routing logic +
-    // text-processing instructions; user message is raw transcription.
+    // System message: routing + text-processing. User message: raw transcription.
     const systemContent = `You are a voice assistant that processes speech transcriptions. \
 You have two roles:
 1. **Voice commands**: If the user's speech is clearly a command \
@@ -90,16 +81,16 @@ ${promptConfig.prompt}`;
 
     try {
       const result = await generateText({
+        messages: [{ content: transcription, role: "user" }],
         model: llmModel,
-        system: systemContent,
-        messages: [{ role: "user", content: transcription }],
-        tools: voiceTools,
         stopWhen: stepCountIs(MAX_TOOL_STEPS),
+        system: systemContent,
+        tools: voiceTools,
       });
 
       return interpretResult(result.steps, transcription);
     } catch (error) {
-      // Retry without tools for providers that don't support function calling
+      // Retry without tools for providers lacking function-calling.
       console.warn(
         "[Post-Process] Request with tools failed, retrying without tools:",
         error
@@ -108,7 +99,6 @@ ${promptConfig.prompt}`;
     }
   }
 
-  // Text-only mode
   return runWithoutTools(llmModel, processedPrompt, transcription);
 }
 
@@ -119,26 +109,22 @@ async function runWithoutTools(
 ): Promise<PostProcessResult> {
   try {
     const result = await generateText({
+      messages: [{ content: prompt, role: "user" }],
       model,
-      messages: [{ role: "user", content: prompt }],
     });
 
     const text = result.text.trim();
     if (text) {
-      return { kind: "text", content: text };
+      return { content: text, kind: "text" };
     }
-    return { kind: "empty", content: originalTranscription };
+    return { content: originalTranscription, kind: "empty" };
   } catch (error) {
     console.error("[Post-Process] LLM request failed:", error);
-    return { kind: "empty", content: originalTranscription };
+    return { content: originalTranscription, kind: "empty" };
   }
 }
 
-/**
- * Walk through the step results to determine the outcome.
- * If any step executed tools, we return "tool" with the last tool message.
- * Otherwise, the final text response is the processed transcription.
- */
+// Tools called → "tool" + last message. Otherwise final text response.
 function interpretResult(
   steps: StepResult<typeof voiceTools>[],
   originalTranscription: string
@@ -160,22 +146,20 @@ function interpretResult(
     }
   }
 
-  // Get the final text from the last step
   const lastStep = steps.at(-1);
   const finalText = lastStep?.text?.trim() ?? "";
 
   if (lastToolMessage) {
-    // Tools were called — return the tool message or final LLM text
     return {
-      kind: "tool",
       content: finalText || lastToolMessage,
+      kind: "tool",
       toolMessage: lastToolMessage,
     };
   }
 
   if (finalText) {
-    return { kind: "text", content: finalText };
+    return { content: finalText, kind: "text" };
   }
 
-  return { kind: "empty", content: originalTranscription };
+  return { content: originalTranscription, kind: "empty" };
 }

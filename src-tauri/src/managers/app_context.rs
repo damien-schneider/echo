@@ -1,46 +1,20 @@
-//! Focused-application context detection.
-//!
-//! Reads the user's currently focused app (macOS / Windows) and exposes
-//! a [`Register`] classification so the cleanup-LLM prompt can tune its
-//! tone (casual in Slack, formal in Mail, code in Xcode/VSCode, …).
-//!
-//! The platform layer is intentionally minimal: bundle identifier
-//! (macOS) and process name + window title (Windows). No accessibility
-//! permissions are requested — we only use public APIs.
-//!
-//! `current()` must stay well under 5 ms — it is called on the hot path
-//! every time we decide to clean up a transcript.
+//! Focused-app detection for cleanup register. Hot path: must stay <5ms.
 
 use crate::managers::cleanup_prompt::Register;
 
-/// A snapshot of the currently focused application.
-///
-/// All fields are optional because no single platform exposes all three:
-/// macOS gives us `bundle_id` + `process_name` (no title without AX),
-/// Windows gives us `process_name` + `window_title` (no bundle_id), Linux
-/// gives us nothing reliable for now.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FocusedApp {
-    /// macOS bundle identifier, e.g. `com.tinyspeck.slackmacgap`.
+    /// macOS only.
     pub bundle_id: Option<String>,
-    /// Cross-platform human-readable app name, e.g. `Slack`,
-    /// `Visual Studio Code`.
     pub process_name: Option<String>,
-    /// Window title where available (Windows). `None` on macOS unless we
-    /// later opt into accessibility permissions.
+    /// Windows only without AX permissions.
     pub window_title: Option<String>,
 }
 
-/// Abstraction over the per-platform focused-app lookup so tests can
-/// inject a mock instead of poking at the real `NSWorkspace`.
 pub trait FocusedAppProvider: Send + Sync {
-    /// Return the currently focused app, or `None` if it cannot be
-    /// determined (e.g. Linux, or a transient lookup failure).
     fn current(&self) -> Option<FocusedApp>;
 }
 
-/// Default provider used in production. Dispatches to the OS-specific
-/// implementation at compile time via `cfg`.
 pub struct PlatformFocusedAppProvider;
 
 impl FocusedAppProvider for PlatformFocusedAppProvider {
@@ -64,12 +38,8 @@ impl FocusedAppProvider for PlatformFocusedAppProvider {
     }
 }
 
-// ── Register classification ──────────────────────────────────────────
-
-/// Exact-match bundle IDs → Register. Highest priority signal because
-/// bundle IDs are stable across localisations and macOS versions.
+/// Highest priority; stable across localisations/macOS versions.
 const BUNDLE_ID_EXACT: &[(&str, Register)] = &[
-    // Casual
     ("com.tinyspeck.slackmacgap", Register::Casual),
     ("com.hnc.Discord", Register::Casual),
     ("com.apple.MobileSMS", Register::Casual),
@@ -77,7 +47,6 @@ const BUNDLE_ID_EXACT: &[(&str, Register)] = &[
     ("ph.telegra.Telegraph", Register::Casual),
     ("com.facebook.archon", Register::Casual),
     ("org.whispersystems.signal-desktop", Register::Casual),
-    // Formal
     ("com.apple.mail", Register::Formal),
     ("com.microsoft.Outlook", Register::Formal),
     ("notion.id", Register::Formal),
@@ -86,10 +55,9 @@ const BUNDLE_ID_EXACT: &[(&str, Register)] = &[
     ("com.apple.iWork.Pages", Register::Formal),
     ("md.obsidian", Register::Formal),
     ("com.microsoft.Word", Register::Formal),
-    // Code
     ("com.microsoft.VSCode", Register::Code),
     ("com.microsoft.VSCodeInsiders", Register::Code),
-    ("com.todesktop.230313mzl4w4u92", Register::Code), // Cursor
+    ("com.todesktop.230313mzl4w4u92", Register::Code),
     ("com.apple.dt.Xcode", Register::Code),
     ("com.jetbrains.intellij", Register::Code),
     ("com.jetbrains.pycharm", Register::Code),
@@ -104,10 +72,7 @@ const BUNDLE_ID_EXACT: &[(&str, Register)] = &[
     ("com.sublimetext.4", Register::Code),
 ];
 
-/// Substring matches (case-insensitive). Fallback when we don't have a
-/// bundle ID, or when the bundle ID is unrecognized but contains an
-/// obvious keyword. Order matters only for the loop — we return on first
-/// hit.
+/// Case-insensitive fallback; first hit wins.
 const CASUAL_SUBSTRINGS: &[&str] = &[
     "slack",
     "discord",
@@ -153,13 +118,7 @@ const CODE_SUBSTRINGS: &[&str] = &[
     "sublime_text",
 ];
 
-/// Pick a [`Register`] for the given focused app.
-///
-/// Match layers (highest priority first):
-///  1. Exact bundle-ID match against the `BUNDLE_ID_EXACT` table.
-///  2. Case-insensitive substring match on the bundle ID.
-///  3. Case-insensitive substring match on the process name.
-///  4. Default to [`Register::Neutral`].
+/// Exact bundle → bundle substring → process name substring → Neutral.
 pub fn classify_register(app: &FocusedApp) -> Register {
     if let Some(bundle_id) = app.bundle_id.as_deref() {
         for (id, reg) in BUNDLE_ID_EXACT {
@@ -199,18 +158,14 @@ fn match_substring(haystack: &str) -> Option<Register> {
     None
 }
 
-// ── macOS implementation ─────────────────────────────────────────────
-
 #[cfg(target_os = "macos")]
-#[allow(deprecated)] // cocoa crate is deprecated in favor of objc2-app-kit
+#[allow(deprecated)]
 fn current_mac() -> Option<FocusedApp> {
     use cocoa::base::{id, nil};
     use objc::rc::autoreleasepool;
     use objc::{class, msg_send, sel, sel_impl};
 
-    // All Objective-C messaging must happen inside an autorelease pool
-    // because `frontmostApplication` returns an autoreleased object
-    // and the bundle/name accessors return autoreleased NSStrings.
+    // frontmostApplication + bundle/name accessors all autoreleased.
     autoreleasepool(|| unsafe {
         let workspace_class = class!(NSWorkspace);
         let workspace: id = msg_send![workspace_class, sharedWorkspace];
@@ -243,7 +198,7 @@ fn current_mac() -> Option<FocusedApp> {
 }
 
 #[cfg(target_os = "macos")]
-#[allow(deprecated)] // cocoa crate is deprecated in favor of objc2-foundation
+#[allow(deprecated)]
 unsafe fn nsstring_to_string(s: cocoa::base::id) -> Option<String> {
     use cocoa::base::nil;
     use cocoa::foundation::NSString;
@@ -270,13 +225,12 @@ unsafe fn nsstring_to_string(s: cocoa::base::id) -> Option<String> {
     }
 }
 
-// ── Windows implementation ───────────────────────────────────────────
-
 #[cfg(target_os = "windows")]
 fn current_windows() -> Option<FocusedApp> {
     use windows::Win32::Foundation::{CloseHandle, HWND, MAX_PATH};
     use windows::Win32::System::Threading::{
-        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
+        OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT,
+        PROCESS_QUERY_LIMITED_INFORMATION,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         GetForegroundWindow, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId,
@@ -288,7 +242,6 @@ fn current_windows() -> Option<FocusedApp> {
             return None;
         }
 
-        // Window title.
         let title_len = GetWindowTextLengthW(hwnd);
         let window_title = if title_len > 0 {
             let mut buf = vec![0u16; (title_len as usize) + 1];
@@ -302,7 +255,6 @@ fn current_windows() -> Option<FocusedApp> {
             None
         };
 
-        // Process name via PID → handle → executable path.
         let mut pid: u32 = 0;
         let _tid = GetWindowThreadProcessId(hwnd, Some(&mut pid));
         if pid == 0 {
@@ -333,7 +285,6 @@ fn current_windows() -> Option<FocusedApp> {
         .is_ok()
         {
             let full = String::from_utf16_lossy(&buf[..size as usize]);
-            // Basename of the executable.
             full.rsplit(['\\', '/']).next().map(|s| s.to_string())
         } else {
             None
@@ -348,15 +299,10 @@ fn current_windows() -> Option<FocusedApp> {
     }
 }
 
-// ── Linux implementation ─────────────────────────────────────────────
-
+/// X11/Wayland focused-window detection skipped → Neutral fallback.
 #[cfg(target_os = "linux")]
 #[allow(dead_code)]
 fn current_linux() -> Option<FocusedApp> {
-    // X11/Wayland focused-window detection requires either an X11 socket
-    // (xprop / xdotool / xcb) or a per-compositor protocol (kwin/sway/
-    // hyprland/gnome shell extensions). Skipped for now; the cleanup
-    // prompt will fall back to a Neutral register.
     None
 }
 
@@ -422,19 +368,15 @@ mod tests {
         assert_eq!(classify_register(&app), Register::Neutral);
     }
 
-    /// macOS smoke test: calling the real provider must not panic and
-    /// must return a valid Option. We don't assert *which* app is
-    /// focused because CI runners have no GUI session.
+    /// CI has no GUI; just verify no panic.
     #[cfg(target_os = "macos")]
     #[test]
     fn mac_provider_returns_some_focused_app_or_none() {
         let provider = PlatformFocusedAppProvider;
-        let _ = provider.current(); // Just assert it doesn't panic.
+        let _ = provider.current();
     }
 
-    /// Manual debug aid — prints the currently focused app. Ignored by
-    /// default; run with `cargo test print_focused_app -- --ignored
-    /// --nocapture`.
+    /// Debug aid; cargo test print_focused_app -- --ignored --nocapture.
     #[cfg(target_os = "macos")]
     #[test]
     #[ignore]

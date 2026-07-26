@@ -8,11 +8,11 @@ export const Route = createFileRoute("/license")({
     meta: [
       { title: "MIT License — Echo Speech-to-Text" },
       {
-        name: "description",
         content:
           "Echo is released under the MIT License — free to use, modify, and distribute.",
+        name: "description",
       },
-      { name: "robots", content: "noindex, follow" },
+      { content: "noindex, follow", name: "robots" },
     ],
   }),
 });

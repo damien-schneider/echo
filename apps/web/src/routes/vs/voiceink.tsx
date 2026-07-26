@@ -7,129 +7,129 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/voiceink")({
+  component: VoiceInkPage,
   head: () => ({
     meta: [
       {
         title: "Echo vs VoiceInk — Free Cross-Platform Alternative",
       },
       {
+        content:
+          "VoiceInk costs $25–$49 and is macOS-only. Echo is free, works on macOS, Windows, and Linux, and uses the MIT license — not GPL. 100% offline, no account required.",
         name: "description",
-        content:
-          "VoiceInk costs $25–$49 and is macOS-only. Echo is free, works on macOS, Windows, and Linux, and uses the MIT license — not GPL. 100% offline, no account required.",
       },
       {
-        property: "og:title",
         content: "Echo vs VoiceInk — Free Cross-Platform Alternative",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "VoiceInk costs $25–$49 and is macOS-only. Echo is free, works on macOS, Windows, and Linux, and uses the MIT license — not GPL. 100% offline, no account required.",
+        property: "og:description",
       },
     ],
   }),
-  component: VoiceInkPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "$25 Solo · $39 Personal (2 devices) · $49 Extended",
+    echo: "Free forever",
     echoPositive: true,
+    feature: "Price",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux",
     competitor: "macOS 14 (Sonoma) only",
+    echo: "macOS, Windows, Linux",
     echoPositive: true,
+    feature: "Platforms",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License",
     competitor: "GPL v3.0 (source available, binary paid)",
+    echo: "MIT License",
     echoPositive: true,
+    feature: "Open Source",
   },
   {
-    feature: "Account Required",
-    echo: "Never",
     competitor: "License purchase required",
+    echo: "Never",
     echoPositive: true,
+    feature: "Account Required",
   },
   {
-    feature: "Offline Processing",
-    echo: "100% local — always offline",
     competitor: "Yes — local Whisper models",
+    echo: "100% local — always offline",
     echoPositive: false,
+    feature: "Offline Processing",
   },
   {
-    feature: "Global Shortcut / Auto-Paste",
-    echo: "Yes — push-to-talk, pastes anywhere",
     competitor: "Yes — global shortcut auto-paste",
+    echo: "Yes — push-to-talk, pastes anywhere",
     echoPositive: false,
+    feature: "Global Shortcut / Auto-Paste",
   },
   {
-    feature: "LLM Post-Processing",
-    echo: "Optional AI refinement",
     competitor: "Yes — Power Mode with per-app prompts",
+    echo: "Optional AI refinement",
     echoPositive: false,
+    feature: "LLM Post-Processing",
   },
   {
-    feature: "100+ Languages",
-    echo: "Yes — Whisper supports 100+",
     competitor: "Yes — 100+ languages",
+    echo: "Yes — Whisper supports 100+",
     echoPositive: false,
+    feature: "100+ Languages",
   },
   {
-    feature: "Context Awareness",
-    echo: "Not available",
     competitor: "Reads on-screen content for context",
+    echo: "Not available",
     echoPositive: false,
+    feature: "Context Awareness",
   },
   {
-    feature: "Per-App Configurations",
-    echo: "Not available",
     competitor: "Power Mode detects app/URL",
-    echoPositive: false,
-  },
-  {
-    feature: "Smart Replace Shortcuts",
     echo: "Not available",
-    competitor: "Yes — expand abbreviations by voice",
     echoPositive: false,
+    feature: "Per-App Configurations",
   },
   {
-    feature: "macOS Version Required",
-    echo: "Broad macOS compatibility",
+    competitor: "Yes — expand abbreviations by voice",
+    echo: "Not available",
+    echoPositive: false,
+    feature: "Smart Replace Shortcuts",
+  },
+  {
     competitor: "macOS 14 Sonoma minimum",
+    echo: "Broad macOS compatibility",
     echoPositive: true,
+    feature: "macOS Version Required",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "Free vs. Paid Binary",
     description:
       "VoiceInk publishes its source code under GPL, but you must pay $25–$49 for the binary. Echo is MIT-licensed and completely free — download, compile, or contribute without any payment or license key.",
     icon: "∞",
+    title: "Free vs. Paid Binary",
   },
   {
-    title: "Windows and Linux Support",
     description:
       "VoiceInk requires macOS 14 Sonoma — ruling out all Windows and Linux users, and any Mac running an older OS. Echo runs natively on macOS, Windows, and Linux with broad version support.",
     icon: "⊕",
+    title: "Windows and Linux Support",
   },
   {
-    title: "MIT vs. GPL License",
     description:
       "VoiceInk uses GPL v3.0, which imposes copyleft requirements on derivative works. Echo uses the MIT license — the most permissive open-source license, with no restrictions on how you use, modify, or build on it.",
     icon: "◎",
+    title: "MIT vs. GPL License",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -203,7 +203,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -213,8 +213,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -331,7 +331,7 @@ function VoiceInkPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Ready to switch?

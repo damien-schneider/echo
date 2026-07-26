@@ -7,26 +7,26 @@ import { useGithubData } from "@/hooks/use-github-data";
 
 const stats = [
   {
-    value: "100%",
-    label: "Offline",
     detail: "Zero bytes sent to any server",
+    label: "Offline",
+    value: "100%",
   },
   {
-    value: "100+",
-    label: "Languages",
     detail: "Via Whisper & Parakeet models",
+    label: "Languages",
+    value: "100+",
   },
   {
-    value: "MIT",
-    label: "Licensed",
     detail: "Fork it. Ship it. It's yours.",
+    label: "Licensed",
+    value: "MIT",
   },
 ];
 
 export default function Stats() {
   const { stars } = useGithubData();
   const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: "-100px" });
+  const isInView = useInView(containerRef, { margin: "-100px", once: true });
 
   return (
     <section className="bg-background py-32 text-foreground" ref={containerRef}>
@@ -40,8 +40,8 @@ export default function Stats() {
               initial={{ opacity: 0, y: 16 }}
               key={stat.label}
               transition={{
-                duration: 0.5,
                 delay: index * 0.1,
+                duration: 0.5,
                 ease: "easeOut",
               }}
             >
@@ -63,7 +63,7 @@ export default function Stats() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
           className="mx-auto mt-24 max-w-xl text-center"
           initial={{ opacity: 0, y: 24 }}
-          transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
+          transition={{ delay: 0.3, duration: 0.8, ease: "easeOut" }}
         >
           <h2 className="font-display text-3xl tracking-tight md:text-5xl">
             Your voice stays with you

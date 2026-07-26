@@ -23,13 +23,11 @@ export function EditorToolbar({ className }: { className?: string }) {
           className
         )}
       >
-        {/* History */}
         <UndoToolbarButton className="size-8" />
         <RedoToolbarButton className="size-8" />
 
         <Separator className="mx-1 h-6" orientation="vertical" />
 
-        {/* Text formatting */}
         <ToolbarButton
           active={editor.api.hasMark("bold")}
           icon={<Bold className="size-4" />}

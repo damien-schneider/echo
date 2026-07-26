@@ -46,9 +46,7 @@ fn read_wav_mono_16k(path: &PathBuf) -> Result<Vec<f32>> {
         spec.channels
     );
     let samples = match spec.sample_format {
-        hound::SampleFormat::Float => reader
-            .samples::<f32>()
-            .collect::<Result<Vec<_>, _>>()?,
+        hound::SampleFormat::Float => reader.samples::<f32>().collect::<Result<Vec<_>, _>>()?,
         hound::SampleFormat::Int => reader
             .samples::<i16>()
             .map(|s| s.map(|v| v as f32 / 32768.0))
@@ -104,11 +102,7 @@ fn sortformer_loads_and_runs_on_synthetic_audio() -> Result<()> {
 
     let audio = synthetic_two_voice_audio(30);
 
-    let mut sortformer = Sortformer::with_config(
-        &model_path,
-        None,
-        DiarizationConfig::callhome(),
-    )?;
+    let mut sortformer = Sortformer::with_config(&model_path, None, DiarizationConfig::callhome())?;
     let segments = sortformer.diarize(audio, 16_000, 1)?;
 
     // Strong assertion: the inference path doesn't panic and returns a Vec.
@@ -145,14 +139,9 @@ fn sortformer_diarizes_two_speakers_within_tolerance() -> Result<()> {
     };
 
     let samples = read_wav_mono_16k(&wav_path)?;
-    let expected: Expected =
-        serde_json::from_str(&std::fs::read_to_string(&expected_path)?)?;
+    let expected: Expected = serde_json::from_str(&std::fs::read_to_string(&expected_path)?)?;
 
-    let mut sortformer = Sortformer::with_config(
-        &model_path,
-        None,
-        DiarizationConfig::callhome(),
-    )?;
+    let mut sortformer = Sortformer::with_config(&model_path, None, DiarizationConfig::callhome())?;
     let raw = sortformer.diarize(samples, 16_000, 1)?;
 
     let actual: Vec<(i64, i64, i32)> = raw

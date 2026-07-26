@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { getPunkSongs } from "@/data/demo.punk-songs";
 
 export const Route = createFileRoute("/demo/start/ssr/spa-mode")({
-  ssr: false,
   component: RouteComponent,
+  ssr: false,
 });
 
 function RouteComponent() {

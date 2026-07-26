@@ -47,7 +47,6 @@ export const MeetingDetail = () => {
 
   return (
     <div className="flex h-full flex-col gap-4">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button onClick={unselectMeeting} size="icon" variant="ghost">
@@ -71,17 +70,14 @@ export const MeetingDetail = () => {
         </div>
       </div>
 
-      {/* Audio Player */}
       <MeetingAudioPlayer
         audioRef={audioRef}
         meetingId={meeting.id}
         meetingTitle={meeting.title}
       />
 
-      {/* Summary */}
       <MeetingSummary meetingId={meeting.id} summary={meeting.summary} />
 
-      {/* Transcript */}
       <div className="min-h-0 flex-1">
         <h3 className="mb-2 font-medium text-muted-foreground text-sm">
           Transcript

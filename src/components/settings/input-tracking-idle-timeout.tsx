@@ -17,10 +17,10 @@ interface InputTrackingIdleTimeoutProps {
 }
 
 const timeoutOptions = [
-  { value: "0", label: "Disabled (app switch/click only)" },
-  { value: "2", label: "2 seconds" },
-  { value: "5", label: "5 seconds" },
-  { value: "10", label: "10 seconds" },
+  { label: "Disabled (app switch/click only)", value: "0" },
+  { label: "2 seconds", value: "2" },
+  { label: "5 seconds", value: "5" },
+  { label: "10 seconds", value: "10" },
 ];
 
 export const InputTrackingIdleTimeout: React.FC<
@@ -41,7 +41,6 @@ export const InputTrackingIdleTimeout: React.FC<
       console.error("Failed to update input tracking idle timeout:", error);
     }
   };
-  // Convert null/undefined/0 to "0" string, otherwise use the number as string
   const selectValue =
     currentValue === null || currentValue === undefined || currentValue === 0
       ? "0"

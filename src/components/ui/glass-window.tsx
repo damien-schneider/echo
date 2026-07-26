@@ -10,17 +10,15 @@ const GlassWindow = ({
   children,
   ref,
   ...props
-}: GlassWindowProps & { ref?: Ref<HTMLDivElement> }) => {
-  return (
-    <div
-      className={cn("relative flex h-screen flex-col bg-background", className)}
-      ref={ref}
-      {...props}
-    >
-      {children}
-    </div>
-  );
-};
+}: GlassWindowProps & { ref?: Ref<HTMLDivElement> }) => (
+  <div
+    className={cn("relative flex h-screen flex-col bg-background", className)}
+    ref={ref}
+    {...props}
+  >
+    {children}
+  </div>
+);
 GlassWindow.displayName = "GlassWindow";
 
 export { GlassWindow };

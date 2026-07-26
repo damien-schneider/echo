@@ -277,13 +277,13 @@ const post4Content =
 
 export const blogPosts: BlogPost[] = [
   {
-    slug: "best-offline-speech-to-text-apps-2026",
-    title: "The 5 Best Offline Speech-to-Text Apps in 2026",
+    category: "Comparison",
+    content: post1Content,
     description:
       "Compare the top offline speech-to-text apps of 2026. We review accuracy, privacy, cost, and platform support to find the best tool for your needs.",
     publishedAt: "2026-01-15T00:00:00.000Z",
     readingTime: "9 min read",
-    category: "Comparison",
+    slug: "best-offline-speech-to-text-apps-2026",
     tags: [
       "offline speech to text",
       "speech recognition",
@@ -291,16 +291,16 @@ export const blogPosts: BlogPost[] = [
       "voice dictation",
       "comparison",
     ],
-    content: post1Content,
+    title: "The 5 Best Offline Speech-to-Text Apps in 2026",
   },
   {
-    slug: "how-to-transcribe-audio-without-internet",
-    title: "How to Transcribe Audio to Text Without an Internet Connection",
+    category: "Guide",
+    content: post2Content,
     description:
       "A step-by-step guide to transcribing audio locally using Echo and local AI models. No internet required — your audio never leaves your device.",
     publishedAt: "2026-01-28T00:00:00.000Z",
     readingTime: "7 min read",
-    category: "Guide",
+    slug: "how-to-transcribe-audio-without-internet",
     tags: [
       "transcribe audio without internet",
       "offline transcription",
@@ -308,17 +308,16 @@ export const blogPosts: BlogPost[] = [
       "Whisper",
       "privacy",
     ],
-    content: post2Content,
+    title: "How to Transcribe Audio to Text Without an Internet Connection",
   },
   {
-    slug: "whisper-vs-parakeet-models-compared",
-    title:
-      "OpenAI Whisper vs Parakeet: Which Speech Recognition Model Is Right for You?",
+    category: "Technical",
+    content: post3Content,
     description:
       "A detailed comparison of Whisper and Parakeet speech recognition models — accuracy, speed, language support, and hardware requirements to help you choose.",
     publishedAt: "2026-02-10T00:00:00.000Z",
     readingTime: "10 min read",
-    category: "Technical",
+    slug: "whisper-vs-parakeet-models-compared",
     tags: [
       "whisper parakeet speech recognition comparison",
       "OpenAI Whisper",
@@ -326,17 +325,17 @@ export const blogPosts: BlogPost[] = [
       "speech recognition models",
       "local AI",
     ],
-    content: post3Content,
+    title:
+      "OpenAI Whisper vs Parakeet: Which Speech Recognition Model Is Right for You?",
   },
   {
-    slug: "voice-dictation-privacy-guide",
-    title:
-      "Why Your Voice Dictation Tool Is a Privacy Risk (And How to Fix It)",
+    category: "Privacy",
+    content: post4Content,
     description:
       "Cloud voice dictation sends your recordings to tech company servers. Learn what data is collected, who sees it, and how local AI tools like Echo protect your privacy.",
     publishedAt: "2026-02-20T00:00:00.000Z",
     readingTime: "8 min read",
-    category: "Privacy",
+    slug: "voice-dictation-privacy-guide",
     tags: [
       "private voice dictation",
       "voice privacy",
@@ -344,6 +343,7 @@ export const blogPosts: BlogPost[] = [
       "data privacy",
       "local AI",
     ],
-    content: post4Content,
+    title:
+      "Why Your Voice Dictation Tool Is a Privacy Risk (And How to Fix It)",
   },
 ];

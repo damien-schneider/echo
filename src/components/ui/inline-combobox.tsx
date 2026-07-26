@@ -146,7 +146,6 @@ const InlineCombobox = ({
   const { props: inputProps, removeInput } = useComboboxInput({
     cancelInputOnBlur: true,
     cursorState,
-    ref: inputRef,
     onCancelInput: (cause) => {
       if (cause !== "backspace") {
         editor.tf.insertText(trigger + value, {
@@ -160,6 +159,7 @@ const InlineCombobox = ({
         });
       }
     },
+    ref: inputRef,
   });
 
   const [hasEmpty, setHasEmpty] = useState(false);

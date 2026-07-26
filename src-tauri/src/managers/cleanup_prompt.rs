@@ -1,28 +1,15 @@
-//! Pure-logic helpers for the on-device cleanup model:
-//!
-//! - `system_prompt(ctx)` — assembles the deterministic system prompt fed
-//!   to the LLM (dictionary names, register, language hint, app context).
-//! - `diff_guardrail(raw, cleaned)` — last-line safety net that catches
-//!   model failures (paraphrasing, hallucinated proper nouns, mass
-//!   deletion) and tells the caller to fall back to the raw text.
-//!
-//! Both functions are intentionally model-agnostic so they can be unit-
-//! tested without loading any weights.
+//! Model-agnostic prompt builder + guardrail for cleanup LLM. Pure for unit tests.
 
 use regex::{Regex, RegexBuilder};
 use serde::{Deserialize, Serialize};
 
-/// Entry in the user dictionary. `canonical` is the spelling we want
-/// preserved verbatim in the cleaned output; `variants` are alternative
-/// spellings or phonetic mistranscriptions to map onto it.
+/// `canonical` preserved verbatim; `variants` map onto it.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DictionaryEntry {
     pub canonical: String,
     pub variants: Vec<String>,
 }
 
-/// Tone register the model should target. Drives a single line in the
-/// system prompt and is otherwise opaque.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum Register {
@@ -43,9 +30,6 @@ impl Register {
     }
 }
 
-/// Per-call context passed to the cleanup model. Lives in this module so
-/// the prompt builder and the (separate) `CleanupManager` agree on its
-/// shape.
 #[derive(Debug, Clone)]
 pub struct CleanupContext {
     pub dictionary: Vec<DictionaryEntry>,
@@ -65,43 +49,19 @@ impl Default for CleanupContext {
     }
 }
 
-/// Verdict from [`diff_guardrail`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GuardrailVerdict {
     Accept,
     Reject(String),
 }
 
-// ── diff_guardrail thresholds ─────────────────────────────────────────
-//
-// All four constants were calibrated against real Whisper + Parakeet
-// outputs in the spike. Bumping any of these knobs is a behavior change
-// and must come with new fixture-based tests.
-
-/// Maximum tolerated growth ratio: cleaned token count can be up to
-/// 1.3× raw before we treat the output as paraphrase / insertion.
-/// Allows for inserted punctuation tokens and minor capitalisation
-/// splits without rejecting legitimate cleanups.
+// Calibrated against real Whisper + Parakeet output; bumps need new fixture tests.
 const GUARDRAIL_MAX_GROWTH: f64 = 1.3;
-
-/// Minimum survival ratio when `raw_n >= GUARDRAIL_MIN_LEN_FOR_DELETION_CHECK`.
-/// If cleaned drops below `0.5 × raw`, treat as over-deletion.
 const GUARDRAIL_MIN_SURVIVAL: f64 = 0.5;
-
-/// Below this raw token count, short fragments may legitimately be
-/// dropped to nothing (e.g. "uh" → "") so the survival check is
-/// disabled.
+/// Short fragments below this may drop to "" without trigger survival check.
 const GUARDRAIL_MIN_LEN_FOR_DELETION_CHECK: usize = 5;
-
-/// Maximum tolerated word-level Levenshtein distance per raw token.
-/// Above this, we assume the model paraphrased instead of cleaning.
 const GUARDRAIL_MAX_EDIT_RATIO: f64 = 0.35;
 
-/// Build the deterministic system prompt for a single cleanup call.
-///
-/// The prompt enumerates the user dictionary's canonical names, sets the
-/// register, optionally mentions the active app, and lists the strict
-/// "DO NOT paraphrase / translate / invent" rules.
 pub fn system_prompt(ctx: &CleanupContext) -> String {
     let dict_list = if ctx.dictionary.is_empty() {
         "(none)".to_string()
@@ -152,9 +112,7 @@ pub fn system_prompt(ctx: &CleanupContext) -> String {
     )
 }
 
-/// Compare raw transcript to model output and decide whether the cleanup
-/// is trustworthy enough to ship to the user. Anything suspicious gets
-/// rejected with a reason; the caller is expected to fall back to `raw`.
+/// Rejects paraphrase / over-deletion / hallucinated proper nouns. Caller falls back to raw.
 pub fn diff_guardrail(raw: &str, cleaned: &str) -> GuardrailVerdict {
     let raw_tokens = tokenize_words(raw);
     let cleaned_tokens = tokenize_words(cleaned);
@@ -162,12 +120,10 @@ pub fn diff_guardrail(raw: &str, cleaned: &str) -> GuardrailVerdict {
     let raw_n = raw_tokens.len();
     let cleaned_n = cleaned_tokens.len();
 
-    // Empty raw → trivially accept (nothing to compare against).
     if raw_n == 0 {
         return GuardrailVerdict::Accept;
     }
 
-    // Reject if cleaned is much longer than raw — likely insertion / paraphrase.
     let raw_n_f = raw_n as f64;
     let cleaned_n_f = cleaned_n as f64;
     if cleaned_n_f > GUARDRAIL_MAX_GROWTH * raw_n_f {
@@ -176,9 +132,6 @@ pub fn diff_guardrail(raw: &str, cleaned: &str) -> GuardrailVerdict {
         ));
     }
 
-    // Reject if cleaned is much shorter than raw — likely over-deletion.
-    // Allow short fragments (< GUARDRAIL_MIN_LEN_FOR_DELETION_CHECK raw
-    // tokens) to be dropped freely.
     if raw_n >= GUARDRAIL_MIN_LEN_FOR_DELETION_CHECK
         && cleaned_n_f < GUARDRAIL_MIN_SURVIVAL * raw_n_f
     {
@@ -187,9 +140,7 @@ pub fn diff_guardrail(raw: &str, cleaned: &str) -> GuardrailVerdict {
         ));
     }
 
-    // Reject hallucinated proper nouns: any capitalized word in cleaned
-    // longer than 3 chars that does NOT appear in raw, unless it is the
-    // first token of a sentence (preceded by '.', '!', '?' or at start).
+    // Capitalized word >3 chars in cleaned but not in raw, mid-sentence → hallucination.
     let raw_lower: std::collections::HashSet<String> =
         raw_tokens.iter().map(|t| t.to_lowercase()).collect();
 
@@ -213,7 +164,6 @@ pub fn diff_guardrail(raw: &str, cleaned: &str) -> GuardrailVerdict {
         }
     }
 
-    // Reject if word-token Levenshtein > GUARDRAIL_MAX_EDIT_RATIO * raw_n.
     let lev = word_levenshtein(&raw_tokens, &cleaned_tokens);
     let lev_budget = GUARDRAIL_MAX_EDIT_RATIO * raw_n_f;
     if (lev as f64) > lev_budget {
@@ -225,23 +175,7 @@ pub fn diff_guardrail(raw: &str, cleaned: &str) -> GuardrailVerdict {
     GuardrailVerdict::Accept
 }
 
-/// Apply the user dictionary's variant→canonical substitutions to a raw
-/// transcript before it is shown to the LLM (or returned to the user when
-/// cleanup is off — although the calling pipeline currently only invokes
-/// this when cleanup is enabled).
-///
-/// Matching rules:
-///
-/// * Case-insensitive.
-/// * Whole-word only — uses Unicode-aware word boundaries so e.g.
-///   `Damianic` is NOT replaced when `Damian` is a variant, and
-///   French apostrophes (`j'ai vu damien`) work correctly.
-/// * The canonical preserves its declared case verbatim.
-/// * Empty variants are ignored defensively (they would otherwise match
-///   between every character).
-///
-/// Returns the rewritten text. If the dictionary is empty or no variant
-/// matches, the input is returned unchanged.
+/// Case-insensitive, Unicode word-boundary, whole-word; canonical case preserved.
 pub fn apply_dictionary_prepass(text: &str, dictionary: &[DictionaryEntry]) -> String {
     if text.is_empty() || dictionary.is_empty() {
         return text.to_string();
@@ -253,14 +187,9 @@ pub fn apply_dictionary_prepass(text: &str, dictionary: &[DictionaryEntry]) -> S
             if variant.is_empty() {
                 continue;
             }
-            // `\b` in the `regex` crate is Unicode-aware (matches at a
-            // boundary between a word and non-word codepoint), which is
-            // what we want for French/multilingual content.
+            // `\b` is Unicode-aware in the regex crate.
             let pattern = format!(r"\b{}\b", regex::escape(variant));
-            let re = match RegexBuilder::new(&pattern)
-                .case_insensitive(true)
-                .build()
-            {
+            let re = match RegexBuilder::new(&pattern).case_insensitive(true).build() {
                 Ok(r) => r,
                 Err(_) => continue,
             };
@@ -270,13 +199,10 @@ pub fn apply_dictionary_prepass(text: &str, dictionary: &[DictionaryEntry]) -> S
     out
 }
 
-/// Replace every regex match in `haystack` with `canonical`, copying the
-/// in-between text verbatim. Split out for readability.
 fn replace_all_preserve_canonical(re: &Regex, haystack: &str, canonical: &str) -> String {
     re.replace_all(haystack, canonical).into_owned()
 }
 
-/// Lowercase alphanumeric word tokens. Punctuation is dropped.
 fn tokenize_words(s: &str) -> Vec<String> {
     s.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
         .filter(|t| !t.is_empty())
@@ -284,9 +210,7 @@ fn tokenize_words(s: &str) -> Vec<String> {
         .collect()
 }
 
-/// Same as `tokenize_words` but returns each token paired with a flag:
-/// true if this token starts a new sentence (begins the string, or is
-/// preceded by `.`, `!`, `?` ignoring whitespace).
+/// Pairs each token with sentence-start flag (preceded by `.`/`!`/`?` or BOS).
 fn tokenize_words_with_sentence_start(s: &str) -> Vec<(String, bool)> {
     let mut tokens_with_flags: Vec<(String, bool)> = Vec::new();
     let mut current = String::new();
@@ -316,7 +240,6 @@ fn tokenize_words_with_sentence_start(s: &str) -> Vec<(String, bool)> {
     tokens_with_flags
 }
 
-/// Levenshtein distance over arbitrary item sequences (here, word tokens).
 fn word_levenshtein(a: &[String], b: &[String]) -> usize {
     let n = a.len();
     let m = b.len();
@@ -338,9 +261,7 @@ fn word_levenshtein(a: &[String], b: &[String]) -> usize {
             } else {
                 1
             };
-            curr[j] = (prev[j] + 1)
-                .min(curr[j - 1] + 1)
-                .min(prev[j - 1] + cost);
+            curr[j] = (prev[j] + 1).min(curr[j - 1] + 1).min(prev[j - 1] + cost);
         }
         std::mem::swap(&mut prev, &mut curr);
     }
@@ -469,8 +390,6 @@ mod tests {
         assert_eq!(e, back);
     }
 
-    // ── apply_dictionary_prepass tests ─────────────────────────────────
-
     fn dict(entries: &[(&str, &[&str])]) -> Vec<DictionaryEntry> {
         entries
             .iter()
@@ -493,19 +412,13 @@ mod tests {
     #[test]
     fn case_insensitive_match() {
         let d = dict(&[("Damien", &["Damian"])]);
-        // Canonical preserves its declared case ("Damien"), match is
-        // case-insensitive on the variant.
-        assert_eq!(
-            apply_dictionary_prepass("i met damian", &d),
-            "i met Damien"
-        );
+        assert_eq!(apply_dictionary_prepass("i met damian", &d), "i met Damien");
     }
 
     #[test]
     fn respects_word_boundaries() {
         let d = dict(&[("Damien", &["Damian"])]);
-        // "Damianic" contains "Damian" but is a different word; must not
-        // be replaced.
+        // "Damianic" must not match "Damian".
         assert_eq!(
             apply_dictionary_prepass("Damianic style", &d),
             "Damianic style"
@@ -523,10 +436,7 @@ mod tests {
 
     #[test]
     fn multiple_entries() {
-        let d = dict(&[
-            ("Damien", &["Damian"]),
-            ("Anthropic", &["anthropics"]),
-        ]);
+        let d = dict(&[("Damien", &["Damian"]), ("Anthropic", &["anthropics"])]);
         assert_eq!(
             apply_dictionary_prepass("Damian works at anthropics", &d),
             "Damien works at Anthropic"
@@ -536,10 +446,7 @@ mod tests {
     #[test]
     fn empty_dictionary_passthrough() {
         let d: Vec<DictionaryEntry> = Vec::new();
-        assert_eq!(
-            apply_dictionary_prepass("hello world", &d),
-            "hello world"
-        );
+        assert_eq!(apply_dictionary_prepass("hello world", &d), "hello world");
     }
 
     #[test]
@@ -551,19 +458,13 @@ mod tests {
     #[test]
     fn does_not_replace_when_canonical_already_present() {
         let d = dict(&[("Damien", &["Damian"])]);
-        // Input already matches the canonical; output unchanged. We
-        // explicitly do NOT want to count "Damien" itself as a variant
-        // and re-replace it — that would be a no-op anyway, but the
-        // text must stay verbatim.
         assert_eq!(apply_dictionary_prepass("Damien", &d), "Damien");
     }
 
     #[test]
     fn unicode_word_boundary() {
         let d = dict(&[("Damien", &["damien"])]);
-        // The variant "damien" sits between "vu " and end of string in
-        // a French sentence with an apostrophe. Word-boundary handling
-        // must work across UTF-8.
+        // UTF-8 word boundary with French apostrophe.
         assert_eq!(
             apply_dictionary_prepass("j'ai vu damien", &d),
             "j'ai vu Damien"
@@ -572,12 +473,8 @@ mod tests {
 
     #[test]
     fn skips_empty_variants() {
-        // An empty variant string would match between every character if
-        // naively compiled — defensively skip it.
+        // Empty variant would match between every char.
         let d = dict(&[("Damien", &[""])]);
-        assert_eq!(
-            apply_dictionary_prepass("hello world", &d),
-            "hello world"
-        );
+        assert_eq!(apply_dictionary_prepass("hello world", &d), "hello world");
     }
 }

@@ -7,29 +7,29 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/")({
+  component: VsIndexPage,
   head: () => ({
     meta: [
       {
         title: "Echo vs Alternatives — Free Offline Speech-to-Text Comparison",
       },
       {
-        name: "description",
         content:
           "Compare Echo to Super Whisper, Wispr Flow, Dragon, MacWhisper, Buzz, Handy, VoiceInk, and Otter.ai. Free, private, open-source dictation for macOS, Windows, and Linux.",
+        name: "description",
       },
       {
-        property: "og:title",
         content:
           "Echo vs Alternatives — Free Offline Speech-to-Text Comparison",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Compare Echo to Super Whisper, Wispr Flow, Dragon, MacWhisper, Buzz, Handy, VoiceInk, and Otter.ai. Free, private, open-source dictation for macOS, Windows, and Linux.",
+        property: "og:description",
       },
     ],
   }),
-  component: VsIndexPage,
 });
 
 type ComparisonSlug =
@@ -62,126 +62,126 @@ interface ComparisonGroup {
 const COMPARISON_GROUPS: ComparisonGroup[] = [
   {
     category: "cloud",
-    label: "Cloud Alternatives",
     description: "For privacy-focused users who don't want audio in the cloud",
     items: [
       {
-        slug: "/vs/wispr-flow",
+        badges: ["100% Offline", "Free vs $15/mo", "No Account"],
         competitor: "Wispr Flow",
-        headline: "Echo vs Wispr Flow",
         description:
           "Wispr Flow sends every word you say to their servers — despite SOC 2 certification. Echo processes everything locally. Same workflow, zero cloud.",
-        badges: ["100% Offline", "Free vs $15/mo", "No Account"],
+        headline: "Echo vs Wispr Flow",
+        slug: "/vs/wispr-flow",
       },
       {
-        slug: "/vs/otter-ai",
+        badges: ["Real-Time Dictation", "Offline", "Free Forever"],
         competitor: "Otter.ai",
-        headline: "Echo vs Otter.ai",
         description:
           "Otter.ai is for meeting transcription. Echo is for real-time dictation. Both are useful — but only Echo keeps your audio on your device.",
-        badges: ["Real-Time Dictation", "Offline", "Free Forever"],
+        headline: "Echo vs Otter.ai",
+        slug: "/vs/otter-ai",
       },
       {
-        slug: "/vs/whisper-desktop",
+        badges: ["Global Shortcuts", "Auto-Paste", "VAD", "LLM Refinement"],
         competitor: "Whisper Desktop",
-        headline: "Echo vs Whisper Desktop",
         description:
           "Both use Whisper models, but Echo adds global shortcuts, auto-paste, VAD, and LLM refinement — making it a real daily driver.",
-        badges: ["Global Shortcuts", "Auto-Paste", "VAD", "LLM Refinement"],
+        headline: "Echo vs Whisper Desktop",
+        slug: "/vs/whisper-desktop",
       },
     ],
+    label: "Cloud Alternatives",
   },
   {
     category: "paid",
-    label: "Paid Apps",
     description: "For budget-conscious users looking for free alternatives",
     items: [
       {
-        slug: "/vs/super-whisper",
+        badges: ["Free vs $249", "Windows + Linux", "Open Source"],
         competitor: "Super Whisper",
-        headline: "Echo vs Super Whisper",
         description:
           "Super Whisper costs $249.99 for lifetime access to software that runs on your own hardware. Echo does the same core job for free.",
-        badges: ["Free vs $249", "Windows + Linux", "Open Source"],
+        headline: "Echo vs Super Whisper",
+        slug: "/vs/super-whisper",
       },
       {
-        slug: "/vs/dragon",
+        badges: ["Free vs $699", "macOS + Linux", "Modern AI"],
         competitor: "Dragon Dictate",
-        headline: "Echo vs Dragon",
         description:
           "Dragon costs $699, dropped macOS support in 2018, and won't run on Apple Silicon. Echo is free, runs everywhere, and uses modern AI.",
-        badges: ["Free vs $699", "macOS + Linux", "Modern AI"],
+        headline: "Echo vs Dragon",
+        slug: "/vs/dragon",
       },
       {
-        slug: "/vs/voiceink",
+        badges: ["Free vs $49", "MIT License", "Cross-Platform"],
         competitor: "VoiceInk",
-        headline: "Echo vs VoiceInk",
         description:
           "VoiceInk is GPL-licensed and costs $25–$49. It requires macOS 14 Sonoma. Echo is MIT-licensed, free, and runs on all platforms.",
-        badges: ["Free vs $49", "MIT License", "Cross-Platform"],
+        headline: "Echo vs VoiceInk",
+        slug: "/vs/voiceink",
       },
     ],
+    label: "Paid Apps",
   },
   {
     category: "foss",
-    label: "Open Source Alternatives",
     description: "For the FOSS community comparing open-source options",
     items: [
       {
-        slug: "/vs/handy",
+        badges: ["Built on Handy", "LLM Tool-Calling", "Polished UI"],
         competitor: "Handy",
-        headline: "Echo vs Handy",
         description:
           "Echo is built on top of Handy. Both are MIT-licensed, free, and cross-platform. Echo adds LLM tool-calling, animations, and more polish.",
-        badges: ["Built on Handy", "LLM Tool-Calling", "Polished UI"],
+        headline: "Echo vs Handy",
+        slug: "/vs/handy",
       },
       {
-        slug: "/vs/buzz",
+        badges: ["Auto-Paste Dictation", "VAD", "LLM Refinement"],
         competitor: "Buzz",
-        headline: "Echo vs Buzz",
         description:
           "Buzz is excellent for file transcription. Echo is optimized for the 'speak and it types for you' daily dictation workflow.",
-        badges: ["Auto-Paste Dictation", "VAD", "LLM Refinement"],
+        headline: "Echo vs Buzz",
+        slug: "/vs/buzz",
       },
       {
-        slug: "/vs/whisper-desktop",
+        badges: ["Global Shortcuts", "Auto-Paste", "Better UX"],
         competitor: "Whisper Desktop",
-        headline: "Echo vs Whisper Desktop",
         description:
           "Whisper Desktop is a basic GUI for Whisper. Echo adds the features needed to make it a daily driver for voice dictation.",
-        badges: ["Global Shortcuts", "Auto-Paste", "Better UX"],
+        headline: "Echo vs Whisper Desktop",
+        slug: "/vs/whisper-desktop",
       },
     ],
+    label: "Open Source Alternatives",
   },
   {
     category: "platform",
-    label: "Platform-Specific Tools",
     description: "For cross-platform users comparing platform-locked options",
     items: [
       {
-        slug: "/vs/macwhisper",
+        badges: ["Live Dictation", "Windows + Linux", "Free"],
         competitor: "MacWhisper",
-        headline: "Echo vs MacWhisper",
         description:
           "MacWhisper transcribes existing audio files on macOS. Echo types for you in real time across macOS, Windows, and Linux.",
-        badges: ["Live Dictation", "Windows + Linux", "Free"],
+        headline: "Echo vs MacWhisper",
+        slug: "/vs/macwhisper",
       },
       {
-        slug: "/vs/apple-dictation",
+        badges: ["Cross-Platform", "Whisper Accuracy", "Open Source"],
         competitor: "Apple Dictation",
-        headline: "Echo vs Apple Dictation",
         description:
           "Apple Dictation is macOS-only and uses older models. Echo brings Whisper accuracy and cross-platform support with no Apple ID.",
-        badges: ["Cross-Platform", "Whisper Accuracy", "Open Source"],
+        headline: "Echo vs Apple Dictation",
+        slug: "/vs/apple-dictation",
       },
     ],
+    label: "Platform-Specific Tools",
   },
 ];
 
 const CATEGORY_CLASSES: Record<string, string> = {
   cloud: "bg-destructive/10 text-destructive border-destructive/25",
-  paid: "bg-brand/10 text-foreground border-brand/25",
   foss: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/25",
+  paid: "bg-brand/10 text-foreground border-brand/25",
   platform: "bg-muted text-muted-foreground border-border",
 };
 
@@ -221,7 +221,7 @@ function ComparisonCard({ item }: { item: Comparison }) {
 
 function ComparisonGroups() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="space-y-16" ref={ref}>
@@ -231,8 +231,8 @@ function ComparisonGroups() {
           initial={{ opacity: 0, y: 24 }}
           key={group.category}
           transition={{
-            duration: 0.5,
             delay: 0.1 + groupIndex * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -308,7 +308,7 @@ function VsIndexPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mx-auto max-w-5xl px-4 pb-24"
           initial={{ opacity: 0, y: 20 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
         >
           <div className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-12 text-center">
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">

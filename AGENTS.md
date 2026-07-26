@@ -93,6 +93,14 @@ Non-negotiable. Every file, every commit.
 - Don't leave broken windows: wrong types, raw HTML elements, dead code, duplicated code, etc.
 - Small opportunistic fixes prevent debt from accumulating
 
+**Comments (caveman style):**
+- **Names do the work.** Functions, `useEffect`, hooks, variables, types, Rust fns/structs — all named explicit enough that comment unnecessary. `syncScrollPosition`, `pendingUploadCount`, `is_stale_session` — no comment needed. Vague name + explanatory comment → rename, drop comment.
+- Default: no comment. Code + names say WHAT.
+- Write only non-obvious WHY: hidden constraint, workaround, subtle invariant, surprising behavior. If comment explains WHAT → rename instead.
+- Max 1 line. Drop articles/filler. Fragments OK. Terse synonyms.
+- No multi-line blocks, no docstrings beyond 1 line, no PR/task/historical context, no "used by X" notes.
+- Rust: same rules for `//`, `///`, `//!`. Public-API `///` rustdoc may exceed 1 line only when it documents non-obvious safety/panic/invariants — otherwise 1 line.
+
 **Code hygiene:**
 - No `console.log`/`console.debug`/`debugger` in production code — remove before committing
 - No `eval()` / `new Function()` — ever

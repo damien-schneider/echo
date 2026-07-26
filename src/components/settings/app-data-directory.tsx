@@ -34,7 +34,7 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
   }, []);
 
   const handleCopy = (_value: string) => {
-    // Toast notification could be added here
+    // TODO: toast notification.
   };
 
   if (loading) {

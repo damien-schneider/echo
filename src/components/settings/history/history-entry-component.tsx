@@ -62,7 +62,6 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   const handleDeleteClick = async () => {
     if (!confirmDelete) {
       setConfirmDelete(true);
-      // Reset after 3 seconds if not confirmed
       setTimeout(() => setConfirmDelete(false), 3000);
       return;
     }

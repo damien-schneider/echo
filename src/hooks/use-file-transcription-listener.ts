@@ -50,8 +50,7 @@ export function useFileTranscriptionListener() {
     let cancelled = false;
     const unlisten: (() => void)[] = [];
 
-    // Use getState() inside event handlers to avoid stale closures
-    // and to remove addItem/updateItem from the dependency array entirely.
+    // getState() inside handlers avoids stale closures + drops deps.
     const store = useFileTranscriptionStore;
 
     const startNewTranscription = (
@@ -61,11 +60,11 @@ export function useFileTranscriptionListener() {
     ) => {
       const id = generateUniqueId();
       store.getState().addItem({
-        id,
         fileName: fileName || "Unknown file",
-        status: "extracting",
-        progress,
+        id,
         message,
+        progress,
+        status: "extracting",
         timestamp: Date.now(),
       });
       currentTranscriptionId.current = id;
@@ -80,21 +79,21 @@ export function useFileTranscriptionListener() {
       if (status === "complete") {
         store
           .getState()
-          .updateItem(id, { status: "complete", progress: 1.0, message });
+          .updateItem(id, { message, progress: 1.0, status: "complete" });
         lastCompletedTranscriptionId.current = id;
         currentTranscriptionId.current = null;
       } else if (status === "error") {
         store.getState().updateItem(id, {
-          status: "error",
-          message: "Transcription failed",
           error: message,
+          message: "Transcription failed",
+          status: "error",
         });
         currentTranscriptionId.current = null;
       } else {
         store.getState().updateItem(id, {
-          status: mapStatusToItemStatus(status),
-          progress,
           message,
+          progress,
+          status: mapStatusToItemStatus(status),
         });
       }
     };
@@ -102,12 +101,12 @@ export function useFileTranscriptionListener() {
     const createErrorTranscription = (message: string, fileName?: string) => {
       const id = generateUniqueId();
       store.getState().addItem({
-        id,
-        fileName: fileName || "Unknown file",
-        status: "error",
-        progress: 0,
-        message: "Transcription failed",
         error: message,
+        fileName: fileName || "Unknown file",
+        id,
+        message: "Transcription failed",
+        progress: 0,
+        status: "error",
         timestamp: Date.now(),
       });
     };
@@ -156,9 +155,9 @@ export function useFileTranscriptionListener() {
           }
 
           store.getState().updateItem(id, {
-            status: "complete",
-            progress: 1.0,
             message: "Transcription complete!",
+            progress: 1.0,
+            status: "complete",
             text: event.payload.text,
           });
 
@@ -180,20 +179,20 @@ export function useFileTranscriptionListener() {
           }
           if (currentTranscriptionId.current) {
             store.getState().updateItem(currentTranscriptionId.current, {
-              status: "error",
-              message: "Transcription failed",
               error: event.payload,
+              message: "Transcription failed",
+              status: "error",
             });
             currentTranscriptionId.current = null;
           } else {
             const id = generateUniqueId();
             store.getState().addItem({
-              id,
-              fileName: "Unknown file",
-              status: "error",
-              progress: 0,
-              message: "Transcription failed",
               error: event.payload,
+              fileName: "Unknown file",
+              id,
+              message: "Transcription failed",
+              progress: 0,
+              status: "error",
               timestamp: Date.now(),
             });
           }
@@ -214,5 +213,5 @@ export function useFileTranscriptionListener() {
         fn();
       }
     };
-  }, []); // No deps — store actions accessed via getState()
+  }, []); // Store actions via getState(); no deps needed.
 }

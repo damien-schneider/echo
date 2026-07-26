@@ -4,42 +4,42 @@ import EchoFooter from "@/components/landing/footer";
 import { blogPosts } from "@/data/blog-posts";
 
 export const Route = createFileRoute("/blog/")({
+  component: BlogIndexPage,
   head: () => ({
     meta: [
       {
         title: "Blog — Offline Speech-to-Text Guides, Tips & News | Echo",
       },
       {
+        content:
+          "Guides, comparisons, and tips on private offline voice dictation, Whisper AI models, and privacy-first speech recognition — from the Echo team.",
         name: "description",
-        content:
-          "Guides, comparisons, and tips on private offline voice dictation, Whisper AI models, and privacy-first speech recognition — from the Echo team.",
       },
       {
-        property: "og:title",
         content: "Blog — Offline Speech-to-Text Guides & News | Echo",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Guides, comparisons, and tips on private offline voice dictation, Whisper AI models, and privacy-first speech recognition — from the Echo team.",
+        property: "og:description",
       },
     ],
   }),
-  component: BlogIndexPage,
 });
 
 const CATEGORY_COLORS: Record<string, string> = {
   Comparison: "bg-accent/15 text-accent-foreground border-accent/30",
   Guide: "bg-primary/10 text-primary border-primary/20",
-  Technical: "bg-muted text-muted-foreground border-border",
   Privacy: "bg-brand/10 text-foreground border-brand/20",
+  Technical: "bg-muted text-muted-foreground border-border",
 };
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
     day: "numeric",
+    month: "long",
+    year: "numeric",
   });
 }
 
@@ -89,8 +89,8 @@ function BlogIndexPage() {
                 initial={{ opacity: 0, y: 20 }}
                 key={post.slug}
                 transition={{
-                  duration: 0.5,
                   delay: 0.1 + index * 0.08,
+                  duration: 0.5,
                   ease: "easeOut",
                 }}
               >
@@ -144,7 +144,7 @@ function BlogIndexPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mx-auto max-w-5xl px-4 pb-24"
           initial={{ opacity: 0, y: 20 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
         >
           <div className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-12 text-center">
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">

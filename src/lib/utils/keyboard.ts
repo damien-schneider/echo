@@ -1,7 +1,3 @@
-/**
- * Keyboard utility functions for handling keyboard events
- */
-
 export type OSType = "macos" | "windows" | "linux" | "unknown";
 
 const FUNCTION_KEY_RE = /^F\d+$/;
@@ -52,42 +48,42 @@ const getKeyFromCode = (code: string, osType: OSType): string => {
   };
 
   const modifierMap: Record<string, string> = {
-    ShiftLeft: getModifierName("shift"),
-    ShiftRight: getModifierName("shift"),
-    ControlLeft: getModifierName("ctrl"),
-    ControlRight: getModifierName("ctrl"),
     AltLeft: getModifierName("alt"),
     AltRight: getModifierName("alt"),
-    MetaLeft: getModifierName("meta"),
-    MetaRight: getModifierName("meta"),
-    OSLeft: getModifierName("meta"),
-    OSRight: getModifierName("meta"),
-    CapsLock: "caps lock",
-    Tab: "tab",
-    Enter: "enter",
-    Space: "space",
-    Backspace: "backspace",
-    Delete: "delete",
-    Escape: "esc",
-    ArrowUp: "up",
     ArrowDown: "down",
     ArrowLeft: "left",
     ArrowRight: "right",
-    Home: "home",
-    End: "end",
-    PageUp: "page up",
-    PageDown: "page down",
-    Insert: "insert",
-    PrintScreen: "print screen",
-    ScrollLock: "scroll lock",
-    Pause: "pause",
+    ArrowUp: "up",
+    Backspace: "backspace",
+    CapsLock: "caps lock",
     ContextMenu: "menu",
-    NumpadMultiply: "numpad *",
+    ControlLeft: getModifierName("ctrl"),
+    ControlRight: getModifierName("ctrl"),
+    Delete: "delete",
+    End: "end",
+    Enter: "enter",
+    Escape: "esc",
+    Home: "home",
+    Insert: "insert",
+    MetaLeft: getModifierName("meta"),
+    MetaRight: getModifierName("meta"),
+    NumLock: "num lock",
     NumpadAdd: "numpad +",
-    NumpadSubtract: "numpad -",
     NumpadDecimal: "numpad .",
     NumpadDivide: "numpad /",
-    NumLock: "num lock",
+    NumpadMultiply: "numpad *",
+    NumpadSubtract: "numpad -",
+    OSLeft: getModifierName("meta"),
+    OSRight: getModifierName("meta"),
+    PageDown: "page down",
+    PageUp: "page up",
+    Pause: "pause",
+    PrintScreen: "print screen",
+    ScrollLock: "scroll lock",
+    ShiftLeft: getModifierName("shift"),
+    ShiftRight: getModifierName("shift"),
+    Space: "space",
+    Tab: "tab",
   };
 
   if (modifierMap[code]) {
@@ -95,17 +91,17 @@ const getKeyFromCode = (code: string, osType: OSType): string => {
   }
 
   const punctuationMap: Record<string, string> = {
-    Semicolon: ";",
-    Equal: "=",
+    Backquote: "`",
+    Backslash: "\\",
+    BracketLeft: "[",
+    BracketRight: "]",
     Comma: ",",
+    Equal: "=",
     Minus: "-",
     Period: ".",
-    Slash: "/",
-    Backquote: "`",
-    BracketLeft: "[",
-    Backslash: "\\",
-    BracketRight: "]",
     Quote: "'",
+    Semicolon: ";",
+    Slash: "/",
   };
 
   if (punctuationMap[code]) {
@@ -119,18 +115,18 @@ const getKeyFromKeyProp = (key: string, osType: OSType): string => {
   const metaName = getMetaKeyName(osType);
 
   const keyMap: Record<string, string> = {
-    Control: osType === "macos" ? "ctrl" : "ctrl",
+    " ": "space",
     Alt: osType === "macos" ? "option" : "alt",
-    Shift: "shift",
-    Meta: metaName,
-    OS: metaName,
-    CapsLock: "caps lock",
-    ArrowUp: "up",
     ArrowDown: "down",
     ArrowLeft: "left",
     ArrowRight: "right",
+    ArrowUp: "up",
+    CapsLock: "caps lock",
+    Control: osType === "macos" ? "ctrl" : "ctrl",
     Escape: "esc",
-    " ": "space",
+    Meta: metaName,
+    OS: metaName,
+    Shift: "shift",
   };
 
   if (keyMap[key]) {
@@ -140,11 +136,6 @@ const getKeyFromKeyProp = (key: string, osType: OSType): string => {
   return key.toLowerCase();
 };
 
-/**
- * Extract a consistent key name from a KeyboardEvent
- * This function provides cross-platform keyboard event handling
- * and returns key names appropriate for the target operating system
- */
 export const getKeyName = (
   e: KeyboardEvent,
   osType: OSType = "unknown"
@@ -160,28 +151,17 @@ export const getKeyName = (
   return `unknown-${e.keyCode || e.which || 0}`;
 };
 
-/**
- * Get display-friendly key combination string for the current OS
- * Returns basic plus-separated format with correct platform key names
- */
+// getKeyName already returns platform-specific names — passthrough.
 export const formatKeyCombination = (
   combination: string,
   _osType: OSType
-): string => {
-  // Simply return the combination as-is since getKeyName already provides
-  // the correct platform-specific key names
-  return combination;
-};
+): string => combination;
 
-/**
- * Normalize modifier keys to handle left/right variants
- */
 export const normalizeKey = (key: string): string => {
-  // Handle left/right variants of modifier keys
+  // Strip left/right modifier prefix.
   if (key.startsWith("left ") || key.startsWith("right ")) {
     const parts = key.split(" ");
     if (parts.length === 2 && parts[1]) {
-      // Return just the modifier name without left/right prefix
       return parts[1];
     }
   }

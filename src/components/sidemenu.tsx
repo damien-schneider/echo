@@ -55,49 +55,49 @@ interface SectionConfig {
 
 export const SECTIONS_CONFIG = {
   app: {
-    label: "App Settings",
-    icon: Settings2,
     component: AppSettings,
-  },
-  transcription: {
-    label: "Transcription",
-    icon: AudioLines,
-    component: TranscriptionSettings,
-  },
-  "post-processing": {
-    label: "Post Processing",
-    icon: Sparkles,
-    component: PostProcessingSettings,
+    icon: Settings2,
+    label: "App Settings",
   },
   cleanup: {
-    label: "On-Device Cleanup",
-    icon: BookText,
     component: CleanupSettings,
-  },
-  "text-to-speech": {
-    label: "Text-to-Speech",
-    icon: Speech,
-    component: TtsSettingsPage,
-  },
-  meeting: {
-    label: "Meeting",
-    icon: Users,
-    component: MeetingPage,
-  },
-  "keyboard-tracking": {
-    label: "Keyboard",
-    icon: Keyboard,
-    component: KeyboardTrackingSettings,
-  },
-  models: {
-    label: "Models",
-    icon: Box,
-    component: ModelsSettings,
+    icon: BookText,
+    label: "On-Device Cleanup",
   },
   history: {
-    label: "History",
-    icon: History,
     component: HistorySettings,
+    icon: History,
+    label: "History",
+  },
+  "keyboard-tracking": {
+    component: KeyboardTrackingSettings,
+    icon: Keyboard,
+    label: "Keyboard",
+  },
+  meeting: {
+    component: MeetingPage,
+    icon: Users,
+    label: "Meeting",
+  },
+  models: {
+    component: ModelsSettings,
+    icon: Box,
+    label: "Models",
+  },
+  "post-processing": {
+    component: PostProcessingSettings,
+    icon: Sparkles,
+    label: "Post Processing",
+  },
+  "text-to-speech": {
+    component: TtsSettingsPage,
+    icon: Speech,
+    label: "Text-to-Speech",
+  },
+  transcription: {
+    component: TranscriptionSettings,
+    icon: AudioLines,
+    label: "Transcription",
   },
 } as const satisfies Record<string, SectionConfig>;
 
@@ -121,7 +121,6 @@ function AppSidebar({
       className="flex h-full w-full flex-col rounded-xl bg-foreground/5 p-2"
       data-tauri-drag-region
     >
-      {/* Header: Logo */}
       <div
         className="flex shrink-0 select-none items-center gap-2 p-2"
         data-tauri-drag-region
@@ -137,7 +136,6 @@ function AppSidebar({
         </div>
       </div>
 
-      {/* Body: Scrollable menu items */}
       <ScrollArea
         className="-mx-2 min-h-16 flex-1"
         classNameViewport="min-w-0 overflow-x-hidden p-2"
@@ -165,7 +163,6 @@ function AppSidebar({
         </div>
       </ScrollArea>
 
-      {/* Footer */}
       <div
         className="flex shrink-0 select-none flex-col gap-1"
         data-tauri-drag-region
@@ -206,7 +203,6 @@ export function SidebarLayout({
     }
   }, []);
 
-  // Keyboard shortcut: Cmd+B / Ctrl+B
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "b" && (event.metaKey || event.ctrlKey)) {
@@ -251,7 +247,6 @@ export function SidebarLayout({
           />
           <ResizablePanel className="flex h-full min-h-0">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {/* Toggle button when sidebar is collapsed */}
               {!sidebarOpen && (
                 <div className="shrink-0 px-2 pt-1">
                   <Tooltip>

@@ -20,9 +20,9 @@ interface SliderProps {
 }
 
 const spring = {
-  type: "spring",
-  stiffness: 400,
   damping: 30,
+  stiffness: 400,
+  type: "spring",
 } as const;
 
 export const Slider: React.FC<SliderProps> = ({

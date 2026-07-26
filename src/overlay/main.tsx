@@ -1,8 +1,9 @@
+import { domAnimation, LazyMotion } from "motion/react";
 import React from "react";
 import ReactDOM from "react-dom/client";
+import "@/app.css";
+import RecordingOverlay from "@/overlay/recording-overlay";
 import { ThemeProvider } from "@/providers/theme-provider";
-import RecordingOverlay from "./recording-overlay";
-import "../app.css";
 
 const rootElement = document.getElementById("root");
 if (!rootElement) {
@@ -11,8 +12,10 @@ if (!rootElement) {
 
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
-    <ThemeProvider defaultTheme="system" storageKey="echo-ui-theme">
-      <RecordingOverlay />
-    </ThemeProvider>
+    <LazyMotion features={domAnimation} strict={true}>
+      <ThemeProvider defaultTheme="system" storageKey="echo-ui-theme">
+        <RecordingOverlay />
+      </ThemeProvider>
+    </LazyMotion>
   </React.StrictMode>
 );

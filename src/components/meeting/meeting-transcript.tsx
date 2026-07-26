@@ -6,8 +6,7 @@ import { MeetingSegmentItem } from "./meeting-segment";
 
 interface MeetingTranscriptProps {
   autoScroll?: boolean;
-  /// Optional in-progress interim segments (by source) shown after committed
-  /// segments while the user is still recording.
+  // Per-source interims shown after committed segments while recording.
   interimSegments?: (InterimSegmentState | null)[];
   onSeek?: (ms: number) => void;
   segments: MeetingSegment[];

@@ -10,18 +10,18 @@ export const Route = createFileRoute("/contributing")({
     meta: [
       { title: "Contributing — Echo Speech-to-Text" },
       {
+        content:
+          "Help build Echo, the open-source offline speech-to-text app. Learn how to contribute code, report bugs, and improve the project.",
         name: "description",
-        content:
-          "Help build Echo, the open-source offline speech-to-text app. Learn how to contribute code, report bugs, and improve the project.",
       },
       {
-        property: "og:title",
         content: "Contributing — Echo Speech-to-Text",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Help build Echo, the open-source offline speech-to-text app. Learn how to contribute code, report bugs, and improve the project.",
+        property: "og:description",
       },
     ],
   }),

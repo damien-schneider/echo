@@ -27,7 +27,7 @@ function FlowNode({
       }
       className="flex flex-col items-center"
       initial={{ opacity: 0, y: 20 }}
-      transition={{ duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ delay, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
     >
       <div
         className={`flex h-20 w-20 items-center justify-center rounded-2xl border md:h-24 md:w-24 ${
@@ -54,7 +54,7 @@ function FlowArrow({ delay, isInView }: { delay: number; isInView: boolean }) {
       animate={isInView ? { opacity: 1, scaleX: 1 } : { opacity: 0, scaleX: 0 }}
       className="hidden items-center md:flex"
       initial={{ opacity: 0, scaleX: 0 }}
-      transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ delay, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
     >
       <div className="h-px w-10 bg-gradient-to-r from-white/20 to-white/8 lg:w-16" />
       <div className="h-0 w-0 border-y-[3px] border-y-transparent border-l-[5px] border-l-white/15" />
@@ -76,7 +76,7 @@ function BlockedArrow({
       animate={isInView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.8 }}
       className="hidden flex-col items-center gap-1.5 md:flex"
       initial={{ opacity: 0, scale: 0.8 }}
-      transition={{ duration: 0.5, delay, ease: [0.34, 1.56, 0.64, 1] }}
+      transition={{ delay, duration: 0.5, ease: [0.34, 1.56, 0.64, 1] }}
     >
       <div className="flex items-center">
         <div className="h-px w-8 bg-white/20 lg:w-12" />
@@ -106,7 +106,7 @@ function MobileFlowArrow({
       animate={isInView ? { opacity: 1, scaleY: 1 } : { opacity: 0, scaleY: 0 }}
       className="flex flex-col items-center md:hidden"
       initial={{ opacity: 0, scaleY: 0 }}
-      transition={{ duration: 0.4, delay, ease: "easeOut" }}
+      transition={{ delay, duration: 0.4, ease: "easeOut" }}
     >
       <div className="h-6 w-px bg-gradient-to-b from-white/20 to-white/8" />
       <div className="h-0 w-0 border-x-[3px] border-x-transparent border-t-[5px] border-t-white/15" />
@@ -118,11 +118,11 @@ function MobileFlowArrow({
 
 export default function PrivacyManifesto() {
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-80px" });
+  const isInView = useInView(ref, { margin: "-80px", once: true });
 
   const { scrollYProgress } = useScroll({
-    target: ref,
     offset: ["start end", "end start"],
+    target: ref,
   });
 
   const glowScale = useTransform(scrollYProgress, [0.1, 0.5], [0.8, 1.2]);
@@ -141,9 +141,9 @@ export default function PrivacyManifesto() {
         <motion.div
           className="absolute top-1/2 left-1/2 h-[400px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full"
           style={{
-            scale: glowScale,
             background:
               "radial-gradient(circle, rgba(200,150,100,0.04) 0%, transparent 70%)",
+            scale: glowScale,
           }}
         />
       </motion.div>
@@ -244,7 +244,7 @@ export default function PrivacyManifesto() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 14 }}
           className="mx-auto mt-20 flex max-w-lg justify-center gap-12 md:mt-28"
           initial={{ opacity: 0, y: 14 }}
-          transition={{ duration: 0.8, delay: 1.3, ease: "easeOut" }}
+          transition={{ delay: 1.3, duration: 0.8, ease: "easeOut" }}
         >
           <div className="text-center">
             <div className="font-bold font-display text-3xl tracking-tight md:text-4xl">
@@ -277,7 +277,7 @@ export default function PrivacyManifesto() {
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
           className="mt-14 text-center"
           initial={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.6, delay: 1.6, ease: "easeOut" }}
+          transition={{ delay: 1.6, duration: 0.6, ease: "easeOut" }}
         >
           <a
             className="inline-block rounded-full border border-white/10 px-7 py-3 text-sm text-white/60 transition-all duration-300 hover:border-white/20 hover:text-white active:scale-[0.98]"

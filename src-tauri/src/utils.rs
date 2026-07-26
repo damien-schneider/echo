@@ -1,4 +1,5 @@
 use crate::actions::{OPERATION_GENERATION, TRANSCRIPTION_TASK};
+use crate::features::polish::manager::PolishManager;
 use crate::managers::audio::AudioRecordingManager;
 use crate::ManagedToggleState;
 use log::{info, warn};
@@ -9,7 +10,7 @@ use tauri::{AppHandle, Manager};
 // Re-export all utility modules for easy access
 // pub use crate::audio_feedback::*;
 pub use crate::clipboard::*;
-pub use crate::overlay::*;
+pub(crate) use crate::overlay::*;
 pub use crate::tray::*;
 
 /// Centralized cancellation function that can be called from anywhere in the app.
@@ -19,6 +20,9 @@ pub fn cancel_current_operation(app: &AppHandle) {
 
     // Increment generation to invalidate any in-flight stop/transcription tasks
     OPERATION_GENERATION.fetch_add(1, Ordering::SeqCst);
+    if let Some(manager) = app.try_state::<Arc<PolishManager>>() {
+        manager.cancel();
+    }
 
     // Abort any in-flight transcription task
     if let Ok(mut task) = TRANSCRIPTION_TASK.lock() {

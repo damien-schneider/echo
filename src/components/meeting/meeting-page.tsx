@@ -23,7 +23,6 @@ export const MeetingPage = () => {
     [selectMeeting]
   );
 
-  // Viewing a past meeting
   if (status === "viewing" && selectedMeeting) {
     return (
       <div className="mx-auto h-full w-full max-w-3xl pb-20">
@@ -32,7 +31,6 @@ export const MeetingPage = () => {
     );
   }
 
-  // Recording or processing
   if (status === "recording" || status === "processing") {
     return (
       <div className="mx-auto flex h-full w-full max-w-3xl flex-col gap-4 pb-20">
@@ -54,17 +52,14 @@ export const MeetingPage = () => {
     );
   }
 
-  // Idle state
   return (
     <div className="mx-auto w-full max-w-3xl pb-20">
       <div className="flex flex-col gap-6">
-        {/* Start controls */}
         <div className="flex flex-col gap-3">
           <h2 className="font-semibold text-lg">Meeting Recording</h2>
           <MeetingControls />
         </div>
 
-        {/* Settings */}
         <div>
           <h3 className="mb-2 font-medium text-muted-foreground text-sm">
             Settings
@@ -72,7 +67,6 @@ export const MeetingPage = () => {
           <MeetingSettings />
         </div>
 
-        {/* Past meetings */}
         <div>
           <h3 className="mb-2 font-medium text-muted-foreground text-sm">
             Past Meetings

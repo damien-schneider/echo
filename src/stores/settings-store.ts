@@ -4,30 +4,28 @@ import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioDevice, Settings } from "@/lib/types";
 
-// Cache the Tauri store handle so we don't re-open the file on every call
 let cachedStorePromise: ReturnType<typeof LoadFn> | null = null;
 const getSettingsStore = () => {
   if (!cachedStorePromise) {
     cachedStorePromise = import("@tauri-apps/plugin-store").then(({ load }) =>
       load("settings_store.json", {
-        defaults: DEFAULT_SETTINGS,
         autoSave: false,
+        defaults: DEFAULT_SETTINGS,
       })
     );
   }
   return cachedStorePromise;
 };
 
-// Hoist constant maps out of action bodies
 const POST_PROCESS_COMMAND_MAP = {
-  base_url: "change_post_process_base_url_setting",
   api_key: "change_post_process_api_key_setting",
+  base_url: "change_post_process_base_url_setting",
   model: "change_post_process_model_setting",
 } as const;
 
 const POST_PROCESS_PARAM_MAP = {
-  base_url: "baseUrl",
   api_key: "apiKey",
+  base_url: "baseUrl",
   model: "model",
 } as const;
 
@@ -35,37 +33,37 @@ const DEFAULT_SETTINGS: Partial<Settings> = {
   always_on_microphone: false,
   audio_feedback: true,
   audio_feedback_volume: 1.0,
-  sound_theme: "marimba",
-  start_hidden: false,
   autostart_enabled: false,
-  push_to_talk: false,
-  selected_microphone: "Default",
   clamshell_microphone: "Default",
-  selected_output_device: "Default",
-  translate_to_english: false,
-  selected_language: "auto",
-  overlay_position: "bottom",
-  debug_mode: false,
-  debug_logging_enabled: false,
-  log_level: 2,
-  custom_words: [],
-  history_limit: 5,
-  recording_retention_period: "preserve_limit",
-  mute_while_recording: false,
-  tts_enabled: false,
-  cleanup_enabled: false,
-  cleanup_model_id: "qwen2.5-1.5b-instruct-q4_k_m",
   cleanup_app_context_enabled: false,
   cleanup_dictionary: [],
+  cleanup_enabled: false,
+  custom_words: [],
+  debug_logging_enabled: false,
+  debug_mode: false,
+  history_limit: 5,
+  log_level: 2,
+  mute_while_recording: false,
+  overlay_dock_edge: "right",
+  overlay_dock_offset: 0.5,
+  overlay_position: "edge",
+  push_to_talk: false,
+  recording_retention_period: "preserve_limit",
+  selected_language: "auto",
+  selected_microphone: "Default",
+  selected_output_device: "Default",
+  sound_theme: "marimba",
+  start_hidden: false,
+  translate_to_english: false,
+  tts_enabled: false,
 };
 
 const DEFAULT_AUDIO_DEVICE: AudioDevice = {
   index: "default",
-  name: "Default",
   is_default: true,
+  name: "Default",
 };
 
-/** Remove a key from a Record (used to clean up isUpdating flags). */
 const omitKey = (
   record: Record<string, boolean>,
   key: string
@@ -83,80 +81,88 @@ const settingUpdaters: {
     invoke("change_audio_feedback_setting", { enabled: value }),
   audio_feedback_volume: (value) =>
     invoke("change_audio_feedback_volume_setting", { volume: value }),
-  sound_theme: (value) =>
-    invoke("change_sound_theme_setting", { theme: value }),
-  start_hidden: (value) =>
-    invoke("change_start_hidden_setting", { enabled: value }),
   autostart_enabled: (value) =>
     invoke("change_autostart_setting", { enabled: value }),
-  push_to_talk: (value) => invoke("change_ptt_setting", { enabled: value }),
-  selected_microphone: (value) =>
-    invoke("set_selected_microphone", {
-      deviceName: value === "Default" ? "default" : value,
-    }),
   clamshell_microphone: (value) =>
     invoke("set_clamshell_microphone", {
       deviceName: value === "Default" ? "default" : value,
     }),
-  selected_output_device: (value) =>
-    invoke("set_selected_output_device", {
-      deviceName: value === "Default" ? "default" : value,
-    }),
-  translate_to_english: (value) =>
-    invoke("change_translate_to_english_setting", { enabled: value }),
-  selected_language: (value) =>
-    invoke("change_selected_language_setting", { language: value }),
-  overlay_position: (value) =>
-    invoke("change_overlay_position_setting", { position: value }),
-  debug_mode: (value) =>
-    invoke("change_debug_mode_setting", { enabled: value }),
-  debug_logging_enabled: (value) =>
-    invoke("change_debug_logging_setting", { enabled: value }),
-  log_level: (value) => invoke("set_log_level", { level: value }),
-  custom_words: (value) => invoke("update_custom_words", { words: value }),
-  word_correction_threshold: (value) =>
-    invoke("change_word_correction_threshold_setting", { threshold: value }),
-  paste_method: (value) =>
-    invoke("change_paste_method_setting", { method: value }),
+  cleanup_app_context_enabled: (value) =>
+    invoke("change_cleanup_app_context_enabled_setting", { enabled: value }),
+  cleanup_dictionary: (value) =>
+    invoke("update_cleanup_dictionary", { dictionary: value }),
+  cleanup_enabled: (value) =>
+    invoke("change_cleanup_enabled_setting", { enabled: value }),
   clipboard_handling: (value) =>
     invoke("change_clipboard_handling_setting", { handling: value }),
+  custom_words: (value) => invoke("update_custom_words", { words: value }),
+  debug_logging_enabled: (value) =>
+    invoke("change_debug_logging_setting", { enabled: value }),
+  debug_mode: (value) =>
+    invoke("change_debug_mode_setting", { enabled: value }),
   history_limit: (value) => invoke("update_history_limit", { limit: value }),
-  recording_retention_period: (value) =>
-    invoke("update_recording_retention_period", { period: value }),
-  post_process_selected_prompt_id: (value) =>
-    invoke("set_post_process_selected_prompt", { id: value }),
-  mute_while_recording: (value) =>
-    invoke("change_mute_while_recording_setting", { enabled: value }),
   input_tracking_enabled: (value) =>
     invoke("change_input_tracking_setting", { enabled: value }),
   input_tracking_excluded_apps: (value) =>
     invoke("change_input_tracking_excluded_apps", { apps: value }),
-  tts_enabled: (value) =>
-    invoke("change_tts_enabled_setting", { enabled: value }),
-  meeting_system_audio_enabled: (value) =>
-    invoke("change_meeting_system_audio_setting", { enabled: value }),
-  meeting_system_audio_device: (value) =>
-    invoke("change_meeting_system_audio_device_setting", { device: value }),
+  log_level: (value) => invoke("set_log_level", { level: value }),
   meeting_auto_summary: (value) =>
     invoke("change_meeting_auto_summary_setting", { enabled: value }),
   meeting_chunk_duration_secs: (value) =>
     invoke("change_meeting_chunk_duration_setting", {
       durationSecs: value,
     }),
-  realtime_model: (value) =>
-    invoke("change_realtime_model_setting", { modelId: value }),
+  meeting_system_audio_device: (value) =>
+    invoke("change_meeting_system_audio_device_setting", { device: value }),
+  meeting_system_audio_enabled: (value) =>
+    invoke("change_meeting_system_audio_setting", { enabled: value }),
+  mute_while_recording: (value) =>
+    invoke("change_mute_while_recording_setting", { enabled: value }),
+  overlay_position: (value) =>
+    invoke("change_overlay_position_setting", { position: value }),
+  paste_method: (value) =>
+    invoke("change_paste_method_setting", { method: value }),
   post_process_enabled: (value) =>
     invoke("change_post_process_enabled_setting", { enabled: value }),
+  post_process_selected_prompt_id: (value) =>
+    invoke("set_post_process_selected_prompt", { id: value }),
+  push_to_talk: (value) => invoke("change_ptt_setting", { enabled: value }),
+  recording_retention_period: (value) =>
+    invoke("update_recording_retention_period", { period: value }),
+  selected_language: (value) =>
+    invoke("change_selected_language_setting", { language: value }),
+  selected_microphone: (value) =>
+    invoke("set_selected_microphone", {
+      deviceName: value === "Default" ? "default" : value,
+    }),
+  selected_output_device: (value) =>
+    invoke("set_selected_output_device", {
+      deviceName: value === "Default" ? "default" : value,
+    }),
+  sound_theme: (value) =>
+    invoke("change_sound_theme_setting", { theme: value }),
+  start_hidden: (value) =>
+    invoke("change_start_hidden_setting", { enabled: value }),
+  translate_to_english: (value) =>
+    invoke("change_translate_to_english_setting", { enabled: value }),
+  tts_enabled: (value) =>
+    invoke("change_tts_enabled_setting", { enabled: value }),
   voice_commands_enabled: (value) =>
     invoke("change_voice_commands_enabled_setting", { enabled: value }),
-  cleanup_enabled: (value) =>
-    invoke("change_cleanup_enabled_setting", { enabled: value }),
-  cleanup_model_id: (value) =>
-    invoke("change_cleanup_model_id_setting", { modelId: value }),
-  cleanup_app_context_enabled: (value) =>
-    invoke("change_cleanup_app_context_enabled_setting", { enabled: value }),
-  cleanup_dictionary: (value) =>
-    invoke("update_cleanup_dictionary", { dictionary: value }),
+  word_correction_threshold: (value) =>
+    invoke("change_word_correction_threshold_setting", { threshold: value }),
+};
+
+const runSettingUpdater = async <K extends keyof Settings>(
+  key: K,
+  value: Settings[K]
+) => {
+  const updater = settingUpdaters[key];
+  if (!updater) {
+    return false;
+  }
+  await updater(value);
+  return true;
 };
 
 interface SettingsStore {
@@ -200,67 +206,98 @@ interface SettingsStore {
 }
 
 export const useSettingsStore = create<SettingsStore>((set, get) => ({
-  settings: null,
-  isLoading: true,
-  isUpdating: {},
   audioDevices: [],
-  outputDevices: [],
-  customSounds: { start: false, stop: false },
-  postProcessModelOptions: {},
-  modelToolSupport: {},
 
-  refreshSettings: async () => {
+  checkCustomSounds: async () => {
     try {
-      const store = await getSettingsStore();
-      const settings = await store.get<Settings>("settings");
-      if (!settings) {
-        set({ isLoading: false });
-        return;
-      }
-
-      const [
-        microphoneMode,
-        selectedMicrophone,
-        clamshellMicrophone,
-        selectedOutputDevice,
-      ] = await Promise.allSettled([
-        invoke<boolean>("get_microphone_mode"),
-        invoke<string>("get_selected_microphone"),
-        invoke<string>("get_clamshell_microphone"),
-        invoke<string>("get_selected_output_device"),
-      ]);
-
-      let mergedSettings: Settings = {
-        ...settings,
-        always_on_microphone:
-          microphoneMode.status === "fulfilled" ? microphoneMode.value : false,
-        selected_microphone:
-          selectedMicrophone.status === "fulfilled"
-            ? selectedMicrophone.value
-            : "Default",
-        clamshell_microphone:
-          clamshellMicrophone.status === "fulfilled"
-            ? clamshellMicrophone.value
-            : "Default",
-        selected_output_device:
-          selectedOutputDevice.status === "fulfilled"
-            ? selectedOutputDevice.value
-            : "Default",
-      };
-
-      if (import.meta.env.DEV && !mergedSettings.debug_mode) {
-        mergedSettings = {
-          ...mergedSettings,
-          debug_mode: true,
-        };
-      }
-
-      set({ settings: mergedSettings, isLoading: false });
+      const sounds = await invoke<{ start: boolean; stop: boolean }>(
+        "check_custom_sounds"
+      );
+      set({ customSounds: sounds });
     } catch (error) {
-      console.error("Failed to load settings:", error);
-      set({ isLoading: false });
+      console.error("Failed to check custom sounds:", error);
     }
   },
+
+  checkModelToolSupport: async (providerId, model) => {
+    if (!model.trim()) {
+      return null;
+    }
+    const cacheKey = `${providerId}:${model}`;
+    try {
+      const result: boolean | null = await invoke("check_model_tool_support", {
+        model,
+        providerId,
+      });
+      set((state) => ({
+        modelToolSupport: { ...state.modelToolSupport, [cacheKey]: result },
+      }));
+      return result;
+    } catch {
+      return null;
+    }
+  },
+  customSounds: { start: false, stop: false },
+
+  fetchPostProcessModels: async (providerId) => {
+    const updateKey = `post_process_models_fetch:${providerId}`;
+    set((state) => ({
+      isUpdating: { ...state.isUpdating, [updateKey]: true },
+    }));
+
+    try {
+      const models: string[] = await invoke("fetch_post_process_models", {
+        providerId,
+      });
+      set((state) => ({
+        postProcessModelOptions: {
+          ...state.postProcessModelOptions,
+          [providerId]: models,
+        },
+      }));
+      return models;
+    } catch (error) {
+      console.error("Failed to fetch models:", error);
+      return [];
+    } finally {
+      set((state) => ({ isUpdating: omitKey(state.isUpdating, updateKey) }));
+    }
+  },
+
+  initialize: async () => {
+    // Idempotent: prevents 32 concurrent calls from useSettings consumers.
+    const { isLoading } = get();
+    if (!isLoading) {
+      return;
+    }
+    set({ isLoading: false });
+
+    const {
+      refreshSettings,
+      refreshAudioDevices,
+      refreshOutputDevices,
+      checkCustomSounds,
+    } = get();
+    await Promise.all([
+      refreshSettings(),
+      refreshAudioDevices(),
+      refreshOutputDevices(),
+      checkCustomSounds(),
+    ]);
+  },
+  isLoading: true,
+  isUpdating: {},
+  modelToolSupport: {},
+  outputDevices: [],
+
+  playTestSound: async (soundType) => {
+    try {
+      await invoke("play_test_sound", { soundType });
+    } catch (error) {
+      console.error(`Failed to play test sound (${soundType}):`, error);
+    }
+  },
+  postProcessModelOptions: {},
 
   refreshAudioDevices: async () => {
     try {
@@ -292,140 +329,56 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     }
   },
 
-  checkCustomSounds: async () => {
+  refreshSettings: async () => {
     try {
-      const sounds = await invoke<{ start: boolean; stop: boolean }>(
-        "check_custom_sounds"
-      );
-      set({ customSounds: sounds });
-    } catch (error) {
-      console.error("Failed to check custom sounds:", error);
-    }
-  },
-
-  initialize: async () => {
-    // Guard: only initialize once (prevents 32 concurrent calls from useSettings consumers)
-    const { isLoading } = get();
-    if (!isLoading) {
-      return;
-    }
-    set({ isLoading: false });
-
-    const {
-      refreshSettings,
-      refreshAudioDevices,
-      refreshOutputDevices,
-      checkCustomSounds,
-    } = get();
-    await Promise.all([
-      refreshSettings(),
-      refreshAudioDevices(),
-      refreshOutputDevices(),
-      checkCustomSounds(),
-    ]);
-  },
-
-  updateSetting: async (key, value) => {
-    const { settings } = get();
-    const updateKey = String(key);
-    const originalValue = settings?.[key];
-
-    // Batch isUpdating + optimistic settings update into a single set()
-    set((state) => ({
-      isUpdating: { ...state.isUpdating, [updateKey]: true },
-      settings: state.settings ? { ...state.settings, [key]: value } : null,
-    }));
-
-    try {
-      const updater = settingUpdaters[key];
-      if (updater) {
-        await (updater as (v: Settings[keyof Settings]) => Promise<unknown>)(
-          value
-        );
-      } else if (key !== "bindings" && key !== "selected_model") {
-        console.warn(`No handler for setting: ${String(key)}`);
+      const store = await getSettingsStore();
+      const settings = await store.get<Settings>("settings");
+      if (!settings) {
+        set({ isLoading: false });
+        return;
       }
-    } catch (error) {
-      console.error(`Failed to update setting ${String(key)}:`, error);
-      if (settings) {
-        set((state) => ({
-          settings: state.settings
-            ? { ...state.settings, [key]: originalValue }
-            : null,
-        }));
-      }
-    } finally {
-      set((state) => ({ isUpdating: omitKey(state.isUpdating, updateKey) }));
-    }
-  },
 
-  resetSetting: async (key) => {
-    const defaultValue = DEFAULT_SETTINGS[key];
-    if (defaultValue !== undefined) {
-      await get().updateSetting(key, defaultValue);
-    }
-  },
+      const [
+        microphoneMode,
+        selectedMicrophone,
+        clamshellMicrophone,
+        selectedOutputDevice,
+      ] = await Promise.allSettled([
+        invoke<boolean>("get_microphone_mode"),
+        invoke<string>("get_selected_microphone"),
+        invoke<string>("get_clamshell_microphone"),
+        invoke<string>("get_selected_output_device"),
+      ]);
 
-  updateBinding: async (id, binding) => {
-    const { settings } = get();
-    const updateKey = `binding_${id}`;
-    const originalBinding = settings?.bindings?.[id]?.current_binding;
-
-    // Batch isUpdating + optimistic update
-    set((state) => {
-      if (!state.settings) {
-        return { isUpdating: { ...state.isUpdating, [updateKey]: true } };
-      }
-      const existingBinding = state.settings.bindings[id];
-      if (!existingBinding) {
-        return { isUpdating: { ...state.isUpdating, [updateKey]: true } };
-      }
-      return {
-        isUpdating: { ...state.isUpdating, [updateKey]: true },
-        settings: {
-          ...state.settings,
-          bindings: {
-            ...state.settings.bindings,
-            [id]: {
-              ...existingBinding,
-              current_binding: binding,
-            },
-          },
-        },
+      let mergedSettings: Settings = {
+        ...settings,
+        always_on_microphone:
+          microphoneMode.status === "fulfilled" ? microphoneMode.value : false,
+        clamshell_microphone:
+          clamshellMicrophone.status === "fulfilled"
+            ? clamshellMicrophone.value
+            : "Default",
+        selected_microphone:
+          selectedMicrophone.status === "fulfilled"
+            ? selectedMicrophone.value
+            : "Default",
+        selected_output_device:
+          selectedOutputDevice.status === "fulfilled"
+            ? selectedOutputDevice.value
+            : "Default",
       };
-    });
 
-    try {
-      await invoke("change_binding", { id, binding });
-    } catch (error) {
-      console.error(`Failed to update binding ${id}:`, error);
-
-      // Rollback on error
-      if (originalBinding && settings) {
-        set((state) => {
-          if (!state.settings) {
-            return {};
-          }
-          const existingBinding = state.settings.bindings[id];
-          if (!existingBinding) {
-            return {};
-          }
-          return {
-            settings: {
-              ...state.settings,
-              bindings: {
-                ...state.settings.bindings,
-                [id]: {
-                  ...existingBinding,
-                  current_binding: originalBinding,
-                },
-              },
-            },
-          };
-        });
+      if (import.meta.env.DEV && !mergedSettings.debug_mode) {
+        mergedSettings = {
+          ...mergedSettings,
+          debug_mode: true,
+        };
       }
-    } finally {
-      set((state) => ({ isUpdating: omitKey(state.isUpdating, updateKey) }));
+
+      set({ isLoading: false, settings: mergedSettings });
+    } catch (error) {
+      console.error("Failed to load settings:", error);
+      set({ isLoading: false });
     }
   },
 
@@ -445,12 +398,18 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     }
   },
 
+  resetSetting: async (key) => {
+    const defaultValue = DEFAULT_SETTINGS[key];
+    if (defaultValue !== undefined) {
+      await get().updateSetting(key, defaultValue);
+    }
+  },
+
   setPostProcessProvider: async (providerId) => {
     const { settings } = get();
     const updateKey = "post_process_provider_id";
     const previousId = settings?.post_process_provider_id ?? null;
 
-    // Batch isUpdating + optimistic update
     set((state) => ({
       isUpdating: { ...state.isUpdating, [updateKey]: true },
       ...(state.settings
@@ -480,6 +439,78 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       set((state) => ({ isUpdating: omitKey(state.isUpdating, updateKey) }));
     }
   },
+  settings: null,
+
+  updateBinding: async (id, binding) => {
+    const { settings } = get();
+    const updateKey = `binding_${id}`;
+    const originalBinding = settings?.bindings?.[id]?.current_binding;
+
+    set((state) => {
+      if (!state.settings) {
+        return { isUpdating: { ...state.isUpdating, [updateKey]: true } };
+      }
+      const existingBinding = state.settings.bindings[id];
+      if (!existingBinding) {
+        return { isUpdating: { ...state.isUpdating, [updateKey]: true } };
+      }
+      return {
+        isUpdating: { ...state.isUpdating, [updateKey]: true },
+        settings: {
+          ...state.settings,
+          bindings: {
+            ...state.settings.bindings,
+            [id]: {
+              ...existingBinding,
+              current_binding: binding,
+            },
+          },
+        },
+      };
+    });
+
+    try {
+      await invoke("change_binding", { binding, id });
+    } catch (error) {
+      console.error(`Failed to update binding ${id}:`, error);
+
+      if (originalBinding && settings) {
+        set((state) => {
+          if (!state.settings) {
+            return {};
+          }
+          const existingBinding = state.settings.bindings[id];
+          if (!existingBinding) {
+            return {};
+          }
+          return {
+            settings: {
+              ...state.settings,
+              bindings: {
+                ...state.settings.bindings,
+                [id]: {
+                  ...existingBinding,
+                  current_binding: originalBinding,
+                },
+              },
+            },
+          };
+        });
+      }
+    } finally {
+      set((state) => ({ isUpdating: omitKey(state.isUpdating, updateKey) }));
+    }
+  },
+
+  updatePostProcessApiKey: async (providerId, apiKey) => {
+    set((state) => ({
+      postProcessModelOptions: {
+        ...state.postProcessModelOptions,
+        [providerId]: [],
+      },
+    }));
+    await get().updatePostProcessSetting("api_key", providerId, apiKey);
+  },
 
   updatePostProcessSetting: async (settingType, providerId, value) => {
     const updateKey = `post_process_${settingType}:${providerId}`;
@@ -504,94 +535,55 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     }
   },
 
-  updatePostProcessApiKey: async (providerId, apiKey) => {
-    set((state) => ({
-      postProcessModelOptions: {
-        ...state.postProcessModelOptions,
-        [providerId]: [],
-      },
-    }));
-    await get().updatePostProcessSetting("api_key", providerId, apiKey);
-  },
+  updateSetting: async (key, value) => {
+    const { settings } = get();
+    const updateKey = String(key);
+    const originalValue = settings?.[key];
 
-  fetchPostProcessModels: async (providerId) => {
-    const updateKey = `post_process_models_fetch:${providerId}`;
     set((state) => ({
       isUpdating: { ...state.isUpdating, [updateKey]: true },
+      settings: state.settings ? { ...state.settings, [key]: value } : null,
     }));
 
     try {
-      const models: string[] = await invoke("fetch_post_process_models", {
-        providerId,
-      });
-      set((state) => ({
-        postProcessModelOptions: {
-          ...state.postProcessModelOptions,
-          [providerId]: models,
-        },
-      }));
-      return models;
+      const wasUpdated = await runSettingUpdater(key, value);
+      if (!wasUpdated && key !== "bindings") {
+        console.warn(`No handler for setting: ${String(key)}`);
+      }
     } catch (error) {
-      console.error("Failed to fetch models:", error);
-      return [];
+      console.error(`Failed to update setting ${String(key)}:`, error);
+      if (settings) {
+        set((state) => ({
+          settings: state.settings
+            ? { ...state.settings, [key]: originalValue }
+            : null,
+        }));
+      }
     } finally {
       set((state) => ({ isUpdating: omitKey(state.isUpdating, updateKey) }));
     }
   },
-
-  checkModelToolSupport: async (providerId, model) => {
-    if (!model.trim()) {
-      return null;
-    }
-    const cacheKey = `${providerId}:${model}`;
-    try {
-      const result: boolean | null = await invoke("check_model_tool_support", {
-        providerId,
-        model,
-      });
-      set((state) => ({
-        modelToolSupport: { ...state.modelToolSupport, [cacheKey]: result },
-      }));
-      return result;
-    } catch {
-      return null;
-    }
-  },
-
-  playTestSound: async (soundType) => {
-    try {
-      await invoke("play_test_sound", { soundType });
-    } catch (error) {
-      console.error(`Failed to play test sound (${soundType}):`, error);
-    }
-  },
 }));
 
-// ---------------------------------------------------------------------------
-// Targeted selector hooks — subscribe to exactly one value to avoid
-// cascading re-renders across 30+ consumers.
-// ---------------------------------------------------------------------------
+// Selector hooks — single-value subscriptions avoid cascading re-renders across 30+ consumers.
 
-/** Subscribe to a single setting value. Only re-renders when that key changes. */
 export function useSetting<K extends keyof Settings>(
   key: K
 ): Settings[K] | undefined {
   return useSettingsStore((s) => s.settings?.[key]);
 }
 
-/** Subscribe to isUpdating for a specific key. */
 export function useIsSettingUpdating(key: string): boolean {
   return useSettingsStore((s) => Boolean(s.isUpdating[key]));
 }
 
-/** Stable action references — never triggers re-renders after mount. */
 export function useSettingsActions() {
   return useSettingsStore(
     useShallow((s) => ({
-      updateSetting: s.updateSetting,
+      resetBinding: s.resetBinding,
       resetSetting: s.resetSetting,
       updateBinding: s.updateBinding,
-      resetBinding: s.resetBinding,
+      updateSetting: s.updateSetting,
     }))
   );
 }

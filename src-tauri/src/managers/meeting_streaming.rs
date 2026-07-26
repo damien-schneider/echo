@@ -1,17 +1,4 @@
-//! Realtime streaming transcription worker for an in-progress meeting.
-//!
-//! Glue between the live audio capture (mic + optional system audio) and
-//! [`crate::managers::streaming::StreamingPipeline`]. A single dedicated
-//! thread drains an mpsc channel, coalesces all available audio chunks
-//! between decodes (so a slow decode never lets the queue grow unboundedly),
-//! drives one pipeline per audio source, calls into the
-//! [`TranscriptionManager`] for each model decode, and emits Tauri events the
-//! frontend can render as interim/final segments.
-//!
-//! Shutdown is signalled both via a `Cmd::Shutdown` message AND an
-//! `AtomicBool` flag — the flag lets us short-circuit any already-queued
-//! audio so `stop_meeting` doesn't have to wait for a multi-minute backlog
-//! to drain through whisper before returning.
+//! Realtime streaming worker per meeting; coalesces audio between decodes. AtomicBool shutdown short-circuits backlog.
 
 use log::{debug, error, info, warn};
 use serde::Serialize;
@@ -19,41 +6,32 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::thread;
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
+
+/// Upper bound on how long [`StreamingWorkerHandle::stop`] waits for the worker
+/// to exit. Mirrors the dictation worker: a single in-flight whisper FFI decode
+/// is non-cancellable (the shutdown flag is only observed *between* batches), so
+/// past this budget we detach the thread instead of blocking the async stop path.
+const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 
 use super::streaming::{PipelineEvent, StreamingConfig, StreamingPipeline};
 use super::transcription::TranscriptionManager;
 use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
 use crate::managers::cleanup_apply::cleanup_or_filter;
+use crate::managers::model::transcription_profile_id;
 use crate::settings;
 use tauri::Manager as _;
 
-/// Energy threshold below which a frame is considered silence. Calibrated
-/// against typical USB-mic self-noise floor (~ -40 dBFS) — anything quieter
-/// is almost certainly room tone, not speech. Set too low (eg. 0.005), and
-/// whisper.cpp starts hallucinating its training-distribution attractor
-/// strings ("Thank you for watching", "Sous-titres Amara.org", …) on every
-/// idle decode.
+/// USB-mic noise floor (~-40 dBFS); below this whisper.cpp hallucinates YouTube attractors.
 pub(crate) const SILENCE_RMS_THRESHOLD: f32 = 0.01;
 
-/// Strings that whisper.cpp produces on near-silent or noise-only audio.
-/// They originate from YouTube auto-captions in its training set and act as
-/// powerful attractors: identical hallucinations can appear across several
-/// consecutive decodes, which means LA-2 will happily commit them as
-/// "agreed" speech. Filtering them at the model boundary is far simpler than
-/// trying to detect them via probability heuristics that aren't surfaced by
-/// the transcribe-rs API.
-///
-/// Match is performed on a normalized (lowercase, ascii-punctuation stripped,
-/// whitespace-collapsed) version of the decoded text. Exact-match only so
-/// real meeting utterances like "Thanks for joining everyone" don't get
-/// nuked.
+/// Filters whisper attractor strings (YouTube auto-captions) — LA-2 would commit them as "agreed".
 pub fn is_whisper_hallucination(text: &str) -> bool {
     let normalized = normalize_for_hallucination_check(text);
     matches!(
         normalized.as_str(),
-        ""
-            | "thank you"
+        "" | "thank you"
             | "thanks"
             | "thank you very much"
             | "thanks for watching"
@@ -81,21 +59,14 @@ pub fn is_whisper_hallucination(text: &str) -> bool {
 
 fn normalize_for_hallucination_check(text: &str) -> String {
     let lowered = text.trim().to_lowercase();
-    // Replace punctuation with spaces (not just delete it) so hyphenated /
-    // bracketed phrases collapse to clean word boundaries — e.g. "Sous-titres"
-    // → "sous titres", "[Music]" → " music ".
+    // Punct→space so "Sous-titres"→"sous titres", "[Music]"→" music ".
     let spaced: String = lowered
         .chars()
         .map(|c| {
             if c.is_ascii_punctuation()
                 || matches!(
                     c,
-                    '…' | '«'
-                        | '»'
-                        | '\u{201C}'
-                        | '\u{201D}'
-                        | '\u{2018}'
-                        | '\u{2019}'
+                    '…' | '«' | '»' | '\u{201C}' | '\u{201D}' | '\u{2018}' | '\u{2019}'
                 )
             {
                 ' '
@@ -132,58 +103,37 @@ struct FinalEvent {
     end_ms: u64,
 }
 
-/// Commands accepted by the worker thread.
 pub(crate) enum Cmd {
     Audio {
         source: StreamingSource,
         samples: Vec<f32>,
     },
-    /// Cleanly drain pipelines and exit. Used in addition to the AtomicBool
-    /// shutdown flag — the flag protects against slow-decode latency, while
-    /// the message wakes a `recv()` that's blocked on an empty queue.
+    /// Wakes recv on empty queue (AtomicBool alone won't unblock recv).
     Shutdown,
 }
 
-/// The shareable handle: cheap to clone (just an mpsc::Sender + a shutdown
-/// flag). All forwarder threads hold a clone so they can `push_audio`. The
-/// lifecycle (worker thread JoinHandle) is owned separately by
-/// [`StreamingWorkerHandle`].
 pub struct StreamingWorker {
     cmd_tx: mpsc::Sender<Cmd>,
     shutdown_flag: Arc<AtomicBool>,
 }
 
-/// Owns the worker thread join handle; consumed on stop.
 pub struct StreamingWorkerHandle {
     cmd_tx: mpsc::Sender<Cmd>,
     shutdown_flag: Arc<AtomicBool>,
     join: Option<thread::JoinHandle<()>>,
-    transcription_manager: Arc<TranscriptionManager>,
 }
 
 impl StreamingWorker {
-    /// Spawn the worker. Loads the realtime model (per
-    /// `settings.realtime_model`) into the transcription manager's streaming
-    /// engine slot before returning, so the very first decode doesn't pay
-    /// the model-load cost. Returns an `Arc<StreamingWorker>` for forwarders
-    /// to share + a `StreamingWorkerHandle` to be retained by the caller for
-    /// later orderly shutdown.
+    /// Loads `settings.realtime_model` before return so first decode skips load cost.
     pub fn spawn(
         app_handle: AppHandle,
         meeting_id: i64,
         transcription_manager: Arc<TranscriptionManager>,
     ) -> std::io::Result<(Arc<Self>, StreamingWorkerHandle)> {
-        let realtime_model = settings::get_settings(&app_handle).realtime_model;
-        if realtime_model.is_empty() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "no realtime_model configured",
-            ));
-        }
+        let model_size = settings::get_settings(&app_handle).transcription_model_size;
+        let realtime_model = transcription_profile_id(model_size).to_string();
         if let Err(e) = transcription_manager.load_streaming_model(&realtime_model) {
-            // Fall back to the main engine via keepalive — the worker will
-            // still function, just slower with whatever the user's main
-            // model is.
+            // Falls back to main engine via keepalive (slower).
             warn!(
                 "Failed to load realtime model '{realtime_model}', falling back to main engine: {e:#}"
             );
@@ -194,10 +144,6 @@ impl StreamingWorker {
         let shutdown_flag = Arc::new(AtomicBool::new(false));
         let tm_for_thread = transcription_manager.clone();
         let shutdown_flag_for_thread = shutdown_flag.clone();
-        // Pin the main model loaded across decodes (suppress Immediately
-        // unload) — keeps the fallback path snappy if the streaming engine
-        // failed to load.
-        transcription_manager.acquire_keepalive();
         let join = thread::Builder::new()
             .name(format!("meeting-streaming-{meeting_id}"))
             .spawn(move || {
@@ -224,41 +170,49 @@ impl StreamingWorker {
             cmd_tx,
             shutdown_flag,
             join: Some(join),
-            transcription_manager,
         };
         Ok((worker, handle))
     }
 
-    /// Forward an audio chunk (16 kHz mono f32) to the worker. Drops on send
-    /// failure (worker has exited) and is a no-op after shutdown.
+    /// 16 kHz mono f32. No-op after shutdown.
     pub fn push_audio(&self, source: StreamingSource, samples: Vec<f32>) {
         if samples.is_empty() || self.shutdown_flag.load(Ordering::Relaxed) {
             return;
         }
-        if self.cmd_tx.send(Cmd::Audio { source, samples }).is_err() {
-            // Worker has shut down — nothing to do.
-        }
+        let _ = self.cmd_tx.send(Cmd::Audio { source, samples });
     }
 }
 
 impl StreamingWorkerHandle {
-    /// Signal the worker to exit, then join its thread. Idempotent. Does
-    /// NOT wait for queued audio to be decoded — the flag short-circuits the
-    /// worker's main loop so this returns within one in-flight decode at
-    /// worst.
+    /// Bounded stop: the worker only checks `shutdown_flag` *between* decode
+    /// batches, so a single in-flight whisper FFI decode is non-cancellable.
+    /// Rather than block the caller (and the async meeting-stop path) on an
+    /// unbounded `h.join()`, poll for [`WORKER_JOIN_BUDGET`] then detach. The
+    /// orphan exits on its own once the FFI returns — but it still holds the
+    /// streaming engine, so we must NOT unload the model on the detach path or
+    /// the orphan would decode against a torn-down engine.
     pub fn stop(mut self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
-        // Send Shutdown to wake the worker if it's blocked on an empty
-        // queue. send() may fail if the worker already exited — that's fine.
         let _ = self.cmd_tx.send(Cmd::Shutdown);
+        let mut joined = true;
         if let Some(h) = self.join.take() {
-            if let Err(e) = h.join() {
-                warn!("streaming worker thread panicked: {e:?}");
+            let deadline = Instant::now() + WORKER_JOIN_BUDGET;
+            while !h.is_finished() && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(25));
+            }
+            if h.is_finished() {
+                if let Err(e) = h.join() {
+                    warn!("streaming worker thread panicked: {e:?}");
+                }
+            } else {
+                joined = false;
+                warn!(
+                    "meeting streaming worker still in FFI decode after {:?} — detaching",
+                    WORKER_JOIN_BUDGET
+                );
             }
         }
-        self.transcription_manager.release_keepalive();
-        self.transcription_manager.unload_streaming_model();
-        debug!("streaming worker stopped + joined");
+        debug!("streaming worker stopped (joined={joined})");
     }
 }
 
@@ -270,16 +224,7 @@ pub(crate) fn rms(samples: &[f32]) -> f32 {
     (sum_sq / samples.len() as f32).sqrt()
 }
 
-/// Drain all currently-available commands into per-source audio buffers + a
-/// shutdown flag. Blocks (`recv`) for the first command if the queue is
-/// empty; afterwards uses `try_recv` to coalesce anything the worker fell
-/// behind on while it was decoding.
-///
-/// Returns `(mic_buf, sys_buf, shutdown)` where:
-///  - `mic_buf` / `sys_buf` are all audio chunks for that source, concatenated
-///  - `shutdown` is true if a `Cmd::Shutdown` was seen OR the channel closed
-///
-/// Pure modulo the `mpsc::Receiver`, so easy to unit-test with a fake channel.
+/// Blocks for first cmd, then try_recv coalesces backlog. Returns (mic, sys, shutdown).
 pub(crate) fn drain_commands(cmd_rx: &mpsc::Receiver<Cmd>) -> (Vec<f32>, Vec<f32>, bool) {
     let mut mic = Vec::new();
     let mut sys = Vec::new();
@@ -336,10 +281,7 @@ fn run_worker(
     let mut sys_chunks = 0usize;
     let mut decode_errs = 0usize;
     let mut decode_oks = 0usize;
-    // Cleanup state lookup is best-effort: if it's not registered (e.g. in a
-    // unit-test harness that doesn't construct the full Tauri app), we
-    // fall back to None and the helper short-circuits to the
-    // hallucination filter.
+    // Best-effort; test harness falls back to hallucination filter only.
     let cleanup_state: Option<CleanupState> = app_handle
         .try_state::<CleanupState>()
         .map(|s| s.inner().clone());
@@ -348,9 +290,7 @@ fn run_worker(
         match transcription_manager.transcribe_for_streaming(samples.to_vec()) {
             Ok(text) => {
                 decode_oks += 1;
-                // Re-read settings each decode so toggling cleanup mid-meeting
-                // takes effect immediately (the read is cheap and serialised
-                // through SETTINGS_LOCK).
+                // Re-read so mid-meeting cleanup toggle takes effect.
                 let settings_snapshot = settings::get_settings(&app_handle_for_decode);
                 let cleaned = if let Some(state) = cleanup_state.as_ref() {
                     cleanup_or_filter(&text, state, &settings_snapshot, || {
@@ -377,9 +317,7 @@ fn run_worker(
     };
 
     loop {
-        // Re-check the shutdown flag both before AND after draining commands
-        // — the flag is the only thing that can short-circuit a backlog
-        // accumulated during a slow decode.
+        // Double-check brackets drain so slow-decode backlog short-circuits.
         if shutdown_flag.load(Ordering::Relaxed) {
             break;
         }
@@ -402,10 +340,7 @@ fn run_worker(
         }
     }
 
-    // Intentionally skip the final flush: on stop the batch transcription
-    // pass kicks in and produces canonical segments. Flushing here would
-    // burn one more multi-second decode AND emit duplicate text the frontend
-    // would have to dedupe against the batch output.
+    // Skip final flush: batch pass produces canonical segments; flush would dup + waste decode.
 
     info!(
         "streaming worker meeting={meeting_id} exiting (mic_chunks={mic_chunks} sys_chunks={sys_chunks} decode_ok={decode_oks} decode_err={decode_errs})"
@@ -489,22 +424,17 @@ mod tests {
 
     #[test]
     fn rms_quiet_speech_just_above_threshold() {
-        // Conversational speech at -35 dBFS = ~0.018 amplitude. Should clear
-        // the threshold comfortably without dragging room tone (~ -45 dBFS)
-        // along with it.
+        // -35 dBFS conversational speech.
         let s = vec![0.018f32; 1000];
         assert!(rms(&s) > SILENCE_RMS_THRESHOLD);
     }
 
     #[test]
     fn rms_room_tone_filtered_out() {
-        // Typical USB-mic self-noise / quiet room: -45 dBFS ≈ 0.0056.
-        // Must NOT be classified as speech — otherwise whisper hallucinates.
+        // -45 dBFS USB-mic noise floor — else whisper hallucinates.
         let s = vec![0.0056f32; 1000];
         assert!(rms(&s) < SILENCE_RMS_THRESHOLD);
     }
-
-    // ── is_whisper_hallucination ───────────────────────────────────────────
 
     #[test]
     fn hallucination_matches_thank_you_variants() {
@@ -535,8 +465,7 @@ mod tests {
 
     #[test]
     fn hallucination_does_not_match_real_speech() {
-        // Substrings of attractor phrases inside real sentences must NOT
-        // be dropped.
+        // Substrings of attractors inside real sentences must NOT match.
         assert!(!is_whisper_hallucination(
             "Thanks for joining the call everyone, let's get started"
         ));
@@ -556,16 +485,17 @@ mod tests {
 
     #[test]
     fn rms_alternating_signal() {
-        // Square wave: rms = peak amplitude. Tolerate f32 accumulation error
-        // across 1000 adds.
+        // Square wave RMS = peak; tolerate f32 accumulation drift.
         let mut s = Vec::with_capacity(1000);
         for i in 0..1000 {
-            s.push(if (i as usize).is_multiple_of(2) { 0.2 } else { -0.2 });
+            s.push(if (i as usize).is_multiple_of(2) {
+                0.2
+            } else {
+                -0.2
+            });
         }
         assert!((rms(&s) - 0.2).abs() < 1e-3);
     }
-
-    // ── drain_commands ─────────────────────────────────────────────────────
 
     #[test]
     fn drain_commands_returns_shutdown_when_disconnected() {
@@ -617,8 +547,7 @@ mod tests {
         .unwrap();
         let (mic, _sys, sd) = drain_commands(&rx);
         assert!(sd, "shutdown should be reported even mid-backlog");
-        // We still surface ALL drained audio — the worker decides whether to
-        // process it. (Currently it skips because shutdown is set.)
+        // Surface all drained audio; worker decides whether to process.
         assert_eq!(mic.len(), 8);
     }
 

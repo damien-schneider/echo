@@ -1,4 +1,3 @@
-import type React from "react";
 import { cn } from "@/lib/utils";
 
 export interface ProgressData {
@@ -9,24 +8,28 @@ export interface ProgressData {
 }
 
 interface ProgressBarProps {
+  ariaLabel?: string;
   className?: string;
+  fullWidth?: boolean;
   progress: ProgressData[];
   showLabel?: boolean;
   showSpeed?: boolean;
   size?: "small" | "medium" | "large";
 }
 
-const ProgressBar: React.FC<ProgressBarProps> = ({
+const ProgressBar = ({
+  ariaLabel,
   progress,
   className = "",
+  fullWidth = false,
   size = "medium",
   showSpeed = false,
   showLabel = false,
-}) => {
+}: ProgressBarProps) => {
   const sizeClasses = {
-    small: "w-16 h-1",
-    medium: "w-20 h-1.5",
     large: "w-24 h-2",
+    medium: "w-20 h-1.5",
+    small: "w-16 h-1",
   };
 
   const progressClasses = sizeClasses[size];
@@ -36,7 +39,6 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
   }
 
   if (progress.length === 1) {
-    // Single progress bar
     const item = progress[0];
     if (!item) {
       return null;
@@ -44,10 +46,18 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     const percentage = Math.max(0, Math.min(100, item.percentage));
 
     return (
-      <div className={cn("flex items-center gap-3", className)}>
+      <div
+        className={cn(
+          "flex items-center gap-3",
+          fullWidth && "w-full",
+          className
+        )}
+      >
         <progress
+          aria-label={ariaLabel}
           className={cn(
             progressClasses,
+            fullWidth && "min-w-0 flex-1",
             "[&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-muted/20 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-brand"
           )}
           max={100}
@@ -70,7 +80,6 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     );
   }
 
-  // Multiple progress bars
   return (
     <div className={cn("flex items-center gap-2", className)}>
       <div className="flex gap-1">
@@ -78,6 +87,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
           const percentage = Math.max(0, Math.min(100, item.percentage));
           return (
             <progress
+              aria-label={ariaLabel}
               className="h-1.5 w-3 [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-muted/20 [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-brand"
               key={item.id}
               max={100}

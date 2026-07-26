@@ -39,7 +39,6 @@ export function TtsSettings() {
 
   return (
     <div className="space-y-6">
-      {/* Enable/Disable TTS */}
       <div className="rounded-lg border border-border/40 bg-card px-4 py-3">
         <div className="flex items-center justify-between gap-3">
           <div className="space-y-1">
@@ -57,7 +56,6 @@ export function TtsSettings() {
 
       {isEnabled && (
         <div className="space-y-4">
-          {/* System TTS Info */}
           <div className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/50 px-4 py-3">
             <Volume2 className="h-5 w-5 text-muted-foreground" />
             <div className="space-y-1">
@@ -69,7 +67,6 @@ export function TtsSettings() {
             </div>
           </div>
 
-          {/* Preview Section */}
           <div className="rounded-lg border border-border/40 bg-card px-4 py-3">
             <div className="space-y-3">
               <p className="font-medium text-sm">Preview</p>
@@ -107,7 +104,6 @@ export function TtsSettings() {
             </div>
           </div>
 
-          {/* Success Message */}
           {successMessage && (
             <div className="rounded-lg border border-green-500/20 bg-green-500/10 px-4 py-3">
               <div className="flex items-center gap-2">
@@ -119,7 +115,6 @@ export function TtsSettings() {
             </div>
           )}
 
-          {/* Error Message */}
           {errorMessage && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
               <div className="flex items-center gap-2">

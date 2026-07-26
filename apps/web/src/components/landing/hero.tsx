@@ -100,8 +100,8 @@ const FRAG = `
 
 function ShaderBackground({ isActive }: { isActive: boolean }) {
   const uniforms = {
-    u_time: { value: 0 },
     u_resolution: { value: new Vector3(1, 1, 1) },
+    u_time: { value: 0 },
   };
 
   return (
@@ -110,10 +110,10 @@ function ShaderBackground({ isActive }: { isActive: boolean }) {
       dpr={1}
       frameloop="demand"
       gl={{
-        powerPreference: "high-performance",
         antialias: false,
-        stencil: false,
         depth: false,
+        powerPreference: "high-performance",
+        stencil: false,
       }}
     >
       <ShaderPlane
@@ -143,10 +143,10 @@ function WaveBar({ index }: { index: number }) {
       animate={{ height: [`${minH}%`, `${maxH}%`, `${minH}%`] }}
       className="w-[3px] rounded-full bg-white/60"
       transition={{
-        duration: dur,
-        repeat: Number.POSITIVE_INFINITY,
-        ease: "easeInOut",
         delay: del,
+        duration: dur,
+        ease: "easeInOut",
+        repeat: Number.POSITIVE_INFINITY,
       }}
     />
   );
@@ -157,10 +157,10 @@ function WaveBar({ index }: { index: number }) {
 function HeroNotch() {
   return (
     <motion.div
-      animate={{ y: 0, opacity: 1, scale: 1 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
       className="relative mx-auto"
-      initial={{ y: -60, opacity: 0, scale: 0.92 }}
-      transition={{ duration: 1, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, scale: 0.92, y: -60 }}
+      transition={{ delay: 0.15, duration: 1, ease: [0.22, 1, 0.36, 1] }}
     >
       <div
         className="relative mx-auto flex items-center gap-[3px] overflow-hidden rounded-[24px] bg-black/80 px-8 py-4 shadow-[0_0_100px_rgba(200,150,100,0.05)] backdrop-blur-xl"
@@ -188,8 +188,8 @@ function HeroNotch() {
             }}
             transition={{
               duration: 3.5,
-              repeat: Number.POSITIVE_INFINITY,
               ease: "easeInOut",
+              repeat: Number.POSITIVE_INFINITY,
             }}
           />
         </div>
@@ -232,7 +232,7 @@ export default function Hero() {
           animate={{ opacity: 1, y: 0 }}
           className="mt-12 text-[11px] text-white/25 uppercase tracking-[0.3em]"
           initial={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
+          transition={{ delay: 0.7, duration: 0.5 }}
         >
           Free &amp; open source speech-to-text
           {version && (
@@ -242,12 +242,12 @@ export default function Hero() {
 
         {/* Main headline */}
         <motion.h1
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
           className="mt-6 text-center"
-          initial={{ opacity: 0, y: 36, filter: "blur(10px)" }}
+          initial={{ filter: "blur(10px)", opacity: 0, y: 36 }}
           transition={{
-            duration: 1.1,
             delay: 0.9,
+            duration: 1.1,
             ease: [0.22, 1, 0.36, 1],
           }}
         >
@@ -261,10 +261,10 @@ export default function Hero() {
 
         {/* Description */}
         <motion.p
-          animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+          animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
           className="mt-8 max-w-md text-center text-[15px]/7 text-white/35"
-          initial={{ opacity: 0, y: 14, filter: "blur(6px)" }}
-          transition={{ duration: 0.7, delay: 1.3, ease: "easeOut" }}
+          initial={{ filter: "blur(6px)", opacity: 0, y: 14 }}
+          transition={{ delay: 1.3, duration: 0.7, ease: "easeOut" }}
         >
           Press a shortcut. Speak naturally. Text appears where your cursor
           is&nbsp;&mdash; transcribed by on&#8209;device AI that never phones
@@ -276,7 +276,7 @@ export default function Hero() {
           animate={{ opacity: 1, y: 0 }}
           className="mt-10 flex flex-col items-center gap-5"
           initial={{ opacity: 0, y: 14 }}
-          transition={{ duration: 0.6, delay: 1.6, ease: "easeOut" }}
+          transition={{ delay: 1.6, duration: 0.6, ease: "easeOut" }}
         >
           <a
             className="cursor-pointer rounded-full border border-white/15 bg-white px-8 py-3.5 font-bold font-display text-black text-sm tracking-tight transition-all duration-300 hover:shadow-[0_0_50px_rgba(255,255,255,0.1)] active:scale-[0.98]"

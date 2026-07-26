@@ -49,26 +49,26 @@ import {
 
 const VOICE_COMMANDS = [
   {
+    example: '"Open Safari"',
     icon: AppWindow,
     name: "Open Application",
-    example: '"Open Safari"',
   },
   {
+    example: '"Create a note called grocery list with milk and eggs"',
     icon: FileText,
     name: "Create Note",
-    example: '"Create a note called grocery list with milk and eggs"',
   },
   {
+    example: '"Change the sound theme"',
     icon: Music,
     name: "Change Sound Theme",
-    example: '"Change the sound theme"',
   },
 ] as const;
 
 const ToolSupportBadge = ({
   toolSupport,
 }: {
-  /** `true` = supported, `false` = not supported, `null` = unknown */
+  // true=supported, false=no, null=unknown.
   toolSupport: boolean | null;
 }) => {
   if (toolSupport === true) {
@@ -159,7 +159,7 @@ const VoiceCommandsToggle = () => {
 const ToolCallingSection = ({
   toolSupport,
 }: {
-  /** `true` = supported, `false` = not supported, `null` = unknown */
+  // true=supported, false=no, null=unknown.
   toolSupport: boolean | null;
 }) => {
   const voiceCommandsEnabled = useSetting("voice_commands_enabled") ?? true;
@@ -281,19 +281,16 @@ const PostProcessingSettingsApiComponent = () => {
   const postProcessEnabled = useSetting("post_process_enabled") ?? false;
   const [localBaseUrl, setLocalBaseUrl] = useState(state.baseUrl);
 
-  // Sync local value when saved value changes (e.g., after reset or provider change)
   useEffect(() => {
     setLocalBaseUrl(state.baseUrl);
   }, [state.baseUrl]);
 
-  // Fetch models on mount
   useEffect(() => {
     if (state.enabled && state.selectedProviderId) {
       state.handleRefreshModels();
     }
   }, [state.enabled, state.handleRefreshModels, state.selectedProviderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Check if local value differs from default
   const isLocalBaseUrlModified =
     state.defaultBaseUrl !== undefined &&
     (localBaseUrl !== state.defaultBaseUrl || localBaseUrl === "");
@@ -414,7 +411,7 @@ const PostProcessingSettingsApiComponent = () => {
             disabled={state.isModelUpdating}
             isLoading={state.isFetchingModels}
             onBlur={() => {
-              /* intentionally empty */
+              // noop
             }}
             onCreate={state.handleModelCreate}
             onSelect={state.handleModelSelect}
@@ -497,7 +494,6 @@ const PostProcessingSettingsPromptsComponent = () => {
     selectedPrompt,
   ]);
 
-  // Focus input when entering edit mode
   useEffect(() => {
     if (isEditingName && nameInputRef.current) {
       nameInputRef.current.focus();

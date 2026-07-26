@@ -7,130 +7,130 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/wispr-flow")({
+  component: WisprFlowPage,
   head: () => ({
     meta: [
       {
         title: "Echo vs Wispr Flow — Private Offline Alternative to Wispr Flow",
       },
       {
-        name: "description",
         content:
           "Wispr Flow sends your audio to the cloud. Echo is a 100% offline, free, open-source alternative — your voice never leaves your device. No account required.",
+        name: "description",
       },
       {
-        property: "og:title",
         content:
           "Echo vs Wispr Flow — Private Offline Alternative to Wispr Flow",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Wispr Flow sends your audio to the cloud. Echo is a 100% offline, free, open-source alternative — your voice never leaves your device. No account required.",
+        property: "og:description",
       },
     ],
   }),
-  component: WisprFlowPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "Free (2,000 words/week) · $15/mo · $144/yr",
+    echo: "Free forever",
     echoPositive: true,
+    feature: "Price",
   },
   {
-    feature: "Audio Processing",
-    echo: "100% local — nothing leaves your device",
     competitor: "Cloud-based — audio sent to Wispr servers",
+    echo: "100% local — nothing leaves your device",
     echoPositive: true,
+    feature: "Audio Processing",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License — fully auditable",
     competitor: "Proprietary closed source",
+    echo: "MIT License — fully auditable",
     echoPositive: true,
+    feature: "Open Source",
   },
   {
-    feature: "Account Required",
-    echo: "Never",
     competitor: "Mandatory signup",
+    echo: "Never",
     echoPositive: true,
+    feature: "Account Required",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux",
     competitor: "macOS, Windows, iOS, Android",
+    echo: "macOS, Windows, Linux",
     echoPositive: false,
+    feature: "Platforms",
   },
   {
-    feature: "Global Shortcut / Auto-Paste",
-    echo: "Push-to-talk, pastes anywhere",
     competitor: "Yes — global shortcut auto-paste",
+    echo: "Push-to-talk, pastes anywhere",
     echoPositive: false,
+    feature: "Global Shortcut / Auto-Paste",
   },
   {
-    feature: "LLM Post-Processing",
-    echo: "Optional AI refinement",
     competitor: "AI smart cleanup (removes um/uh)",
+    echo: "Optional AI refinement",
     echoPositive: false,
+    feature: "LLM Post-Processing",
   },
   {
-    feature: "100+ Languages",
-    echo: "Yes — Whisper supports 100+",
     competitor: "Yes",
+    echo: "Yes — Whisper supports 100+",
     echoPositive: false,
+    feature: "100+ Languages",
   },
   {
-    feature: "Free Tier Limits",
-    echo: "Unlimited — no caps ever",
     competitor: "2,000 words/week limit on free plan",
+    echo: "Unlimited — no caps ever",
     echoPositive: true,
+    feature: "Free Tier Limits",
   },
   {
-    feature: "Data Sovereignty",
-    echo: "Your audio never touches a server",
     competitor: "Audio processed on Wispr servers",
+    echo: "Your audio never touches a server",
     echoPositive: true,
+    feature: "Data Sovereignty",
   },
   {
-    feature: "Mobile Apps",
-    echo: "Desktop only",
     competitor: "iOS and Android apps available",
+    echo: "Desktop only",
     echoPositive: false,
+    feature: "Mobile Apps",
   },
   {
-    feature: "Command Mode (edit by voice)",
-    echo: "Not available",
     competitor: "Yes — edit text by voice commands",
+    echo: "Not available",
     echoPositive: false,
+    feature: "Command Mode (edit by voice)",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "True Privacy — Zero Compromise",
     description:
       "Wispr Flow has SOC 2 Type II certification, but that doesn't change a fundamental fact: your audio travels to their servers. Echo processes everything locally using Whisper. What you say never leaves your machine — not even encrypted.",
     icon: "🔒",
+    title: "True Privacy — Zero Compromise",
   },
   {
-    title: "No Subscription, No Limits",
     description:
       "Wispr Flow's free tier caps you at 2,000 words per week. Echo has no limits of any kind. Use it all day, every day, forever — without paying $15/month or worrying about word counts.",
     icon: "∞",
+    title: "No Subscription, No Limits",
   },
   {
-    title: "Fully Open Source",
     description:
       "Wispr Flow raised $81M and is valued at $700M — meaning their business model depends on your data flowing through their infrastructure. Echo is MIT-licensed: the code is public and you can verify exactly how your audio is handled.",
     icon: "◎",
+    title: "Fully Open Source",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -204,7 +204,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -214,8 +214,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -332,7 +332,7 @@ function WisprFlowPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Ready to switch to truly private dictation?

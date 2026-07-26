@@ -240,12 +240,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
     // Watch for class/attribute changes on html and body elements
     observer.observe(document.documentElement, {
-      attributes: true,
       attributeFilter: ["class", "data-theme", "style"],
+      attributes: true,
     });
     observer.observe(document.body, {
-      attributes: true,
       attributeFilter: ["class", "data-theme", "style"],
+      attributes: true,
     });
 
     return () => observer.disconnect();

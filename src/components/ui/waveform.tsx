@@ -245,8 +245,8 @@ export const ScrollingWaveform = ({
         };
         while (currentX > -step) {
           barsRef.current.push({
-            x: currentX,
             height: 0.2 + seededRandom(index++) * 0.6,
+            x: currentX,
           });
           currentX -= step;
         }
@@ -321,8 +321,8 @@ export const ScrollingWaveform = ({
         }
 
         barsRef.current.push({
-          x: nextX,
           height: newHeight,
+          x: nextX,
         });
         if (barsRef.current.length > barCount * 2) {
           break;
@@ -607,22 +607,19 @@ export const MicrophoneWaveform = ({
         }
       };
     }
-    if (!(active || processing)) {
-      if (data.length > 0) {
-        let fadeProgress = 0;
-        const fadeToIdle = () => {
-          fadeProgress += 0.03;
-          if (fadeProgress < 1) {
-            const fadedData = data.map((value) => value * (1 - fadeProgress));
-            setData(fadedData);
-            requestAnimationFrame(fadeToIdle);
-          } else {
-            setData([]);
-          }
-        };
-        fadeToIdle();
-      }
-      return;
+    if (!(active || processing) && data.length > 0) {
+      let fadeProgress = 0;
+      const fadeToIdle = () => {
+        fadeProgress += 0.03;
+        if (fadeProgress < 1) {
+          const fadedData = data.map((value) => value * (1 - fadeProgress));
+          setData(fadedData);
+          requestAnimationFrame(fadeToIdle);
+        } else {
+          setData([]);
+        }
+      };
+      fadeToIdle();
     }
   }, [processing, active, data.length, data.map]);
 

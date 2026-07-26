@@ -7,129 +7,129 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/buzz")({
+  component: BuzzPage,
   head: () => ({
     meta: [
       {
         title: "Echo vs Buzz — Better Whisper GUI for Daily Dictation",
       },
       {
+        content:
+          "Buzz is great for file transcription. Echo adds global auto-paste dictation, VAD, and LLM post-processing for a true speak-and-it-types workflow. Both free and open source.",
         name: "description",
-        content:
-          "Buzz is great for file transcription. Echo adds global auto-paste dictation, VAD, and LLM post-processing for a true speak-and-it-types workflow. Both free and open source.",
       },
       {
-        property: "og:title",
         content: "Echo vs Buzz — Better Whisper GUI for Daily Dictation",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Buzz is great for file transcription. Echo adds global auto-paste dictation, VAD, and LLM post-processing for a true speak-and-it-types workflow. Both free and open source.",
+        property: "og:description",
       },
     ],
   }),
-  component: BuzzPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "Free forever",
+    echo: "Free forever",
     echoPositive: false,
+    feature: "Price",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License",
     competitor: "MIT License (github.com/chidiwilliams/buzz)",
+    echo: "MIT License",
     echoPositive: false,
+    feature: "Open Source",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux",
     competitor: "macOS, Windows, Linux",
+    echo: "macOS, Windows, Linux",
     echoPositive: false,
+    feature: "Platforms",
   },
   {
-    feature: "Account Required",
-    echo: "Never",
     competitor: "Never",
+    echo: "Never",
     echoPositive: false,
+    feature: "Account Required",
   },
   {
-    feature: "Global Shortcut + Auto-Paste",
-    echo: "Yes — speak and it types in any app",
     competitor: "Limited — no clean global dictation",
+    echo: "Yes — speak and it types in any app",
     echoPositive: true,
+    feature: "Global Shortcut + Auto-Paste",
   },
   {
-    feature: "Voice Activity Detection",
-    echo: "Yes — auto-detects speech",
     competitor: "Manual recording",
+    echo: "Yes — auto-detects speech",
     echoPositive: true,
+    feature: "Voice Activity Detection",
   },
   {
-    feature: "LLM Post-Processing",
-    echo: "Yes — optional AI refinement",
     competitor: "Not available",
+    echo: "Yes — optional AI refinement",
     echoPositive: true,
+    feature: "LLM Post-Processing",
   },
   {
-    feature: "Offline Processing",
-    echo: "100% local",
     competitor: "100% local (multiple backends)",
+    echo: "100% local",
     echoPositive: false,
+    feature: "Offline Processing",
   },
   {
-    feature: "Whisper Backends",
-    echo: "Whisper + Parakeet",
     competitor: "Whisper, whisper.cpp, faster-whisper, HuggingFace, OpenAI API",
+    echo: "Whisper + Parakeet",
     echoPositive: false,
+    feature: "Whisper Backends",
   },
   {
-    feature: "Language Support",
-    echo: "100+ languages via Whisper",
     competitor: "1000+ languages via Meta MMS models",
+    echo: "100+ languages via Whisper",
     echoPositive: false,
+    feature: "Language Support",
   },
   {
-    feature: "Export Formats",
-    echo: "Not available",
     competitor: "SRT, VTT, TXT, and more",
+    echo: "Not available",
     echoPositive: false,
+    feature: "Export Formats",
   },
   {
-    feature: "Batch File Processing",
-    echo: "Not available",
     competitor: "Yes",
+    echo: "Not available",
     echoPositive: false,
+    feature: "Batch File Processing",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "Designed for Daily Dictation",
     description:
       "Buzz is excellent for transcribing files — but the workflow Echo is built for is different: press shortcut, speak, it types directly into your email, code editor, or document. This 'speak and it types' flow is Echo's core purpose.",
     icon: "◈",
+    title: "Designed for Daily Dictation",
   },
   {
-    title: "Auto-Paste Into Any App",
     description:
       "Echo's global shortcut triggers dictation and automatically pastes the result into whatever app has focus. No copy-paste step, no switching windows. Buzz doesn't offer this out of the box.",
     icon: "⊕",
+    title: "Auto-Paste Into Any App",
   },
   {
-    title: "Voice Activity Detection + LLM",
     description:
       "Echo automatically detects when you start and stop speaking using VAD, then optionally passes your transcription through a local LLM to clean up punctuation and remove filler words. Buzz requires manual recording controls.",
     icon: "✦",
+    title: "Voice Activity Detection + LLM",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -205,7 +205,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -215,8 +215,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -336,7 +336,7 @@ function BuzzPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Ready to switch?

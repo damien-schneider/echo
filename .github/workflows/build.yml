@@ -501,12 +501,73 @@ jobs:
           # Disable AVX/AVX2 for Linux to ensure broad compatibility
           WHISPER_NO_AVX: ${{ contains(inputs.platform, 'ubuntu') && 'ON' || '' }}
           WHISPER_NO_AVX2: ${{ contains(inputs.platform, 'ubuntu') && 'ON' || '' }}
+          POLISH_RUNTIME_TARGET: ${{ inputs.target }}
         with:
           tagName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
           releaseName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}
           releaseId: ${{ inputs.release-id }}
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           args: ${{ inputs.build-args }}
+
+      - name: Verify Polish sidecar in macOS bundle
+        if: contains(inputs.platform, 'macos')
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=$(printf '%s\n' "src-tauri/target/${{ inputs.target }}/${{ steps.build-profile.outputs.profile }}/bundle/macos"/*.app | head -1)
+          SERVER=$(find "$APP" -path '*/Resources/resources/polish-runtime/llama-server' | head -1)
+          test -x "$SERVER"
+          file "$SERVER" | grep -q "${{ contains(inputs.target, 'aarch64') && 'arm64' || 'x86_64' }}"
+          codesign --verify --strict "$SERVER"
+
+      - name: Verify Polish sidecar in Linux bundles
+        if: contains(inputs.platform, 'ubuntu')
+        shell: bash
+        run: |
+          set -euo pipefail
+          FOUND=0
+          for DEB in src-tauri/target/${{ steps.build-profile.outputs.profile }}/bundle/deb/*.deb; do
+            if [ -f "$DEB" ]; then
+              dpkg-deb -c "$DEB" | grep -q 'resources/polish-runtime/llama-server'
+              FOUND=1
+            fi
+          done
+          for RPM in src-tauri/target/${{ steps.build-profile.outputs.profile }}/bundle/rpm/*.rpm; do
+            if [ -f "$RPM" ]; then
+              rpm -qlp "$RPM" | grep -q 'resources/polish-runtime/llama-server'
+              FOUND=1
+            fi
+          done
+          for APPIMAGE in src-tauri/target/${{ steps.build-profile.outputs.profile }}/bundle/appimage/*.AppImage; do
+            if [ -f "$APPIMAGE" ]; then
+              chmod +x "$APPIMAGE"
+              "$APPIMAGE" --appimage-extract >/dev/null
+              find squashfs-root -path '*/resources/polish-runtime/llama-server' -type f | grep -q .
+              rm -rf squashfs-root
+              FOUND=1
+            fi
+          done
+          test "$FOUND" -eq 1
+
+      - name: Verify Polish sidecar in Windows bundles
+        if: contains(inputs.platform, 'windows')
+        shell: pwsh
+        run: |
+          $profile = "${{ steps.build-profile.outputs.profile }}"
+          $target = "${{ inputs.target }}"
+          $base = if ($target -eq "x86_64-pc-windows-msvc") {
+            "src-tauri/target/$profile/bundle"
+          } else {
+            "src-tauri/target/$target/$profile/bundle"
+          }
+          $installers = Get-ChildItem $base -Recurse -Include *.msi,*.exe
+          if ($installers.Count -eq 0) { throw "No Windows installer found" }
+          foreach ($installer in $installers) {
+            $listing = & 7z l $installer.FullName | Out-String
+            if ($listing -notmatch "llama-server.exe") {
+              throw "Polish sidecar missing from $($installer.FullName)"
+            }
+          }
 
       - name: Upload artifacts (macOS)
         if: inputs.upload-artifacts && contains(inputs.platform, 'macos')

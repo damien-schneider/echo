@@ -8,13 +8,13 @@ export const Route = createFileRoute("/privacy")({
     meta: [
       { title: "Privacy Policy — Echo Speech-to-Text" },
       {
-        name: "description",
         content:
           "Echo's privacy policy. Echo processes all audio locally on your device. No data is ever sent to any server — your voice stays yours.",
+        name: "description",
       },
       {
-        name: "robots",
         content: "noindex, follow",
+        name: "robots",
       },
     ],
   }),

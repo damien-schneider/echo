@@ -9,7 +9,7 @@ interface DropdownOption {
   value: string;
 }
 
-/** `true` = supports tools, `false` = does not, `null` = unknown / checking */
+// true=supports, false=no, null=unknown/checking.
 export type ToolSupportStatus = boolean | null;
 
 interface PostProcessProviderState {
@@ -42,20 +42,17 @@ interface PostProcessProviderState {
 }
 
 export const usePostProcessProviderState = (): PostProcessProviderState => {
-  // Settings data
   const providers = useSetting("post_process_providers") ?? [];
   const selectedProviderIdSetting = useSetting("post_process_provider_id");
   const apiKeys = useSetting("post_process_api_keys");
   const models = useSetting("post_process_models");
 
-  // Store slices
   const postProcessModelOptions = useSettingsStore(
     (s) => s.postProcessModelOptions
   );
   const isUpdatingMap = useSettingsStore((s) => s.isUpdating);
   const modelToolSupport = useSettingsStore((s) => s.modelToolSupport);
 
-  // Actions (stable references)
   const setPostProcessProvider = useSettingsStore(
     (s) => s.setPostProcessProvider
   );
@@ -72,7 +69,6 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     (s) => s.checkModelToolSupport
   );
 
-  // Settings are guaranteed to have providers after migration
   const selectedProviderId =
     selectedProviderIdSetting || providers[0]?.id || "openai";
 
@@ -80,7 +76,6 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     providers.find((provider) => provider.id === selectedProviderId) ||
     providers[0];
 
-  // Use settings directly as single source of truth
   const baseUrl = selectedProvider?.base_url ?? "";
   const defaultBaseUrl = getDefaultBaseUrl(selectedProviderId);
   const isBaseUrlModified =
@@ -90,8 +85,8 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
   const model = models?.[selectedProviderId] ?? "";
 
   const providerOptions: DropdownOption[] = providers.map((provider) => ({
-    value: provider.id,
     label: provider.label,
+    value: provider.id,
   }));
 
   const handleProviderSelect = (providerId: string) => {
@@ -157,15 +152,13 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
         return;
       }
       seen.add(trimmed);
-      options.push({ value: trimmed, label: trimmed });
+      options.push({ label: trimmed, value: trimmed });
     };
 
-    // Add available models from API
     for (const candidate of availableModelsRaw) {
       upsert(candidate);
     }
 
-    // Ensure current model is in the list
     upsert(model);
 
     return options;
@@ -184,19 +177,17 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     isUpdatingMap[`post_process_models_fetch:${selectedProviderId}`]
   );
 
-  // Ollama and custom providers don't require API keys
+  // Ollama / custom: no API key required.
   const isCustomProvider = selectedProvider?.id === "custom";
   const isOllamaProvider = selectedProvider?.id === "ollama";
   const isLocalProvider = isCustomProvider || isOllamaProvider;
 
-  // Check tool support when provider or model changes
   useEffect(() => {
     if (selectedProviderId && model.trim()) {
       checkModelToolSupportAction(selectedProviderId, model);
     }
   }, [selectedProviderId, model, checkModelToolSupportAction]);
 
-  // Read cached tool support status
   const cacheKey = `${selectedProviderId}:${model}`;
   const toolSupport: ToolSupportStatus =
     model.trim() && cacheKey in modelToolSupport
@@ -204,31 +195,31 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
       : null;
 
   return {
-    enabled: true,
-    providerOptions,
-    selectedProviderId,
-    selectedProvider,
-    isCustomProvider,
-    isOllamaProvider,
-    isLocalProvider,
+    apiKey,
     baseUrl,
     defaultBaseUrl,
-    isBaseUrlModified,
+    enabled: true,
+    handleApiKeyChange,
     handleBaseUrlChange,
     handleBaseUrlReset,
-    isBaseUrlUpdating,
-    apiKey,
-    handleApiKeyChange,
-    isApiKeyUpdating,
-    model,
     handleModelChange,
-    modelOptions,
-    isModelUpdating,
-    isFetchingModels,
-    handleProviderSelect,
-    handleModelSelect,
     handleModelCreate,
+    handleModelSelect,
+    handleProviderSelect,
     handleRefreshModels,
+    isApiKeyUpdating,
+    isBaseUrlModified,
+    isBaseUrlUpdating,
+    isCustomProvider,
+    isFetchingModels,
+    isLocalProvider,
+    isModelUpdating,
+    isOllamaProvider,
+    model,
+    modelOptions,
+    providerOptions,
+    selectedProvider,
+    selectedProviderId,
     toolSupport,
   };
 };

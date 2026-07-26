@@ -25,10 +25,8 @@ interface DictionaryEditorProps {
   grouped?: boolean;
 }
 
-/** Matches one or more comma / newline separators between variants. */
 const VARIANT_SPLIT_REGEX = /[\n,]+/;
 
-/** Split a chip-style variant input ("a, b\nc") into deduped non-empty tokens. */
 const parseVariantsInput = (raw: string): string[] => {
   const seen = new Set<string>();
   return raw
@@ -43,7 +41,6 @@ const parseVariantsInput = (raw: string): string[] => {
     });
 };
 
-/** Type-guard for the JSON shape we accept on import. */
 const isValidImportShape = (value: unknown): value is DictionaryEntry[] => {
   if (!Array.isArray(value)) {
     return false;
@@ -181,7 +178,7 @@ export const DictionaryEditor = ({
         console.error("Invalid dictionary JSON shape");
         return;
       }
-      // Deduplicate by canonical (case-insensitive), keeping order.
+      // Dedupe by canonical, case-insensitive, preserve order.
       const seen = new Set<string>();
       const merged: DictionaryEntry[] = [];
       for (const entry of parsed) {

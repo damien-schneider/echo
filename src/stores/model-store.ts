@@ -1,376 +1,251 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { z } from "zod";
 import { create } from "zustand";
-import type { ModelInfo } from "@/lib/types";
+import {
+  clearDownloadFailure,
+  type DownloadProgress,
+  DownloadProgressSchema,
+  type DownloadStats,
+} from "@/features/model-download/download-state";
+import {
+  type TranscriptionModelSize,
+  type TranscriptionProfileStatus,
+  TranscriptionProfileStatusSchema,
+} from "@/lib/types";
 
 export type ModelStatus =
   | "ready"
   | "loading"
   | "downloading"
-  | "extracting"
   | "error"
   | "unloaded"
   | "none";
 
-interface ModelStateEvent {
-  error?: string;
-  event_type: string;
-  model_id?: string;
-  model_name?: string;
-}
+const ModelStateEventSchema = z.object({
+  error: z.string().optional(),
+  event_type: z.string(),
+  model_id: z.string().optional(),
+});
 
-interface DownloadProgress {
-  downloaded: number;
-  model_id: string;
-  percentage: number;
-  total: number;
-}
-
-interface DownloadStats {
-  lastUpdate: number;
-  speed: number;
-  startTime: number;
-  totalDownloaded: number;
-}
-
-const getStatusText = (
-  status: ModelStatus,
-  currentModel: ModelInfo | undefined,
-  modelError: string | null
-): string => {
-  switch (status) {
-    case "ready":
-      return currentModel?.name ?? "Model Ready";
-    case "loading":
-      return currentModel ? `Loading ${currentModel.name}...` : "Loading...";
-    case "extracting":
-      return currentModel
-        ? `Extracting ${currentModel.name}...`
-        : "Extracting...";
-    case "error":
-      return modelError ?? "Model Error";
-    case "unloaded":
-      return currentModel?.name ?? "Model Unloaded";
-    case "none":
-      return "No Model - Download Required";
-    default:
-      return currentModel?.name ?? "Model Unloaded";
-  }
-};
+const transcriptionModelIds = new Set(["small", "medium", "large"]);
 
 interface ModelStore {
-  currentModelId: string;
-  deleteModel: (modelId: string) => Promise<void>;
-  downloadModel: (modelId: string) => Promise<void>;
+  deleteProfile: (size: TranscriptionModelSize) => Promise<void>;
   downloadProgress: Map<string, DownloadProgress>;
   downloadStats: Map<string, DownloadStats>;
-  extractingModels: Set<string>;
-  getModelDisplayText: () => string;
+  error: string | null;
   initialize: () => Promise<void>;
-  loadCurrentModel: () => Promise<void>;
-
-  loadModels: () => Promise<void>;
-  modelError: string | null;
+  loadProfiles: () => Promise<void>;
   modelStatus: ModelStatus;
-  models: ModelInfo[];
-  selectModel: (modelId: string) => Promise<void>;
+  profiles: TranscriptionProfileStatus[];
+  selectProfile: (size: TranscriptionModelSize) => Promise<void>;
   setupListeners: () => Promise<() => void>;
 }
 
-export const useModelStore = create<ModelStore>((set, get) => ({
-  models: [],
-  currentModelId: "",
-  modelStatus: "unloaded",
-  modelError: null,
-  downloadProgress: new Map(),
-  downloadStats: new Map(),
-  extractingModels: new Set(),
+const loadProfilePayload = async () => {
+  const payload = await invoke<unknown>("get_transcription_profiles");
+  return TranscriptionProfileStatusSchema.array().parse(payload);
+};
 
-  loadModels: async () => {
+export const useModelStore = create<ModelStore>((set, get) => ({
+  deleteProfile: async (size) => {
+    set({ error: null });
     try {
-      const modelList = await invoke<ModelInfo[]>("get_available_models");
-      set({ models: modelList });
-    } catch (err) {
-      console.error("Failed to load models:", err);
+      await invoke("delete_model", { modelId: size });
+      await get().loadProfiles();
+    } catch (error) {
+      set({ error: `${error}` });
+      throw error;
     }
   },
+  downloadProgress: new Map(),
+  downloadStats: new Map(),
+  error: null,
 
-  loadCurrentModel: async () => {
+  initialize: async () => {
+    await get().loadProfiles();
     try {
-      const current = await invoke<string>("get_current_model");
-      set({ currentModelId: current });
-
-      if (current) {
-        const transcriptionStatus = await invoke<string | null>(
-          "get_transcription_model_status"
-        );
-        if (transcriptionStatus === current) {
-          set({ modelStatus: "ready" });
-        } else {
-          set({ modelStatus: "unloaded" });
-        }
-      } else {
+      const loadedModel = await invoke<string | null>(
+        "get_transcription_model_status"
+      );
+      const active = get().profiles.find((profile) => profile.is_active);
+      if (!active?.is_downloaded) {
         set({ modelStatus: "none" });
+      } else if (loadedModel === active.size) {
+        set({ modelStatus: "ready" });
+      } else {
+        set({ modelStatus: "unloaded" });
       }
-    } catch (err) {
-      console.error("Failed to load current model:", err);
+    } catch (error) {
       set({
+        error: `Failed to read transcription status: ${error}`,
         modelStatus: "error",
-        modelError: "Failed to check model status",
       });
     }
   },
 
-  selectModel: async (modelId) => {
+  loadProfiles: async () => {
     try {
-      set({ modelError: null });
-      await invoke("set_active_model", { modelId });
-      set({ currentModelId: modelId });
-    } catch (err) {
-      const errorMsg = `${err}`;
-      set({ modelError: errorMsg, modelStatus: "error" });
-      throw err;
+      const profiles = await loadProfilePayload();
+      set({ error: null, profiles });
+    } catch (error) {
+      set({ error: `Failed to load transcription profiles: ${error}` });
     }
   },
+  modelStatus: "unloaded",
+  profiles: [],
 
-  downloadModel: async (modelId) => {
+  selectProfile: async (size) => {
+    const profile = get().profiles.find((candidate) => candidate.size === size);
+    set({
+      error: null,
+      modelStatus: profile?.is_downloaded ? "loading" : "downloading",
+    });
     try {
-      set({ modelError: null });
-      await invoke("download_model", { modelId });
-    } catch (err) {
-      const errorMsg = `${err}`;
-      set({ modelError: errorMsg, modelStatus: "error" });
-      throw err;
+      await invoke("select_transcription_model_size", { size });
+      await get().loadProfiles();
+      set({ modelStatus: "ready" });
+    } catch (error) {
+      set((state) => {
+        const cleared = clearDownloadFailure({
+          modelId: size,
+          progress: state.downloadProgress,
+          stats: state.downloadStats,
+        });
+        return {
+          downloadProgress: cleared.progress,
+          downloadStats: cleared.stats,
+          error: `${error}`,
+          modelStatus: "error",
+        };
+      });
+      throw error;
     }
-  },
-
-  deleteModel: async (modelId) => {
-    try {
-      await invoke("delete_model", { modelId });
-      set({ modelError: null });
-      const modelList = await invoke<ModelInfo[]>("get_available_models");
-      set({ models: modelList });
-    } catch (err) {
-      const errorMsg = `${err}`;
-      set({ modelError: errorMsg });
-      throw err;
-    }
-  },
-
-  initialize: async () => {
-    const { loadModels, loadCurrentModel } = get();
-    await Promise.all([loadModels(), loadCurrentModel()]);
   },
 
   setupListeners: async () => {
     const listeners: UnlistenFn[] = [];
 
-    const modelStateUnlisten = await listen<ModelStateEvent>(
-      "model-state-changed",
-      (event) => {
-        const { event_type, model_id, error } = event.payload;
-
-        switch (event_type) {
+    listeners.push(
+      await listen<unknown>("model-state-changed", (event) => {
+        const parsed = ModelStateEventSchema.safeParse(event.payload);
+        if (!parsed.success) {
+          return;
+        }
+        switch (parsed.data.event_type) {
           case "loading_started":
-            set({ modelStatus: "loading", modelError: null });
+            set({ error: null, modelStatus: "loading" });
             break;
           case "loading_completed":
-            set({
-              modelStatus: "ready",
-              modelError: null,
-              ...(model_id ? { currentModelId: model_id } : {}),
-            });
+            set({ error: null, modelStatus: "ready" });
             break;
           case "loading_failed":
             set({
+              error: parsed.data.error ?? "Failed to load transcription model",
               modelStatus: "error",
-              modelError: error ?? "Failed to load model",
             });
             break;
           case "unloaded":
-            set({ modelStatus: "unloaded", modelError: null });
+            set({ error: null, modelStatus: "unloaded" });
             break;
           default:
             break;
         }
-      }
+      })
     );
-    listeners.push(modelStateUnlisten);
 
-    const downloadProgressUnlisten = await listen<DownloadProgress>(
-      "model-download-progress",
-      (event) => {
-        const progress = event.payload;
+    listeners.push(
+      await listen<unknown>("model-download-progress", (event) => {
+        const parsed = DownloadProgressSchema.safeParse(event.payload);
+        if (!parsed.success) {
+          return;
+        }
+        const progress = parsed.data;
+        if (!transcriptionModelIds.has(progress.model_id)) {
+          return;
+        }
         const now = Date.now();
-
-        // Single set() call for both progress and stats to avoid double renders
         set((state) => {
-          const newProgress = new Map(state.downloadProgress);
-          newProgress.set(progress.model_id, progress);
-
-          const current = state.downloadStats.get(progress.model_id);
-
-          // Only copy stats map when we actually need to update it
-          if (!current) {
-            const newStats = new Map(state.downloadStats);
-            newStats.set(progress.model_id, {
-              startTime: now,
+          const downloadProgress = new Map(state.downloadProgress);
+          downloadProgress.set(progress.model_id, progress);
+          const downloadStats = new Map(state.downloadStats);
+          const current = downloadStats.get(progress.model_id);
+          if (current) {
+            const elapsedSeconds = (now - current.lastUpdate) / 1000;
+            if (elapsedSeconds > 0.5) {
+              const instantSpeed =
+                (progress.downloaded - current.totalDownloaded) /
+                (1024 * 1024) /
+                elapsedSeconds;
+              downloadStats.set(progress.model_id, {
+                lastUpdate: now,
+                speed:
+                  current.speed > 0
+                    ? current.speed * 0.8 + Math.max(0, instantSpeed) * 0.2
+                    : Math.max(0, instantSpeed),
+                totalDownloaded: progress.downloaded,
+              });
+            }
+          } else {
+            downloadStats.set(progress.model_id, {
               lastUpdate: now,
-              totalDownloaded: progress.downloaded,
               speed: 0,
-            });
-            return {
-              downloadProgress: newProgress,
-              downloadStats: newStats,
-              modelStatus: "downloading" as const,
-            };
-          }
-
-          const timeDiff = (now - current.lastUpdate) / 1000;
-          if (timeDiff > 0.5) {
-            const bytesDiff = progress.downloaded - current.totalDownloaded;
-            const currentSpeed = bytesDiff / (1024 * 1024) / timeDiff;
-            const validCurrentSpeed = Math.max(0, currentSpeed);
-            const smoothedSpeed =
-              current.speed > 0
-                ? current.speed * 0.8 + validCurrentSpeed * 0.2
-                : validCurrentSpeed;
-
-            const newStats = new Map(state.downloadStats);
-            newStats.set(progress.model_id, {
-              startTime: current.startTime,
-              lastUpdate: now,
               totalDownloaded: progress.downloaded,
-              speed: Math.max(0, smoothedSpeed),
             });
-            return {
-              downloadProgress: newProgress,
-              downloadStats: newStats,
-              modelStatus: "downloading" as const,
-            };
           }
-
-          // Stats unchanged — don't copy the map
           return {
-            downloadProgress: newProgress,
-            modelStatus: "downloading" as const,
+            downloadProgress,
+            downloadStats,
+            modelStatus: "downloading",
           };
         });
-      }
+      })
     );
-    listeners.push(downloadProgressUnlisten);
 
-    const downloadCompleteUnlisten = await listen<string>(
-      "model-download-complete",
-      async (event) => {
-        const modelId = event.payload;
+    listeners.push(
+      await listen<string>("model-download-complete", async (event) => {
+        if (!transcriptionModelIds.has(event.payload)) {
+          return;
+        }
         set((state) => {
-          const newProgress = new Map(state.downloadProgress);
-          newProgress.delete(modelId);
-          const newStats = new Map(state.downloadStats);
-          newStats.delete(modelId);
-          return { downloadProgress: newProgress, downloadStats: newStats };
+          const downloadProgress = new Map(state.downloadProgress);
+          downloadProgress.delete(event.payload);
+          const downloadStats = new Map(state.downloadStats);
+          downloadStats.delete(event.payload);
+          return { downloadProgress, downloadStats };
         });
-
-        await get().loadModels();
-        setTimeout(async () => {
-          await get().loadCurrentModel();
-          await get().selectModel(modelId);
-        }, 500);
-      }
+        await get().loadProfiles();
+      })
     );
-    listeners.push(downloadCompleteUnlisten);
 
-    const extractionStartedUnlisten = await listen<string>(
-      "model-extraction-started",
-      (event) => {
-        const modelId = event.payload;
-        set((state) => ({
-          extractingModels: new Set(state.extractingModels).add(modelId),
-          modelStatus: "extracting",
-        }));
-      }
-    );
-    listeners.push(extractionStartedUnlisten);
-
-    const extractionCompletedUnlisten = await listen<string>(
-      "model-extraction-completed",
-      async (event) => {
-        const modelId = event.payload;
+    listeners.push(
+      await listen<unknown>("model-download-failed", (event) => {
+        const parsed = z.string().safeParse(event.payload);
+        if (!(parsed.success && transcriptionModelIds.has(parsed.data))) {
+          return;
+        }
         set((state) => {
-          const next = new Set(state.extractingModels);
-          next.delete(modelId);
-          return { extractingModels: next };
+          const cleared = clearDownloadFailure({
+            modelId: parsed.data,
+            progress: state.downloadProgress,
+            stats: state.downloadStats,
+          });
+          return {
+            downloadProgress: cleared.progress,
+            downloadStats: cleared.stats,
+            error:
+              "The model download failed. Check your connection and retry.",
+            modelStatus: "error",
+          };
         });
-
-        await get().loadModels();
-        setTimeout(async () => {
-          await get().loadCurrentModel();
-          await get().selectModel(modelId);
-        }, 500);
-      }
+      })
     );
-    listeners.push(extractionCompletedUnlisten);
-
-    const extractionFailedUnlisten = await listen<{
-      model_id: string;
-      error: string;
-    }>("model-extraction-failed", (event) => {
-      const modelId = event.payload.model_id;
-      set((state) => {
-        const next = new Set(state.extractingModels);
-        next.delete(modelId);
-        return {
-          extractingModels: next,
-          modelError: `Failed to extract model: ${event.payload.error}`,
-          modelStatus: "error" as const,
-        };
-      });
-    });
-    listeners.push(extractionFailedUnlisten);
 
     return () => {
       for (const unlisten of listeners) {
         unlisten();
       }
     };
-  },
-
-  getModelDisplayText: () => {
-    const {
-      extractingModels,
-      downloadProgress,
-      modelStatus,
-      currentModelId,
-      modelError,
-      models,
-    } = get();
-
-    if (extractingModels.size > 0) {
-      if (extractingModels.size === 1) {
-        const [modelId] = Array.from(extractingModels);
-        const model = models.find((m) => m.id === modelId);
-        return `Extracting ${model?.name ?? "Model"}...`;
-      }
-      return `Extracting ${extractingModels.size} models...`;
-    }
-
-    if (downloadProgress.size > 0) {
-      if (downloadProgress.size === 1) {
-        const progress = Array.from(downloadProgress.values())[0];
-        if (!progress) {
-          return "Downloading...";
-        }
-        const percentage = Math.max(
-          0,
-          Math.min(100, Math.round(progress.percentage))
-        );
-        return `Downloading ${percentage}%`;
-      }
-      return `Downloading ${downloadProgress.size} models...`;
-    }
-
-    const currentModel = models.find((m) => m.id === currentModelId);
-    return getStatusText(modelStatus, currentModel, modelError);
   },
 }));

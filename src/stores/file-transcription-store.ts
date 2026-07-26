@@ -21,19 +21,18 @@ interface FileTranscriptionStore {
 
 export const useFileTranscriptionStore = create<FileTranscriptionStore>(
   (set) => ({
-    items: [],
-
     addItem: (item) => {
       set((state) => ({ items: [...state.items, item] }));
     },
 
-    updateItem: (id, updates) => {
+    clearCompleted: () => {
       set((state) => ({
-        items: state.items.map((item) =>
-          item.id === id ? { ...item, ...updates } : item
+        items: state.items.filter(
+          (item) => item.status !== "complete" && item.status !== "error"
         ),
       }));
     },
+    items: [],
 
     removeItem: (id) => {
       set((state) => ({
@@ -41,10 +40,10 @@ export const useFileTranscriptionStore = create<FileTranscriptionStore>(
       }));
     },
 
-    clearCompleted: () => {
+    updateItem: (id, updates) => {
       set((state) => ({
-        items: state.items.filter(
-          (item) => item.status !== "complete" && item.status !== "error"
+        items: state.items.map((item) =>
+          item.id === id ? { ...item, ...updates } : item
         ),
       }));
     },

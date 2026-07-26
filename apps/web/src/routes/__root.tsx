@@ -15,22 +15,11 @@ const schemaOrg = JSON.stringify({
   "@graph": [
     {
       "@type": "SoftwareApplication",
-      name: "Echo",
-      url: SITE_URL,
       applicationCategory: "UtilitiesApplication",
-      operatingSystem: ["macOS", "Windows", "Linux"],
-      offers: {
-        "@type": "Offer",
-        price: "0",
-        priceCurrency: "USD",
-      },
+      applicationSubCategory: "Speech Recognition",
       description:
         "Echo is a free, private, offline speech-to-text application powered by OpenAI Whisper and Parakeet AI models. Transcribe your voice locally — no data ever leaves your device.",
       downloadUrl: "https://github.com/damien-schneider/Echo/releases/latest",
-      license: "https://opensource.org/licenses/MIT",
-      applicationSubCategory: "Speech Recognition",
-      keywords:
-        "speech to text, voice transcription, offline, private, whisper, parakeet, AI dictation, open source",
       featureList: [
         "100% offline processing — no cloud required",
         "OpenAI Whisper model support (100+ languages)",
@@ -41,104 +30,115 @@ const schemaOrg = JSON.stringify({
         "AI post-processing with LLM refinement",
         "Free and open source (MIT license)",
       ],
+      keywords:
+        "speech to text, voice transcription, offline, private, whisper, parakeet, AI dictation, open source",
+      license: "https://opensource.org/licenses/MIT",
+      name: "Echo",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "USD",
+      },
+      operatingSystem: ["macOS", "Windows", "Linux"],
       softwareHelp: {
         "@type": "CreativeWork",
         url: "https://github.com/damien-schneider/Echo",
       },
+      url: SITE_URL,
     },
     {
       "@type": "Organization",
-      name: "Echo",
-      url: SITE_URL,
       logo: `${SITE_URL}/logo192.png`,
+      name: "Echo",
       sameAs: ["https://github.com/damien-schneider/Echo", SITE_URL],
+      url: SITE_URL,
     },
   ],
 });
 
 export const Route = createRootRoute({
   head: () => ({
+    links: [
+      ...(SITE_URL ? [{ href: SITE_URL, rel: "canonical" }] : []),
+      {
+        href: "https://fonts.googleapis.com",
+        rel: "preconnect",
+      },
+      {
+        crossOrigin: "anonymous",
+        href: "https://fonts.gstatic.com",
+        rel: "preconnect",
+      },
+      {
+        href: "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@400;500;600;700;800&display=swap",
+        rel: "stylesheet",
+      },
+      {
+        href: appCss,
+        rel: "stylesheet",
+      },
+    ],
     meta: [
       {
         charSet: "utf-8",
       },
       {
-        name: "viewport",
         content: "width=device-width, initial-scale=1",
+        name: "viewport",
       },
       {
         title: "Echo — Free, Private, Offline Speech-to-Text App",
       },
       {
-        name: "description",
         content:
           "Echo is a free, open-source speech-to-text app powered by Whisper AI. Transcribe voice locally on macOS, Windows, and Linux — 100% private, no internet required.",
+        name: "description",
       },
       {
-        name: "keywords",
         content:
           "speech to text, offline dictation, voice transcription, whisper AI, private speech recognition, local transcription, open source dictation, macOS dictation, Windows dictation",
+        name: "keywords",
       },
       // OpenGraph meta tags
       {
-        property: "og:site_name",
         content: "Echo",
+        property: "og:site_name",
       },
       {
-        property: "og:title",
         content: "Echo — Free, Private, Offline Speech-to-Text App",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Free, open-source speech-to-text powered by Whisper AI. 100% offline — your voice never leaves your device. Available for macOS, Windows, and Linux.",
+        property: "og:description",
       },
       {
-        property: "og:image",
         content: `${SITE_URL}/opengraph-image.png`,
+        property: "og:image",
       },
-      ...(SITE_URL ? [{ property: "og:url", content: SITE_URL }] : []),
+      ...(SITE_URL ? [{ content: SITE_URL, property: "og:url" }] : []),
       {
-        property: "og:type",
         content: "website",
+        property: "og:type",
       },
       // Twitter Card meta tags
       {
-        name: "twitter:card",
         content: "summary_large_image",
+        name: "twitter:card",
       },
       {
-        name: "twitter:title",
         content: "Echo — Free, Private, Offline Speech-to-Text App",
+        name: "twitter:title",
       },
       {
-        name: "twitter:description",
         content:
           "Free, open-source speech-to-text powered by Whisper AI. 100% offline — your voice never leaves your device. Available for macOS, Windows, and Linux.",
+        name: "twitter:description",
       },
       {
-        name: "twitter:image",
         content: "/opengraph-image.png",
-      },
-    ],
-    links: [
-      ...(SITE_URL ? [{ rel: "canonical", href: SITE_URL }] : []),
-      {
-        rel: "preconnect",
-        href: "https://fonts.googleapis.com",
-      },
-      {
-        rel: "preconnect",
-        href: "https://fonts.gstatic.com",
-        crossOrigin: "anonymous",
-      },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Syne:wght@400;500;600;700;800&display=swap",
-      },
-      {
-        rel: "stylesheet",
-        href: appCss,
+        name: "twitter:image",
       },
     ],
   }),

@@ -28,25 +28,21 @@ pub struct DiarizationManager {
 
 impl DiarizationManager {
     pub fn new(_app_handle: &AppHandle, model_manager: Arc<ModelManager>) -> Result<Self> {
-        Ok(Self {
-            model_manager,
-        })
+        Ok(Self { model_manager })
     }
 
     /// Check if the diarization model is downloaded and ready.
     pub fn is_available(&self) -> bool {
-        self.model_manager.get_model_path(DIARIZATION_MODEL_ID).is_ok()
+        self.model_manager
+            .get_model_path(DIARIZATION_MODEL_ID)
+            .is_ok()
     }
 
     /// Run speaker diarization on 16kHz mono f32 samples.
     ///
     /// `threshold` is preserved for API compatibility but not used by Sortformer
     /// (Sortformer is end-to-end and does not expose a clustering threshold).
-    pub fn diarize(
-        &self,
-        samples: &[f32],
-        _threshold: f32,
-    ) -> Result<Vec<DiarizationSegment>> {
+    pub fn diarize(&self, samples: &[f32], _threshold: f32) -> Result<Vec<DiarizationSegment>> {
         let model_dir = self
             .model_manager
             .get_model_path(DIARIZATION_MODEL_ID)
@@ -66,12 +62,10 @@ impl DiarizationManager {
         // Loaded fresh per call. Acceptable because diarize() runs once at
         // meeting end. If we ever stream live diarization, cache the instance
         // on DiarizationManager.
-        let mut sortformer = Sortformer::with_config(
-            &model_path,
-            None,
-            DiarizationConfig::callhome(),
-        )
-        .map_err(|e| anyhow::anyhow!("Failed to load Sortformer from {:?}: {}", model_path, e))?;
+        let mut sortformer =
+            Sortformer::with_config(&model_path, None, DiarizationConfig::callhome()).map_err(
+                |e| anyhow::anyhow!("Failed to load Sortformer from {:?}: {}", model_path, e),
+            )?;
 
         // Sortformer expects 16 kHz mono. Channels=1 since DiarizationManager's
         // caller (meeting.rs:450) already downmixes to mono before this point.
@@ -269,11 +263,7 @@ mod tests {
 
     #[test]
     fn merge_preserves_speaker_ids() {
-        let input = [
-            seg(0, 1000, 42),
-            seg(1000, 2000, 42),
-            seg(2000, 3000, 99),
-        ];
+        let input = [seg(0, 1000, 42), seg(1000, 2000, 42), seg(2000, 3000, 99)];
         let result = DiarizationManager::merge_consecutive(&input, 30_000);
         assert_eq!(result[0].speaker_id, 42);
         assert_eq!(result[1].speaker_id, 99);
@@ -282,9 +272,8 @@ mod tests {
     #[test]
     fn merge_many_same_speaker_splits_at_max() {
         // 10 segments of 5s each = 50s total, max 15s
-        let input: Vec<DiarizationSegment> = (0..10)
-            .map(|i| seg(i * 5000, (i + 1) * 5000, 0))
-            .collect();
+        let input: Vec<DiarizationSegment> =
+            (0..10).map(|i| seg(i * 5000, (i + 1) * 5000, 0)).collect();
         let result = DiarizationManager::merge_consecutive(&input, 15_000);
         // Each merged segment should be at most 15s
         for s in &result {

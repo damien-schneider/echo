@@ -1,9 +1,9 @@
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { UpdateIndicator } from "@/features/updates/update-indicator";
 import { getNormalizedOsPlatform } from "@/lib/os";
 import { cn } from "@/lib/utils";
-import UpdateChecker from "./update-checker/update-checker";
 
 const isMacOS = getNormalizedOsPlatform() === "mac";
 
@@ -23,7 +23,7 @@ export function AppHeader() {
         isMacOS ? "right-2" : "left-2"
       )}
     >
-      <UpdateChecker />
+      <UpdateIndicator />
       {version && (
         <Badge
           className="rounded-full border-0 bg-secondary text-muted-foreground"

@@ -14,11 +14,11 @@ import {
 } from "@/stores/settings-store";
 
 const LOG_LEVEL_OPTIONS = [
-  { value: "1", label: "Error" },
-  { value: "2", label: "Warn" },
-  { value: "3", label: "Info" },
-  { value: "4", label: "Debug" },
-  { value: "5", label: "Trace" },
+  { label: "Error", value: "1" },
+  { label: "Warn", value: "2" },
+  { label: "Info", value: "3" },
+  { label: "Debug", value: "4" },
+  { label: "Trace", value: "5" },
 ];
 
 interface LogLevelSelectorProps {

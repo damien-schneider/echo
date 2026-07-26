@@ -7,6 +7,7 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/dragon")({
+  component: DragonPage,
   head: () => ({
     meta: [
       {
@@ -14,124 +15,123 @@ export const Route = createFileRoute("/vs/dragon")({
           "Echo vs Dragon Dictate — Free Open-Source Alternative to Dragon",
       },
       {
-        name: "description",
         content:
           "Dragon Dictate costs $699 and only works on Windows. Echo is free, works on macOS, Windows, and Linux, and uses modern AI that matches Dragon's accuracy.",
+        name: "description",
       },
       {
-        property: "og:title",
         content:
           "Echo vs Dragon Dictate — Free Open-Source Alternative to Dragon",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Dragon Dictate costs $699 and only works on Windows. Echo is free, works on macOS, Windows, and Linux, and uses modern AI that matches Dragon's accuracy.",
+        property: "og:description",
       },
     ],
   }),
-  component: DragonPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "$699 (Professional) · $799 (Legal)",
+    echo: "Free forever",
     echoPositive: true,
+    feature: "Price",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux",
     competitor: "Windows only (Mac support discontinued 2018)",
+    echo: "macOS, Windows, Linux",
     echoPositive: true,
+    feature: "Platforms",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License — fully auditable",
     competitor: "Proprietary closed source",
+    echo: "MIT License — fully auditable",
     echoPositive: true,
+    feature: "Open Source",
   },
   {
-    feature: "Account / Activation",
-    echo: "Never required",
     competitor: "License activation required",
+    echo: "Never required",
     echoPositive: true,
+    feature: "Account / Activation",
   },
   {
-    feature: "Offline Processing",
-    echo: "100% local — always offline",
     competitor: "Yes — local processing",
+    echo: "100% local — always offline",
     echoPositive: false,
+    feature: "Offline Processing",
   },
   {
-    feature: "Speech Model",
-    echo: "OpenAI Whisper + Parakeet (modern AI)",
     competitor: "Nuance proprietary model (30+ years)",
+    echo: "OpenAI Whisper + Parakeet (modern AI)",
     echoPositive: true,
+    feature: "Speech Model",
   },
   {
-    feature: "Apple Silicon (M1/M2/M3)",
-    echo: "Fully supported",
     competitor: "Incompatible — discontinued on macOS",
+    echo: "Fully supported",
     echoPositive: true,
+    feature: "Apple Silicon (M1/M2/M3)",
   },
   {
-    feature: "Global Shortcut / Auto-Paste",
-    echo: "Yes — push-to-talk, pastes anywhere",
     competitor: "Yes — deep OS integration",
+    echo: "Yes — push-to-talk, pastes anywhere",
     echoPositive: false,
+    feature: "Global Shortcut / Auto-Paste",
   },
   {
-    feature: "OS-Level Voice Control",
-    echo: "Dictation only",
     competitor: "Full computer control by voice",
+    echo: "Dictation only",
     echoPositive: false,
+    feature: "OS-Level Voice Control",
   },
   {
-    feature: "Legal / Medical Vocabulary",
-    echo: "General + LLM post-processing",
     competitor: "Specialized domain vocabulary",
+    echo: "General + LLM post-processing",
     echoPositive: false,
+    feature: "Legal / Medical Vocabulary",
   },
   {
-    feature: "Accent Adaptation",
-    echo: "Whisper handles diverse accents well",
     competitor: "Adapts to your voice over time",
+    echo: "Whisper handles diverse accents well",
     echoPositive: false,
+    feature: "Accent Adaptation",
   },
   {
-    feature: "100+ Languages",
-    echo: "Yes — Whisper supports 100+",
     competitor: "Limited language selection",
+    echo: "Yes — Whisper supports 100+",
     echoPositive: true,
+    feature: "100+ Languages",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "Modern AI vs. Legacy Software",
     description:
       "Dragon is 30+ years old and uses a proprietary acoustic model. Echo uses OpenAI Whisper — a transformer trained on 680,000 hours of audio from the internet. On most general dictation tasks, Whisper's accuracy matches or exceeds Dragon at zero cost.",
     icon: "◈",
+    title: "Modern AI vs. Legacy Software",
   },
   {
-    title: "Works on macOS and Linux",
     description:
       "Dragon dropped macOS support in 2018 and is incompatible with Apple Silicon entirely. If you use a Mac — especially any M1, M2, or M3 machine — Dragon is simply not an option. Echo runs natively on all platforms.",
     icon: "⊕",
+    title: "Works on macOS and Linux",
   },
   {
-    title: "$699 vs. Free",
     description:
       "Dragon Professional costs $699. Dragon Legal costs $799. Echo costs nothing, has no activation, no subscription, and no license key. The savings alone could buy a year of cloud storage, a new keyboard, or simply stay in your pocket.",
     icon: "∞",
+    title: "$699 vs. Free",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -205,7 +205,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -215,8 +215,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -332,7 +332,7 @@ function DragonPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Ready to switch?

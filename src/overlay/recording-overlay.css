@@ -1,120 +1,460 @@
-/* ── Notch overlay animations ─────────────────────────────────────── */
+.recording-overlay-root {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  isolation: isolate;
+}
 
-@keyframes notch-slide-in {
-  from {
-    scale: 0.6 0.8;
-    opacity: 0;
-    filter: blur(8px);
-  }
+.echo-island-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  width: 0;
+  height: 0;
+  translate: var(--echo-window-x) var(--echo-window-y);
+}
+
+.echo-island {
+  position: relative;
+  color: white;
+  pointer-events: auto;
+  background: rgba(5, 5, 5, 0.97);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  transform-origin: center;
+  scale: 1;
+  transition:
+    background-color 160ms ease-out,
+    box-shadow 160ms ease-out,
+    scale 180ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.echo-island[data-dragging="true"] {
+  background: rgba(9, 9, 9, 0.94);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
+    0 0 0 3px rgba(255, 255, 255, 0.07);
+  scale: 0.985;
+}
+
+.recording-overlay-root[data-anchor="top"] .echo-island-resident {
+  transform-origin: top center;
+}
+
+.recording-overlay-root[data-anchor="bottom"] .echo-island-resident {
+  transform-origin: bottom center;
+}
+
+.recording-overlay-root[data-anchor="left"] .echo-island-resident {
+  transform-origin: center left;
+}
+
+.recording-overlay-root[data-anchor="right"] .echo-island-resident {
+  transform-origin: center right;
+}
+
+.echo-island-resident {
+  position: relative;
+  width: 128px;
+  height: 40px;
+  contain: layout paint;
+  color: white;
+  pointer-events: auto;
+}
+
+/* One size: a side dock already shows every action, so it never grows. */
+.echo-island-resident[data-orientation="vertical"] {
+  width: 32px;
+  height: 104px;
+}
+
+.echo-island-resident[data-expanded="false"] {
+  pointer-events: none;
+}
+
+.echo-island-resident-shell {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: transparent;
+  transition: none;
+}
+
+.echo-island-handle-hitbox {
+  position: fixed;
+  z-index: 10;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.echo-island-handle-hitbox:hover {
+  background: transparent;
+}
+
+/* Keeps the pointer over the trigger while the island shrinks under it. */
+.echo-island-handle-hitbox[data-motion="closing"] {
+  padding: 20px;
+  margin: -20px;
+}
+
+.echo-island-handle-hitbox:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 2px;
+}
+
+.echo-island-resident-actions {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  scale: 1;
+  translate: 0 0;
+  transition:
+    opacity 120ms ease-out,
+    scale 140ms cubic-bezier(0.25, 1, 0.5, 1),
+    translate 140ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.echo-island-resident[data-orientation="horizontal"]
+  .echo-island-resident-actions {
+  translate: 11px 0;
+}
+
+.echo-island-resident[data-orientation="vertical"]
+  .echo-island-resident-actions {
+  translate: 0 11px;
+}
+
+.echo-island-dock-grip {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  color: rgb(255, 255, 255);
+  pointer-events: auto;
+  cursor: grab;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  opacity: 0.5;
+  transition:
+    top 180ms cubic-bezier(0.25, 1, 0.5, 1),
+    left 180ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.echo-island-resident[data-orientation="vertical"] .echo-island-dock-grip {
+  top: 8px;
+  left: 6px;
+}
+
+.echo-island-resident[data-orientation="horizontal"] .echo-island-dock-grip {
+  top: 10px;
+  left: 19px;
+}
+.echo-island-dock-grip-icon {
+  width: 12px;
+  height: 12px;
+  pointer-events: none;
+  stroke-width: 2;
+}
+
+.echo-island-resident[data-orientation="horizontal"]
+  .echo-island-dock-grip-icon {
+  rotate: 90deg;
+}
+
+.echo-island-dock-grip:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.72);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+
+.recording-overlay-root[data-dragging="true"] .echo-island-dock-grip {
+  cursor: grabbing;
+  opacity: 0.9;
+}
+
+/* The lifted island is what the pointer holds, not a live toolbar. */
+.recording-overlay-root[data-dragging="true"] .echo-island-resident-actions {
+  opacity: 0.62;
+  scale: 0.97;
+}
+
+.echo-island-action-toolbar {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  width: 66px;
+  height: 20px;
+}
+
+.echo-island-action-toolbar[data-orientation="vertical"] {
+  flex-direction: column;
+  width: 20px;
+  height: 66px;
+}
+
+.echo-island-action-item {
+  display: block;
+  width: 20px;
+  height: 20px;
+  line-height: 0;
+}
+
+.echo-island .echo-island-action {
+  border-radius: 6px;
+  transition:
+    transform 100ms cubic-bezier(0.25, 1, 0.5, 1),
+    color 100ms ease-out,
+    background-color 100ms ease-out;
+}
+
+.echo-island-action:hover {
+  color: white;
+  background-color: rgba(255, 255, 255, 0.12);
+  transform: scale(1.03);
+}
+
+.echo-island-action:active {
+  transform: translateY(0) scale(0.92);
+  transition-duration: 70ms;
+}
+
+.echo-island-activity {
+  position: relative;
+  width: 310px;
+  min-height: 76px;
+  padding: 10px 12px 12px;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.echo-island-activity[data-decoration="microphone"] {
+  width: 176px;
+  min-height: 48px;
+  padding: 0;
+}
+
+.echo-island-activity[data-decoration="microphone"][data-has-text="true"] {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  width: 310px;
+  min-height: 52px;
+  padding: 0;
+}
+
+.echo-island-activity[data-decoration="microphone"][data-has-text="true"]
+  output {
+  flex: 1;
+  order: -1;
+  width: auto;
+  min-width: 0;
+}
+
+.echo-island-activity[data-decoration="microphone"][data-has-text="true"]
+  :is(.echo-island-activity-dismiss, .echo-island-activity-submit) {
+  position: static;
+  flex: none;
+}
+
+.echo-island-activity[data-decoration="microphone"][data-has-text="true"]
+  .echo-island-activity-dismiss {
+  order: 1;
+}
+
+.echo-island-activity[data-decoration="microphone"]
+  :is(.echo-island-activity-dismiss, .echo-island-activity-submit) {
+  top: 10px;
+}
+
+.echo-island-activity output {
+  display: block;
+  width: 100%;
+}
+
+.echo-island-activity-dismiss {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 4;
+  opacity: 0.78;
+  transition:
+    color 120ms ease-out,
+    background-color 120ms ease-out,
+    opacity 120ms ease-out;
+}
+
+.echo-island-activity-dismiss:hover {
+  opacity: 1;
+}
+
+.echo-island-activity-submit {
+  position: absolute;
+  top: 12px;
+  right: 42px;
+  z-index: 4;
+}
+
+@property --echo-microphone-orbit-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 12deg;
+}
+
+@keyframes echo-microphone-orbit {
   to {
-    scale: 1 1;
-    opacity: 1;
-    filter: blur(0px);
+    --echo-microphone-orbit-angle: 372deg;
   }
 }
 
-@keyframes notch-slide-out {
-  from {
-    scale: 1 1;
-    opacity: 1;
-    filter: blur(0px);
-  }
-  to {
-    scale: 0.6 0.8;
-    opacity: 0;
-    filter: blur(8px);
-  }
+.echo-island-microphone-ambience {
+  --echo-mic-energy: 0;
+  --echo-mic-peak: 0;
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--echo-microphone-orbit-angle),
+    transparent 0deg 42deg,
+    rgba(101, 135, 213, 0.42) 68deg,
+    rgba(222, 232, 255, 0.9) 92deg,
+    transparent 132deg 224deg,
+    rgba(255, 190, 218, 0.34) 258deg,
+    rgba(216, 230, 255, 0.72) 288deg,
+    transparent 330deg 360deg
+  );
+  border-radius: inherit;
+  opacity: calc(0.22 + var(--echo-mic-energy) * 0.66);
+  filter: saturate(1.08);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  scale: calc(0.99 + var(--echo-mic-energy) * 0.02);
+  transition:
+    opacity 75ms linear,
+    scale 90ms cubic-bezier(0.25, 1, 0.5, 1);
+  animation: echo-microphone-orbit 7.2s linear infinite;
+  will-change: scale, opacity;
 }
 
-.notch-show {
-  animation: notch-slide-in 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+.echo-island-panel {
+  position: relative;
+  width: 360px;
+  padding: 16px;
+  color: white;
+  background: transparent;
+  border-radius: inherit;
 }
 
-.notch-hide {
-  animation: notch-slide-out 300ms cubic-bezier(0.5, 0, 0.75, 0) both;
+.echo-island-chat {
+  width: min(620px, calc(100vw - 16px));
+  max-height: calc(100vh - 8px);
+  overflow: hidden;
+  border-radius: inherit;
 }
 
-/* ── Notch transcribing state animations ─────────────────────────── */
-
-@keyframes notch-breathing {
-  0%,
-  100% {
-    background-color: #000;
-  }
-  50% {
-    background-color: #141414;
-  }
-}
-
-.notch-breathing {
-  animation: notch-breathing 2s ease-in-out infinite;
+.notch-transcript-text-overflowing {
+  -webkit-mask-image: -webkit-linear-gradient(
+    left,
+    transparent,
+    black 10px,
+    black calc(100% - 10px),
+    transparent
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 10px,
+    black calc(100% - 10px),
+    transparent
+  );
 }
 
 @keyframes notch-progress-sweep {
-  0% {
+  from {
     translate: -100% 0;
   }
-  50% {
+  to {
     translate: 100% 0;
-  }
-  100% {
-    translate: -100% 0;
   }
 }
 
 .notch-progress-line {
   position: absolute;
+  right: 0;
   bottom: 0;
   left: 0;
-  width: 100%;
-  height: 1.5px;
+  height: 1px;
   overflow: hidden;
-  border-radius: 0 0 24px 24px;
 }
 
 .notch-progress-line::after {
   display: block;
-  width: 100%;
+  width: 60%;
   height: 100%;
   content: "";
   background: linear-gradient(
     90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.6) 50%,
-    transparent 100%
+    transparent,
+    rgba(255, 255, 255, 0.72),
+    transparent
   );
-  animation: notch-progress-sweep 2.4s ease-in-out infinite;
+  animation: notch-progress-sweep 1.4s ease-in-out infinite;
 }
 
-/* ── Bar processing pulse (staggered via animation-delay) ────────── */
-
-@keyframes notch-bar-pulse {
-  0%,
-  100% {
-    height: 20%;
-    opacity: 0.3;
-  }
-  50% {
-    height: 55%;
-    opacity: 0.6;
-  }
+.echo-island-progress progress::-webkit-progress-bar {
+  background: rgba(255, 255, 255, 0.12);
 }
 
-.notch-bar-pulse {
-  animation: notch-bar-pulse 1.2s ease-in-out infinite;
+.echo-island-progress progress::-webkit-progress-value {
+  background: rgba(255, 255, 255, 0.92);
 }
 
-/* ── Utility styles ──────────────────────────────────────────────── */
-
-/* Hide scrollbar for streaming text */
 .scrollbar-hide {
   -ms-overflow-style: none;
-  /* IE and Edge */
   scrollbar-width: none;
-  /* Firefox */
 }
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
-  /* Chrome, Safari and Opera */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-island,
+  .echo-island-activity-dismiss,
+  .echo-island-dock-grip,
+  .echo-island-resident,
+  .echo-island-microphone-ambience,
+  .echo-island-resident-actions,
+  .notch-progress-line::after {
+    transition: none;
+    animation: none;
+  }
+
+  .echo-island-microphone-ambience {
+    --echo-microphone-orbit-angle: 34deg;
+  }
+
+  .echo-island-action {
+    transition: none;
+    animation: none;
+  }
 }

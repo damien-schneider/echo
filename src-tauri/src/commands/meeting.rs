@@ -1,7 +1,9 @@
 //! Tauri command handlers for meeting transcription.
 
 use crate::managers::export;
-use crate::managers::meeting::{ExportFormat, Meeting, MeetingManager, MeetingSegment, MeetingStatus};
+use crate::managers::meeting::{
+    ExportFormat, Meeting, MeetingManager, MeetingSegment, MeetingStatus,
+};
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
@@ -59,9 +61,7 @@ pub fn get_meeting_segments(
 pub fn list_meetings(
     meeting_manager: State<'_, Arc<MeetingManager>>,
 ) -> Result<Vec<Meeting>, String> {
-    meeting_manager
-        .list_meetings()
-        .map_err(|e| e.to_string())
+    meeting_manager.list_meetings().map_err(|e| e.to_string())
 }
 
 #[tauri::command]

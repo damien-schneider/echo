@@ -25,7 +25,10 @@ pub fn is_wayland() -> bool {
 /// Since Tauri realizes the window during `builder.build()`, we first unrealize it,
 /// apply the layer-shell configuration, and let it be re-realized on the next `show()`.
 #[cfg(target_os = "linux")]
-pub fn init_layer_shell<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), String> {
+pub fn init_layer_shell<R: Runtime>(
+    window: &WebviewWindow<R>,
+    anchors: (bool, bool, bool, bool),
+) -> Result<(), String> {
     use gtk::prelude::*;
     use gtk_layer_shell::LayerShell;
 
@@ -75,12 +78,12 @@ pub fn init_layer_shell<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), Str
     gtk_window.set_exclusive_zone(0);
     debug!("[LayerShell] Set exclusive zone to 0");
 
-    // Anchor only to top edge — the compositor will center the window horizontally
-    gtk_window.set_anchor(gtk_layer_shell::Edge::Top, true);
-    gtk_window.set_anchor(gtk_layer_shell::Edge::Bottom, false);
-    gtk_window.set_anchor(gtk_layer_shell::Edge::Left, false);
-    gtk_window.set_anchor(gtk_layer_shell::Edge::Right, false);
-    debug!("[LayerShell] Set anchor to top edge only");
+    let (anchor_top, anchor_bottom, anchor_left, anchor_right) = anchors;
+    gtk_window.set_anchor(gtk_layer_shell::Edge::Top, anchor_top);
+    gtk_window.set_anchor(gtk_layer_shell::Edge::Bottom, anchor_bottom);
+    gtk_window.set_anchor(gtk_layer_shell::Edge::Left, anchor_left);
+    gtk_window.set_anchor(gtk_layer_shell::Edge::Right, anchor_right);
+    debug!("[LayerShell] Anchored overlay to {anchors:?}");
 
     info!("[LayerShell] Overlay window configured successfully (will realize on first show)");
     Ok(())
@@ -88,11 +91,13 @@ pub fn init_layer_shell<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), Str
 
 #[cfg(not(target_os = "linux"))]
 #[allow(dead_code)]
-pub fn init_layer_shell<R: Runtime>(_window: &WebviewWindow<R>) -> Result<(), String> {
+pub fn init_layer_shell<R: Runtime>(
+    _window: &WebviewWindow<R>,
+    _anchors: (bool, bool, bool, bool),
+) -> Result<(), String> {
     // No-op on other platforms
     Ok(())
 }
-
 
 /// Configure GNOME overlay fallback without presenting/showing.
 /// Applies the focus policy so the overlay never steals focus from the user's app.
@@ -115,7 +120,10 @@ pub fn configure_gnome_overlay<R: Runtime>(window: &WebviewWindow<R>) {
     gtk_window.set_keep_above(policy.keep_above);
     gtk_window.set_accept_focus(policy.accept_focus);
     gtk_window.set_focus_on_map(policy.focus_on_map);
-    debug!("[Wayland] Set accept_focus={}, focus_on_map={}", policy.accept_focus, policy.focus_on_map);
+    debug!(
+        "[Wayland] Set accept_focus={}, focus_on_map={}",
+        policy.accept_focus, policy.focus_on_map
+    );
 }
 
 /// Bring an overlay window to the front on GNOME Wayland using GTK-level APIs.

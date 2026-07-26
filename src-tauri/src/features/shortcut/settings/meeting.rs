@@ -45,20 +45,6 @@ pub fn change_meeting_chunk_duration_setting(
     Ok(())
 }
 
-/// Update the model the live-streaming worker uses during a meeting. Smaller
-/// is better here — `tiny` and `base` are designed for low-latency decode.
-#[tauri::command]
-pub fn change_realtime_model_setting(app: AppHandle, model_id: String) -> Result<(), String> {
-    let trimmed = model_id.trim().to_string();
-    if trimmed.is_empty() {
-        return Err("model_id cannot be empty".to_string());
-    }
-    settings::update_settings(&app, |s| {
-        s.realtime_model = trimmed;
-    });
-    Ok(())
-}
-
 /// Status of the diarization model download. Frontend polls this so it can
 /// gate the "Start meeting" button until the model is on disk.
 #[tauri::command]
@@ -72,11 +58,8 @@ pub fn get_diarization_status(app: AppHandle) -> Result<DiarizationStatus, Strin
     })
 }
 
-/// Trigger an auto-download of the diarization model if it's missing. Used by
-/// the frontend as a fallback in case the boot-time auto-download was skipped
-/// (e.g. previous run aborted mid-download).
 #[tauri::command]
-pub async fn ensure_diarization_model(app: AppHandle) -> Result<(), String> {
+pub async fn download_diarization_model(app: AppHandle) -> Result<(), String> {
     let model_manager = app.state::<Arc<ModelManager>>().inner().clone();
     let needs_download = model_manager
         .get_model_info(DIARIZATION_MODEL_ID)

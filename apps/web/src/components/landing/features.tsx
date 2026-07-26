@@ -23,7 +23,7 @@ function MiniNotch() {
     <div className="flex flex-col items-center gap-3">
       <motion.div
         className="flex w-48 items-center justify-between rounded-b-2xl bg-black px-4 py-2"
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
+        transition={{ damping: 25, stiffness: 400, type: "spring" }}
         whileHover={{ scale: 1.02 }}
       >
         <EchoLogo className="h-3 w-3 text-white/70" variant="sm" />
@@ -36,8 +36,8 @@ function MiniNotch() {
               style={{ height: `${h * 100}%` }}
               transition={{
                 duration: 1.5 + i * 0.2,
-                repeat: Number.POSITIVE_INFINITY,
                 ease: "easeInOut",
+                repeat: Number.POSITIVE_INFINITY,
               }}
             />
           ))}
@@ -119,8 +119,8 @@ function MiniVadWaveform() {
                 isVoice
                   ? {
                       duration: 0.8 + i * 0.05,
-                      repeat: Number.POSITIVE_INFINITY,
                       ease: "easeInOut",
+                      repeat: Number.POSITIVE_INFINITY,
                     }
                   : undefined
               }
@@ -314,62 +314,62 @@ function MiniCrossPlatform() {
 
 const features = [
   {
-    name: "100% Private",
+    className: "md:col-span-2 md:row-span-2",
     description:
       "All processing happens on your device. No audio or text ever leaves your machine.",
-    visual: MiniNotch,
-    className: "md:col-span-2 md:row-span-2",
     hero: true,
+    name: "100% Private",
+    visual: MiniNotch,
   },
   {
-    name: "Global Shortcuts",
+    className: "md:col-span-1",
     description:
       "Configure hotkeys and push-to-talk to trigger transcription from any app.",
+    name: "Global Shortcuts",
     visual: MiniShortcutConfig,
-    className: "md:col-span-1",
   },
   {
-    name: "Voice Activity Detection",
+    className: "md:col-span-1",
     description:
       "Silero-based VAD filters silence, so you only transcribe speech.",
+    name: "Voice Activity Detection",
     visual: MiniVadWaveform,
-    className: "md:col-span-1",
   },
   {
-    name: "File Transcription",
+    className: "md:col-span-1",
     description:
       "Drag & drop audio or video files for batch transcription with progress tracking.",
+    name: "File Transcription",
     visual: MiniFileDrop,
-    className: "md:col-span-1",
   },
   {
-    name: "100+ Languages",
+    className: "md:col-span-1",
     description:
       "Whisper supports 100+ languages. Parakeet auto-detects for you.",
+    name: "100+ Languages",
     visual: MiniLanguageSelector,
-    className: "md:col-span-1",
   },
   {
-    name: "AI Post-Processing",
+    className: "md:col-span-2 md:row-span-2",
     description:
       "Clean up transcriptions with LLM-powered refinement. Fix grammar and filler words.",
-    visual: MiniPostProcessing,
-    className: "md:col-span-2 md:row-span-2",
     hero: true,
+    name: "AI Post-Processing",
+    visual: MiniPostProcessing,
   },
   {
-    name: "LLM Tool Calling",
+    className: "md:col-span-1",
     description:
       "Speak natural commands and Echo routes them to tools via LLM function calling.",
+    name: "LLM Tool Calling",
     visual: MiniToolCalls,
-    className: "md:col-span-1",
   },
   {
-    name: "Cross Platform",
+    className: "md:col-span-1",
     description:
       "Native apps for macOS, Windows, and Linux. Built with Rust and Tauri.",
+    name: "Cross Platform",
     visual: MiniCrossPlatform,
-    className: "md:col-span-1",
   },
 ];
 
@@ -383,7 +383,7 @@ function FeatureCard({
   index: number;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(cardRef, { once: true, margin: "-60px" });
+  const isInView = useInView(cardRef, { margin: "-60px", once: true });
 
   return (
     <motion.div
@@ -392,8 +392,8 @@ function FeatureCard({
       initial={{ opacity: 0, y: 30 }}
       ref={cardRef}
       transition={{
-        duration: 0.6,
         delay: index * 0.08,
+        duration: 0.6,
         ease: [0.22, 1, 0.36, 1],
       }}
       whileHover={{ y: -2 }}
@@ -431,11 +431,11 @@ function FeatureCard({
 export default function Features() {
   const containerRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLDivElement>(null);
-  const headingInView = useInView(headingRef, { once: true, margin: "-80px" });
+  const headingInView = useInView(headingRef, { margin: "-80px", once: true });
 
   const { scrollYProgress } = useScroll({
-    target: containerRef,
     offset: ["start end", "end start"],
+    target: containerRef,
   });
 
   const bgY = useTransform(scrollYProgress, [0, 1], ["0%", "8%"]);
@@ -449,10 +449,10 @@ export default function Features() {
       <motion.div
         className="pointer-events-none absolute inset-0 opacity-[0.015]"
         style={{
-          y: bgY,
           backgroundImage:
             "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
           backgroundRepeat: "repeat",
+          y: bgY,
         }}
       />
 

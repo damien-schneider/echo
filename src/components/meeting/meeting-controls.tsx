@@ -1,66 +1,10 @@
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import { Loader2, Mic, Square } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Download, Loader2, Mic, Square } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { formatElapsed } from "@/features/meeting/format-elapsed";
+import { useDiarizationModel } from "@/features/model-download/use-diarization-model";
 import { useMeetingStore } from "@/stores/meeting-store";
-
-export function formatElapsed(ms: number): string {
-  const totalSecs = Math.floor(ms / 1000);
-  const h = Math.floor(totalSecs / 3600);
-  const m = Math.floor((totalSecs % 3600) / 60);
-  const s = totalSecs % 60;
-  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-interface DiarizationStatus {
-  downloaded: boolean;
-  downloading: boolean;
-}
-
-const useDiarizationReady = () => {
-  const [status, setStatus] = useState<DiarizationStatus | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetchStatus = async () => {
-      try {
-        const result = await invoke<DiarizationStatus>(
-          "get_diarization_status"
-        );
-        if (!cancelled) {
-          setStatus(result);
-        }
-      } catch {
-        // ignore — UI falls back to "not ready"
-      }
-    };
-    fetchStatus();
-    // Trigger an auto-download attempt on mount in case the boot-time one
-    // hasn't kicked in yet (e.g. fresh install, fast nav to meeting page).
-    invoke("ensure_diarization_model").catch(() => {
-      // Silent — boot-time auto-download is the primary path; UI polls status anyway.
-    });
-
-    const unlisteners = [
-      listen("model-download-complete", () => fetchStatus()),
-      listen("model-download-progress", () => fetchStatus()),
-      listen("model-extraction-completed", () => fetchStatus()),
-    ];
-    const interval = setInterval(fetchStatus, 5000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-      for (const unlisten of unlisteners) {
-        unlisten.then((fn) => fn());
-      }
-    };
-  }, []);
-
-  return status;
-};
 
 interface MeetingControlsProps {
   onStarted?: () => void;
@@ -78,11 +22,19 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
 
   const isRecording = status === "recording";
   const isProcessing = status === "processing";
-  const diarization = useDiarizationReady();
-  const modelReady = diarization?.downloaded ?? false;
-  const modelDownloading = diarization?.downloading ?? false;
+  const diarization = useDiarizationModel();
+  const modelReady = diarization.status?.downloaded ?? false;
+  const modelDownloading = diarization.status?.downloading ?? false;
+  let modelButtonIcon = <Download className="mr-1.5 size-3.5" />;
+  let modelButtonLabel = "Model required";
+  if (modelReady) {
+    modelButtonIcon = <Mic className="mr-1.5 size-3.5" />;
+    modelButtonLabel = "Start Meeting";
+  } else if (modelDownloading) {
+    modelButtonIcon = <Loader2 className="mr-1.5 size-3.5 animate-spin" />;
+    modelButtonLabel = "Downloading…";
+  }
 
-  // Timer
   useEffect(() => {
     if (isRecording) {
       startTimeRef.current = Date.now() - elapsedMs;
@@ -100,7 +52,7 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
     };
   }, [isRecording, setElapsedMs, elapsedMs]);
 
-  const handleStart = useCallback(async () => {
+  const handleStart = async () => {
     try {
       await startMeeting(title || undefined);
       onStarted?.();
@@ -108,15 +60,15 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
       const msg = typeof e === "string" ? e : "Failed to start meeting";
       toast.error(msg);
     }
-  }, [startMeeting, title, onStarted]);
+  };
 
-  const handleStop = useCallback(async () => {
+  const handleStop = async () => {
     try {
       await stopMeeting();
     } catch {
       toast.error("Failed to stop meeting");
     }
-  }, [stopMeeting]);
+  };
 
   if (isRecording || isProcessing) {
     return (
@@ -151,19 +103,15 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
           value={title}
         />
         <Button disabled={!modelReady} onClick={handleStart} size="sm">
-          {modelReady ? (
-            <Mic className="mr-1.5 size-3.5" />
-          ) : (
-            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
-          )}
-          {modelReady ? "Start Meeting" : "Preparing…"}
+          {modelButtonIcon}
+          {modelButtonLabel}
         </Button>
       </div>
       {!modelReady && (
         <p className="text-muted-foreground text-xs">
           {modelDownloading
-            ? "Downloading speaker detection model… this only happens once."
-            : "Speaker detection model is required and will download automatically."}
+            ? "Downloading the speaker detection model in Meeting Settings."
+            : "Download the speaker detection model in Meeting Settings."}
         </p>
       )}
     </div>

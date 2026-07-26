@@ -135,7 +135,7 @@ describe("replaceMentionOutputInMarkdown", () => {
 
     it("should handle transcript with special regex characters", () => {
       const markdown = "Output: [output](mention:output)";
-      // These characters are special in regex replacement: $ is special
+      // $ is special in regex replacement.
       const result = replaceMentionOutputInMarkdown(markdown, "Cost: $100");
       expect(result).toBe("Output: Cost: $100");
     });

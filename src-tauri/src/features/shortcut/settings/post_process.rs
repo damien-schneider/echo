@@ -371,9 +371,7 @@ async fn check_ollama_tool_support(
 
     // Recent Ollama versions expose a `capabilities` array, e.g. ["completion", "tools"]
     if let Some(capabilities) = parsed.get("capabilities").and_then(|c| c.as_array()) {
-        let supports_tools = capabilities
-            .iter()
-            .any(|cap| cap.as_str() == Some("tools"));
+        let supports_tools = capabilities.iter().any(|cap| cap.as_str() == Some("tools"));
         return Ok(Some(supports_tools));
     }
 

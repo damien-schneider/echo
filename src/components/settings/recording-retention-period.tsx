@@ -30,14 +30,14 @@ export const RecordingRetentionPeriodSelector = ({
 
   const retentionOptions: { value: RecordingRetentionPeriod; label: string }[] =
     [
-      { value: "never", label: "Never" },
+      { label: "Never", value: "never" },
       {
-        value: "preserve_limit",
         label: `Preserve ${historyLimit} Recording${historyLimit === 1 ? "" : "s"}`,
+        value: "preserve_limit",
       },
-      { value: "days3", label: "After 3 Days" },
-      { value: "weeks2", label: "After 2 Weeks" },
-      { value: "months3", label: "After 3 Months" },
+      { label: "After 3 Days", value: "days3" },
+      { label: "After 2 Weeks", value: "weeks2" },
+      { label: "After 3 Months", value: "months3" },
     ];
 
   const handleRetentionPeriodSelect = async (

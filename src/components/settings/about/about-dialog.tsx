@@ -101,7 +101,6 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* About Section */}
           <CollapsibleSettingsGroup defaultOpen={true} title="About">
             <SettingContainer
               description="Current version of Echo"
@@ -159,7 +158,6 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
             </SettingContainer>
           </CollapsibleSettingsGroup>
 
-          {/* Debug Section */}
           <CollapsibleSettingsGroup
             defaultOpen={false}
             title="Advanced / Debug"

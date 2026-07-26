@@ -7,6 +7,7 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/whisper-desktop")({
+  component: WhisperDesktopPage,
   head: () => ({
     meta: [
       {
@@ -14,124 +15,123 @@ export const Route = createFileRoute("/vs/whisper-desktop")({
           "Echo vs Whisper Desktop — Better Whisper App for Daily Dictation",
       },
       {
-        name: "description",
         content:
           "Echo is the best Whisper app for Mac and Windows daily use. Global shortcuts, auto-paste, VAD, LLM refinement, and a polished UI — all free and offline.",
+        name: "description",
       },
       {
-        property: "og:title",
         content:
           "Echo vs Whisper Desktop — Better Whisper App for Daily Dictation",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Echo is the best Whisper app for Mac and Windows daily use. Global shortcuts, auto-paste, VAD, LLM refinement, and a polished UI — all free and offline.",
+        property: "og:description",
       },
     ],
   }),
-  component: WhisperDesktopPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "Free (but limited functionality)",
+    echo: "Free forever",
     echoPositive: true,
+    feature: "Price",
   },
   {
-    feature: "Global Shortcuts",
-    echo: "Push-to-talk from any app",
     competitor: "None — manual UI interaction only",
+    echo: "Push-to-talk from any app",
     echoPositive: true,
+    feature: "Global Shortcuts",
   },
   {
-    feature: "Auto-Paste",
-    echo: "Instantly pastes into focused app",
     competitor: "Copy-paste workflow required",
+    echo: "Instantly pastes into focused app",
     echoPositive: true,
+    feature: "Auto-Paste",
   },
   {
-    feature: "Voice Activity Detection",
-    echo: "Built-in VAD, stops on silence",
     competitor: "No VAD support",
+    echo: "Built-in VAD, stops on silence",
     echoPositive: true,
+    feature: "Voice Activity Detection",
   },
   {
-    feature: "LLM Post-Processing",
-    echo: "Optional AI refinement of transcripts",
     competitor: "Raw Whisper output only",
+    echo: "Optional AI refinement of transcripts",
     echoPositive: true,
+    feature: "LLM Post-Processing",
   },
   {
-    feature: "Offline / Private",
-    echo: "100% local processing",
     competitor: "100% local processing",
+    echo: "100% local processing",
     echoPositive: false,
+    feature: "Offline / Private",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License",
     competitor: "Open source (MIT)",
+    echo: "MIT License",
     echoPositive: false,
+    feature: "Open Source",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux",
     competitor: "macOS, Windows",
+    echo: "macOS, Windows, Linux",
     echoPositive: true,
+    feature: "Platforms",
   },
   {
-    feature: "Model Selection",
-    echo: "Whisper + Parakeet, in-app download",
     competitor: "Whisper models, manual setup",
+    echo: "Whisper + Parakeet, in-app download",
     echoPositive: true,
+    feature: "Model Selection",
   },
   {
-    feature: "UI Polish",
-    echo: "Modern, animated, system-aware",
     competitor: "Functional but minimal",
+    echo: "Modern, animated, system-aware",
     echoPositive: true,
+    feature: "UI Polish",
   },
   {
-    feature: "Active Maintenance",
-    echo: "Actively developed with regular updates",
     competitor: "Less actively maintained",
+    echo: "Actively developed with regular updates",
     echoPositive: true,
+    feature: "Active Maintenance",
   },
   {
-    feature: "Setup Complexity",
-    echo: "Download and run — no config needed",
     competitor: "More technical setup required",
+    echo: "Download and run — no config needed",
     echoPositive: true,
+    feature: "Setup Complexity",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "Global Shortcuts & Auto-Paste",
     description:
       "Assign a keyboard shortcut and dictate into any app — email, Slack, docs, code editors. Echo auto-pastes the transcript the moment you finish speaking, with no manual copying.",
     icon: "⌨",
+    title: "Global Shortcuts & Auto-Paste",
   },
   {
-    title: "Voice Activity Detection",
     description:
       "Echo detects when you stop speaking and automatically ends the recording session. No need to manually hit stop — just speak naturally and Echo handles the rest.",
     icon: "◉",
+    title: "Voice Activity Detection",
   },
   {
-    title: "LLM Refinement",
     description:
       "Optionally run your transcript through a local LLM to fix punctuation, remove filler words, or reformat text. Whisper Desktop gives you raw output; Echo gives you polished results.",
     icon: "✦",
+    title: "LLM Refinement",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -203,7 +203,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -213,8 +213,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -332,7 +332,7 @@ function WhisperDesktopPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Ready to upgrade your Whisper experience?

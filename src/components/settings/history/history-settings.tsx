@@ -111,7 +111,7 @@ export const HistorySettings = () => {
       );
       const result = await runPostProcess(transcription, settings);
 
-      // For history reprocessing, only text results matter — tools are ignored
+      // History reprocessing: tools ignored, text only.
       const postProcessedText = result.kind === "text" ? result.content : null;
       let postProcessPrompt: string | null = null;
       if (postProcessedText && settings.post_process_selected_prompt_id) {
@@ -186,13 +186,11 @@ export const HistorySettings = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header - always visible */}
       <div className="flex items-center justify-between">
         <h2 className="font-semibold text-lg">History</h2>
         <OpenRecordingsButton onClick={openRecordingsFolder} />
       </div>
 
-      {/* Tab Toggle */}
       <div className="flex items-center justify-center">
         <div className="inline-flex rounded-lg bg-muted p-1">
           <button
@@ -224,7 +222,6 @@ export const HistorySettings = () => {
         </div>
       </div>
 
-      {/* Content */}
       <div className="min-h-0">
         {activeTab === "transcriptions" ? (
           renderTranscriptionContent()

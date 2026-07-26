@@ -20,12 +20,11 @@ import {
 } from "@/components/ui/inline-combobox";
 import { cn } from "@/lib/utils";
 
-// Available mentions for the @output placeholder
 const MENTION_ITEMS = [
   {
+    description: "The transcribed text placeholder",
     key: "output",
     text: "output",
-    description: "The transcribed text placeholder",
   },
 ] as const;
 

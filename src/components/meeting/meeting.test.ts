@@ -1,13 +1,11 @@
 import { describe, expect, it } from "bun:test";
+import { formatElapsed } from "@/features/meeting/format-elapsed";
 import {
   ExportFormatSchema,
   MeetingSchema,
   MeetingSegmentSchema,
   MeetingStatusSchema,
 } from "@/lib/types";
-import { formatElapsed } from "./meeting-controls";
-
-// ── formatElapsed ──────────────────────────────────────────────────────
 
 describe("formatElapsed", () => {
   it("returns 00:00:00 for zero", () => {
@@ -31,12 +29,9 @@ describe("formatElapsed", () => {
   });
 
   it("handles large values", () => {
-    // 10 hours
-    expect(formatElapsed(36_000_000)).toBe("10:00:00");
+    expect(formatElapsed(36_000_000)).toBe("10:00:00"); // 10h
   });
 });
-
-// ── Zod schemas ────────────────────────────────────────────────────────
 
 describe("MeetingStatusSchema", () => {
   it("accepts valid statuses", () => {
@@ -68,14 +63,14 @@ describe("ExportFormatSchema", () => {
 
 describe("MeetingSegmentSchema", () => {
   const validSegment = {
+    audio_source: "mic",
+    confidence: 0.95,
+    end_ms: 5000,
     id: 1,
     meeting_id: 1,
     speaker_label: "Alice",
     start_ms: 0,
-    end_ms: 5000,
     text: "Hello world",
-    confidence: 0.95,
-    audio_source: "mic",
   };
 
   it("accepts a valid segment", () => {
@@ -109,15 +104,15 @@ describe("MeetingSegmentSchema", () => {
 
 describe("MeetingSchema", () => {
   const validMeeting = {
-    id: 1,
-    title: "Weekly Standup",
-    start_time: 1_700_000_000,
-    end_time: 1_700_001_800,
     duration_ms: 1_800_000,
+    end_time: 1_700_001_800,
+    id: 1,
     mic_file_name: "meeting-1-mic.wav",
-    system_file_name: null,
-    summary: "Key decisions made.",
+    start_time: 1_700_000_000,
     status: "complete",
+    summary: "Key decisions made.",
+    system_file_name: null,
+    title: "Weekly Standup",
   };
 
   it("accepts a valid meeting", () => {
@@ -127,9 +122,9 @@ describe("MeetingSchema", () => {
   it("accepts minimal meeting (only required fields)", () => {
     const minimal = {
       id: 1,
-      title: "Standup",
       start_time: 1_700_000_000,
       status: "recording",
+      title: "Standup",
     };
     expect(MeetingSchema.safeParse(minimal).success).toBe(true);
   });
@@ -148,11 +143,11 @@ describe("MeetingSchema", () => {
   it("accepts null optional fields", () => {
     const withNulls = {
       ...validMeeting,
-      end_time: null,
       duration_ms: null,
+      end_time: null,
       mic_file_name: null,
-      system_file_name: null,
       summary: null,
+      system_file_name: null,
     };
     expect(MeetingSchema.safeParse(withNulls).success).toBe(true);
   });

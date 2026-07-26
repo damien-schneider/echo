@@ -81,7 +81,13 @@ pub fn update_tray_menu(app: &AppHandle, state: &TrayIconState) {
     let (settings_accelerator, quit_accelerator) = (Some("Ctrl+,"), Some("Ctrl+Q"));
 
     // Create common menu items
-    let version_label = format!("Echo v{}", env!("CARGO_PKG_VERSION"));
+    // Dev build sits next to an installed Echo in the tray — the menu says which is which.
+    let product_label = if cfg!(debug_assertions) {
+        "Echo Dev"
+    } else {
+        "Echo"
+    };
+    let version_label = format!("{product_label} v{}", env!("CARGO_PKG_VERSION"));
     let version_i = MenuItem::with_id(app, "version", &version_label, false, None::<&str>)
         .expect("failed to create version item");
     let settings_i = MenuItem::with_id(app, "settings", "Settings...", true, settings_accelerator)
@@ -90,7 +96,7 @@ pub fn update_tray_menu(app: &AppHandle, state: &TrayIconState) {
         app,
         "check_updates",
         "Check for Updates...",
-        true,
+        !cfg!(debug_assertions),
         None::<&str>,
     )
     .expect("failed to create check updates item");

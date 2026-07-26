@@ -8,11 +8,11 @@ export const Route = createFileRoute("/terms")({
     meta: [
       { title: "Terms of Service — Echo Speech-to-Text" },
       {
-        name: "description",
         content:
           "Terms of service for Echo, the free open-source offline speech-to-text application.",
+        name: "description",
       },
-      { name: "robots", content: "noindex, follow" },
+      { content: "noindex, follow", name: "robots" },
     ],
   }),
 });

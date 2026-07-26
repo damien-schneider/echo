@@ -2,10 +2,7 @@ import { generateText } from "ai";
 import type { Settings } from "@/lib/types";
 import { createLlmModel } from "./providers";
 
-/**
- * Generate a meeting summary from a formatted transcript.
- * Mirrors the Rust `generate_summary` LLM call.
- */
+// Mirrors Rust `generate_summary`.
 export async function generateMeetingSummary(
   transcript: string,
   settings: Settings
@@ -35,10 +32,10 @@ Transcript:
 ${transcript}`;
 
   const result = await generateText({
+    messages: [{ content: prompt, role: "user" }],
     model,
     system:
       "You are a meeting summary assistant. Produce concise, actionable summaries.",
-    messages: [{ role: "user", content: prompt }],
   });
 
   return result.text;

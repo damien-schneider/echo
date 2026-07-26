@@ -1,0 +1,379 @@
+@import "../../../overlay/dock-shape.css";
+
+@property --echo-island-orbit-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes echo-island-processing-orbit {
+  to {
+    --echo-island-orbit-angle: 360deg;
+  }
+}
+
+@keyframes echo-polish-phase-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@keyframes echo-polish-progress-travel {
+  0% {
+    transform: translateX(-120%) scaleX(0.72);
+  }
+  55% {
+    transform: translateX(105%) scaleX(1);
+  }
+  100% {
+    transform: translateX(270%) scaleX(0.72);
+  }
+}
+
+.echo-island-morph {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  pointer-events: auto;
+  isolation: isolate;
+  transform-origin: top left;
+  transition:
+    background-color 160ms ease-out,
+    box-shadow 160ms ease-out,
+    clip-path 180ms cubic-bezier(0.25, 1, 0.5, 1);
+  will-change: width, height, transform;
+}
+
+.echo-island-morph-measure {
+  position: absolute;
+  inset: 0;
+}
+
+.echo-island-morph[data-mode="compact"] {
+  background: rgba(5, 5, 5, 0.01);
+  box-shadow: none;
+}
+
+.echo-island-morph[data-mode="compact"][data-presentation="docked"]:is(
+    [data-anchor="left"],
+    [data-anchor="right"]
+  ) {
+  background: rgba(5, 5, 5, 0.97);
+  box-shadow: none;
+}
+
+.echo-island-morph[data-mode="compact"][data-presentation="docked"]:is(
+    [data-anchor="left"],
+    [data-anchor="right"]
+  )::before {
+  display: none;
+}
+
+.echo-island-morph[data-mode="actions"][data-presentation="docked"] {
+  box-shadow: none;
+}
+
+.echo-island-morph[data-mode="actions"][data-presentation="docked"]::after {
+  opacity: 0;
+}
+
+.echo-island-morph[data-presentation="docked"][data-anchor="left"]:is(
+    [data-mode="compact"],
+    [data-mode="actions"]
+  ) {
+  clip-path: var(--echo-dock-shape-left);
+}
+
+.echo-island-morph[data-presentation="docked"][data-anchor="right"]:is(
+    [data-mode="compact"],
+    [data-mode="actions"]
+  ) {
+  clip-path: var(--echo-dock-shape-right);
+}
+
+.echo-island-morph[data-presentation="docked"][data-mode="actions"][data-anchor="top"] {
+  clip-path: var(--echo-dock-shape-top);
+}
+
+.echo-island-morph[data-presentation="docked"][data-mode="actions"][data-anchor="bottom"] {
+  clip-path: var(--echo-dock-shape-bottom);
+}
+
+/* A dragged island hangs off no edge: the docked silhouette would read as a
+   torn-off shape while it flies under the pointer. */
+.echo-island-morph[data-presentation="docked"][data-dragging="true"]:is(
+    [data-mode="compact"],
+    [data-mode="actions"]
+  ) {
+  clip-path: none;
+}
+
+/* A handoff teleports the window to another display: the island fades out, the
+   window jumps, and the fade back in covers the repaint on the new screen. */
+.recording-overlay-root[data-handoff="leaving"] .echo-island-morph {
+  opacity: 0;
+  filter: blur(6px);
+  transition:
+    opacity var(--echo-handoff-fade) ease-in,
+    filter var(--echo-handoff-fade) ease-in;
+}
+
+.recording-overlay-root[data-handoff="arriving"] .echo-island-morph {
+  transition:
+    opacity var(--echo-handoff-arrival) ease-out,
+    filter var(--echo-handoff-arrival) ease-out;
+}
+
+.echo-island-morph-content {
+  position: absolute;
+  width: max-content;
+  height: max-content;
+  pointer-events: auto;
+  transform-origin: inherit;
+}
+
+.echo-island-morph-content:is([data-anchor="top"], [data-anchor="bottom"]) {
+  left: 50%;
+  translate: -50% 0;
+}
+
+/* The frame reaches up to the notch; the content stays clear of it. */
+.echo-island-morph-content[data-anchor="top"] {
+  top: var(--echo-island-notch-strip, 0px);
+}
+
+.echo-island-morph-content[data-anchor="bottom"] {
+  bottom: 0;
+}
+
+.echo-island-morph-content:is([data-anchor="left"], [data-anchor="right"]) {
+  top: 50%;
+  translate: 0 -50%;
+}
+
+.echo-island-morph-content[data-anchor="left"] {
+  left: 0;
+}
+
+.echo-island-morph-content[data-anchor="right"] {
+  right: 0;
+}
+
+.echo-island-morph-content[data-presence="exiting"] {
+  pointer-events: none;
+}
+
+.echo-island-morph::before,
+.echo-island-morph::after {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  content: "";
+}
+
+.echo-island-morph::before {
+  width: 38px;
+  height: 5px;
+  background: rgba(5, 5, 5, 0.97);
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.56);
+  opacity: 0;
+  transition:
+    opacity 110ms ease-out,
+    box-shadow 120ms ease-out;
+}
+
+.recording-overlay-root:is([data-anchor="left"], [data-anchor="right"])
+  .echo-island-morph::before {
+  top: 50%;
+  width: 5px;
+  height: 38px;
+  transform: translateY(-50%);
+}
+
+.recording-overlay-root[data-anchor="left"] .echo-island-morph::before {
+  left: 0;
+}
+
+.recording-overlay-root[data-anchor="right"] .echo-island-morph::before {
+  right: 0;
+}
+
+.recording-overlay-root:is([data-anchor="top"], [data-anchor="bottom"])
+  .echo-island-morph::before {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.recording-overlay-root[data-anchor="top"] .echo-island-morph::before {
+  top: 0;
+}
+
+.recording-overlay-root[data-anchor="bottom"] .echo-island-morph::before {
+  bottom: 0;
+}
+
+.echo-island-morph[data-mode="compact"]::before {
+  opacity: 1;
+}
+
+.echo-island-morph[data-mode="compact"]:hover::before {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 0 8px rgba(255, 255, 255, 0.12);
+}
+
+.echo-island-morph::after {
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transition: opacity 140ms ease-out;
+}
+
+.echo-island-morph[data-mode="compact"]::after,
+.echo-island-morph[data-notch-bridge="true"]::after {
+  opacity: 0;
+}
+
+.recording-overlay-root[data-anchor="top"] .echo-island-morph {
+  transform-origin: top center;
+}
+
+.recording-overlay-root[data-anchor="bottom"] .echo-island-morph {
+  transform-origin: bottom center;
+}
+
+.recording-overlay-root[data-anchor="left"] .echo-island-morph {
+  transform-origin: center left;
+}
+
+.recording-overlay-root[data-anchor="right"] .echo-island-morph {
+  transform-origin: center right;
+}
+.echo-island-processing-orbit {
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--echo-island-orbit-angle),
+    transparent 0deg 210deg,
+    rgba(139, 178, 255, 0.08) 230deg,
+    rgba(207, 220, 255, 0.3) 258deg,
+    rgba(255, 255, 255, 0.44) 276deg,
+    rgba(255, 190, 224, 0.18) 298deg,
+    transparent 326deg 360deg
+  );
+  border-radius: 15px;
+  opacity: 0.72;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: echo-island-processing-orbit 3.4s linear infinite;
+}
+
+.echo-polish-phase-indicator {
+  width: 16px;
+  height: 16px;
+  background: conic-gradient(
+    from 30deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.72),
+    rgba(255, 255, 255, 0.08) 62%
+  );
+  border-radius: 999px;
+  mask: radial-gradient(circle, transparent 54%, black 58%);
+  animation: echo-polish-phase-spin 1.8s linear infinite;
+}
+
+.echo-polish-indeterminate-progress {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+}
+
+.echo-polish-indeterminate-progress > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(255, 255, 255, 0.78),
+    rgba(255, 255, 255, 0.12)
+  );
+  border-radius: inherit;
+  transform-origin: center;
+  animation: echo-polish-progress-travel 1.65s ease-in-out infinite;
+}
+
+.echo-island-activity[data-decoration="progress"] {
+  display: flex;
+  align-items: center;
+  width: 310px;
+  min-height: 52px;
+  padding: 0 12px;
+}
+
+.echo-island-activity[data-decoration="progress"]
+  .echo-island-activity-dismiss {
+  top: 12px;
+}
+
+.echo-island-activity[data-decoration="orbit"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 220px;
+  min-height: 52px;
+}
+
+.echo-island-activity[data-decoration="orbit"] .echo-island-activity-dismiss {
+  top: 12px;
+}
+
+.echo-island-activity[data-decoration="none"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 62px;
+}
+
+.echo-island-activity[data-decoration="orbit"] output,
+.echo-island-activity[data-decoration="none"] output {
+  position: relative;
+  z-index: 1;
+  margin-top: 0;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-island-morph,
+  .echo-island-morph::before,
+  .echo-island-morph::after,
+  .echo-island-processing-orbit,
+  .recording-overlay-root[data-handoff="leaving"] .echo-island-morph,
+  .recording-overlay-root[data-handoff="arriving"] .echo-island-morph {
+    transition: none;
+    animation: none;
+  }
+
+  .echo-polish-phase-indicator,
+  .echo-polish-indeterminate-progress > span {
+    animation: none;
+  }
+
+  .echo-polish-indeterminate-progress > span {
+    transform: translateX(72%);
+  }
+}

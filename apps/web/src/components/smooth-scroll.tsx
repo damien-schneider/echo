@@ -18,8 +18,8 @@ export default function SmoothScroll({
     const lenisInstance = new Lenis({
       duration: 1.2,
       easing: (t) => Math.min(1, 1.001 - 2 ** (-10 * t)),
-      orientation: "vertical",
       gestureOrientation: "vertical",
+      orientation: "vertical",
       smoothWheel: true,
     });
 

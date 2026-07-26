@@ -10,11 +10,11 @@ import { useGithubData } from "@/hooks/use-github-data";
 const Download = () => {
   const { downloadLinks, stars } = useGithubData();
   const ref = useRef<HTMLDivElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const isInView = useInView(ref, { margin: "-100px", once: true });
 
   const { scrollYProgress } = useScroll({
-    target: ref,
     offset: ["start end", "end start"],
+    target: ref,
   });
 
   const glowY = useTransform(scrollYProgress, [0, 1], ["20%", "-20%"]);
@@ -24,24 +24,24 @@ const Download = () => {
 
   const platforms = [
     {
-      name: "macOS",
       icon: AppleIcon,
-      primary: { label: "Apple Silicon", href: downloadLinks.macSilicon },
-      secondary: { label: "Intel", href: downloadLinks.macIntel },
+      name: "macOS",
+      primary: { href: downloadLinks.macSilicon, label: "Apple Silicon" },
       req: "macOS 11.0+",
+      secondary: { href: downloadLinks.macIntel, label: "Intel" },
     },
     {
-      name: "Windows",
       icon: Monitor,
-      primary: { label: "Download x64", href: downloadLinks.windows },
+      name: "Windows",
+      primary: { href: downloadLinks.windows, label: "Download x64" },
       req: "Windows 10 (64-bit)",
     },
     {
-      name: "Linux",
       icon: Terminal,
-      primary: { label: "AppImage", href: downloadLinks.linuxAppImage },
-      secondary: { label: ".deb", href: downloadLinks.linuxDeb },
+      name: "Linux",
+      primary: { href: downloadLinks.linuxAppImage, label: "AppImage" },
       req: "glibc \u2265 2.28",
+      secondary: { href: downloadLinks.linuxDeb, label: ".deb" },
     },
   ];
 
@@ -91,8 +91,8 @@ const Download = () => {
               initial={{ opacity: 0, y: 20 }}
               key={platform.name}
               transition={{
-                duration: 0.5,
                 delay: 0.15 + i * 0.1,
+                duration: 0.5,
                 ease: "easeOut",
               }}
               whileHover={{ y: -3 }}
@@ -130,7 +130,7 @@ const Download = () => {
           animate={isInView ? { opacity: 1 } : { opacity: 0 }}
           className="mt-8 text-center text-muted-foreground text-sm"
           initial={{ opacity: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
+          transition={{ delay: 0.5, duration: 0.6 }}
         >
           Looking for other versions?{" "}
           <a

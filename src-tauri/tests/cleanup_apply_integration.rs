@@ -119,8 +119,7 @@ async fn cleanup_enabled_with_loaded_model_returns_cleaned_text() {
         let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
         #[cfg(target_os = "macos")]
         {
-            std::path::PathBuf::from(home)
-                .join("Library/Application Support/echo/models/cleanup")
+            std::path::PathBuf::from(home).join("Library/Application Support/echo/models/cleanup")
         }
         #[cfg(not(target_os = "macos"))]
         {

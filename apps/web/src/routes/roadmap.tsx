@@ -9,15 +9,15 @@ export const Route = createFileRoute("/roadmap")({
     meta: [
       { title: "Roadmap — Echo Speech-to-Text" },
       {
+        content:
+          "See what's coming next for Echo: planned features, upcoming improvements, and the future of private offline speech-to-text.",
         name: "description",
-        content:
-          "See what's coming next for Echo: planned features, upcoming improvements, and the future of private offline speech-to-text.",
       },
-      { property: "og:title", content: "Roadmap — Echo Speech-to-Text" },
+      { content: "Roadmap — Echo Speech-to-Text", property: "og:title" },
       {
-        property: "og:description",
         content:
           "See what's coming next for Echo: planned features, upcoming improvements, and the future of private offline speech-to-text.",
+        property: "og:description",
       },
     ],
   }),

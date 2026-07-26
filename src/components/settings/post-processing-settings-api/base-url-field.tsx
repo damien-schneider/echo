@@ -21,7 +21,6 @@ export const BaseUrlField: React.FC<BaseUrlFieldProps> = ({
 }) => {
   const [localValue, setLocalValue] = useState(value);
 
-  // Sync with prop changes
   React.useEffect(() => {
     setLocalValue(value);
   }, [value]);

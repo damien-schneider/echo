@@ -4,11 +4,13 @@
 //! - Shortcut initialization and registration (`init`)
 //! - Escape key handling for canceling operations (`escape`)
 //! - Binding management commands (`bindings`)
+//! - Registration failures the user must see (`failures`)
 //! - Settings commands organized by feature area (`settings`)
 //! - Wayland-specific global shortcuts via XDG Portal (`wayland`)
 
 pub mod bindings;
 pub mod escape;
+pub mod failures;
 pub mod init;
 pub mod settings;
 

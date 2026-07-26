@@ -9,9 +9,85 @@ use log::{error, info, warn};
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
-use crate::actions::ACTION_MAP;
+use super::failures::{self, ShortcutFailure};
+use crate::actions::{ShortcutAction, ACTION_MAP};
 use crate::settings::{self, get_settings, ShortcutBinding};
 use crate::ManagedToggleState;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShortcutEvent {
+    Pressed,
+    Released,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct ShortcutTransition {
+    is_one_shot: bool,
+    push_to_talk: bool,
+    event: ShortcutEvent,
+    is_active: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum ShortcutExecution {
+    None,
+    Start,
+    Stop,
+}
+
+fn shortcut_transition(transition: ShortcutTransition) -> ShortcutExecution {
+    if transition.is_one_shot {
+        return match transition.event {
+            ShortcutEvent::Pressed => ShortcutExecution::None,
+            ShortcutEvent::Released => ShortcutExecution::Start,
+        };
+    }
+    if transition.push_to_talk {
+        return match transition.event {
+            ShortcutEvent::Pressed => ShortcutExecution::Start,
+            ShortcutEvent::Released => ShortcutExecution::Stop,
+        };
+    }
+    match transition.event {
+        ShortcutEvent::Pressed if transition.is_active => ShortcutExecution::Stop,
+        ShortcutEvent::Pressed => ShortcutExecution::Start,
+        ShortcutEvent::Released => ShortcutExecution::None,
+    }
+}
+
+pub(super) fn execute_toggle_transition<F>(
+    state: &ManagedToggleState,
+    binding_id: &str,
+    execute: F,
+) -> Result<(), String>
+where
+    F: FnOnce(ShortcutExecution),
+{
+    let execution = {
+        let mut states = state
+            .lock()
+            .map_err(|_| "Failed to lock toggle state manager".to_string())?;
+        let is_active = states
+            .active_toggles
+            .entry(binding_id.to_string())
+            .or_insert(false);
+        let execution = shortcut_transition(ShortcutTransition {
+            is_one_shot: false,
+            push_to_talk: false,
+            event: ShortcutEvent::Pressed,
+            is_active: *is_active,
+        });
+        match execution {
+            ShortcutExecution::Start => *is_active = true,
+            ShortcutExecution::Stop => *is_active = false,
+            ShortcutExecution::None => {}
+        }
+        execution
+    };
+
+    execute(execution);
+    Ok(())
+}
 
 /// Initialize all shortcuts from settings.
 /// Only registers shortcuts that have corresponding actions in ACTION_MAP.
@@ -110,99 +186,134 @@ pub fn validate_shortcut_string(raw: &str) -> Result<(), String> {
 
 /// Register a single shortcut binding.
 pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
-    // Ensure the binding has a corresponding action in ACTION_MAP
+    let binding_id = binding.id.clone();
+    let binding_text = binding.current_binding.clone();
+    if let Err(reason) = claim_shortcut(app, binding) {
+        let message = format!("Couldn't register shortcut '{binding_text}': {reason}");
+        error!("register_shortcut error: {message}");
+        failures::record(
+            app,
+            ShortcutFailure {
+                binding_id,
+                binding: binding_text,
+                reason,
+            },
+        );
+        return Err(message);
+    }
+    failures::clear(app, &binding_id);
+    Ok(())
+}
+
+fn claim_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
+    let shortcut = validated_shortcut(app, &binding)?;
+    let binding_id = binding.id;
+    app.global_shortcut()
+        .on_shortcut(shortcut, move |ah, scut, event| {
+            if scut != &shortcut {
+                return;
+            }
+            dispatch_shortcut(ShortcutInvocation {
+                app: ah,
+                binding_id: &binding_id,
+                shortcut: &scut.into_string(),
+                event: shortcut_event(event.state),
+            });
+        })
+        .map_err(|e| e.to_string())
+}
+
+fn validated_shortcut(app: &AppHandle, binding: &ShortcutBinding) -> Result<Shortcut, String> {
     if !ACTION_MAP.contains_key(&binding.id) {
-        let error_msg = format!(
+        let message = format!(
             "No action defined in ACTION_MAP for binding ID '{}'",
             binding.id
         );
-        error!("register_shortcut error: {}", error_msg);
-        return Err(error_msg);
+        error!("register_shortcut error: {message}");
+        return Err(message);
     }
-
-    // Validate human-level rules first
-    if let Err(e) = validate_shortcut_string(&binding.current_binding) {
-        warn!(
-            "register_shortcut validation error for binding '{}': {}",
-            binding.current_binding, e
-        );
-        return Err(e);
-    }
-
-    // Parse shortcut and return error if it fails
-    let shortcut = match binding.current_binding.parse::<Shortcut>() {
-        Ok(s) => s,
-        Err(e) => {
-            let error_msg = format!(
-                "Failed to parse shortcut '{}': {}",
-                binding.current_binding, e
+    validate_shortcut_string(&binding.current_binding).map_err(|message| {
+        warn!("register_shortcut validation error: {message}");
+        message
+    })?;
+    let shortcut = binding
+        .current_binding
+        .parse::<Shortcut>()
+        .map_err(|error| {
+            let message = format!(
+                "Failed to parse shortcut '{}': {error}",
+                binding.current_binding
             );
-            error!("register_shortcut parse error: {}", error_msg);
-            return Err(error_msg);
-        }
-    };
-
-    // Prevent duplicate registrations that would silently shadow one another
-    if app.global_shortcut().is_registered(shortcut) {
-        let error_msg = format!("Shortcut '{}' is already in use", binding.current_binding);
-        warn!("register_shortcut duplicate error: {}", error_msg);
-        return Err(error_msg);
-    }
-
-    // Clone binding.id for use in the closure
-    let binding_id_for_closure = binding.id.clone();
-
-    app.global_shortcut()
-        .on_shortcut(shortcut, move |ah, scut, event| {
-            if scut == &shortcut {
-                let shortcut_string = scut.into_string();
-                let settings = get_settings(ah);
-
-                if let Some(action) = ACTION_MAP.get(&binding_id_for_closure) {
-                    if settings.push_to_talk {
-                        if event.state == ShortcutState::Pressed {
-                            action.start(ah, &binding_id_for_closure, &shortcut_string);
-                        } else if event.state == ShortcutState::Released {
-                            action.stop(ah, &binding_id_for_closure, &shortcut_string);
-                        }
-                    } else if event.state == ShortcutState::Pressed {
-                        let toggle_state_manager = ah.state::<ManagedToggleState>();
-
-                        let mut states = toggle_state_manager
-                            .lock()
-                            .expect("Failed to lock toggle state manager");
-
-                        let is_currently_active = states
-                            .active_toggles
-                            .entry(binding_id_for_closure.clone())
-                            .or_insert(false);
-
-                        if *is_currently_active {
-                            action.stop(ah, &binding_id_for_closure, &shortcut_string);
-                            *is_currently_active = false;
-                        } else {
-                            action.start(ah, &binding_id_for_closure, &shortcut_string);
-                            *is_currently_active = true;
-                        }
-                    }
-                } else {
-                    warn!(
-                        "No action defined in ACTION_MAP for shortcut ID '{}'. Shortcut: '{}', State: {:?}",
-                        binding_id_for_closure, shortcut_string, event.state
-                    );
-                }
-            }
-        })
-        .map_err(|e| {
-            let error_msg = format!(
-                "Couldn't register shortcut '{}': {}",
-                binding.current_binding, e
-            );
-            error!("register_shortcut registration error: {}", error_msg);
-            error_msg
+            error!("register_shortcut parse error: {message}");
+            message
         })?;
+    if app.global_shortcut().is_registered(shortcut) {
+        let message = format!("Shortcut '{}' is already in use", binding.current_binding);
+        warn!("register_shortcut duplicate error: {message}");
+        return Err(message);
+    }
+    Ok(shortcut)
+}
 
-    Ok(())
+struct ShortcutInvocation<'a> {
+    app: &'a AppHandle,
+    binding_id: &'a str,
+    shortcut: &'a str,
+    event: ShortcutEvent,
+}
+
+fn dispatch_shortcut(invocation: ShortcutInvocation<'_>) {
+    let Some(action) = ACTION_MAP.get(invocation.binding_id) else {
+        warn!(
+            "No action defined for shortcut ID '{}'",
+            invocation.binding_id
+        );
+        return;
+    };
+    let push_to_talk = get_settings(invocation.app).push_to_talk;
+    if action.is_one_shot() || push_to_talk {
+        let execution = shortcut_transition(ShortcutTransition {
+            is_one_shot: action.is_one_shot(),
+            push_to_talk,
+            event: invocation.event,
+            is_active: false,
+        });
+        execute_action(action.as_ref(), &invocation, execution);
+        return;
+    }
+    if invocation.event != ShortcutEvent::Pressed {
+        return;
+    }
+    let state = invocation.app.state::<ManagedToggleState>();
+    let result = execute_toggle_transition(&state, invocation.binding_id, |execution| {
+        execute_action(action.as_ref(), &invocation, execution);
+    });
+    if let Err(error) = result {
+        error!("[Shortcuts] {error}");
+    }
+}
+
+fn execute_action(
+    action: &dyn ShortcutAction,
+    invocation: &ShortcutInvocation<'_>,
+    execution: ShortcutExecution,
+) {
+    match execution {
+        ShortcutExecution::Start => {
+            action.start(invocation.app, invocation.binding_id, invocation.shortcut)
+        }
+        ShortcutExecution::Stop => {
+            action.stop(invocation.app, invocation.binding_id, invocation.shortcut)
+        }
+        ShortcutExecution::None => {}
+    }
+}
+
+fn shortcut_event(state: ShortcutState) -> ShortcutEvent {
+    if state == ShortcutState::Pressed {
+        return ShortcutEvent::Pressed;
+    }
+    ShortcutEvent::Released
 }
 
 /// Unregister a single shortcut binding.
@@ -230,3 +341,7 @@ pub fn unregister_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<
 
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "init_tests.rs"]
+mod tests;

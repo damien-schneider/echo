@@ -1,10 +1,4 @@
-//! End-to-end integration coverage for the realtime streaming pipeline.
-//!
-//! These tests don't load the Whisper model; instead they drive
-//! [`StreamingPipeline`] with a stubbed decode function so the test always
-//! runs in CI. The unit tests in `src/managers/streaming.rs` cover the LA-2
-//! committer in isolation; this file proves the pipeline survives realistic
-//! frame rates, threading, and audio shapes.
+//! Realistic-shape E2E for StreamingPipeline; stubbed decode so it runs in CI.
 
 use echo_app_lib::managers::streaming::{
     LocalAgreementCommitter, PipelineEvent, StreamingConfig, StreamingPipeline,
@@ -13,9 +7,8 @@ use std::f32::consts::TAU;
 use std::sync::{Arc, Mutex};
 
 const SAMPLE_RATE: usize = 16_000;
-const FRAME_SAMPLES: usize = 480; // 30 ms — matches the resampler frame size
+const FRAME_SAMPLES: usize = 480;
 
-/// 1 second of mono sine audio at the given frequency, amplitude 0.3.
 fn sine_seconds(freq_hz: f32, secs: f32) -> Vec<f32> {
     let n = (SAMPLE_RATE as f32 * secs) as usize;
     (0..n)
@@ -25,9 +18,7 @@ fn sine_seconds(freq_hz: f32, secs: f32) -> Vec<f32> {
 
 #[test]
 fn realistic_frame_rate_emits_interim_then_final() {
-    // Use a config large enough that the silence flush — not the hard cap —
-    // is what produces the Final in this test. (The crate default's 5s
-    // max_window is tuned for live UX, not for this fixture's 10s buffer.)
+    // 15s max_window so silence-flush (not hard cap) produces Final in 10s test.
     let mut pipeline = StreamingPipeline::new(StreamingConfig {
         min_window_samples: SAMPLE_RATE,
         step_samples: SAMPLE_RATE / 2,
@@ -35,24 +26,23 @@ fn realistic_frame_rate_emits_interim_then_final() {
         silence_flush_samples: (0.4 * SAMPLE_RATE as f32) as usize,
     });
 
-    // Decode stub: returns a transcript whose word count grows with the
-    // buffer size. This exercises both the LA-2 commit path (consecutive
-    // calls have agreeing prefixes) and the silence-flush Final path.
+    // Word count grows with buffer; exercises LA-2 + silence-flush.
     let decoded = Arc::new(Mutex::new(Vec::<usize>::new()));
     let decoded_for_closure = decoded.clone();
     let mut decode = move |buf: &[f32]| -> String {
         decoded_for_closure.lock().unwrap().push(buf.len());
         let words = std::cmp::min(20, buf.len() / SAMPLE_RATE);
-        ["one", "two", "three", "four", "five", "six", "seven", "eight"]
-            .iter()
-            .cycle()
-            .take(words)
-            .copied()
-            .collect::<Vec<_>>()
-            .join(" ")
+        [
+            "one", "two", "three", "four", "five", "six", "seven", "eight",
+        ]
+        .iter()
+        .cycle()
+        .take(words)
+        .copied()
+        .collect::<Vec<_>>()
+        .join(" ")
     };
 
-    // Push 10 s of sine in 30 ms frames.
     let audio = sine_seconds(220.0, 10.0);
     let mut all_events = Vec::new();
     for frame in audio.chunks(FRAME_SAMPLES) {
@@ -60,7 +50,6 @@ fn realistic_frame_rate_emits_interim_then_final() {
         all_events.extend(evs);
     }
 
-    // Then push 0.7 s of silence to trigger a Final.
     let silence = vec![0.0f32; (0.7 * SAMPLE_RATE as f32) as usize];
     for frame in silence.chunks(FRAME_SAMPLES) {
         let evs = pipeline.push(frame, false, &mut decode);
@@ -93,8 +82,7 @@ fn realistic_frame_rate_emits_interim_then_final() {
 
 #[test]
 fn long_meeting_simulation_does_not_leak_or_starve() {
-    // A 5 minute simulated meeting at 30 ms frames = 10_000 push() calls.
-    // Goal: catch state explosions, runaway buffers, accidental panics.
+    // 5min @ 30ms = 10_000 pushes; stress state/buffers/panics.
     let mut pipeline = StreamingPipeline::new(StreamingConfig {
         min_window_samples: 2 * SAMPLE_RATE,
         step_samples: SAMPLE_RATE,
@@ -110,7 +98,7 @@ fn long_meeting_simulation_does_not_leak_or_starve() {
 
     let secs = 300.0;
     let audio = sine_seconds(180.0, secs);
-    // Inject a 0.6s silence every 8s to simulate natural pauses.
+    // 0.6s silence every 8s simulates natural pauses.
     let silence_block = vec![0.0f32; (0.6 * SAMPLE_RATE as f32) as usize];
 
     let mut elapsed_samples = 0usize;
@@ -131,19 +119,15 @@ fn long_meeting_simulation_does_not_leak_or_starve() {
         .iter()
         .filter(|e| matches!(e, PipelineEvent::Final { .. }))
         .count();
-    // 300 s with ~8s-spaced silences should produce 30+ Finals.
     assert!(
         finals >= 20,
         "expected many Finals over 5min meeting, got {finals}"
     );
-    // Sanity: pipeline never stalled — decode was called many times.
     assert!(decode_calls > 100);
 }
 
 #[test]
 fn committer_pipeline_round_trip_progressive_decode() {
-    // Reproduce the exact use-case promised to the user: text starts as
-    // tentative, then gets promoted to committed as more decodes confirm it.
     let mut committer = LocalAgreementCommitter::new();
     let outputs = ["the", "the quick", "the quick brown", "the quick brown fox"];
 
@@ -153,20 +137,11 @@ fn committer_pipeline_round_trip_progressive_decode() {
     });
 
     let final_delta = final_delta.expect("at least one observe");
-    // After 4 progressive decodes, "the quick brown" is committed and "fox"
-    // is the lone tentative tail.
     assert_eq!(final_delta.committed_text, "the quick brown");
     assert_eq!(final_delta.tentative_text, "fox");
 }
 
-// ── Edge cases the user asked for: things that would silently break realtime
-// transcription in production. Each test simulates a specific hazard.
-
-/// Whisper.cpp is famous for hallucinating on silence — common attractor
-/// strings include "Thank you for watching!" and "Sous-titres réalisés par
-/// la communauté d'Amara.org". When the model produces these intermittently
-/// across decodes of a *quiet* buffer, LA-2 must NOT commit them as if they
-/// were stable speech: the second decode rarely produces the same hallucination.
+/// Whisper attractors vary across decodes; LA-2 must not commit them.
 #[test]
 fn la2_does_not_commit_whisper_hallucinations() {
     let mut pipeline = StreamingPipeline::new(StreamingConfig::default());
@@ -184,7 +159,6 @@ fn la2_does_not_commit_whisper_hallucinations() {
             o.remove(0)
         }
     };
-    // Push enough audio to trigger 4 decodes back-to-back.
     let audio = sine_seconds(220.0, 12.0);
     let mut all_events = Vec::new();
     for frame in audio.chunks(FRAME_SAMPLES) {
@@ -204,53 +178,54 @@ fn la2_does_not_commit_whisper_hallucinations() {
     );
 }
 
-/// Whisper sometimes oscillates between two near-identical transcripts as
-/// the buffer grows. The committer's LCP-of-consecutive-decodes design means
-/// stable head words still commit even when the tail flip-flops.
+/// LCP design commits stable head even when tail oscillates.
 #[test]
 fn la2_handles_oscillating_tail() {
     let mut committer = LocalAgreementCommitter::new();
-    committer.observe(["the", "meeting", "starts", "now"].map(String::from).to_vec());
-    let d2 = committer.observe(["the", "meeting", "starts", "today"].map(String::from).to_vec());
-    let d3 = committer.observe(["the", "meeting", "starts", "now"].map(String::from).to_vec());
-    // Each LCP comparison sees a stable 3-word prefix.
+    committer.observe(
+        ["the", "meeting", "starts", "now"]
+            .map(String::from)
+            .to_vec(),
+    );
+    let d2 = committer.observe(
+        ["the", "meeting", "starts", "today"]
+            .map(String::from)
+            .to_vec(),
+    );
+    let d3 = committer.observe(
+        ["the", "meeting", "starts", "now"]
+            .map(String::from)
+            .to_vec(),
+    );
     assert_eq!(d2.committed_text, "the meeting starts");
     assert_eq!(d3.committed_text, "the meeting starts");
-    // The tail bounces between "now" / "today" but never gets committed.
     assert_ne!(d2.tentative_text, d3.tentative_text);
 }
 
-/// Catastrophic case: whisper revises an EARLY word after several decodes
-/// agreed. The committer must regress the committed prefix rather than emit a
-/// stale fragment.
+/// Early-word revision must regress committed prefix.
 #[test]
 fn la2_regresses_committed_prefix_on_early_revision() {
     let mut committer = LocalAgreementCommitter::new();
     committer.observe(["he", "said", "yes"].map(String::from).to_vec());
     let d2 = committer.observe(["he", "said", "yes", "today"].map(String::from).to_vec());
     assert_eq!(d2.committed_text, "he said yes");
-    // Now decoder reconsiders and changes "he" to "she".
     let d3 = committer.observe(["she", "said", "yes", "today"].map(String::from).to_vec());
     assert_eq!(d3.committed_text, "");
     assert_eq!(d3.tentative_text, "she said yes today");
 }
 
-/// Several empty-string decodes in a row (whisper bailed on a buffer it
-/// considered too short / too noisy). When real text finally appears, the
-/// committer must not falsely commit it from "matching" the previous empties.
+/// Empty prior decode → LCP 0; real text doesn't falsely commit.
 #[test]
 fn empty_decodes_do_not_falsely_commit() {
     let mut committer = LocalAgreementCommitter::new();
     let _ = committer.observe(vec![]);
     let _ = committer.observe(vec![]);
     let d3 = committer.observe(vec!["hello".into(), "world".into()]);
-    // Previous decode was empty, so LCP is 0 — nothing committed.
     assert_eq!(d3.committed_text, "");
     assert_eq!(d3.tentative_text, "hello world");
 }
 
-/// VAD-driven silence flush should fire AT MOST ONCE per silent stretch even
-/// if more silent frames keep arriving. Otherwise we'd emit duplicate Finals.
+/// Silence flush fires at most once per silent stretch.
 #[test]
 fn long_silence_flushes_exactly_once() {
     let mut pipeline = StreamingPipeline::new(StreamingConfig {
@@ -261,7 +236,6 @@ fn long_silence_flushes_exactly_once() {
     });
     let mut decode = |_: &[f32]| "speech words".to_string();
 
-    // 2s speech to fill the buffer past min_window, then 5s silence.
     let speech_audio = sine_seconds(220.0, 2.0);
     for frame in speech_audio.chunks(FRAME_SAMPLES) {
         pipeline.push(frame, true, &mut decode);
@@ -281,8 +255,7 @@ fn long_silence_flushes_exactly_once() {
     );
 }
 
-/// Pure silence from the very start: no min_window crossed → no decode, no
-/// Final. The pipeline should stay totally idle (no model calls, no events).
+/// Pure silence from start: no events, at most one decode at flush.
 #[test]
 fn pure_silence_from_start_emits_nothing() {
     let mut pipeline = StreamingPipeline::new(StreamingConfig::default());
@@ -297,18 +270,13 @@ fn pure_silence_from_start_emits_nothing() {
         events.extend(pipeline.push(frame, false, &mut decode));
     }
     assert_eq!(events.len(), 0);
-    // We do allow a single decode at the silence-flush point if min_window
-    // was crossed before the silence_run check, but with pure silence from
-    // the very first frame, the silence_run grows alongside the buffer and
-    // both gate-conditions trip at the same time (silence_flush wins).
     assert!(
         decode_calls <= 1,
         "pure silence triggered too many decodes: {decode_calls}"
     );
 }
 
-/// Hard cap fires mid-speech without a silence boundary — the next segment
-/// must start at the correct ms offset, not at 0.
+/// Next segment ms offset preserved after hard cap.
 #[test]
 fn hard_cap_preserves_segment_continuity() {
     let mut pipeline = StreamingPipeline::new(StreamingConfig {
@@ -318,7 +286,6 @@ fn hard_cap_preserves_segment_continuity() {
         silence_flush_samples: SAMPLE_RATE / 2,
     });
     let mut decode = |_: &[f32]| "stuff".to_string();
-    // 7s of unbroken speech — should cap-finalize at 3s and again around 6s.
     let speech_audio = sine_seconds(220.0, 7.0);
     let mut events = Vec::new();
     for frame in speech_audio.chunks(FRAME_SAMPLES) {
@@ -327,7 +294,9 @@ fn hard_cap_preserves_segment_continuity() {
     let finals: Vec<_> = events
         .iter()
         .filter_map(|e| match e {
-            PipelineEvent::Final { start_ms, end_ms, .. } => Some((*start_ms, *end_ms)),
+            PipelineEvent::Final {
+                start_ms, end_ms, ..
+            } => Some((*start_ms, *end_ms)),
             _ => None,
         })
         .collect();
@@ -344,7 +313,6 @@ fn hard_cap_preserves_segment_continuity() {
     }
 }
 
-/// A 1-sample frame is degenerate but should not panic, leak, or alter state.
 #[test]
 fn single_sample_frame_is_safe() {
     let mut pipeline = StreamingPipeline::new(StreamingConfig::default());
@@ -353,8 +321,7 @@ fn single_sample_frame_is_safe() {
     assert!(events.is_empty());
 }
 
-/// Frame larger than max_window should produce a single Final on push, not
-/// loop forever or split incorrectly.
+/// Oversized frame → single Final, no infinite loop.
 #[test]
 fn oversized_frame_force_finalizes_once() {
     let cfg = StreamingConfig {
@@ -369,7 +336,6 @@ fn oversized_frame_force_finalizes_once() {
         decode_count += 1;
         "long buffer".to_string()
     };
-    // One frame of 5s, way beyond max_window.
     let frame = sine_seconds(220.0, 5.0);
     let events = pipeline.push(&frame, true, &mut decode);
     let finals = events
@@ -380,8 +346,7 @@ fn oversized_frame_force_finalizes_once() {
     assert_eq!(decode_count, 1);
 }
 
-/// Two independent pipelines (mic + system) running in parallel must not
-/// share state — committed text from one source must not leak into the other.
+/// Mic + system pipelines must not leak text across.
 #[test]
 fn parallel_pipelines_are_isolated() {
     let mut mic = StreamingPipeline::new(StreamingConfig::default());
@@ -422,25 +387,22 @@ fn parallel_pipelines_are_isolated() {
     }
 }
 
-/// Long single-utterance decode (1000 words) shouldn't panic the committer.
+/// 1000-word decode must not panic the committer.
 #[test]
 fn committer_handles_unrealistically_long_decode() {
     let mut committer = LocalAgreementCommitter::new();
     let words: Vec<String> = (0..1000).map(|i| format!("word{i}")).collect();
     let d1 = committer.observe(words.clone());
-    assert_eq!(d1.committed_text, ""); // first decode commits nothing
+    assert_eq!(d1.committed_text, "");
     let d2 = committer.observe(words.clone());
     assert_eq!(d2.committed_text.split_whitespace().count(), 1000);
 }
 
-/// Stop / start cycle without any audio — flush returns [], pipeline state
-/// resets cleanly via reconstruction.
 #[test]
 fn rapid_stop_start_no_audio_is_safe() {
     let mut pipeline = StreamingPipeline::new(StreamingConfig::default());
     let mut decode = |_: &[f32]| "x".to_string();
     assert!(pipeline.flush(&mut decode).is_empty());
-    // Re-use after flush.
     let _ = pipeline.push(&sine_seconds(220.0, 2.0), true, &mut decode);
     let evs = pipeline.flush(&mut decode);
     assert!(!evs.is_empty());

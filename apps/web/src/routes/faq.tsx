@@ -19,15 +19,15 @@ export const Route = createFileRoute("/faq")({
     meta: [
       { title: "FAQ — Echo Speech-to-Text" },
       {
+        content:
+          "Answers to common questions about Echo: privacy, supported languages, system requirements, keyboard shortcuts, and troubleshooting.",
         name: "description",
-        content:
-          "Answers to common questions about Echo: privacy, supported languages, system requirements, keyboard shortcuts, and troubleshooting.",
       },
-      { property: "og:title", content: "FAQ — Echo Speech-to-Text" },
+      { content: "FAQ — Echo Speech-to-Text", property: "og:title" },
       {
-        property: "og:description",
         content:
           "Answers to common questions about Echo: privacy, supported languages, system requirements, keyboard shortcuts, and troubleshooting.",
+        property: "og:description",
       },
     ],
   }),
@@ -47,67 +47,67 @@ function FaqPage() {
 
   const faqs = [
     {
-      id: "gen-1",
       category: "general",
-      title: "What is Echo?",
       content:
         "Echo is a private, offline, and fast speech-to-text application powered by OpenAI's Whisper model. It runs entirely on your device, ensuring your data remains private.",
+      id: "gen-1",
+      title: "What is Echo?",
     },
     {
-      id: "gen-2",
       category: "general",
-      title: "How do I install Echo?",
       content:
         "You can download the latest version of Echo from our website or GitHub releases page. We support macOS, Windows, and Linux.",
+      id: "gen-2",
+      title: "How do I install Echo?",
     },
     {
-      id: "tech-1",
       category: "technical",
-      title: "What are the system requirements?",
       content:
         "Echo requires a modern 64-bit processor. For optimal performance, we recommend a device with a dedicated GPU or Apple Silicon (M1/M2/M3).",
+      id: "tech-1",
+      title: "What are the system requirements?",
     },
     {
-      id: "tech-2",
       category: "technical",
-      title: "Which Whisper models are supported?",
       content:
         "Echo supports various Whisper models ranging from Tiny to Large. You can choose the model that best fits your hardware capabilities and accuracy needs.",
+      id: "tech-2",
+      title: "Which Whisper models are supported?",
     },
     {
-      id: "tech-3",
       category: "technical",
-      title: "Can I use Echo with other applications?",
       content:
         "Yes, Echo works globally across your system. You can use it to dictate text into any application that accepts text input.",
+      id: "tech-3",
+      title: "Can I use Echo with other applications?",
     },
     {
-      id: "priv-1",
       category: "privacy",
-      title: "Does Echo store my audio recordings?",
       content:
         "No, Echo processes audio in real-time and does not store your audio recordings permanently. Temporary buffers are used for processing and are cleared immediately after transcription.",
+      id: "priv-1",
+      title: "Does Echo store my audio recordings?",
     },
     {
-      id: "priv-2",
       category: "privacy",
-      title: "Is my data sent to any third-party servers?",
       content:
         "No, Echo operates entirely offline. No data is sent to OpenAI or any other third-party servers.",
+      id: "priv-2",
+      title: "Is my data sent to any third-party servers?",
     },
     {
-      id: "trouble-1",
       category: "troubleshooting",
-      title: "Echo is not transcribing my voice.",
       content:
         "Please ensure that you have selected the correct microphone in the settings and that Echo has permission to access your microphone.",
+      id: "trouble-1",
+      title: "Echo is not transcribing my voice.",
     },
     {
-      id: "trouble-2",
       category: "troubleshooting",
-      title: "Transcription is slow.",
       content:
         "Transcription speed depends on your hardware and the selected model. Try switching to a smaller model (e.g., Tiny or Base) for faster performance.",
+      id: "trouble-2",
+      title: "Transcription is slow.",
     },
   ];
 
@@ -141,7 +141,7 @@ function FaqPage() {
               animate={{ opacity: 1, y: 0 }}
               className="relative max-w-sm"
               initial={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.5, delay: 0.1 }}
+              transition={{ delay: 0.1, duration: 0.5 }}
             >
               <input
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm ring-offset-background file:border-0 file:bg-transparent file:font-medium file:text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
@@ -196,7 +196,7 @@ function FaqPage() {
                 animate={{ opacity: 1, y: 0 }}
                 initial={{ opacity: 0, y: 20 }}
                 key={faq.id}
-                transition={{ duration: 0.3, delay: index * 0.05 }}
+                transition={{ delay: index * 0.05, duration: 0.3 }}
               >
                 <AccordionItem
                   className="rounded-md border bg-card/20 shadow outline-none last:border-b has-focus-visible:border-ring data-[state=open]:bg-card"

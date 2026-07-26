@@ -147,7 +147,10 @@ pub async fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse
 pub fn suspend_binding(app: AppHandle, id: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     if super::wayland::is_wayland_session() {
-        debug!("[Shortcuts] suspend_binding: Wayland session, no-op for '{}'", id);
+        debug!(
+            "[Shortcuts] suspend_binding: Wayland session, no-op for '{}'",
+            id
+        );
         return Ok(());
     }
 
@@ -167,7 +170,10 @@ pub fn suspend_binding(app: AppHandle, id: String) -> Result<(), String> {
 pub fn resume_binding(app: AppHandle, id: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     if super::wayland::is_wayland_session() {
-        debug!("[Shortcuts] resume_binding: Wayland session, no-op for '{}'", id);
+        debug!(
+            "[Shortcuts] resume_binding: Wayland session, no-op for '{}'",
+            id
+        );
         return Ok(());
     }
 

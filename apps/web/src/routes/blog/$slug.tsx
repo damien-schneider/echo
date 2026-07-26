@@ -4,6 +4,7 @@ import EchoFooter from "@/components/landing/footer";
 import { type BlogPost, blogPosts } from "@/data/blog-posts";
 
 export const Route = createFileRoute("/blog/$slug")({
+  component: BlogPostPage,
   head: ({ params }) => {
     const post = blogPosts.find((p) => p.slug === params.slug);
     if (!post) {
@@ -12,25 +13,24 @@ export const Route = createFileRoute("/blog/$slug")({
     return {
       meta: [
         { title: `${post.title} - Echo Blog` },
-        { name: "description", content: post.description },
-        { property: "og:title", content: `${post.title} - Echo Blog` },
-        { property: "og:description", content: post.description },
-        { property: "og:type", content: "article" },
+        { content: post.description, name: "description" },
+        { content: `${post.title} - Echo Blog`, property: "og:title" },
+        { content: post.description, property: "og:description" },
+        { content: "article", property: "og:type" },
         {
-          property: "article:published_time",
           content: post.publishedAt,
+          property: "article:published_time",
         },
       ],
     };
   },
-  component: BlogPostPage,
 });
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
     day: "numeric",
+    month: "long",
+    year: "numeric",
   });
 }
 
@@ -51,9 +51,9 @@ function parseContent(raw: string): ContentNode[] {
     if (trimmed !== "") {
       if (trimmed.startsWith("## ")) {
         nodes.push({
-          type: "heading",
           key: `heading-${nodeIndex}`,
           text: trimmed.slice(3),
+          type: "heading",
         });
       } else {
         const lines = trimmed.split("\n");
@@ -61,15 +61,15 @@ function parseContent(raw: string): ContentNode[] {
 
         if (allBullets) {
           nodes.push({
-            type: "list",
-            key: `list-${nodeIndex}`,
             items: lines.map((line) => line.slice(2)),
+            key: `list-${nodeIndex}`,
+            type: "list",
           });
         } else {
           nodes.push({
-            type: "paragraph",
             key: `para-${nodeIndex}`,
             text: trimmed,
+            type: "paragraph",
           });
         }
       }
@@ -230,7 +230,7 @@ function BlogPostPage() {
           <motion.article
             animate={{ opacity: 1, y: 0 }}
             initial={{ opacity: 0, y: 16 }}
-            transition={{ duration: 0.6, delay: 0.15, ease: "easeOut" }}
+            transition={{ delay: 0.15, duration: 0.6, ease: "easeOut" }}
           >
             <PostContent post={post} />
           </motion.article>
@@ -239,7 +239,7 @@ function BlogPostPage() {
           <motion.div
             animate={{ opacity: 1, y: 0 }}
             initial={{ opacity: 0, y: 16 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            transition={{ delay: 0.3, duration: 0.5 }}
           >
             <DownloadCta />
           </motion.div>
@@ -249,7 +249,7 @@ function BlogPostPage() {
             animate={{ opacity: 1 }}
             className="mt-4 border-border border-t pt-8 pb-16"
             initial={{ opacity: 0 }}
-            transition={{ duration: 0.4, delay: 0.4 }}
+            transition={{ delay: 0.4, duration: 0.4 }}
           >
             <div className="flex flex-wrap gap-2">
               {post.tags.map((tag) => (

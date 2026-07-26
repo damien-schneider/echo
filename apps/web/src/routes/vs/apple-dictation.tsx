@@ -7,6 +7,7 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/apple-dictation")({
+  component: AppleDictationPage,
   head: () => ({
     meta: [
       {
@@ -14,124 +15,123 @@ export const Route = createFileRoute("/vs/apple-dictation")({
           "Echo vs Apple Dictation — Open-Source Alternative with More Control",
       },
       {
-        name: "description",
         content:
           "Echo beats Apple Dictation with Whisper accuracy, cross-platform support, file transcription, LLM refinement, and full open-source transparency. Free on Mac, Windows, Linux.",
+        name: "description",
       },
       {
-        property: "og:title",
         content:
           "Echo vs Apple Dictation — Open-Source Alternative with More Control",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Echo beats Apple Dictation with Whisper accuracy, cross-platform support, file transcription, LLM refinement, and full open-source transparency. Free on Mac, Windows, Linux.",
+        property: "og:description",
       },
     ],
   }),
-  component: AppleDictationPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "Free (macOS only)",
+    echo: "Free forever",
     echoPositive: false,
+    feature: "Price",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux",
     competitor: "macOS only",
+    echo: "macOS, Windows, Linux",
     echoPositive: true,
+    feature: "Platforms",
   },
   {
-    feature: "Speech Model Quality",
-    echo: "OpenAI Whisper (state-of-the-art)",
     competitor: "Older CMU Sphinx / limited Apple model",
+    echo: "OpenAI Whisper (state-of-the-art)",
     echoPositive: true,
+    feature: "Speech Model Quality",
   },
   {
-    feature: "Offline Processing",
-    echo: "100% local — always offline",
     competitor: "Enhanced Dictation offline; standard uses Apple servers",
+    echo: "100% local — always offline",
     echoPositive: true,
+    feature: "Offline Processing",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License — fully auditable",
     competitor: "Proprietary Apple software",
+    echo: "MIT License — fully auditable",
     echoPositive: true,
+    feature: "Open Source",
   },
   {
-    feature: "File Transcription",
-    echo: "Transcribe audio and video files",
     competitor: "Live dictation only, no file support",
+    echo: "Transcribe audio and video files",
     echoPositive: true,
+    feature: "File Transcription",
   },
   {
-    feature: "LLM Post-Processing",
-    echo: "Optional AI refinement",
     competitor: "Not available",
+    echo: "Optional AI refinement",
     echoPositive: true,
+    feature: "LLM Post-Processing",
   },
   {
-    feature: "Model Selection",
-    echo: "Whisper tiny→large + Parakeet",
     competitor: "No model choice",
+    echo: "Whisper tiny→large + Parakeet",
     echoPositive: true,
+    feature: "Model Selection",
   },
   {
-    feature: "100+ Language Support",
-    echo: "Whisper supports 100+ languages",
     competitor: "Limited Apple-supported languages",
+    echo: "Whisper supports 100+ languages",
     echoPositive: true,
+    feature: "100+ Language Support",
   },
   {
-    feature: "Account / Apple ID",
-    echo: "Never required",
     competitor: "Tied to Apple ecosystem",
+    echo: "Never required",
     echoPositive: true,
+    feature: "Account / Apple ID",
   },
   {
-    feature: "Global Shortcut / Auto-Paste",
-    echo: "Custom shortcut, pastes anywhere",
     competitor: "System shortcut only (Fn key)",
+    echo: "Custom shortcut, pastes anywhere",
     echoPositive: true,
+    feature: "Global Shortcut / Auto-Paste",
   },
   {
-    feature: "Ecosystem Lock-in",
-    echo: "None — cross-platform, open standard",
     competitor: "Apple platform only",
+    echo: "None — cross-platform, open standard",
     echoPositive: true,
+    feature: "Ecosystem Lock-in",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "Far Superior Accuracy",
     description:
       "Apple's Enhanced Dictation relies on an older CMU Sphinx-based model. Echo uses OpenAI Whisper — a modern transformer model trained on 680,000 hours of audio, with dramatically better accuracy across accents, domains, and languages.",
     icon: "◈",
+    title: "Far Superior Accuracy",
   },
   {
-    title: "Cross-Platform Freedom",
     description:
       "Apple Dictation is macOS-only. Echo runs natively on macOS, Windows, and Linux. If you ever leave Apple's ecosystem, your workflow comes with you — no migration, no friction.",
     icon: "⊕",
+    title: "Cross-Platform Freedom",
   },
   {
-    title: "File Transcription & LLM Refinement",
     description:
       "Apple Dictation only works live while you type. Echo can transcribe existing audio and video files, then optionally pass the result through a local LLM to clean up punctuation, remove filler words, and polish the output.",
     icon: "✦",
+    title: "File Transcription & LLM Refinement",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -203,7 +203,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -213,8 +213,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -332,7 +332,7 @@ function AppleDictationPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Ready to move beyond Apple Dictation?

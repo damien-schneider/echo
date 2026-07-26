@@ -22,59 +22,59 @@ interface ModelData {
 
 const models: ModelData[] = [
   {
+    accuracy: 80,
+    engine: "NVIDIA Parakeet",
     id: "parakeet-v3",
     name: "Parakeet V3",
-    tagline: "Fast, accurate, auto-detects language",
-    accuracy: 80,
-    speed: 85,
-    size: "478 MB",
-    engine: "NVIDIA Parakeet",
     recommended: true,
+    size: "478 MB",
+    speed: 85,
+    tagline: "Fast, accurate, auto-detects language",
   },
   {
+    accuracy: 85,
+    engine: "NVIDIA Parakeet",
     id: "parakeet-v2",
     name: "Parakeet V2",
-    tagline: "Highest accuracy for English",
-    accuracy: 85,
-    speed: 85,
     size: "473 MB",
-    engine: "NVIDIA Parakeet",
+    speed: 85,
+    tagline: "Highest accuracy for English",
   },
   {
+    accuracy: 60,
+    engine: "OpenAI Whisper",
     id: "whisper-small",
     name: "Whisper Small",
-    tagline: "Lightweight, 100+ languages",
-    accuracy: 60,
-    speed: 85,
     size: "487 MB",
-    engine: "OpenAI Whisper",
+    speed: 85,
+    tagline: "Lightweight, 100+ languages",
   },
   {
+    accuracy: 75,
+    engine: "OpenAI Whisper",
     id: "whisper-medium",
     name: "Whisper Medium",
-    tagline: "Balanced accuracy and speed",
-    accuracy: 75,
-    speed: 60,
     size: "492 MB",
-    engine: "OpenAI Whisper",
+    speed: 60,
+    tagline: "Balanced accuracy and speed",
   },
   {
+    accuracy: 80,
+    engine: "OpenAI Whisper",
     id: "whisper-turbo",
     name: "Whisper Turbo",
-    tagline: "High quality, GPU accelerated",
-    accuracy: 80,
-    speed: 40,
     size: "1.6 GB",
-    engine: "OpenAI Whisper",
+    speed: 40,
+    tagline: "High quality, GPU accelerated",
   },
   {
+    accuracy: 85,
+    engine: "OpenAI Whisper",
     id: "whisper-large",
     name: "Whisper Large",
-    tagline: "Maximum accuracy across all languages",
-    accuracy: 85,
-    speed: 30,
     size: "1.1 GB",
-    engine: "OpenAI Whisper",
+    speed: 30,
+    tagline: "Maximum accuracy across all languages",
   },
 ];
 
@@ -93,7 +93,7 @@ function ProgressBar({
         animate={{ width: `${value}%` }}
         className={`h-full rounded-full ${color}`}
         initial={{ width: 0 }}
-        transition={{ duration: 0.8, delay, ease: "easeOut" }}
+        transition={{ delay, duration: 0.8, ease: "easeOut" }}
       />
     </div>
   );
@@ -101,13 +101,13 @@ function ProgressBar({
 
 export default function ModelsShowcase() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: "-100px" });
+  const isInView = useInView(containerRef, { margin: "-100px", once: true });
   const [active, setActive] = useState(0);
   const model = models[active];
 
   const { scrollYProgress } = useScroll({
-    target: containerRef,
     offset: ["start end", "end start"],
+    target: containerRef,
   });
 
   const titleY = useTransform(scrollYProgress, [0, 0.4], [40, 0]);
@@ -121,7 +121,7 @@ export default function ModelsShowcase() {
       <div className="container mx-auto px-4">
         <motion.div
           className="mb-20 text-center"
-          style={{ y: titleY, opacity: titleOpacity }}
+          style={{ opacity: titleOpacity, y: titleY }}
         >
           <h2 className="font-bold font-display text-[clamp(1.8rem,4vw,3.2rem)] leading-tight tracking-[-0.03em]">
             Six engines,{" "}
@@ -139,10 +139,10 @@ export default function ModelsShowcase() {
           {/* Active model detail — large, minimal */}
           <AnimatePresence mode="wait">
             <motion.div
-              animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+              animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
               className="mb-16 text-center"
-              exit={{ opacity: 0, y: -8, filter: "blur(4px)" }}
-              initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+              exit={{ filter: "blur(4px)", opacity: 0, y: -8 }}
+              initial={{ filter: "blur(4px)", opacity: 0, y: 8 }}
               key={model.id}
               transition={{ duration: 0.3 }}
             >
@@ -204,7 +204,7 @@ export default function ModelsShowcase() {
             animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
             className="flex flex-wrap items-center justify-center gap-2"
             initial={{ opacity: 0, y: 16 }}
-            transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
+            transition={{ delay: 0.3, duration: 0.6, ease: "easeOut" }}
           >
             {models.map((m, i) => (
               <button
@@ -222,9 +222,9 @@ export default function ModelsShowcase() {
                     className="absolute inset-0 rounded-full border border-foreground/15 bg-foreground/5"
                     layoutId="model-pill"
                     transition={{
-                      type: "spring",
-                      stiffness: 400,
                       damping: 30,
+                      stiffness: 400,
+                      type: "spring",
                     }}
                   />
                 )}
@@ -237,7 +237,7 @@ export default function ModelsShowcase() {
             animate={isInView ? { opacity: 1 } : { opacity: 0 }}
             className="mt-12 text-center text-muted-foreground/60 text-xs"
             initial={{ opacity: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
+            transition={{ delay: 0.6, duration: 0.8 }}
           >
             All models are downloaded once and run entirely on your device.
           </motion.p>

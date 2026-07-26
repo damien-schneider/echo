@@ -13,7 +13,6 @@ interface MarkdownEditorProps {
   editorClassName?: string;
   onChange?: (markdown: string) => void;
   placeholder?: string;
-  /** Enable @mention functionality with custom items like @output */
   showMentionMenu?: boolean;
   showToolbar?: boolean;
   value?: string;
@@ -31,12 +30,12 @@ export function MarkdownEditor({
   showMentionMenu = false,
 }: MarkdownEditorProps) {
   const { editor, handleChange } = useMarkdownEditor({
-    content: value,
-    onUpdate: onChange,
-    placeholder,
     autoFocus,
+    content: value,
     editable,
     enableMentions: showMentionMenu,
+    onUpdate: onChange,
+    placeholder,
   });
 
   if (!editor) {

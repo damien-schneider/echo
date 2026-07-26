@@ -20,8 +20,8 @@ interface ClipboardHandlingProps {
 }
 
 const clipboardHandlingOptions = [
-  { value: "dont_modify", label: "Don't Modify Clipboard" },
-  { value: "copy_to_clipboard", label: "Copy to Clipboard" },
+  { label: "Don't Modify Clipboard", value: "dont_modify" },
+  { label: "Copy to Clipboard", value: "copy_to_clipboard" },
 ];
 
 export const ClipboardHandlingSetting = ({

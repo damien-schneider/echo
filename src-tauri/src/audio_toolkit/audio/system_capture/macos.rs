@@ -60,9 +60,9 @@ impl SystemAudioCapture for MacOsSystemCapture {
         let mut stream = SCStream::new(&filter, &config);
         let handler = AudioHandler::new(tx);
         stream.add_output_handler(handler, SCStreamOutputType::Audio);
-        stream
-            .start_capture()
-            .map_err(|e| anyhow!("ScreenCaptureKit: start_capture failed (Screen Recording permission?): {e}"))?;
+        stream.start_capture().map_err(|e| {
+            anyhow!("ScreenCaptureKit: start_capture failed (Screen Recording permission?): {e}")
+        })?;
 
         self.stream = Some(stream);
         debug!("macOS system audio capture started");

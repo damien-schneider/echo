@@ -1,7 +1,4 @@
-//! Meeting transcription manager.
-//!
-//! Orchestrates dual-stream recording (mic + system audio), chunked transcription,
-//! speaker labeling, and meeting lifecycle management.
+//! Dual-stream meeting recording (mic + system), chunked transcription, diarization, lifecycle.
 
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -19,18 +16,16 @@ use super::diarization::DiarizationManager;
 use super::meeting_streaming::{
     is_whisper_hallucination, StreamingSource, StreamingWorker, StreamingWorkerHandle,
 };
-use super::transcription::TranscriptionManager;
-use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
-use crate::managers::cleanup_apply::cleanup_or_filter;
+use super::transcription::{transcription_timeout, TranscriptionManager};
 use crate::audio_toolkit::audio::save_wav_file;
 use crate::audio_toolkit::audio::system_capture::{
     create_system_capture, is_system_audio_available, SystemAudioCapture,
 };
 use crate::audio_toolkit::{list_input_devices, AudioRecorder};
+use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
 use crate::helpers::clamshell;
+use crate::managers::cleanup_apply::cleanup_or_filter;
 use crate::settings;
-
-// ── Types ──────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -106,11 +101,9 @@ pub struct MeetingSegment {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BatchPhase {
-    /// Whisper batch transcription of audio chunks.
     Transcribing,
-    /// Sortformer diarization run on the full WAV before per-segment decode.
+    /// Sortformer pass on full WAV before per-segment decode.
     Diarizing,
-    /// All work for this audio source is finished.
     Done,
 }
 
@@ -132,8 +125,6 @@ pub enum ExportFormat {
     Markdown,
 }
 
-// ── Internal recording state ───────────────────────────────────────────────
-
 struct RecordingState {
     meeting_id: i64,
     start_time: i64,
@@ -145,26 +136,19 @@ enum ManagerState {
     Processing,
 }
 
-// ── Manager ────────────────────────────────────────────────────────────────
-
 pub struct MeetingManager {
     app_handle: AppHandle,
     state: Arc<Mutex<ManagerState>>,
     meetings_dir: PathBuf,
     db_path: PathBuf,
-    /// Dedicated mic recorder for meeting capture (no VAD — records everything).
+    /// No VAD — captures everything.
     mic_recorder: Arc<std::sync::Mutex<Option<AudioRecorder>>>,
-    /// Optional system audio capture handle (None when feature disabled or unsupported).
     system_capture: Arc<std::sync::Mutex<Option<Box<dyn SystemAudioCapture>>>>,
-    /// Buffer fed by the collector thread; drained on stop_meeting.
+    /// Drained on stop_meeting.
     system_samples: Arc<std::sync::Mutex<Vec<f32>>>,
-    /// Collector thread that drains the system-capture receiver into [`system_samples`].
     system_collector: Arc<std::sync::Mutex<Option<std::thread::JoinHandle<()>>>>,
-    /// Realtime streaming worker (None when realtime transcription is off).
     streaming_worker: Arc<std::sync::Mutex<Option<Arc<StreamingWorker>>>>,
-    /// Lifecycle handle for the streaming worker — owned separately from the
-    /// shareable `streaming_worker` so we can cleanly join even when
-    /// forwarder threads still hold Arc clones at stop time.
+    /// Owned separately so we can join even when forwarders still hold Arc clones.
     streaming_handle: Arc<std::sync::Mutex<Option<StreamingWorkerHandle>>>,
 }
 
@@ -179,8 +163,7 @@ impl MeetingManager {
             debug!("Created meetings directory: {:?}", meetings_dir);
         }
 
-        // Ensure the meetings tables exist (database::initialize_database is already called
-        // by HistoryManager, but we verify our tables are present)
+        // HistoryManager already calls initialize_database; re-verify our tables exist.
         database::initialize_database(&db_path)
             .context("Failed to initialize database for meetings")?;
 
@@ -206,9 +189,7 @@ impl MeetingManager {
         Ok(conn)
     }
 
-    // ── Lifecycle ──────────────────────────────────────────────────────────
-
-    /// Resolve the microphone device from settings (respects clamshell mode).
+    /// Resolves from settings; honours clamshell mode.
     fn get_effective_mic_device(&self) -> Option<cpal::Device> {
         let app_settings = settings::get_settings(&self.app_handle);
 
@@ -236,16 +217,12 @@ impl MeetingManager {
         }
     }
 
-    /// Start a new meeting recording.
     pub async fn start_meeting(&self, title: Option<String>) -> Result<i64> {
         let mut state = self.state.lock().await;
         if !matches!(*state, ManagerState::Idle) {
             anyhow::bail!("A meeting is already in progress");
         }
 
-        // Speaker detection is mandatory: refuse to start until the diarization
-        // model has finished downloading. The model auto-downloads at app boot,
-        // so the user just needs to wait the first time.
         let diarization_available = self
             .app_handle
             .try_state::<Arc<DiarizationManager>>()
@@ -253,11 +230,10 @@ impl MeetingManager {
             .unwrap_or(false);
         if !diarization_available {
             anyhow::bail!(
-                "Speaker detection model is still downloading. Please wait for the download to finish before starting a meeting."
+                "Download the speaker detection model in Meeting Settings before starting a meeting."
             );
         }
 
-        // Open mic recorder (no VAD — meetings should capture all audio)
         let mut recorder = AudioRecorder::new()
             .map_err(|e| anyhow::anyhow!("Failed to create meeting audio recorder: {}", e))?;
 
@@ -266,8 +242,7 @@ impl MeetingManager {
             .open(selected_device)
             .map_err(|e| anyhow::anyhow!("Failed to open microphone for meeting: {}", e))?;
 
-        // Insert the meeting row up front so we have an ID to attach
-        // streaming events / file names to.
+        // ID needed up front for streaming events + file names.
         let now = Utc::now().timestamp();
         let meeting_title = title.unwrap_or_else(|| {
             let dt = chrono::Local::now();
@@ -281,9 +256,7 @@ impl MeetingManager {
         let meeting_id = conn.last_insert_rowid();
         info!("Started meeting {} (id={})", meeting_title, meeting_id);
 
-        // Realtime streaming worker — always on. Spawned BEFORE we wire
-        // chunk_tx so audio frames flow into a live worker from the very
-        // first sample.
+        // Spawn BEFORE chunk_tx wire so first sample hits live worker.
         let app_settings = settings::get_settings(&self.app_handle);
         let streaming_worker_arc = {
             let tm = self.app_handle.state::<Arc<TranscriptionManager>>();
@@ -301,16 +274,14 @@ impl MeetingManager {
             }
         };
 
-        // If streaming is on, create a chunk_tx that the recorder feeds and a
-        // small forwarder thread that funnels chunks into the worker.
         let mic_chunk_tx = if let Some(ref worker) = streaming_worker_arc {
-            let (tx, rx) = std::sync::mpsc::channel::<Vec<f32>>();
+            let (tx, rx) = std::sync::mpsc::channel::<crate::audio_toolkit::CapturedAudioFrame>();
             let worker = worker.clone();
             std::thread::Builder::new()
                 .name(format!("meeting-mic-stream-fwd-{meeting_id}"))
                 .spawn(move || {
-                    while let Ok(chunk) = rx.recv() {
-                        worker.push_audio(StreamingSource::Mic, chunk);
+                    while let Ok(frame) = rx.recv() {
+                        worker.push_audio(StreamingSource::Mic, frame.samples);
                     }
                 })
                 .map_err(|e| anyhow::anyhow!("spawn mic forwarder: {e}"))?;
@@ -330,7 +301,6 @@ impl MeetingManager {
             *rec_guard = Some(recorder);
         }
 
-        // System audio capture (optional, behind setting + platform availability).
         if app_settings.meeting_system_audio_enabled && is_system_audio_available() {
             self.system_samples.lock().unwrap().clear();
             match create_system_capture() {
@@ -375,13 +345,7 @@ impl MeetingManager {
         Ok(meeting_id)
     }
 
-    /// Stop the current meeting recording. Returns as soon as audio capture
-    /// has stopped, WAVs are written, and the meeting row is marked
-    /// `processing` — the (potentially multi-minute) batch transcription
-    /// pass is spawned on the runtime so the calling Tauri command rends
-    /// the main loop quickly. The frontend follows progress through the
-    /// existing `meeting-batch-progress` + `meeting-status-changed`
-    /// events.
+    /// Returns when WAVs written + status=processing; batch pass spawned to runtime.
     pub async fn stop_meeting(self: Arc<Self>) -> Result<()> {
         let recording = {
             let mut state = self.state.lock().await;
@@ -396,7 +360,6 @@ impl MeetingManager {
 
         self.emit_status_changed(MeetingStatus::Processing);
 
-        // Stop the mic recorder and collect all accumulated samples
         let mic_samples = {
             let rec_guard = self.mic_recorder.lock().unwrap();
             if let Some(ref recorder) = *rec_guard {
@@ -420,7 +383,6 @@ impl MeetingManager {
             }
         };
 
-        // Close and drop the recorder
         {
             let mut rec_guard = self.mic_recorder.lock().unwrap();
             if let Some(mut recorder) = rec_guard.take() {
@@ -432,7 +394,6 @@ impl MeetingManager {
         let duration_ms = (now - recording.start_time) * 1000;
         let meeting_id = recording.meeting_id;
 
-        // Save mic audio to WAV
         let mic_file = if !mic_samples.is_empty() {
             let name = format!("meeting-{}-mic.wav", meeting_id);
             let path = self.meetings_dir.join(&name);
@@ -442,7 +403,6 @@ impl MeetingManager {
             None
         };
 
-        // Stop the system audio capture, join collector, drain accumulated samples.
         let sys_samples = {
             if let Some(mut capture) = self.system_capture.lock().unwrap().take() {
                 if let Err(e) = capture.stop() {
@@ -455,10 +415,7 @@ impl MeetingManager {
             std::mem::take(&mut *self.system_samples.lock().unwrap())
         };
 
-        // Stop the streaming worker. Drop the shared Arc first so forwarders'
-        // .push_audio() calls become no-ops; then signal Shutdown via the
-        // handle and join the thread (now near-instant — the worker honours
-        // the shutdown flag and skips any backlog without decoding it).
+        // Drop shared Arc first so forwarder push_audio becomes no-op; then Shutdown + join.
         let _ = self.streaming_worker.lock().unwrap().take();
         if let Some(handle) = self.streaming_handle.lock().unwrap().take() {
             handle.stop();
@@ -481,8 +438,7 @@ impl MeetingManager {
             None
         };
 
-        // Update meeting record (still in `processing` state — the spawn
-        // below will move it to `complete` once batch decoding is done).
+        // Status flips to `complete` after spawned batch decode finishes.
         let conn = self.get_connection()?;
         conn.execute(
             "UPDATE meetings SET end_time = ?1, duration_ms = ?2, mic_file_name = ?3, system_file_name = ?4, status = ?5 WHERE id = ?6",
@@ -496,10 +452,6 @@ impl MeetingManager {
             ],
         )?;
 
-        // Spawn the heavy batch transcription pass on the runtime so the
-        // calling Tauri command returns immediately. The frontend gets live
-        // updates via `meeting-batch-progress` and finally
-        // `meeting-status-changed("complete")` from inside the task.
         let manager = self.clone();
         tauri::async_runtime::spawn(async move {
             manager
@@ -510,10 +462,7 @@ impl MeetingManager {
         Ok(())
     }
 
-    /// Heavy batch transcription pipeline (diarization + per-segment decode
-    /// for mic; chunked decode for system audio). Runs detached from the
-    /// `stop_meeting` Tauri command. Errors are logged but never propagated
-    /// — the meeting row's status reflects the outcome.
+    /// Detached from stop_meeting; errors logged to status, never propagated.
     async fn run_batch_transcription(
         self: Arc<Self>,
         meeting_id: i64,
@@ -529,7 +478,6 @@ impl MeetingManager {
                 .await;
         }
 
-        // Mark complete
         if let Ok(conn) = self.get_connection() {
             if let Err(e) = conn.execute(
                 "UPDATE meetings SET status = ?1 WHERE id = ?2",
@@ -555,7 +503,6 @@ impl MeetingManager {
         }
     }
 
-    /// Transcribe audio samples in chunks and insert segments into the database.
     async fn transcribe_samples(
         &self,
         meeting_id: i64,
@@ -574,7 +521,6 @@ impl MeetingManager {
 
         let transcription_manager = self.app_handle.state::<Arc<TranscriptionManager>>();
 
-        // Ensure the transcription model is loaded before we start chunking
         transcription_manager.initiate_model_load();
 
         let emit_progress = |chunks_done: usize, phase: BatchPhase| {
@@ -600,13 +546,10 @@ impl MeetingManager {
             let end = (pos + chunk_size).min(samples.len());
             let chunk = &samples[pos..end];
 
-            match transcription_manager.transcribe(chunk.to_vec()) {
+            match transcription_manager
+                .transcribe_with_timeout(chunk.to_vec(), transcription_timeout(chunk.len()))
+            {
                 Ok(text) if !text.trim().is_empty() => {
-                    // Funnel through cleanup_or_filter so hallucinations
-                    // are still dropped *and* (when enabled) the LLM
-                    // cleanup pass runs. Returns "" for hallucinations or
-                    // empty input, raw otherwise (cleanup off / not
-                    // loaded), cleaned otherwise.
                     let trimmed = text.trim().to_string();
                     let final_text = self.apply_cleanup_filter(&trimmed);
                     if final_text.is_empty() {
@@ -641,7 +584,10 @@ impl MeetingManager {
                     );
                 }
                 Err(e) => {
-                    error!("Failed to transcribe meeting chunk at {}ms: {}", offset_ms, e);
+                    error!(
+                        "Failed to transcribe meeting chunk at {}ms: {}",
+                        offset_ms, e
+                    );
                 }
             }
 
@@ -656,19 +602,12 @@ impl MeetingManager {
         emit_progress(chunks_done, BatchPhase::Done);
     }
 
-    /// Apply hallucination filter and (optionally) cleanup LLM to a single
-    /// piece of transcript text. Centralizes the call into
-    /// [`cleanup_or_filter`] so the chunked / diarized batch paths stay
-    /// in sync with the streaming path.
     fn apply_cleanup_filter(&self, text: &str) -> String {
         let settings = settings::get_settings(&self.app_handle);
         let cleanup_state = match self.app_handle.try_state::<CleanupState>() {
             Some(s) => s.inner().clone(),
             None => {
-                // No cleanup state registered (test harness). Fall back to
-                // hallucination filter only — same behavior as pre-cleanup
-                // code, just routed through the helper module to keep one
-                // source of truth.
+                // Test harness: hallucination filter only.
                 if is_whisper_hallucination(text) {
                     return String::new();
                 }
@@ -680,14 +619,8 @@ impl MeetingManager {
         })
     }
 
-    /// Run speaker diarization on the full audio, then transcribe each speaker segment.
     /// Falls back to chunked transcription on failure.
-    async fn diarize_and_transcribe(
-        &self,
-        meeting_id: i64,
-        samples: &[f32],
-        source: AudioSource,
-    ) {
+    async fn diarize_and_transcribe(&self, meeting_id: i64, samples: &[f32], source: AudioSource) {
         let diarization_manager = match self.app_handle.try_state::<Arc<DiarizationManager>>() {
             Some(dm) => dm.inner().clone(),
             None => {
@@ -711,7 +644,6 @@ impl MeetingManager {
             );
         };
 
-        // Phase 1: diarization
         emit_progress(0, 0, BatchPhase::Diarizing);
 
         let threshold = {
@@ -724,7 +656,10 @@ impl MeetingManager {
         let raw_segments = match diarization_result {
             Ok(segs) => segs,
             Err(e) => {
-                error!("Diarization failed, falling back to chunked transcription: {}", e);
+                error!(
+                    "Diarization failed, falling back to chunked transcription: {}",
+                    e
+                );
                 self.transcribe_samples(meeting_id, samples, "Speaker", source)
                     .await;
                 return;
@@ -738,16 +673,15 @@ impl MeetingManager {
             return;
         }
 
-        // Merge consecutive same-speaker segments (max 30s for transcription context)
+        // 30s cap for transcription context.
         let merged = DiarizationManager::merge_consecutive(&raw_segments, 30_000);
 
         let transcription_manager = self.app_handle.state::<Arc<TranscriptionManager>>();
         transcription_manager.initiate_model_load();
 
         let sample_rate: i64 = 16_000;
-        let min_samples: usize = 1600; // 100ms minimum
+        let min_samples: usize = 1600;
 
-        // Phase 2: per-speaker-segment transcription
         let chunks_total = merged.len();
         emit_progress(0, chunks_total, BatchPhase::Transcribing);
 
@@ -762,7 +696,9 @@ impl MeetingManager {
 
             let chunk = &samples[start_sample..end_sample];
 
-            match transcription_manager.transcribe(chunk.to_vec()) {
+            match transcription_manager
+                .transcribe_with_timeout(chunk.to_vec(), transcription_timeout(chunk.len()))
+            {
                 Ok(text) if !text.trim().is_empty() => {
                     let trimmed = text.trim().to_string();
                     let final_text = self.apply_cleanup_filter(&trimmed);
@@ -832,10 +768,8 @@ impl MeetingManager {
         Ok(())
     }
 
-    // ── Queries ────────────────────────────────────────────────────────────
-
     pub fn get_meeting_status(&self) -> MeetingStatus {
-        // Use try_lock to avoid blocking — returns Idle if locked (recording in progress returns Recording via DB)
+        // try_lock avoids blocking; locked = recording in progress.
         match self.state.try_lock() {
             Ok(state) => match &*state {
                 ManagerState::Idle => MeetingStatus::Complete,
@@ -918,7 +852,6 @@ impl MeetingManager {
     }
 
     pub fn delete_meeting(&self, id: i64) -> Result<()> {
-        // Delete associated audio files first
         let conn = self.get_connection()?;
         let meeting = self.get_meeting(id)?;
 
@@ -935,18 +868,13 @@ impl MeetingManager {
             }
         }
 
-        // CASCADE will also delete meeting_segments
+        // CASCADE handles meeting_segments.
         conn.execute("DELETE FROM meetings WHERE id = ?1", params![id])?;
         info!("Deleted meeting {}", id);
         Ok(())
     }
 
-    pub fn rename_speaker(
-        &self,
-        meeting_id: i64,
-        old_label: &str,
-        new_label: &str,
-    ) -> Result<()> {
+    pub fn rename_speaker(&self, meeting_id: i64, old_label: &str, new_label: &str) -> Result<()> {
         let conn = self.get_connection()?;
         conn.execute(
             "UPDATE meeting_segments SET speaker_label = ?1 WHERE meeting_id = ?2 AND speaker_label = ?3",
@@ -959,9 +887,6 @@ impl MeetingManager {
         Ok(())
     }
 
-    // ── Summary ────────────────────────────────────────────────────────────
-
-    /// Build a formatted transcript string for the frontend to send to the LLM.
     pub fn get_transcript_for_summary(&self, meeting_id: i64) -> Result<String> {
         let segments = self.get_meeting_segments(meeting_id)?;
         if segments.is_empty() {
@@ -980,7 +905,6 @@ impl MeetingManager {
         Ok(transcript)
     }
 
-    /// Persist a summary generated by the frontend and emit the event.
     pub fn save_summary(&self, app: &AppHandle, meeting_id: i64, summary: &str) -> Result<()> {
         let conn = self.get_connection()?;
         conn.execute(
@@ -992,14 +916,11 @@ impl MeetingManager {
         Ok(())
     }
 
-    // ── Events ─────────────────────────────────────────────────────────────
-
     fn emit_status_changed(&self, status: MeetingStatus) {
         let _ = self.app_handle.emit("meeting-status-changed", &status);
     }
 
-    /// Re-transcribe a completed meeting from its saved audio file.
-    /// Deletes existing segments, reloads the WAV, and re-runs the pipeline.
+    /// Deletes existing segments + re-runs pipeline.
     pub async fn retranscribe_meeting(&self, meeting_id: i64) -> Result<()> {
         use crate::audio_toolkit::load_wav_file;
 
@@ -1007,7 +928,6 @@ impl MeetingManager {
             .get_mic_audio_path(meeting_id)?
             .ok_or_else(|| anyhow::anyhow!("No audio file found for meeting {}", meeting_id))?;
 
-        // Set status to processing
         {
             let conn = self.get_connection()?;
             conn.execute(
@@ -1024,7 +944,6 @@ impl MeetingManager {
             anyhow::bail!("Audio file is empty for meeting {}", meeting_id);
         }
 
-        // Delete existing segments
         {
             let conn = self.get_connection()?;
             conn.execute(
@@ -1033,7 +952,6 @@ impl MeetingManager {
             )?;
         }
 
-        // Re-run transcription with diarization (always on).
         let diarization_available = self
             .app_handle
             .try_state::<Arc<DiarizationManager>>()
@@ -1041,7 +959,7 @@ impl MeetingManager {
             .unwrap_or(false);
 
         if !diarization_available {
-            // Restore status and bail — don't silently fall back
+            // Don't silently fall back.
             let conn = self.get_connection()?;
             conn.execute(
                 "UPDATE meetings SET status = ?1 WHERE id = ?2",
@@ -1056,7 +974,6 @@ impl MeetingManager {
         self.diarize_and_transcribe(meeting_id, &samples, AudioSource::Mic)
             .await;
 
-        // Mark complete
         {
             let conn = self.get_connection()?;
             conn.execute(
@@ -1070,7 +987,6 @@ impl MeetingManager {
         Ok(())
     }
 
-    /// Get the absolute path to a meeting's mic audio file (if it exists).
     pub fn get_mic_audio_path(&self, meeting_id: i64) -> Result<Option<String>> {
         let meeting = self.get_meeting(meeting_id)?;
         match meeting.mic_file_name {
@@ -1078,9 +994,7 @@ impl MeetingManager {
                 let path = self.meetings_dir.join(name);
                 if path.exists() {
                     Ok(Some(
-                        path.to_str()
-                            .context("Invalid path encoding")?
-                            .to_string(),
+                        path.to_str().context("Invalid path encoding")?.to_string(),
                     ))
                 } else {
                     Ok(None)
@@ -1091,13 +1005,7 @@ impl MeetingManager {
     }
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-/// Plan describing how `transcribe_samples` will walk through an audio
-/// buffer: `chunk_size` samples per decode, advancing `step` samples
-/// between decodes (so consecutive chunks share a 5 s overlap). Extracted
-/// from the loop body so the arithmetic — especially around the last
-/// partial chunk — is unit-testable without a live transcription engine.
+/// Walk plan: `chunk_size` per decode, `step` advance, 5s overlap between chunks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChunkPlan {
     pub chunk_size: usize,
@@ -1107,7 +1015,7 @@ pub struct ChunkPlan {
 
 pub fn chunk_plan(samples_len: usize, chunk_secs: usize) -> ChunkPlan {
     const SAMPLE_RATE: usize = 16_000;
-    const OVERLAP_SAMPLES: usize = 5 * SAMPLE_RATE; // 5 s overlap
+    const OVERLAP_SAMPLES: usize = 5 * SAMPLE_RATE;
     let chunk_size = chunk_secs.max(1) * SAMPLE_RATE;
     let step = chunk_size.saturating_sub(OVERLAP_SAMPLES).max(1);
     let chunks_total = if samples_len == 0 {
@@ -1115,7 +1023,6 @@ pub fn chunk_plan(samples_len: usize, chunk_secs: usize) -> ChunkPlan {
     } else if samples_len <= chunk_size {
         1
     } else {
-        // One final chunk reaches the end, the rest advance by `step`.
         let remaining = samples_len.saturating_sub(chunk_size);
         1 + remaining.div_ceil(step)
     };
@@ -1157,8 +1064,6 @@ mod tests {
     use super::*;
     use tempfile::TempDir;
 
-    // ── Helper functions ───────────────────────────────────────────────
-
     fn make_test_db() -> (TempDir, PathBuf) {
         let temp = TempDir::new().unwrap();
         let db_path = temp.path().join("test.db");
@@ -1198,8 +1103,6 @@ mod tests {
         conn.last_insert_rowid()
     }
 
-    // ── Format helpers ─────────────────────────────────────────────────
-
     #[test]
     fn format_ms_to_hms_zero() {
         assert_eq!(format_ms_to_hms(0), "00:00:00");
@@ -1222,7 +1125,6 @@ mod tests {
 
     #[test]
     fn format_ms_to_hms_sub_second_truncated() {
-        // 1500ms = 1.5s → should show 00:00:01 (integer truncation)
         assert_eq!(format_ms_to_hms(1_500), "00:00:01");
     }
 
@@ -1238,7 +1140,6 @@ mod tests {
 
     #[test]
     fn format_ms_to_srt_time_comma_separator() {
-        // SRT uses commas for milliseconds
         let result = format_ms_to_srt_time(1_234);
         assert!(result.contains(','), "SRT times must use comma separator");
     }
@@ -1255,13 +1156,10 @@ mod tests {
 
     #[test]
     fn format_ms_to_vtt_time_dot_separator() {
-        // VTT uses dots for milliseconds
         let result = format_ms_to_vtt_time(1_234);
         assert!(result.contains('.'), "VTT times must use dot separator");
         assert!(!result.contains(','), "VTT must not use comma separator");
     }
-
-    // ── chunk_plan ─────────────────────────────────────────────────────
 
     #[test]
     fn chunk_plan_empty_buffer_yields_no_chunks() {
@@ -1271,24 +1169,20 @@ mod tests {
 
     #[test]
     fn chunk_plan_buffer_shorter_than_chunk_yields_one() {
-        // 10s of audio @ 16 kHz, chunk_secs=30 → fits in a single chunk.
         let p = chunk_plan(10 * 16_000, 30);
         assert_eq!(p.chunks_total, 1);
     }
 
     #[test]
     fn chunk_plan_buffer_equal_to_chunk_yields_one() {
-        // Boundary case: samples_len == chunk_size means the loop runs once.
-        // Old (sample_len + step - 1) / step formula incorrectly returned 2 here.
+        // Old formula `(sample_len + step - 1) / step` returned 2 here.
         let p = chunk_plan(30 * 16_000, 30);
         assert_eq!(p.chunks_total, 1);
     }
 
     #[test]
     fn chunk_plan_typical_meeting_chunk_count() {
-        // 5 min meeting, default 30s chunks with 5s overlap.
-        // chunk_size=480000, step=400000, samples_len=4800000.
-        // expected: 1 + ceil((4_800_000 - 480_000) / 400_000) = 1 + 11 = 12.
+        // 5min meeting, 30s chunks, 5s overlap = 12 chunks.
         let p = chunk_plan(5 * 60 * 16_000, 30);
         assert_eq!(p.chunks_total, 12);
         assert_eq!(p.chunk_size, 30 * 16_000);
@@ -1297,23 +1191,23 @@ mod tests {
 
     #[test]
     fn chunk_plan_clamps_chunk_secs_to_at_least_one() {
-        // The setting validator already enforces >=10s, but be defensive.
         let p = chunk_plan(0, 0);
-        assert!(p.chunk_size >= 16_000, "chunk_size must be at least 1 second of audio");
+        assert!(
+            p.chunk_size >= 16_000,
+            "chunk_size must be at least 1 second of audio"
+        );
     }
 
     #[test]
     fn chunk_plan_step_never_zero() {
-        // If overlap were to exceed chunk_size (e.g. very short chunk), step
-        // must clamp to 1 so the loop terminates.
+        // Else loop won't terminate.
         let p = chunk_plan(100_000, 3);
         assert!(p.step >= 1);
     }
 
     #[test]
     fn chunk_plan_count_matches_simulated_loop() {
-        // Exhaustively verify chunk_plan against the actual advance loop
-        // semantics in transcribe_samples for a range of buffer sizes.
+        // Exhaustive vs transcribe_samples advance loop.
         for secs in [1_usize, 7, 15, 30, 65, 137, 300] {
             for chunk_secs in [10_usize, 30, 60] {
                 let samples_len = secs * 16_000;
@@ -1337,8 +1231,6 @@ mod tests {
             }
         }
     }
-
-    // ── MeetingStatus ──────────────────────────────────────────────────
 
     #[test]
     fn meeting_status_round_trip() {
@@ -1370,15 +1262,11 @@ mod tests {
         assert_eq!(deserialized, MeetingStatus::Complete);
     }
 
-    // ── AudioSource ────────────────────────────────────────────────────
-
     #[test]
     fn audio_source_as_str() {
         assert_eq!(AudioSource::Mic.as_str(), "mic");
         assert_eq!(AudioSource::System.as_str(), "system");
     }
-
-    // ── ExportFormat ───────────────────────────────────────────────────
 
     #[test]
     fn export_format_serialization() {
@@ -1388,8 +1276,6 @@ mod tests {
         let md: ExportFormat = serde_json::from_str("\"markdown\"").unwrap();
         assert!(matches!(md, ExportFormat::Markdown));
     }
-
-    // ── Database operations (direct SQL, no AppHandle) ─────────────────
 
     fn table_exists(conn: &Connection, name: &str) -> bool {
         conn.query_row(
@@ -1418,7 +1304,11 @@ mod tests {
         let id = insert_meeting(&conn, "Test Meeting", "recording");
 
         let title: String = conn
-            .query_row("SELECT title FROM meetings WHERE id = ?1", params![id], |r| r.get(0))
+            .query_row(
+                "SELECT title FROM meetings WHERE id = ?1",
+                params![id],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(title, "Test Meeting");
     }
@@ -1452,7 +1342,9 @@ mod tests {
         insert_segment(&conn, mid, "A", 0, 5000, "First", "mic");
 
         let mut stmt = conn
-            .prepare("SELECT text FROM meeting_segments WHERE meeting_id = ?1 ORDER BY start_ms ASC")
+            .prepare(
+                "SELECT text FROM meeting_segments WHERE meeting_id = ?1 ORDER BY start_ms ASC",
+            )
             .unwrap();
         let texts: Vec<String> = stmt
             .query_map(params![mid], |r| r.get(0))
@@ -1470,7 +1362,8 @@ mod tests {
         let mid = insert_meeting(&conn, "Cascade Test", "complete");
         insert_segment(&conn, mid, "X", 0, 1000, "Will be deleted", "mic");
 
-        conn.execute("DELETE FROM meetings WHERE id = ?1", params![mid]).unwrap();
+        conn.execute("DELETE FROM meetings WHERE id = ?1", params![mid])
+            .unwrap();
 
         let count: i64 = conn
             .query_row(
@@ -1479,7 +1372,10 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(count, 0, "Segments must be cascade-deleted with parent meeting");
+        assert_eq!(
+            count, 0,
+            "Segments must be cascade-deleted with parent meeting"
+        );
     }
 
     #[test]
@@ -1507,7 +1403,6 @@ mod tests {
             .unwrap();
         assert_eq!(alice_count, 2);
 
-        // Speaker 2 should be unchanged
         let sp2_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM meeting_segments WHERE meeting_id = ?1 AND speaker_label = 'Speaker 2'",
@@ -1600,16 +1495,16 @@ mod tests {
         let (_tmp, db_path) = make_test_db();
         let conn = open_conn(&db_path);
 
-        // Attempt to insert a segment for a non-existent meeting
         let result = conn.execute(
             "INSERT INTO meeting_segments (meeting_id, speaker_label, start_ms, end_ms, text, audio_source) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![9999_i64, "X", 0_i64, 1000_i64, "orphan", "mic"],
         );
 
-        assert!(result.is_err(), "Foreign key constraint should prevent orphan segments");
+        assert!(
+            result.is_err(),
+            "Foreign key constraint should prevent orphan segments"
+        );
     }
-
-    // ── Meeting struct serialization ───────────────────────────────────
 
     #[test]
     fn meeting_struct_serialization_round_trip() {

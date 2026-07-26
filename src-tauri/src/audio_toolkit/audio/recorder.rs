@@ -18,9 +18,21 @@ use crate::audio_toolkit::{
 use log::{debug, error, warn};
 
 enum Cmd {
-    Start(Option<mpsc::Sender<Vec<f32>>>),
-    Stop(mpsc::Sender<Vec<f32>>),
+    Start(Option<mpsc::Sender<CapturedAudioFrame>>),
+    Stop(mpsc::Sender<RecordedAudio>),
     Shutdown,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CapturedAudioFrame {
+    pub samples: Vec<f32>,
+    pub is_speech: bool,
+}
+
+#[derive(Debug, Default)]
+pub(crate) struct RecordedAudio {
+    pub had_long_pause: bool,
+    pub samples: Vec<f32>,
 }
 
 pub struct AudioRecorder {
@@ -131,7 +143,7 @@ impl AudioRecorder {
 
     pub fn start(
         &self,
-        chunk_tx: Option<mpsc::Sender<Vec<f32>>>,
+        chunk_tx: Option<mpsc::Sender<CapturedAudioFrame>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(tx) = &self.cmd_tx {
             tx.send(Cmd::Start(chunk_tx))?;
@@ -140,11 +152,29 @@ impl AudioRecorder {
     }
 
     pub fn stop(&self) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
+        self.stop_with_metadata().map(|recording| recording.samples)
+    }
+
+    pub(crate) fn stop_with_metadata(&self) -> Result<RecordedAudio, Box<dyn std::error::Error>> {
         let (resp_tx, resp_rx) = mpsc::channel();
-        if let Some(tx) = &self.cmd_tx {
-            tx.send(Cmd::Stop(resp_tx))?;
+        // If the recorder was never opened (or already closed) `cmd_tx` is None.
+        // The old code skipped the send but still blocked on `resp_rx.recv()`
+        // forever, since nothing would ever fill the channel — an unbounded
+        // hang. Bail with an empty buffer instead.
+        let Some(tx) = &self.cmd_tx else {
+            debug!("AudioRecorder::stop() called with no open stream — returning empty buffer");
+            return Ok(RecordedAudio::default());
+        };
+        tx.send(Cmd::Stop(resp_tx))?;
+        // Bounded: the consumer thread replies as soon as it drains its queue.
+        // A wedged/unresponsive device must surface fast, not stall the caller.
+        match resp_rx.recv_timeout(Duration::from_millis(1500)) {
+            Ok(recording) => Ok(recording),
+            Err(mpsc::RecvTimeoutError::Timeout) => Err("recorder stop timed out".into()),
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                Err("recorder worker disconnected before replying".into())
+            }
         }
-        Ok(resp_rx.recv()?)
     }
 
     pub fn close(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -226,6 +256,62 @@ impl AudioRecorder {
     }
 }
 
+const LONG_PAUSE_MIN_SAMPLES: usize = constants::WHISPER_SAMPLE_RATE as usize / 2;
+pub(crate) const PAUSE_SEPARATOR_SAMPLES: usize = constants::WHISPER_SAMPLE_RATE as usize * 3 / 10;
+
+#[derive(Default)]
+struct RecordedAudioBuffer {
+    pending_silence_samples: usize,
+    had_long_pause: bool,
+    samples: Vec<f32>,
+}
+
+impl RecordedAudioBuffer {
+    fn clear(&mut self) {
+        self.pending_silence_samples = 0;
+        self.had_long_pause = false;
+        self.samples.clear();
+    }
+
+    fn push(&mut self, frame: &CapturedAudioFrame) {
+        if frame.is_speech {
+            if !self.samples.is_empty() && self.pending_silence_samples >= LONG_PAUSE_MIN_SAMPLES {
+                self.had_long_pause = true;
+                self.samples
+                    .resize(self.samples.len() + PAUSE_SEPARATOR_SAMPLES, 0.0);
+            }
+            self.pending_silence_samples = 0;
+            self.samples.extend_from_slice(&frame.samples);
+            return;
+        }
+        if !self.samples.is_empty() {
+            self.pending_silence_samples = self
+                .pending_silence_samples
+                .saturating_add(frame.samples.len());
+        }
+    }
+
+    fn take_recording(&mut self) -> RecordedAudio {
+        let recording = RecordedAudio {
+            had_long_pause: self.had_long_pause,
+            samples: std::mem::take(&mut self.samples),
+        };
+        *self = Self::default();
+        recording
+    }
+}
+
+fn record_captured_frame(
+    frame: CapturedAudioFrame,
+    recording_buffer: &mut RecordedAudioBuffer,
+    chunk_tx: &Option<mpsc::Sender<CapturedAudioFrame>>,
+) {
+    recording_buffer.push(&frame);
+    if let Some(tx) = chunk_tx {
+        let _ = tx.send(frame);
+    }
+}
+
 fn run_consumer(
     in_sample_rate: u32,
     vad: Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
@@ -239,47 +325,52 @@ fn run_consumer(
         Duration::from_millis(30),
     );
 
-    let mut processed_samples = Vec::<f32>::new();
+    let mut recorded_audio = RecordedAudioBuffer::default();
     let mut recording = false;
-    let mut chunk_tx: Option<mpsc::Sender<Vec<f32>>> = None;
+    let mut chunk_tx: Option<mpsc::Sender<CapturedAudioFrame>> = None;
 
-    // ---------- spectrum visualisation setup ---------------------------- //
-    const BUCKETS: usize = 64;
-    const WINDOW_SIZE: usize = 512;
-    let mut visualizer = AudioVisualiser::new(
-        in_sample_rate,
-        WINDOW_SIZE,
-        BUCKETS,
-        400.0,  // 5% of Nyquist (8kHz)
-        3200.0, // 40% of Nyquist (8kHz) - Matches original TS implementation
-    );
+    let mut visualizer = AudioVisualiser::new(in_sample_rate);
 
     fn handle_frame(
         samples: &[f32],
         recording: bool,
         vad: &Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
-        out_buf: &mut Vec<f32>,
-        chunk_tx: &Option<mpsc::Sender<Vec<f32>>>,
+        recording_buffer: &mut RecordedAudioBuffer,
+        chunk_tx: &Option<mpsc::Sender<CapturedAudioFrame>>,
     ) {
         if !recording {
             return;
         }
 
-        let mut process_speech = |buf: &[f32]| {
-            out_buf.extend_from_slice(buf);
-            if let Some(tx) = chunk_tx {
-                let _ = tx.send(buf.to_vec());
-            }
-        };
-
         if let Some(vad_arc) = vad {
             let mut det = vad_arc.lock().unwrap();
             match det.push_frame(samples).unwrap_or(VadFrame::Speech(samples)) {
-                VadFrame::Speech(buf) => process_speech(buf),
-                VadFrame::Noise => {}
+                VadFrame::Speech(buf) => record_captured_frame(
+                    CapturedAudioFrame {
+                        samples: buf.to_vec(),
+                        is_speech: true,
+                    },
+                    recording_buffer,
+                    chunk_tx,
+                ),
+                VadFrame::Noise => record_captured_frame(
+                    CapturedAudioFrame {
+                        samples: samples.to_vec(),
+                        is_speech: false,
+                    },
+                    recording_buffer,
+                    chunk_tx,
+                ),
             }
         } else {
-            process_speech(samples);
+            record_captured_frame(
+                CapturedAudioFrame {
+                    samples: samples.to_vec(),
+                    is_speech: true,
+                },
+                recording_buffer,
+                chunk_tx,
+            );
         }
     }
 
@@ -289,7 +380,7 @@ fn run_consumer(
             match cmd {
                 Cmd::Start(tx) => {
                     debug!("Cmd::Start received, chunk_tx is_some: {}", tx.is_some());
-                    processed_samples.clear();
+                    recorded_audio.clear();
                     recording = true;
                     chunk_tx = tx;
                     visualizer.reset();
@@ -302,17 +393,18 @@ fn run_consumer(
                     recording = false;
 
                     frame_resampler.finish(&mut |frame: &[f32]| {
-                        handle_frame(frame, true, &vad, &mut processed_samples, &chunk_tx)
+                        handle_frame(frame, true, &vad, &mut recorded_audio, &chunk_tx)
                     });
 
-                    let sample_count = processed_samples.len();
-                    let audio_duration_secs = sample_count as f32 / 16000.0;
+                    let captured = recorded_audio.take_recording();
+                    let sample_count = captured.samples.len();
+                    let audio_duration_secs = sample_count as f32 / 16_000.0;
                     debug!(
                         "AudioRecorder stop: returning {} samples ({:.1}s of audio)",
                         sample_count, audio_duration_secs
                     );
 
-                    let _ = reply_tx.send(std::mem::take(&mut processed_samples));
+                    let _ = reply_tx.send(captured);
                     chunk_tx = None;
                 }
                 Cmd::Shutdown => return,
@@ -333,16 +425,19 @@ fn run_consumer(
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         };
 
-        // ---------- spectrum processing ---------------------------------- //
-        if let Some(buckets) = visualizer.feed(&raw) {
-            if let Some(cb) = &level_cb {
-                cb(buckets);
+        if let Some(callback) = &level_cb {
+            if let Some(level) = visualizer.recording_level(&raw, recording) {
+                callback(level);
             }
         }
 
         // ---------- existing pipeline ------------------------------------ //
         frame_resampler.push(&raw, &mut |frame: &[f32]| {
-            handle_frame(frame, recording, &vad, &mut processed_samples, &chunk_tx)
+            handle_frame(frame, recording, &vad, &mut recorded_audio, &chunk_tx)
         });
     }
 }
+
+#[cfg(test)]
+#[path = "recorder/tests.rs"]
+mod tests;

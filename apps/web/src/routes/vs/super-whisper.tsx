@@ -7,129 +7,129 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/super-whisper")({
+  component: SuperWhisperPage,
   head: () => ({
     meta: [
       {
         title: "Echo vs Super Whisper — Free Open-Source Alternative",
       },
       {
+        content:
+          "Echo is a free, open-source alternative to Super Whisper. Works on macOS, Windows, and Linux — no $249 lifetime fee, no account, 100% offline.",
         name: "description",
-        content:
-          "Echo is a free, open-source alternative to Super Whisper. Works on macOS, Windows, and Linux — no $249 lifetime fee, no account, 100% offline.",
       },
       {
-        property: "og:title",
         content: "Echo vs Super Whisper — Free Open-Source Alternative",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Echo is a free, open-source alternative to Super Whisper. Works on macOS, Windows, and Linux — no $249 lifetime fee, no account, 100% offline.",
+        property: "og:description",
       },
     ],
   }),
-  component: SuperWhisperPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "$8.49/mo · $84.99/yr · $249.99 lifetime",
+    echo: "Free forever",
     echoPositive: true,
+    feature: "Price",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux",
     competitor: "macOS only",
+    echo: "macOS, Windows, Linux",
     echoPositive: true,
+    feature: "Platforms",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License — fully auditable",
     competitor: "Proprietary closed source",
+    echo: "MIT License — fully auditable",
     echoPositive: true,
+    feature: "Open Source",
   },
   {
-    feature: "Account Required",
-    echo: "Never",
     competitor: "License required",
+    echo: "Never",
     echoPositive: true,
+    feature: "Account Required",
   },
   {
-    feature: "Offline Processing",
-    echo: "100% local — always offline",
     competitor: "Yes (local Whisper models)",
+    echo: "100% local — always offline",
     echoPositive: false,
+    feature: "Offline Processing",
   },
   {
-    feature: "Global Shortcut / Auto-Paste",
-    echo: "Push-to-talk, pastes anywhere",
     competitor: "Yes — global shortcuts",
+    echo: "Push-to-talk, pastes anywhere",
     echoPositive: false,
+    feature: "Global Shortcut / Auto-Paste",
   },
   {
-    feature: "LLM Post-Processing",
-    echo: "Optional AI refinement",
     competitor: "Yes — included",
+    echo: "Optional AI refinement",
     echoPositive: false,
+    feature: "LLM Post-Processing",
   },
   {
-    feature: "100+ Languages",
+    competitor: "Yes",
     echo: "Yes — Whisper supports 100+",
-    competitor: "Yes",
     echoPositive: false,
+    feature: "100+ Languages",
   },
   {
-    feature: "Speaker Diarization",
+    competitor: "Yes",
     echo: "Not yet",
-    competitor: "Yes",
     echoPositive: false,
+    feature: "Speaker Diarization",
   },
   {
-    feature: "Custom Modes (coding/email)",
-    echo: "Via LLM prompts",
     competitor: "Yes — dedicated mode system",
+    echo: "Via LLM prompts",
     echoPositive: false,
+    feature: "Custom Modes (coding/email)",
   },
   {
+    competitor: "Yes",
+    echo: "Not available",
+    echoPositive: false,
     feature: "Recording History Search",
-    echo: "Not available",
-    competitor: "Yes",
-    echoPositive: false,
   },
   {
-    feature: "iOS Companion App",
-    echo: "Not available",
     competitor: "Yes",
+    echo: "Not available",
     echoPositive: false,
+    feature: "iOS Companion App",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "Free Is Not a Compromise",
     description:
       "Super Whisper costs $249.99 for lifetime access — for software that runs locally on hardware you already own. Echo does the same core job for free, forever, under an MIT license anyone can audit.",
     icon: "∞",
+    title: "Free Is Not a Compromise",
   },
   {
-    title: "Windows and Linux Support",
     description:
       "Super Whisper is macOS-exclusive. Echo runs natively on macOS, Windows, and Linux. Switch machines, switch OS, or share a workflow with colleagues on different platforms — Echo travels with you.",
     icon: "⊕",
+    title: "Windows and Linux Support",
   },
   {
-    title: "Fully Open Source",
     description:
       "Super Whisper is proprietary. Echo is MIT-licensed: every line of code is public, auditable, and forkable. No black boxes, no vendor lock-in, no risk of the app going away.",
     icon: "◎",
+    title: "Fully Open Source",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -203,7 +203,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -213,8 +213,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -334,7 +334,7 @@ function SuperWhisperPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Ready to switch?

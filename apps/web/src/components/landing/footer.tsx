@@ -124,8 +124,8 @@ export default function EchoFooter() {
     <Footer
       brandName="Echo"
       copyright={{
-        text: "© 2025 Echo. All rights reserved.",
         license: "MIT License",
+        text: "© 2025 Echo. All rights reserved.",
       }}
       legalLinks={[
         { href: "/privacy", label: "Privacy Policy" },
@@ -148,8 +148,8 @@ export default function EchoFooter() {
       showBrandName={false}
       socialLinks={[
         {
-          icon: <GithubIcon className="h-5 w-5" />,
           href: "https://github.com/damien-schneider/Echo",
+          icon: <GithubIcon className="h-5 w-5" />,
           label: "GitHub",
         },
       ]}

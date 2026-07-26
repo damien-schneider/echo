@@ -15,10 +15,7 @@ use log::{error, warn};
 pub fn init_shortcuts(app: &AppHandle) {
     let settings = settings::load_or_create_app_settings(app);
 
-    // Register shortcuts with the bindings from settings
-    // Only register shortcuts that have corresponding actions in ACTION_MAP
     for (_id, binding) in settings.bindings {
-        // Skip bindings that don't have corresponding actions
         if !ACTION_MAP.contains_key(&binding.id) {
             warn!("Skipping binding '{}' - no action defined in ACTION_MAP", binding.id);
             continue;
@@ -29,11 +26,9 @@ pub fn init_shortcuts(app: &AppHandle) {
     }
 }
 
-/// Register the escape key shortcut for canceling recordings.
-/// This should be called when the recording overlay becomes visible.
+/// Call when recording overlay shows.
 #[tauri::command]
 pub fn register_escape_shortcut(app: AppHandle) -> Result<(), String> {
-    // Parse the escape key shortcut
     let escape_shortcut = match "escape".parse::<Shortcut>() {
         Ok(s) => s,
         Err(e) => {
@@ -43,8 +38,7 @@ pub fn register_escape_shortcut(app: AppHandle) -> Result<(), String> {
         }
     };
 
-    // Check if escape is already registered and unregister it if it exists
-    // This ensures our escape handler takes precedence
+    // Override existing handler.
     if app.global_shortcut().is_registered(escape_shortcut) {
         warn!("Escape shortcut already registered, unregistering to use our handler");
         if let Err(e) = app.global_shortcut().unregister(escape_shortcut) {
@@ -52,11 +46,9 @@ pub fn register_escape_shortcut(app: AppHandle) -> Result<(), String> {
         }
     }
 
-    // Register the escape key shortcut
     app.global_shortcut()
         .on_shortcut(escape_shortcut, move |ah, scut, event| {
             if scut == &escape_shortcut && event.state == ShortcutState::Pressed {
-                // Cancel the current operation when escape is pressed
                 utils::cancel_current_operation(ah);
             }
         })
@@ -69,11 +61,9 @@ pub fn register_escape_shortcut(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Unregister the escape key shortcut.
-/// This should be called when the recording overlay becomes hidden.
+/// Call when recording overlay hides.
 #[tauri::command]
 pub fn unregister_escape_shortcut(app: AppHandle) -> Result<(), String> {
-    // Parse the escape key shortcut
     let escape_shortcut = match "escape".parse::<Shortcut>() {
         Ok(s) => s,
         Err(e) => {
@@ -83,7 +73,6 @@ pub fn unregister_escape_shortcut(app: AppHandle) -> Result<(), String> {
         }
     };
 
-    // Only unregister if it's currently registered
     if app.global_shortcut().is_registered(escape_shortcut) {
         app.global_shortcut()
             .unregister(escape_shortcut)
@@ -112,7 +101,6 @@ pub fn change_binding(
 ) -> Result<BindingResponse, String> {
     let mut settings = settings::get_settings(&app);
 
-    // Get the binding to modify
     let binding_to_modify = match settings.bindings.get(&id) {
         Some(binding) => binding.clone(),
         None => {
@@ -126,23 +114,19 @@ pub fn change_binding(
         }
     };
 
-    // Unregister the existing binding
     if let Err(e) = _unregister_shortcut(&app, binding_to_modify.clone()) {
         let error_msg = format!("Failed to unregister shortcut: {}", e);
         error!("change_binding error: {}", error_msg);
     }
 
-    // Validate the new shortcut before we touch the current registration
     if let Err(e) = validate_shortcut_string(&binding) {
         warn!("change_binding validation error: {}", e);
         return Err(e);
     }
 
-    // Create an updated binding
     let mut updated_binding = binding_to_modify;
     updated_binding.current_binding = binding;
 
-    // Register the new binding
     if let Err(e) = _register_shortcut(&app, updated_binding.clone()) {
         let error_msg = format!("Failed to register shortcut: {}", e);
         error!("change_binding error: {}", error_msg);
@@ -153,13 +137,10 @@ pub fn change_binding(
         });
     }
 
-    // Update the binding in the settings
     settings.bindings.insert(id, updated_binding.clone());
 
-    // Save the settings
     settings::write_settings(&app, settings);
 
-    // Return the updated binding
     Ok(BindingResponse {
         success: true,
         binding: Some(updated_binding),
@@ -178,8 +159,7 @@ pub fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, Stri
 pub fn change_ptt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
 
-    // TODO if the setting is currently false, we probably want to
-    // cancel any ongoing recordings or actions
+    // TODO: cancel ongoing recordings when toggling off.
     settings.push_to_talk = enabled;
 
     settings::write_settings(&app, settings);
@@ -251,7 +231,6 @@ pub fn change_overlay_position_setting(app: AppHandle, position: String) -> Resu
     settings.overlay_position = parsed;
     settings::write_settings(&app, settings);
 
-    // Update overlay position without recreating window
     crate::utils::update_overlay_position(&app);
 
     Ok(())
@@ -263,7 +242,6 @@ pub fn change_debug_mode_setting(app: AppHandle, enabled: bool) -> Result<(), St
     settings.debug_mode = enabled;
     settings::write_settings(&app, settings);
 
-    // Emit event to notify frontend of debug mode change
     let _ = app.emit(
         "settings-changed",
         serde_json::json!({
@@ -281,7 +259,6 @@ pub fn change_start_hidden_setting(app: AppHandle, enabled: bool) -> Result<(), 
     settings.start_hidden = enabled;
     settings::write_settings(&app, settings);
 
-    // Notify frontend
     let _ = app.emit(
         "settings-changed",
         serde_json::json!({
@@ -299,7 +276,6 @@ pub fn change_autostart_setting(app: AppHandle, enabled: bool) -> Result<(), Str
     settings.autostart_enabled = enabled;
     settings::write_settings(&app, settings);
 
-    // Apply the autostart setting immediately
     let autostart_manager = app.autolaunch();
     if enabled {
         let _ = autostart_manager.enable();
@@ -307,7 +283,6 @@ pub fn change_autostart_setting(app: AppHandle, enabled: bool) -> Result<(), Str
         let _ = autostart_manager.disable();
     }
 
-    // Notify frontend
     let _ = app.emit(
         "settings-changed",
         serde_json::json!({
@@ -413,7 +388,6 @@ pub fn change_post_process_base_url_setting(
     Ok(())
 }
 
-/// Generic helper to validate provider exists
 fn validate_provider_exists(
     settings: &settings::AppSettings,
     provider_id: &str,
@@ -471,7 +445,6 @@ pub fn add_post_process_prompt(
 ) -> Result<LLMPrompt, String> {
     let mut settings = settings::get_settings(&app);
 
-    // Generate unique ID using timestamp and random component
     let id = format!("prompt_{}", chrono::Utc::now().timestamp_millis());
 
     let new_prompt = LLMPrompt {
@@ -513,12 +486,10 @@ pub fn update_post_process_prompt(
 pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
 
-    // Don't allow deleting the last prompt
     if settings.post_process_prompts.len() <= 1 {
         return Err("Cannot delete the last prompt".to_string());
     }
 
-    // Find and remove the prompt
     let original_len = settings.post_process_prompts.len();
     settings.post_process_prompts.retain(|p| p.id != id);
 
@@ -526,7 +497,7 @@ pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), Stri
         return Err(format!("Prompt with id '{}' not found", id));
     }
 
-    // If the deleted prompt was selected, select the first one or None
+    // Reassign selected to first remaining prompt.
     if settings.post_process_selected_prompt_id.as_ref() == Some(&id) {
         settings.post_process_selected_prompt_id =
             settings.post_process_prompts.first().map(|p| p.id.clone());
@@ -543,22 +514,19 @@ pub async fn fetch_post_process_models(
 ) -> Result<Vec<String>, String> {
     let settings = settings::get_settings(&app);
 
-    // Find the provider
     let provider = settings
         .post_process_providers
         .iter()
         .find(|p| p.id == provider_id)
         .ok_or_else(|| format!("Provider '{}' not found", provider_id))?;
 
-    // Get API key
     let api_key = settings
         .post_process_api_keys
         .get(&provider_id)
         .cloned()
         .unwrap_or_default();
 
-    // Skip fetching if no API key for providers that typically need one
-    // Ollama and custom providers don't require API keys
+    // Ollama + custom don't need API key.
     if api_key.trim().is_empty() && !["custom", "ollama"].contains(&provider.id.as_str()) {
         return Err(format!(
             "API key is required for {}. Please add an API key to list available models.",
@@ -566,20 +534,15 @@ pub async fn fetch_post_process_models(
         ));
     }
 
-    // For now, use manual HTTP request to have more control over the endpoint
     fetch_models_manual(provider, api_key).await
 }
 
-/// Fetch models using manual HTTP request
-/// This gives us more control and avoids issues with non-standard endpoints
 async fn fetch_models_manual(
     provider: &crate::settings::PostProcessProvider,
     api_key: String,
 ) -> Result<Vec<String>, String> {
-    // Build the endpoint URL
-    // For Ollama, use the base URL without /v1 suffix for the tags endpoint
     let (base_url, models_endpoint) = if provider.id == "ollama" {
-        // Ollama's /api/tags endpoint is not under /v1
+        // Ollama /api/tags is outside /v1.
         let base = provider.base_url.trim_end_matches('/').trim_end_matches("/v1");
         (base.to_string(), "api/tags".to_string())
     } else {
@@ -593,7 +556,6 @@ async fn fetch_models_manual(
     };
     let endpoint = format!("{}/{}", base_url, models_endpoint);
 
-    // Create HTTP client with headers
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         "HTTP-Referer",
@@ -601,7 +563,6 @@ async fn fetch_models_manual(
     );
     headers.insert("X-Title", reqwest::header::HeaderValue::from_static("Echo"));
 
-    // Add provider-specific headers
     if provider.id == "anthropic" {
         if !api_key.is_empty() {
             headers.insert(
@@ -627,7 +588,6 @@ async fn fetch_models_manual(
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
-    // Make the request
     let response = http_client
         .get(&endpoint)
         .send()
@@ -646,7 +606,6 @@ async fn fetch_models_manual(
         ));
     }
 
-    // Parse the response
     let parsed: serde_json::Value = response
         .json()
         .await
@@ -654,7 +613,7 @@ async fn fetch_models_manual(
 
     let mut models = Vec::new();
 
-    // Handle Ollama format: { models: [ { name: "llama3:latest", ... }, ... ] }
+    // Ollama: { models: [{ name: ... }] }.
     if let Some(ollama_models) = parsed.get("models").and_then(|m| m.as_array()) {
         for entry in ollama_models {
             if let Some(name) = entry.get("name").and_then(|n| n.as_str()) {
@@ -662,7 +621,7 @@ async fn fetch_models_manual(
             }
         }
     }
-    // Handle OpenAI format: { data: [ { id: "..." }, ... ] }
+    // OpenAI: { data: [{ id: ... }] }.
     else if let Some(data) = parsed.get("data").and_then(|d| d.as_array()) {
         for entry in data {
             if let Some(id) = entry.get("id").and_then(|i| i.as_str()) {
@@ -672,7 +631,7 @@ async fn fetch_models_manual(
             }
         }
     }
-    // Handle array format: [ "model1", "model2", ... ]
+    // Bare array.
     else if let Some(array) = parsed.as_array() {
         for entry in array {
             if let Some(model) = entry.as_str() {
@@ -688,7 +647,6 @@ async fn fetch_models_manual(
 pub fn set_post_process_selected_prompt(app: AppHandle, id: String) -> Result<(), String> {
     let mut settings = settings::get_settings(&app);
 
-    // Verify the prompt exists
     if !settings.post_process_prompts.iter().any(|p| p.id == id) {
         return Err(format!("Prompt with id '{}' not found", id));
     }
@@ -718,7 +676,6 @@ pub fn change_input_tracking_setting(app: AppHandle, enabled: bool) -> Result<()
     settings.input_tracking_enabled = enabled;
     settings::write_settings(&app, settings);
 
-    // Update the input tracker manager state
     if let Some(manager) = app.try_state::<Arc<std::sync::Mutex<InputTrackerManager>>>() {
         log::info!("[InputTracker] Found manager state, updating...");
         if let Ok(mut tracker) = manager.lock() {
@@ -744,7 +701,6 @@ pub fn change_input_tracking_excluded_apps(app: AppHandle, apps: Vec<String>) ->
     settings.input_tracking_excluded_apps = apps.clone();
     settings::write_settings(&app, settings);
 
-    // Update the input tracker manager
     if let Some(manager) = app.try_state::<Arc<std::sync::Mutex<InputTrackerManager>>>() {
         if let Ok(tracker) = manager.lock() {
             tracker.set_excluded_apps(apps);
@@ -765,10 +721,9 @@ pub fn change_input_tracking_idle_timeout(app: AppHandle, timeout_secs: Option<u
     settings.input_tracking_idle_timeout = timeout_secs;
     settings::write_settings(&app, settings);
 
-    // Update the input tracker manager
     if let Some(manager) = app.try_state::<Arc<std::sync::Mutex<InputTrackerManager>>>() {
         if let Ok(tracker) = manager.lock() {
-            // 0 means disabled, None also means disabled
+            // None|0 disabled.
             tracker.set_idle_timeout(timeout_secs.unwrap_or(0));
         }
     }
@@ -776,9 +731,7 @@ pub fn change_input_tracking_idle_timeout(app: AppHandle, timeout_secs: Option<u
     Ok(())
 }
 
-/// Determine whether a shortcut string contains at least one non-modifier key.
-/// We allow single non-modifier keys (e.g. "f5" or "space") but disallow
-/// modifier-only combos (e.g. "ctrl" or "ctrl+shift").
+/// Rejects modifier-only combos.
 fn validate_shortcut_string(raw: &str) -> Result<(), String> {
     let modifiers = [
         "ctrl", "control", "shift", "alt", "option", "meta", "command", "cmd", "super", "win",
@@ -794,8 +747,7 @@ fn validate_shortcut_string(raw: &str) -> Result<(), String> {
     }
 }
 
-/// Temporarily unregister a binding while the user is editing it in the UI.
-/// This avoids firing the action while keys are being recorded.
+/// Avoids firing action mid-edit.
 #[tauri::command]
 pub fn suspend_binding(app: AppHandle, id: String) -> Result<(), String> {
     if let Some(b) = settings::get_bindings(&app).get(&id).cloned() {
@@ -807,7 +759,6 @@ pub fn suspend_binding(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Re-register the binding after the user has finished editing.
 #[tauri::command]
 pub fn resume_binding(app: AppHandle, id: String) -> Result<(), String> {
     if let Some(b) = settings::get_bindings(&app).get(&id).cloned() {
@@ -820,7 +771,6 @@ pub fn resume_binding(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 fn _register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
-    // Ensure the binding has a corresponding action in ACTION_MAP
     if !ACTION_MAP.contains_key(&binding.id) {
         let error_msg = format!(
             "No action defined in ACTION_MAP for binding ID '{}'",
@@ -830,7 +780,6 @@ fn _register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), S
         return Err(error_msg);
     }
 
-    // Validate human-level rules first
     if let Err(e) = validate_shortcut_string(&binding.current_binding) {
         warn!(
             "_register_shortcut validation error for binding '{}': {}",
@@ -839,7 +788,6 @@ fn _register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), S
         return Err(e);
     }
 
-    // Parse shortcut and return error if it fails
     let shortcut = match binding.current_binding.parse::<Shortcut>() {
         Ok(s) => s,
         Err(e) => {
@@ -852,14 +800,12 @@ fn _register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), S
         }
     };
 
-    // Prevent duplicate registrations that would silently shadow one another
     if app.global_shortcut().is_registered(shortcut) {
         let error_msg = format!("Shortcut '{}' is already in use", binding.current_binding);
         warn!("_register_shortcut duplicate error: {}", error_msg);
         return Err(error_msg);
     }
 
-    // Clone binding.id for use in the closure
     let binding_id_for_closure = binding.id.clone();
 
     app.global_shortcut()
@@ -891,10 +837,10 @@ fn _register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), S
                                     &binding_id_for_closure,
                                     &shortcut_string,
                                 );
-                                *is_currently_active = false; // Update state to inactive
+                                *is_currently_active = false;
                             } else {
                                 action.start(ah, &binding_id_for_closure, &shortcut_string);
-                                *is_currently_active = true; // Update state to active
+                                *is_currently_active = true;
                             }
                         }
                     }

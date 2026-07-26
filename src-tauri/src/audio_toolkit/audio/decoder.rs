@@ -13,7 +13,6 @@ use symphonia::core::{
     probe::Hint,
 };
 
-/// Supported audio formats (including video files with audio tracks)
 pub enum AudioFormat {
     Wav,
     Mp3,
@@ -43,10 +42,8 @@ impl AudioFormat {
     }
 }
 
-/// Target sample rate for transcription (Whisper requires 16kHz)
 const TARGET_SAMPLE_RATE: u32 = 16000;
 
-/// Decode an audio file to 16kHz mono f32 samples
 pub fn decode_audio_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let format = AudioFormat::from_path(&file_path);
 
@@ -56,7 +53,7 @@ pub fn decode_audio_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
             decode_with_symphonia(&file_path)
         }
         AudioFormat::Video => {
-            // For video files, extract audio using FFmpeg for better codec compatibility
+            // FFmpeg for codec compat.
             decode_video_with_ffmpeg(&file_path)
         }
         AudioFormat::Unsupported => Err(anyhow::anyhow!(
@@ -65,32 +62,27 @@ pub fn decode_audio_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     }
 }
 
-/// Decode video files by extracting audio with FFmpeg
-/// This provides better codec compatibility than symphonia for video containers
-/// Outputs raw PCM directly to stdout for maximum speed (no temp file needed)
+/// Raw PCM to stdout — no temp file.
 fn decode_video_with_ffmpeg<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let path = file_path.as_ref();
     info!("Extracting audio from video file using FFmpeg: {:?}", path);
 
-    // Find FFmpeg - check common locations
     let ffmpeg_path = find_ffmpeg()?;
 
-    // Run FFmpeg to extract audio as raw 16-bit PCM to stdout
-    // This is faster than writing to a temp file
     let output = Command::new(&ffmpeg_path)
         .args([
             "-i",
             path.to_str().unwrap_or_default(),
-            "-vn", // No video
+            "-vn",
             "-f",
-            "s16le", // Raw 16-bit little-endian PCM
+            "s16le",
             "-acodec",
             "pcm_s16le",
             "-ar",
-            "16000", // 16kHz sample rate
+            "16000",
             "-ac",
-            "1", // Mono
-            "-", // Output to stdout
+            "1",
+            "-",
         ])
         .output()
         .with_context(|| format!("Failed to run FFmpeg: {}", ffmpeg_path))?;
@@ -105,7 +97,6 @@ fn decode_video_with_ffmpeg<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
 
     info!("FFmpeg audio extraction complete, converting PCM to samples...");
 
-    // Convert raw PCM bytes to f32 samples
     let samples = pcm_s16le_to_f32(&output.stdout);
 
     debug!(
@@ -117,7 +108,6 @@ fn decode_video_with_ffmpeg<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     Ok(samples)
 }
 
-/// Convert raw 16-bit little-endian PCM bytes to f32 samples
 fn pcm_s16le_to_f32(bytes: &[u8]) -> Vec<f32> {
     bytes
         .chunks_exact(2)
@@ -128,14 +118,12 @@ fn pcm_s16le_to_f32(bytes: &[u8]) -> Vec<f32> {
         .collect()
 }
 
-/// The bare ffmpeg executable name for the current platform.
 const FFMPEG_BIN: &str = if cfg!(windows) {
     "ffmpeg.exe"
 } else {
     "ffmpeg"
 };
 
-/// Common ffmpeg install locations, per platform.
 fn ffmpeg_common_paths() -> &'static [&'static str] {
     #[cfg(target_os = "windows")]
     {
@@ -162,10 +150,8 @@ fn ffmpeg_common_paths() -> &'static [&'static str] {
     }
 }
 
-/// Find FFmpeg executable: prefer PATH, fall back to common install locations.
+/// PATH first, then platform-specific common paths.
 fn find_ffmpeg() -> Result<String> {
-    // `ffmpeg` resolves through PATH natively when spawned on every platform;
-    // probing it with `-version` is the most reliable cross-platform check.
     if Command::new(FFMPEG_BIN)
         .arg("-version")
         .output()
@@ -175,12 +161,9 @@ fn find_ffmpeg() -> Result<String> {
         return Ok(FFMPEG_BIN.to_string());
     }
 
-    // Explicit PATH lookup via the platform's locator command
-    // (`where` on Windows, `which` elsewhere).
     let locator = if cfg!(windows) { "where" } else { "which" };
     if let Ok(output) = Command::new(locator).arg("ffmpeg").output() {
         if output.status.success() {
-            // `where` may return multiple lines; take the first non-empty one.
             if let Some(path) = String::from_utf8_lossy(&output.stdout)
                 .lines()
                 .map(str::trim)
@@ -191,7 +174,6 @@ fn find_ffmpeg() -> Result<String> {
         }
     }
 
-    // Check common install locations for the current platform.
     for path in ffmpeg_common_paths() {
         if std::path::Path::new(path).exists() {
             return Ok((*path).to_string());
@@ -206,7 +188,6 @@ fn find_ffmpeg() -> Result<String> {
     ))
 }
 
-/// Decode WAV file using existing hound library
 fn decode_wav_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let reader = WavReader::open(file_path.as_ref())
         .with_context(|| format!("Failed to open WAV file: {:?}", file_path.as_ref()))?;
@@ -227,12 +208,10 @@ fn decode_wav_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
             .collect(),
     };
 
-    // Convert to mono if needed
     if spec.channels > 1 {
         samples = stereo_to_mono(samples, spec.channels as usize);
     }
 
-    // Resample if needed
     if spec.sample_rate != TARGET_SAMPLE_RATE {
         samples = resample_audio(samples, spec.sample_rate, TARGET_SAMPLE_RATE)?;
     }
@@ -248,21 +227,18 @@ fn decode_wav_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     Ok(samples)
 }
 
-/// Decode audio files using Symphonia (MP3, M4A, OGG, etc.)
+/// MP3, M4A, OGG, etc via Symphonia.
 fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let path = file_path.as_ref();
 
-    // Open the file directly (without BufReader)
     let file = File::open(path).with_context(|| format!("Failed to open file: {:?}", path))?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 
-    // Create a hint to help format registry
     let mut hint = Hint::new();
     if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
         hint.with_extension(extension);
     }
 
-    // Probe the format
     let format_opts = FormatOptions {
         enable_gapless: true,
         ..Default::default()
@@ -274,28 +250,23 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
         .with_context(|| format!("Failed to probe format: {:?}", path))?
         .format;
 
-    // Get the default track
     let track = probed
         .tracks()
         .iter()
         .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
         .ok_or_else(|| anyhow::anyhow!("No valid audio track found"))?;
 
-    // Create decoder
     let mut decoder = symphonia::default::get_codecs()
         .make(&track.codec_params, &DecoderOptions::default())
         .context("Failed to create decoder for track")?;
 
-    // Get sample rate
     let sample_rate = track
         .codec_params
         .sample_rate
         .ok_or_else(|| anyhow::anyhow!("Missing sample rate"))?;
 
-    // Get number of channels
     let channels_count = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
 
-    // Collect all decoded samples
     let mut all_samples: Vec<f32> = Vec::new();
     let mut decode_errors = 0;
     const MAX_CONSECUTIVE_ERRORS: u32 = 50;
@@ -304,15 +275,13 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     loop {
         let packet = match probed.next_packet() {
             Ok(packet) => {
-                consecutive_errors = 0; // Reset on successful packet read
+                consecutive_errors = 0;
                 packet
             }
             Err(symphonia::core::errors::Error::ResetRequired) => {
-                // Reset required, continue
                 continue;
             }
             Err(symphonia::core::errors::Error::IoError(_)) => {
-                // End of file or unrecoverable error
                 break;
             }
             Err(e) => {
@@ -330,11 +299,11 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
 
         let decoded = match decoder.decode(&packet) {
             Ok(decoded) => {
-                consecutive_errors = 0; // Reset on successful decode
+                consecutive_errors = 0;
                 decoded
             }
             Err(symphonia::core::errors::Error::DecodeError(msg)) => {
-                // Skip malformed frames - this is common in some AAC streams
+                // Common in some AAC streams.
                 decode_errors += 1;
                 if decode_errors == 1 {
                     warn!("Decode error (will skip malformed frames): {}", msg);
@@ -362,11 +331,8 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
             }
         };
 
-        // Use the Symphonia API to extract samples
-        // AudioBufferRef can be different formats, we need to handle them
         match decoded {
             symphonia::core::audio::AudioBufferRef::F32(buffer) => {
-                // Direct f32 samples - iterate through all channels
                 for ch in 0..channels_count {
                     let samples = buffer.chan(ch);
                     for &sample in samples {
@@ -375,7 +341,6 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
                 }
             }
             symphonia::core::audio::AudioBufferRef::S16(buffer) => {
-                // i16 samples
                 for ch in 0..channels_count {
                     let samples = buffer.chan(ch);
                     for &sample in samples {
@@ -384,17 +349,14 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
                 }
             }
             symphonia::core::audio::AudioBufferRef::S24(buffer) => {
-                // i24 samples (stored in i24 wrapper)
                 for ch in 0..channels_count {
                     let samples = buffer.chan(ch);
                     for sample in samples {
-                        // i24 is a newtype wrapper, use inner() to get the raw value
                         all_samples.push((sample.inner() as f32) / (i32::MAX as f32));
                     }
                 }
             }
             symphonia::core::audio::AudioBufferRef::S32(buffer) => {
-                // i32 samples
                 for ch in 0..channels_count {
                     let samples = buffer.chan(ch);
                     for &sample in samples {
@@ -403,7 +365,6 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
                 }
             }
             symphonia::core::audio::AudioBufferRef::U8(buffer) => {
-                // u8 samples
                 for ch in 0..channels_count {
                     let samples = buffer.chan(ch);
                     for &sample in samples {
@@ -417,14 +378,12 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
         }
     }
 
-    // Check if we got any audio at all
     if all_samples.is_empty() {
         return Err(anyhow::anyhow!(
             "No audio could be decoded from file. The file may be corrupted or use an unsupported codec."
         ));
     }
 
-    // Log if we had to skip some frames
     if decode_errors > 0 {
         warn!(
             "Skipped {} malformed frames while decoding {:?}",
@@ -432,12 +391,10 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
         );
     }
 
-    // Convert to mono if needed
     if channels_count > 1 {
         all_samples = stereo_to_mono(all_samples, channels_count);
     }
 
-    // Resample if needed
     if sample_rate != TARGET_SAMPLE_RATE {
         all_samples = resample_audio(all_samples, sample_rate, TARGET_SAMPLE_RATE)?;
     }
@@ -458,7 +415,6 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     Ok(all_samples)
 }
 
-/// Convert multi-channel audio to mono by averaging channels
 fn stereo_to_mono(samples: Vec<f32>, channels: usize) -> Vec<f32> {
     if channels == 1 {
         return samples;
@@ -470,37 +426,26 @@ fn stereo_to_mono(samples: Vec<f32>, channels: usize) -> Vec<f32> {
         .collect()
 }
 
-/// Resample audio from one sample rate to another using rubato
+/// rubato FftFixedInOut.
 fn resample_audio(samples: Vec<f32>, from_rate: u32, to_rate: u32) -> Result<Vec<f32>> {
     if from_rate == to_rate {
         return Ok(samples);
     }
 
-    // Calculate resampling parameters
     let ratio = to_rate as f64 / from_rate as f64;
 
-    // Use rubato's FftFixedInOut for faster, high-quality resampling
     use rubato::{FftFixedInOut, Resampler};
 
-    // Calculate chunk size for processing
     let chunk_size = samples.len().min(4096);
     let expected_output = (samples.len() as f64 * ratio).ceil() as usize;
 
-    // Create resampler with appropriate parameters
-    let mut resampler = FftFixedInOut::<f64>::new(
-        from_rate as usize,
-        to_rate as usize,
-        chunk_size,
-        2, // num_channels (we're working with mono)
-    )?;
+    let mut resampler =
+        FftFixedInOut::<f64>::new(from_rate as usize, to_rate as usize, chunk_size, 2)?;
 
-    // Resample in chunks
     let mut resampled = Vec::with_capacity(expected_output);
 
-    // Convert to f64 for resampler
     let samples_f64: Vec<f64> = samples.iter().map(|&s| s as f64).collect();
 
-    // Process in chunks
     let mut input_offset = 0;
     while input_offset < samples_f64.len() {
         let end = (input_offset + chunk_size).min(samples_f64.len());
@@ -510,11 +455,9 @@ fn resample_audio(samples: Vec<f32>, from_rate: u32, to_rate: u32) -> Result<Vec
             break;
         }
 
-        // Process chunk - we need to provide input as a slice of slices (channels)
         let input_buffer = vec![chunk];
         match resampler.process(&input_buffer, None) {
             Ok(output) => {
-                // output is Vec<Vec<f64>>, one per channel
                 for channel_output in output {
                     for sample in channel_output {
                         resampled.push(sample as f32);
@@ -530,7 +473,7 @@ fn resample_audio(samples: Vec<f32>, from_rate: u32, to_rate: u32) -> Result<Vec
         input_offset = end;
     }
 
-    // Process any remaining samples in the resampler's internal buffer
+    // Flush internal buffer.
     while let Ok(output) = resampler.process(&[&[]], None) {
         if output.is_empty() || output[0].is_empty() {
             break;
@@ -580,9 +523,6 @@ mod tests {
 
     #[test]
     fn find_ffmpeg_never_panics() {
-        // ffmpeg may or may not be installed on the runner; either way the
-        // function must return cleanly. A missing binary yields the install
-        // hint rather than a panic or a hang.
         match find_ffmpeg() {
             Ok(path) => assert!(!path.is_empty()),
             Err(e) => assert!(e.to_string().contains("FFmpeg not found")),
@@ -591,8 +531,6 @@ mod tests {
 
     #[test]
     fn audio_format_extension_match_is_case_insensitive() {
-        // Windows filesystems are case-insensitive; an uppercase extension
-        // must classify identically to its lowercase form.
         assert!(matches!(
             AudioFormat::from_path("clip.WAV"),
             AudioFormat::Wav

@@ -3,9 +3,6 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { LanguageModel } from "ai";
 import type { PostProcessProvider } from "@/lib/types";
 
-/**
- * Build a Vercel AI SDK `LanguageModel` for the given provider + model ID.
- */
 const TRAILING_SLASHES = /\/+$/;
 
 export function createLlmModel(
@@ -24,13 +21,13 @@ export function createLlmModel(
     return anthropic(modelId);
   }
 
-  // Ollama doesn't need a key — use a dummy value so the SDK doesn't reject it
+  // Ollama: SDK requires non-empty key; pass dummy.
   const effectiveKey = provider.id === "ollama" && !apiKey ? "ollama" : apiKey;
 
   const openai = createOpenAICompatible({
-    name: provider.id,
     apiKey: effectiveKey,
     baseURL: baseUrl,
+    name: provider.id,
   });
   return openai(modelId);
 }

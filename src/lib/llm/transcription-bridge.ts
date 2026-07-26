@@ -9,18 +9,7 @@ interface TranscriptionReadyPayload {
   transcription: string;
 }
 
-/**
- * Register the `transcription-ready` listener.
- * Returns an `unlisten` function for cleanup.
- *
- * This module bridges Rust (which handles recording / transcription) and the
- * frontend AI SDK (which handles LLM post-processing). Flow:
- *
- *   Rust emits `transcription-ready` with { transcription, op_generation }
- *   → frontend calls `runPostProcess` via AI SDK
- *   → frontend invokes `finalize_transcription` command
- *   → Rust handles paste, history, overlay, staleness
- */
+// Bridge Rust transcription → frontend AI SDK post-process → Rust finalize (paste/history/overlay).
 export function mountTranscriptionBridge(
   getSettings: () => Settings | null
 ): Promise<UnlistenFn> {
@@ -31,41 +20,67 @@ export function mountTranscriptionBridge(
 
       const settings = getSettings();
       if (!settings) {
-        // Settings not loaded yet — paste raw transcription
+        // Settings not loaded — paste raw.
         await invoke("finalize_transcription", {
-          text: transcription,
-          originalTranscription: transcription,
-          opGeneration: op_generation,
-          kind: "empty",
-          toolMessage: null,
           audioSamples: audio_samples,
+          kind: "empty",
+          opGeneration: op_generation,
+          originalTranscription: transcription,
           postProcessPrompt: null,
+          text: transcription,
+          toolMessage: null,
         });
         return;
       }
 
-      const result = await runPostProcess(transcription, settings);
+      // On post-process error: still finalize with raw text so watchdog doesn't fire + overlay recovers.
+      try {
+        const result = await runPostProcess(transcription, settings);
 
-      // Resolve the prompt text for history
-      let postProcessPrompt: string | null = null;
-      if (result.kind === "text" && settings.post_process_selected_prompt_id) {
-        const prompt = settings.post_process_prompts.find(
-          (p) => p.id === settings.post_process_selected_prompt_id
+        let postProcessPrompt: string | null = null;
+        if (
+          result.kind === "text" &&
+          settings.post_process_selected_prompt_id
+        ) {
+          const prompt = settings.post_process_prompts.find(
+            (p) => p.id === settings.post_process_selected_prompt_id
+          );
+          if (prompt) {
+            postProcessPrompt = prompt.prompt;
+          }
+        }
+
+        await invoke("finalize_transcription", {
+          audioSamples: audio_samples,
+          kind: result.kind,
+          opGeneration: op_generation,
+          originalTranscription: transcription,
+          postProcessPrompt,
+          text: result.content,
+          toolMessage: result.toolMessage ?? null,
+        });
+      } catch (error) {
+        console.error(
+          "Post-processing failed, falling back to raw paste:",
+          error
         );
-        if (prompt) {
-          postProcessPrompt = prompt.prompt;
+        try {
+          await invoke("finalize_transcription", {
+            audioSamples: audio_samples,
+            kind: "empty",
+            opGeneration: op_generation,
+            originalTranscription: transcription,
+            postProcessPrompt: null,
+            text: transcription,
+            toolMessage: null,
+          });
+        } catch (finalizeError) {
+          console.error(
+            "Fallback finalize_transcription also failed:",
+            finalizeError
+          );
         }
       }
-
-      await invoke("finalize_transcription", {
-        text: result.content,
-        originalTranscription: transcription,
-        opGeneration: op_generation,
-        kind: result.kind,
-        toolMessage: result.toolMessage ?? null,
-        audioSamples: audio_samples,
-        postProcessPrompt,
-      });
     }
   );
 }

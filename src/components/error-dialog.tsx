@@ -30,14 +30,14 @@ export const ErrorDialog: React.FC = () => {
       (event) => {
         if (typeof event.payload === "string") {
           setErrorData({
-            title: "Error",
             message: event.payload,
+            title: "Error",
           });
         } else {
           setErrorData({
-            title: event.payload.title || "Error",
-            message: event.payload.message,
             details: event.payload.details,
+            message: event.payload.message,
+            title: event.payload.title || "Error",
           });
         }
         setIsOpen(true);

@@ -11,7 +11,11 @@ use echo_app_lib::audio_toolkit::audio::system_capture::{
 
 #[test]
 fn is_available_returns_true_on_supported_platforms() {
-    if cfg!(any(target_os = "macos", target_os = "windows", target_os = "linux")) {
+    if cfg!(any(
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "linux"
+    )) {
         assert!(
             is_system_audio_available(),
             "system audio should be advertised as available on this OS"
@@ -26,7 +30,11 @@ fn is_available_returns_true_on_supported_platforms() {
 
 #[test]
 fn create_system_capture_constructs_handle() {
-    if !cfg!(any(target_os = "macos", target_os = "windows", target_os = "linux")) {
+    if !cfg!(any(
+        target_os = "macos",
+        target_os = "windows",
+        target_os = "linux"
+    )) {
         // The factory is supposed to error on unsupported targets.
         assert!(create_system_capture().is_err());
         return;

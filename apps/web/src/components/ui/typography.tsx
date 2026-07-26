@@ -5,15 +5,15 @@ import { cn } from "@/lib/utils";
 const h1Variants = cva(
   "scroll-m-20 font-extrabold text-4xl tracking-tight lg:text-5xl",
   {
+    defaultVariants: {
+      variant: "default",
+    },
     variants: {
       variant: {
         default: "",
         gradient:
           "bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent",
       },
-    },
-    defaultVariants: {
-      variant: "default",
     },
   }
 );
@@ -29,13 +29,13 @@ export function H1({ className, variant, ...props }: H1Props) {
 const h2Variants = cva(
   "scroll-m-20 border-b pb-2 font-semibold text-3xl tracking-tight first:mt-0",
   {
+    defaultVariants: {
+      variant: "default",
+    },
     variants: {
       variant: {
         default: "",
       },
-    },
-    defaultVariants: {
-      variant: "default",
     },
   }
 );
@@ -49,13 +49,13 @@ export function H2({ className, variant, ...props }: H2Props) {
 }
 
 const h3Variants = cva("scroll-m-20 font-semibold text-2xl tracking-tight", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -68,13 +68,13 @@ export function H3({ className, variant, ...props }: H3Props) {
 }
 
 const h4Variants = cva("scroll-m-20 font-semibold text-xl tracking-tight", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -87,13 +87,13 @@ export function H4({ className, variant, ...props }: H4Props) {
 }
 
 const h5Variants = cva("scroll-m-20 font-semibold text-lg tracking-tight", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -106,13 +106,13 @@ export function H5({ className, variant, ...props }: H5Props) {
 }
 
 const h6Variants = cva("scroll-m-20 font-semibold text-base tracking-tight", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -125,14 +125,14 @@ export function H6({ className, variant, ...props }: H6Props) {
 }
 
 const pVariants = cva("leading-7 [&:not(:first-child)]:mt-6", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
       muted: "text-muted-foreground",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -145,13 +145,13 @@ export function P({ className, variant, ...props }: PProps) {
 }
 
 const blockquoteVariants = cva("mt-6 border-l-2 pl-6 italic", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -169,13 +169,13 @@ export function Blockquote({ className, variant, ...props }: BlockquoteProps) {
 }
 
 const listVariants = cva("my-6 ml-6 list-disc [&>li]:mt-2", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -190,13 +190,13 @@ export function List({ className, variant, ...props }: ListProps) {
 const inlineCodeVariants = cva(
   "relative rounded bg-muted px-[0.3rem] py-[0.2rem] font-mono font-semibold text-sm",
   {
+    defaultVariants: {
+      variant: "default",
+    },
     variants: {
       variant: {
         default: "",
       },
-    },
-    defaultVariants: {
-      variant: "default",
     },
   }
 );
@@ -215,13 +215,13 @@ export function InlineCode({ className, variant, ...props }: InlineCodeProps) {
 }
 
 const leadVariants = cva("text-muted-foreground text-xl", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -234,13 +234,13 @@ export function Lead({ className, variant, ...props }: LeadProps) {
 }
 
 const largeVariants = cva("font-semibold text-lg", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -255,13 +255,13 @@ export function Large({ className, variant, ...props }: LargeProps) {
 }
 
 const smallVariants = cva("font-medium text-sm leading-none", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 
@@ -276,13 +276,13 @@ export function Small({ className, variant, ...props }: SmallProps) {
 }
 
 const mutedVariants = cva("text-muted-foreground text-sm", {
+  defaultVariants: {
+    variant: "default",
+  },
   variants: {
     variant: {
       default: "",
     },
-  },
-  defaultVariants: {
-    variant: "default",
   },
 });
 

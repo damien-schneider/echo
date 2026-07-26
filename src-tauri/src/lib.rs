@@ -1,6 +1,6 @@
-#![allow(unexpected_cfgs)] // objc 0.2.x macros emit spurious cfg(feature = "cargo-clippy") checks
+#![allow(unexpected_cfgs)] // objc 0.2.x macros emit spurious cargo-clippy cfg checks.
 
-mod actions;
+pub mod actions;
 mod audio_feedback;
 pub mod audio_toolkit;
 mod clipboard;
@@ -15,13 +15,14 @@ pub mod settings;
 mod signal_handle;
 mod startup;
 mod tray;
+mod updates;
 mod utils;
 mod wayland;
 
-// Re-export shortcut module from features for convenience
 use features::shortcut;
 
 use env_filter::Builder as EnvFilterBuilder;
+use features::polish::manager::PolishManager;
 use managers::audio::AudioRecordingManager;
 use managers::diarization::DiarizationManager;
 use managers::history::HistoryManager;
@@ -36,7 +37,7 @@ use std::sync::{Arc, Mutex};
 use tauri::image::Image;
 
 #[cfg(unix)]
-use signal_hook::consts::SIGUSR2;
+use signal_hook::consts::{SIGINT, SIGTERM, SIGUSR2};
 #[cfg(unix)]
 use signal_hook::iterator::Signals;
 use std::path::PathBuf;
@@ -49,83 +50,163 @@ use tauri_plugin_log::{Builder as LogBuilder, LogLevel, RotationStrategy, Target
 
 #[derive(Default)]
 struct ShortcutToggleStates {
-    // Map: shortcut_binding_id -> is_active
     active_toggles: HashMap<String, bool>,
 }
 
 type ManagedToggleState = Mutex<ShortcutToggleStates>;
 
-/// Global flag to track if a file transcription is currently in progress
 static FILE_TRANSCRIPTION_ACTIVE: AtomicBool = AtomicBool::new(false);
 
-/// Check if a file transcription is currently active
 pub fn is_file_transcription_active() -> bool {
     FILE_TRANSCRIPTION_ACTIVE.load(Ordering::SeqCst)
 }
 
-/// Set the file transcription active state
 pub fn set_file_transcription_active(active: bool) {
     FILE_TRANSCRIPTION_ACTIVE.store(active, Ordering::SeqCst);
 }
 
 fn initialize_core_logic(app_handle: &AppHandle) {
-    // First, initialize the managers
     let recording_manager = Arc::new(
         AudioRecordingManager::new(app_handle).expect("Failed to initialize recording manager"),
     );
     let model_manager =
         Arc::new(ModelManager::new(app_handle).expect("Failed to initialize model manager"));
+    let polish_manager = Arc::new(PolishManager::new(app_handle, model_manager.clone()));
     let transcription_manager = Arc::new(
         TranscriptionManager::new(app_handle, model_manager.clone())
             .expect("Failed to initialize transcription manager"),
     );
+
+    // Prevents idle eviction during mic capture.
+
+    // Main-engine boot prewarm happens below (after the realtime block). It was
+    // previously disabled over engine.lock contention, but the streaming preview
+    // now runs on a SEPARATE engine slot and the stop flow is fully bounded, so
+    // warming the batch engine at boot no longer starves the post-stop transcribe.
     let history_manager =
         Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
 
-    // Initialize input tracker manager
     let input_tracker_manager = Arc::new(Mutex::new(
         InputTrackerManager::new(app_handle).expect("Failed to initialize input tracker manager"),
     ));
 
     let tts_manager = Arc::new(TtsManager::new());
 
-    // Pre-warm TTS engine on startup
     if let Err(e) = tts_manager.initialize() {
         log::warn!("Failed to initialize TTS engine on startup: {}", e);
     }
 
-    // Initialize meeting manager
     let meeting_manager =
         Arc::new(MeetingManager::new(app_handle).expect("Failed to initialize meeting manager"));
 
-    // Initialize diarization manager
     let diarization_manager = Arc::new(
         DiarizationManager::new(app_handle, model_manager.clone())
             .expect("Failed to initialize diarization manager"),
     );
 
-    // Speaker detection is mandatory for meetings — kick off the model download
-    // immediately on boot if it isn't already present, so the user doesn't have
-    // to flip a setting to obtain it.
+    // Keep the selected local model resident so first dictation is responsive.
     {
-        use crate::managers::diarization::DIARIZATION_MODEL_ID;
-        let needs_download = model_manager
-            .get_model_info(DIARIZATION_MODEL_ID)
-            .map(|m| !m.is_downloaded && !m.is_downloading)
+        let model_size = settings::get_settings(app_handle).transcription_model_size;
+        let realtime_model_id = managers::model::transcription_profile_id(model_size).to_string();
+        let is_downloaded = model_manager
+            .get_model_info(&realtime_model_id)
+            .map(|model| model.is_downloaded)
             .unwrap_or(false);
-        if needs_download {
-            let mm = model_manager.clone();
+        if !realtime_model_id.is_empty() && is_downloaded {
+            let tm = transcription_manager.clone();
+            let app_for_model = app_handle.clone();
             tauri::async_runtime::spawn(async move {
-                if let Err(e) = mm.download_model(DIARIZATION_MODEL_ID).await {
-                    log::error!("Auto-download of diarization model failed: {}", e);
+                let selected_size = settings::get_settings(&app_for_model).transcription_model_size;
+                let selected_model_id = managers::model::transcription_profile_id(selected_size);
+                if selected_model_id != realtime_model_id {
+                    log::info!(
+                        "Skipping stale model load for '{}'; '{}' is now selected",
+                        realtime_model_id,
+                        selected_model_id
+                    );
+                    return;
+                }
+                match tm.load_streaming_model(&realtime_model_id) {
+                    Ok(()) => {
+                        log::info!(
+                            "Realtime model '{}' resident for live preview",
+                            realtime_model_id
+                        );
+                        // Pre-compile the whisper Metal/CoreML kernels with one
+                        // silent decode so the FIRST live-preview decode is warm.
+                        // A cold first decode can run for seconds — and that is
+                        // exactly the in-flight decode the stop-flow worker-join
+                        // budget must wait on before detaching. Warming it here
+                        // makes that detach path rare. Runs on a dedicated thread
+                        // (whisper FFI is blocking) and only touches the streaming
+                        // engine, never the main engine, so it cannot contend the
+                        // post-stop final transcribe.
+                        let tm_warm = tm.clone();
+                        std::thread::spawn(move || {
+                            let warm_start = std::time::Instant::now();
+                            match tm_warm.transcribe_for_streaming(
+                                crate::managers::transcription::build_warmup_audio(),
+                            ) {
+                                Ok(_) => log::debug!(
+                                    "Streaming engine warmup decode completed in {}ms",
+                                    warm_start.elapsed().as_millis()
+                                ),
+                                Err(e) => {
+                                    log::debug!("Streaming engine warmup decode skipped: {e:#}")
+                                }
+                            }
+                        });
+                    }
+                    Err(e) => log::warn!(
+                        "Realtime model '{}' could not be loaded: {}",
+                        realtime_model_id,
+                        e
+                    ),
                 }
             });
+        } else if !realtime_model_id.is_empty() {
+            log::info!(
+                "Transcription model '{}' is not installed; waiting for user download",
+                realtime_model_id
+            );
         }
     }
 
-    // Add managers to Tauri's managed state
+    // Main (batch) engine prewarm — keep the post-stop transcription model loaded
+    // AND warm so the FIRST dictation decodes in ~1s instead of paying ONNX/Metal
+    // cold-start cost at the worst moment (the final transcribe on key release).
+    // We also pin it resident via a never-released keepalive so the idle watcher
+    // can't evict it back to a cold state between dictations (Wispr-style always-
+    // warm model). Opt out with PrewarmStrategy::Off. Safe now: the live preview
+    // uses a separate engine slot, so this never contends the stop-flow decode.
+    let selected_model_id = managers::model::transcription_profile_id(
+        settings::get_settings(app_handle).transcription_model_size,
+    );
+    let should_prewarm = model_manager
+        .get_model_info(selected_model_id)
+        .map(|model| model.is_downloaded)
+        .unwrap_or(false);
+    if should_prewarm {
+        let tm = transcription_manager.clone();
+        std::thread::spawn(move || {
+            if let Err(e) = tm.prewarm() {
+                log::warn!("Boot prewarm of main engine failed: {e:#}");
+                return;
+            }
+            // Pin BEFORE the warmup decode so an `Immediately`-unload setting
+            // can't drop the model the instant the synthetic decode returns.
+            match tm.warmup_decode_dummy() {
+                Ok(()) => log::info!(
+                    "Main transcription engine prewarmed + pinned resident for fast dictation"
+                ),
+                Err(e) => log::debug!("Boot warmup decode skipped: {e:#}"),
+            }
+        });
+    }
+
     app_handle.manage(recording_manager.clone());
     app_handle.manage(model_manager.clone());
+    app_handle.manage(polish_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
     app_handle.manage(input_tracker_manager.clone());
@@ -133,27 +214,19 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(meeting_manager.clone());
     app_handle.manage(diarization_manager.clone());
 
-    // Cleanup model state — lazy-loaded on first cleanup_init call.
-    // Set the HF cache root ONCE here, on the main thread, before any
-    // mistral.rs / hf-hub call could read `HF_HOME`. Safer than letting
-    // `CleanupManager::init` mutate env vars from an async task (which
-    // would race with other threads under the 2024 edition's `unsafe
-    // set_var`).
-    if let Ok(model_dir) = app_handle.path().app_data_dir() {
-        let cleanup_cache = model_dir.join("models").join("cleanup");
-        if let Err(e) = std::fs::create_dir_all(&cleanup_cache) {
-            log::warn!(
-                "Failed to create cleanup model cache dir {}: {e}",
-                cleanup_cache.display()
-            );
-        }
-        managers::cleanup::set_hf_cache_root(&cleanup_cache);
-    } else {
-        log::warn!("Could not resolve app_data_dir; HF_HOME left at default");
+    if polish_manager.is_downloaded() {
+        let manager = polish_manager.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = manager.prepare().await {
+                log::warn!("Polish prewarm unavailable: {error}");
+            }
+        });
     }
-    app_handle.manage(commands::cleanup::new_state());
+    features::polish::idle_release::watch_idle_runtime(&polish_manager);
 
-    // Start input tracker if enabled in settings
+    app_handle.manage(commands::cleanup::new_state());
+    app_handle.manage(shortcut::failures::ShortcutFailures::default());
+
     {
         let settings = settings::get_settings(app_handle);
         if settings.input_tracking_enabled {
@@ -165,26 +238,23 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         }
     }
 
-    // Initialize Wayland state if on Wayland (must be done before shortcuts)
+    // Must run before init_shortcuts.
     #[cfg(target_os = "linux")]
     {
         shortcut::init_wayland_state(app_handle);
     }
 
-    // Initialize the shortcuts
     shortcut::init_shortcuts(app_handle);
 
-    // Set up SIGUSR2 handler for Unix platforms
     #[cfg(unix)]
     {
-        if let Ok(signals) = Signals::new(&[SIGUSR2]) {
+        if let Ok(signals) = Signals::new(&[SIGUSR2, SIGINT, SIGTERM]) {
             signal_handle::setup_signal_handler(app_handle.clone(), signals);
         } else {
-            log::warn!("Failed to register SIGUSR2 handler");
+            log::warn!("Failed to register Unix signal handler");
         }
     }
 
-    // Apply macOS Accessory policy if starting hidden
     #[cfg(target_os = "macos")]
     {
         let settings = settings::get_settings(app_handle);
@@ -192,13 +262,11 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             let _ = app_handle.set_activation_policy(tauri::ActivationPolicy::Accessory);
         }
     }
-    // Get the current theme to set the appropriate initial icon
     let initial_theme = tray::get_current_theme(app_handle);
 
-    // Choose the appropriate initial icon based on theme
     let initial_icon_path = tray::get_icon_path(initial_theme, tray::TrayIconState::Idle);
 
-    let tray = TrayIconBuilder::new()
+    let tray_builder = TrayIconBuilder::new()
         .icon(
             Image::from_path(
                 app_handle
@@ -216,47 +284,39 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
             "check_updates" => {
                 show_main_window(app);
-                let _ = app.emit("check-for-updates", ());
+                updates::check_in_background(app);
             }
             "cancel" => {
                 use crate::utils::cancel_current_operation;
 
-                // Use centralized cancellation that handles all operations
                 cancel_current_operation(app);
             }
             "quit" => {
                 app.exit(0);
             }
             _ => {}
-        })
-        .build(app_handle)
-        .unwrap();
+        });
+
+    // Tray icons are identical, so a dev build labels itself next to an installed Echo.
+    #[cfg(debug_assertions)]
+    let tray_builder = tray_builder.title("DEV").tooltip("Echo Dev");
+
+    let tray = tray_builder.build(app_handle).unwrap();
     app_handle.manage(tray);
 
-    // Initialize tray menu with idle state
     utils::update_tray_menu(app_handle, &utils::TrayIconState::Idle);
 
-    // Get the autostart manager and configure based on user setting
     let autostart_manager = app_handle.autolaunch();
     let settings = settings::get_settings(&app_handle);
 
     if settings.autostart_enabled {
-        // Enable autostart if user has opted in
         let _ = autostart_manager.enable();
     } else {
-        // Disable autostart if user has opted out
         let _ = autostart_manager.disable();
     }
 
-    // Create the recording overlay window (hidden by default)
     utils::create_recording_overlay(app_handle);
-}
-
-#[tauri::command]
-fn trigger_update_check(app: AppHandle) -> Result<(), String> {
-    app.emit("check-for-updates", ())
-        .map_err(|e| e.to_string())?;
-    Ok(())
+    updates::watch(app_handle);
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -296,10 +356,8 @@ fn build_console_filter() -> env_filter::Filter {
     builder.build()
 }
 
-/// Helper function to validate and transcribe a dropped file (for window drops)
-/// Does not show the window after completion - only shows the dialog
+/// Window drops — no window shown, only error dialog.
 async fn validate_and_transcribe_file(app: AppHandle, file_path: PathBuf) -> Result<(), String> {
-    // Validate file exists
     if !file_path.exists() {
         let error_payload = serde_json::json!({
             "title": "File Not Found",
@@ -310,7 +368,6 @@ async fn validate_and_transcribe_file(app: AppHandle, file_path: PathBuf) -> Res
         return Err("File not found".to_string());
     }
 
-    // Validate file extension
     let valid_extensions = [
         "wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "avi", "mkv", "webm", "flv",
     ];
@@ -330,11 +387,9 @@ async fn validate_and_transcribe_file(app: AppHandle, file_path: PathBuf) -> Res
         return Err(format!("Unsupported file format: .{}", extension));
     }
 
-    // Get managers from state
     let history_manager = app.state::<Arc<HistoryManager>>();
     let transcription_manager = app.state::<Arc<TranscriptionManager>>();
 
-    // Call existing transcription command logic
     let file_path_str = file_path.to_string_lossy().to_string();
     commands::file_transcription::transcribe_audio_file(
         app.clone(),
@@ -347,16 +402,13 @@ async fn validate_and_transcribe_file(app: AppHandle, file_path: PathBuf) -> Res
     Ok(())
 }
 
-/// Helper function to validate and transcribe a dropped file (for icon drops)
-/// Shows the window after completion
+/// Icon drops — shows window after completion.
 async fn validate_and_transcribe_file_icon_drop(
     app: AppHandle,
     file_path: PathBuf,
     show_window_after: bool,
 ) -> Result<(), String> {
-    // Validate file exists
     if !file_path.exists() {
-        // Show error dialog and open window
         let error_payload = serde_json::json!({
             "title": "File Not Found",
             "message": "The selected file could not be found.",
@@ -367,7 +419,6 @@ async fn validate_and_transcribe_file_icon_drop(
         return Err("File not found".to_string());
     }
 
-    // Validate file extension
     let valid_extensions = [
         "wav", "wave", "mp3", "m4a", "aac", "ogg", "oga", "mp4", "mov", "avi", "mkv", "webm", "flv",
     ];
@@ -378,7 +429,6 @@ async fn validate_and_transcribe_file_icon_drop(
         .unwrap_or_default();
 
     if !valid_extensions.contains(&extension.as_str()) {
-        // Show unsupported file error
         let error_payload = serde_json::json!({
             "title": "Unsupported File Format",
             "message": format!("The file format '.{}' is not supported.", extension),
@@ -389,11 +439,9 @@ async fn validate_and_transcribe_file_icon_drop(
         return Err(format!("Unsupported file format: .{}", extension));
     }
 
-    // Get managers from state
     let history_manager = app.state::<Arc<HistoryManager>>();
     let transcription_manager = app.state::<Arc<TranscriptionManager>>();
 
-    // Call existing transcription command logic
     let file_path_str = file_path.to_string_lossy().to_string();
     commands::file_transcription::transcribe_audio_file(
         app.clone(),
@@ -403,7 +451,6 @@ async fn validate_and_transcribe_file_icon_drop(
     )
     .await?;
 
-    // Show window after successful transcription
     if show_window_after {
         startup::show_main_window(&app);
     }
@@ -411,13 +458,23 @@ async fn validate_and_transcribe_file_icon_drop(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn with_overlay_panel_plugin(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
+    builder.plugin(tauri_nspanel::init())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn with_overlay_panel_plugin(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
+    builder
+}
+
 pub fn run() {
-    tauri::Builder::default()
+    let app = with_overlay_panel_plugin(tauri::Builder::default())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
-            // Check if any arguments look like file paths (icon drops)
+            // Icon drops via args.
             let file_paths: Vec<PathBuf> = args
                 .iter()
-                .skip(1) // Skip the first arg (app executable path)
+                .skip(1)
                 .filter_map(|arg| {
                     let path = PathBuf::from(arg);
                     if path.exists() {
@@ -431,12 +488,10 @@ pub fn run() {
             if !file_paths.is_empty() {
                 log::info!("Files dropped on app icon: {:?}", file_paths);
 
-                // Process first file (for now, could process multiple)
                 if let Some(file_path) = file_paths.first() {
                     let app_handle = app.clone();
                     let path = file_path.clone();
 
-                    // Spawn async task to handle transcription
                     tauri::async_runtime::spawn(async move {
                         let handle_for_emit = app_handle.clone();
                         if let Err(e) =
@@ -448,12 +503,10 @@ pub fn run() {
                     });
                 }
             } else {
-                // No files, just show the window
                 show_main_window(app);
             }
         }))
         .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())
@@ -473,12 +526,12 @@ pub fn run() {
                 .rotation_strategy(RotationStrategy::KeepOne)
                 .clear_targets()
                 .targets([
-                    // Console output respects the RUST_LOG environment variable
+                    // Console respects RUST_LOG.
                     Target::new(TargetKind::Stdout).filter({
                         let console_filter = build_console_filter();
                         move |metadata| console_filter.enabled(metadata)
                     }),
-                    // File logs respect the user's settings stored in FILE_LOG_LEVEL
+                    // File logs follow FILE_LOG_LEVEL from settings.
                     Target::new(TargetKind::LogDir {
                         file_name: Some("handy".into()),
                     })
@@ -491,10 +544,10 @@ pub fn run() {
         )
         .manage(Mutex::new(ShortcutToggleStates::default()))
         .manage(Mutex::new(startup::StartupState::default()))
+        .manage(updates::manager())
         .setup(move |app| {
             let settings = settings::get_settings(&app.handle());
             logging::set_debug_logging(settings.debug_logging_enabled);
-            // Set initial file log level from settings
             let file_log_level: log::LevelFilter = match settings.log_level {
                 LogLevel::Error => log::LevelFilter::Error,
                 LogLevel::Warn => log::LevelFilter::Warn,
@@ -510,53 +563,19 @@ pub fn run() {
             initialize_core_logic(&app_handle);
 
             if let Some(main_window) = app_handle.get_webview_window("main") {
-                // ============================================================
-                // PLATFORM-SPECIFIC WINDOW DECORATION CONFIGURATION
-                // ============================================================
-                //
-                // The main window is created with `decorations: false` in
-                // tauri.conf.json. This is REQUIRED for Linux/GTK because:
-                //
-                //   On GTK, if a window is created WITH decorations (the
-                //   default), GTK initializes a CSD (Client-Side Decorations)
-                //   header bar internally. Calling set_decorations(false) AFTER
-                //   creation only hides the header bar — it does NOT fully
-                //   remove the CSD infrastructure. The residual GTK rendering
-                //   causes visual artifacts:
-                //     - A faint horizontal bar at the top of the window
-                //     - Ghost pixels in the rounded corners (where CSS
-                //       border-radius clips the webview but GTK's rectangular
-                //       background bleeds through)
-                //   These artifacts are most visible on light themes and HDR
-                //   displays.
-                //
-                //   By setting decorations: false at creation time (in the JSON
-                //   config), GTK never creates the CSD infrastructure at all,
-                //   which eliminates the artifacts entirely. The app renders its
-                //   own custom title bar in src/components/ui/title-bar.tsx with
-                //   window controls and data-tauri-drag-region for dragging.
-                //
-                // On macOS and Windows, we re-enable decorations here and apply
-                // the platform-appropriate title bar style. The window starts
-                // hidden (visible: false), so re-enabling decorations before
-                // first show is safe and produces no visual flicker.
-                // ============================================================
+                #[cfg(debug_assertions)]
+                let _ = main_window.set_title("Echo Dev");
+
+                // Window created with decorations: false in tauri.conf.json to avoid GTK CSD artifacts
+                // (faint top bar, corner ghosts). macOS/Windows re-enable + style here before first show.
 
                 #[cfg(target_os = "macos")]
-                #[allow(deprecated)] // cocoa crate is deprecated in favor of objc2-app-kit
+                #[allow(deprecated)] // cocoa deprecated for objc2-app-kit.
                 {
-                    use cocoa::appkit::{
-                        NSWindow, NSWindowStyleMask, NSWindowTitleVisibility,
-                    };
+                    use cocoa::appkit::{NSWindow, NSWindowStyleMask, NSWindowTitleVisibility};
                     use cocoa::base::{id, YES};
 
-                    // The window is created with decorations: false (required
-                    // for Linux to avoid GTK CSD artifacts). On macOS we
-                    // configure the NSWindow directly in a single atomic
-                    // setStyleMask_ call — this is equivalent to creating the
-                    // window with decorations: true + titleBarStyle: "Overlay",
-                    // which ensures the webview extends behind the title bar
-                    // so the traffic lights sit inside the glass window.
+                    // Single atomic setStyleMask_ = decorations:true + titleBarStyle:Overlay; traffic lights inside glass.
                     if let Ok(ns_win) = main_window.ns_window() {
                         unsafe {
                             let window = ns_win as id;
@@ -568,9 +587,8 @@ pub fn run() {
                                     | NSWindowStyleMask::NSFullSizeContentViewWindowMask,
                             );
                             window.setTitlebarAppearsTransparent_(YES);
-                            window.setTitleVisibility_(
-                                NSWindowTitleVisibility::NSWindowTitleHidden,
-                            );
+                            window
+                                .setTitleVisibility_(NSWindowTitleVisibility::NSWindowTitleHidden);
                         }
                     }
                 }
@@ -581,7 +599,6 @@ pub fn run() {
                     let _ = main_window.set_decorations(true);
                     let _ = main_window.set_title_bar_style(TitleBarStyle::Transparent);
                 }
-
             }
 
             startup::mark_backend_ready(&app_handle);
@@ -604,46 +621,40 @@ pub fn run() {
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
                 log::info!("Theme changed to: {:?}", theme);
-                // Update tray icon to match new theme, maintaining idle state
                 utils::change_tray_icon(&window.app_handle(), utils::TrayIconState::Idle);
             }
-            tauri::WindowEvent::DragDrop(drag_event) => {
-                match drag_event {
-                    tauri::DragDropEvent::Enter { .. } => {
-                        log::info!("File drag entered window");
-                        let _ = window.emit("drag-enter", ());
-                    }
-                    tauri::DragDropEvent::Over { .. } => {
-                        let _ = window.emit("drag-over", ());
-                    }
-                    tauri::DragDropEvent::Leave => {
-                        log::info!("File drag left window");
-                        let _ = window.emit("drag-leave", ());
-                    }
-                    tauri::DragDropEvent::Drop { paths, .. } => {
-                        log::info!("File dropped on window: {:?}", paths);
-                        if let Some(file_path) = paths.first() {
-                            let app_handle = window.app_handle().clone();
-                            let path = file_path.clone();
-
-                            // Spawn async task to handle transcription
-                            tauri::async_runtime::spawn(async move {
-                                let handle_for_emit = app_handle.clone();
-                                if let Err(e) = validate_and_transcribe_file(app_handle, path).await
-                                {
-                                    log::error!("Failed to transcribe dropped file: {}", e);
-                                    let _ = handle_for_emit.emit("file-transcription-error", e);
-                                }
-                            });
-                        }
-                    }
-                    _ => {}
+            tauri::WindowEvent::DragDrop(drag_event) => match drag_event {
+                tauri::DragDropEvent::Enter { .. } => {
+                    log::info!("File drag entered window");
+                    let _ = window.emit("drag-enter", ());
                 }
-            }
+                tauri::DragDropEvent::Over { .. } => {
+                    let _ = window.emit("drag-over", ());
+                }
+                tauri::DragDropEvent::Leave => {
+                    log::info!("File drag left window");
+                    let _ = window.emit("drag-leave", ());
+                }
+                tauri::DragDropEvent::Drop { paths, .. } => {
+                    log::info!("File dropped on window: {:?}", paths);
+                    if let Some(file_path) = paths.first() {
+                        let app_handle = window.app_handle().clone();
+                        let path = file_path.clone();
+
+                        tauri::async_runtime::spawn(async move {
+                            let handle_for_emit = app_handle.clone();
+                            if let Err(e) = validate_and_transcribe_file(app_handle, path).await {
+                                log::error!("Failed to transcribe dropped file: {}", e);
+                                let _ = handle_for_emit.emit("file-transcription-error", e);
+                            }
+                        });
+                    }
+                }
+                _ => {}
+            },
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![
-            // Shortcut bindings commands
             shortcut::bindings::change_binding,
             shortcut::bindings::reset_binding,
             shortcut::bindings::suspend_binding,
@@ -652,16 +663,14 @@ pub fn run() {
             shortcut::is_wayland_session,
             shortcut::get_wayland_shortcuts,
             shortcut::open_wayland_shortcut_settings,
-            // Shortcut escape commands
+            shortcut::failures::get_shortcut_failures,
             shortcut::escape::register_escape_shortcut,
             shortcut::escape::unregister_escape_shortcut,
-            // Audio settings commands
             shortcut::settings::audio::change_ptt_setting,
             shortcut::settings::audio::change_audio_feedback_setting,
             shortcut::settings::audio::change_audio_feedback_volume_setting,
             shortcut::settings::audio::change_sound_theme_setting,
             shortcut::settings::audio::change_mute_while_recording_setting,
-            // General settings commands
             shortcut::settings::general::change_start_hidden_setting,
             shortcut::settings::general::change_autostart_setting,
             shortcut::settings::general::change_translate_to_english_setting,
@@ -673,7 +682,6 @@ pub fn run() {
             shortcut::settings::general::change_paste_method_setting,
             shortcut::settings::general::change_clipboard_handling_setting,
             shortcut::settings::general::update_custom_words,
-            // Post-process settings commands
             shortcut::settings::post_process::change_post_process_base_url_setting,
             shortcut::settings::post_process::change_post_process_enabled_setting,
             shortcut::settings::post_process::change_post_process_api_key_setting,
@@ -686,32 +694,44 @@ pub fn run() {
             shortcut::settings::post_process::set_post_process_selected_prompt,
             shortcut::settings::post_process::check_model_tool_support,
             shortcut::settings::post_process::change_voice_commands_enabled_setting,
-            // Cleanup settings commands
             shortcut::settings::cleanup::change_cleanup_enabled_setting,
-            shortcut::settings::cleanup::change_cleanup_model_id_setting,
             shortcut::settings::cleanup::change_cleanup_app_context_enabled_setting,
             shortcut::settings::cleanup::update_cleanup_dictionary,
-            // Input tracking settings commands
             shortcut::settings::input_tracking::change_input_tracking_setting,
             shortcut::settings::input_tracking::change_input_tracking_excluded_apps,
             shortcut::settings::input_tracking::change_input_tracking_idle_timeout,
-            trigger_update_check,
+            updates::get_update_status,
+            updates::check_for_updates,
+            updates::install_update,
             startup::mark_frontend_ready,
+            overlay::begin_recording_overlay_snap_preview,
+            overlay::cancel_recording_overlay_snap_preview,
+            overlay::get_recording_overlay_surface,
+            overlay::move_recording_overlay_to_cursor_screen,
+            overlay::set_recording_overlay_dock_edge,
+            overlay::snap_recording_overlay_to_nearest_edge,
+            overlay::set_recording_overlay_mode,
+            overlay::settle_recording_overlay_mode,
+            overlay::get_overlay_notification_surface,
+            overlay::set_overlay_notification_mode,
+            overlay::settle_overlay_notification_mode,
+            overlay::hide_overlay_notification,
+            overlay::request_overlay_notification,
+            overlay::warn_from_overlay,
             commands::cancel_operation,
             commands::get_app_dir_path,
             commands::open_recordings_folder,
-            commands::models::get_available_models,
-            commands::models::get_model_info,
-            commands::models::download_model,
+            commands::models::get_transcription_profiles,
+            commands::models::select_transcription_model_size,
             commands::models::delete_model,
-            commands::models::cancel_download,
-            commands::models::set_active_model,
-            commands::models::get_current_model,
             commands::models::get_transcription_model_status,
             commands::models::is_model_loading,
             commands::models::has_any_models_available,
             commands::models::has_any_models_or_downloads,
             commands::models::get_recommended_first_model,
+            features::polish::manager::get_polish_status,
+            features::polish::manager::download_polish_model,
+            features::polish::manager::repair_polish_model,
             commands::audio::update_microphone_mode,
             commands::audio::get_microphone_mode,
             commands::audio::get_available_microphones,
@@ -726,9 +746,10 @@ pub fn run() {
             commands::audio::check_custom_sounds,
             helpers::clamshell::is_clamshell,
             helpers::clamshell::is_laptop,
-            commands::transcription::set_model_unload_timeout,
-            commands::transcription::get_model_load_status,
-            commands::transcription::unload_model_manually,
+            commands::transcription::prewarm_models,
+            commands::transcription::start_transcription_from_overlay,
+            commands::transcription::stop_transcription_from_overlay,
+            commands::transcription::run_polish_from_overlay,
             commands::history::get_history_entries,
             commands::history::toggle_history_entry_saved,
             commands::history::get_audio_file_path,
@@ -747,15 +768,12 @@ pub fn run() {
             commands::open_log_dir,
             commands::set_log_level,
             features::shortcut::settings::tts::change_tts_enabled_setting,
-            // Meeting settings commands
             shortcut::settings::meeting::change_meeting_system_audio_setting,
             shortcut::settings::meeting::change_meeting_system_audio_device_setting,
             shortcut::settings::meeting::change_meeting_auto_summary_setting,
             shortcut::settings::meeting::change_meeting_chunk_duration_setting,
-            shortcut::settings::meeting::change_realtime_model_setting,
             shortcut::settings::meeting::get_diarization_status,
-            shortcut::settings::meeting::ensure_diarization_model,
-            // Meeting commands
+            shortcut::settings::meeting::download_diarization_model,
             commands::meeting::start_meeting,
             commands::meeting::stop_meeting,
             commands::meeting::get_meeting_status,
@@ -771,14 +789,12 @@ pub fn run() {
             commands::meeting::get_meeting_transcript_for_summary,
             commands::meeting::save_meeting_summary,
             commands::tts::preview_tts,
-            commands::cleanup::cleanup_init,
-            commands::cleanup::cleanup_test,
-            commands::cleanup::cleanup_is_loaded,
             commands::voice_tools::execute_change_sound_theme,
             commands::voice_tools::execute_create_note,
             commands::voice_tools::execute_open_application,
             commands::voice_tools::finalize_transcription,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application");
+    app.run(|app_handle, event| features::polish::app_exit::handle(app_handle, &event));
 }

@@ -26,7 +26,6 @@ export const KeyboardTrackingSettings = () => {
         )}
       </CollapsibleSettingsGroup>
 
-      {/* Placeholder for future keyboard tracking features */}
       <div className="flex flex-col items-center gap-3 rounded-lg border border-border/50 border-dashed px-4 py-8 text-center text-muted-foreground">
         <Keyboard className="h-10 w-10 opacity-40" />
         <div>

@@ -15,21 +15,21 @@ const isMacOS = platform === "mac";
 const windowControlVariants = cva(
   "inline-flex cursor-pointer items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/20 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
   {
+    defaultVariants: {
+      size: "default",
+      variant: "default",
+    },
     variants: {
-      variant: {
-        default:
-          "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-        close:
-          "text-muted-foreground hover:bg-destructive hover:text-destructive-foreground",
-      },
       size: {
         default: "size-6 [&_svg]:size-3",
         sm: "size-5 [&_svg]:size-2.5",
       },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
+      variant: {
+        close:
+          "text-muted-foreground hover:bg-destructive hover:text-destructive-foreground",
+        default:
+          "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+      },
     },
   }
 );
@@ -51,7 +51,7 @@ const WindowControlButton = ({
   const Comp = asChild ? Slot : "button";
   return (
     <Comp
-      className={cn(windowControlVariants({ variant, size, className }))}
+      className={cn(windowControlVariants({ className, size, variant }))}
       ref={ref}
       {...props}
     />

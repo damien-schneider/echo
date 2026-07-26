@@ -305,15 +305,15 @@ export const LiveWaveform = ({
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: deviceId
             ? {
+                autoGainControl: true,
                 deviceId: { exact: deviceId },
                 echoCancellation: true,
                 noiseSuppression: true,
-                autoGainControl: true,
               }
             : {
+                autoGainControl: true,
                 echoCancellation: true,
                 noiseSuppression: true,
-                autoGainControl: true,
               },
         });
         streamRef.current = stream;

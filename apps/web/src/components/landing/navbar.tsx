@@ -48,9 +48,9 @@ export default function Navbar() {
 
   return (
     <motion.nav
-      animate={{ y: 0, opacity: 1 }}
+      animate={{ opacity: 1, y: 0 }}
       className="fixed inset-x-4 top-4 z-50 md:inset-x-auto md:left-1/2 md:w-full md:max-w-5xl md:-translate-x-1/2"
-      initial={{ y: -100, opacity: 0 }}
+      initial={{ opacity: 0, y: -100 }}
       transition={{ duration: 0.8, ease: "easeOut" }}
     >
       <div className="flex h-14 items-center justify-between rounded-full border border-border bg-background/80 pr-2.5 pl-6 shadow-lg backdrop-blur-md">
@@ -152,10 +152,10 @@ export default function Navbar() {
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
             className="absolute top-full right-0 left-0 mt-2 flex flex-col gap-4 rounded-2xl border border-border bg-background/95 p-4 shadow-xl backdrop-blur-md md:hidden"
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            exit={{ opacity: 0, scale: 0.95, y: -20 }}
+            initial={{ opacity: 0, scale: 0.95, y: -20 }}
             transition={{ duration: 0.2 }}
           >
             <Link

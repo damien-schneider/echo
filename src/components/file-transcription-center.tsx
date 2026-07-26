@@ -149,7 +149,6 @@ export function FileTranscriptionCenter() {
                     <div className="mt-2">
                       <div className="h-1 overflow-hidden rounded-full bg-foreground/10">
                         {item.progress < 0 ? (
-                          // Indeterminate progress bar
                           <div
                             className={cn(
                               "h-full w-1/3 animate-pulse rounded-full",

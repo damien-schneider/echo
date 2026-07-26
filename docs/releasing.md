@@ -61,6 +61,21 @@ Builds the full 6-platform matrix (macOS arm64/x64, Linux deb/appimage+rpm, Wind
 
 5. Open the draft on GitHub, review the assets and notes, hit **Publish**. The Tauri updater reads the published release's `latest.json`.
 
+## What clients do with a published release
+
+`src-tauri/src/updates/` owns the whole client side — one snapshot (`phase`,
+`version`, `progress`, `error`) published to every window on the `update-status`
+event.
+
+- Checks run 20 s after startup, then every 6 h, plus on demand from the tray
+  ("Check for updates") or the app window. A failed automatic check stays in the
+  log; a failed manual one is shown.
+- The app window shows the offer next to the version badge; the notch shows it
+  for 15 s with an **Update** button, then steps aside (dismissing it hides that
+  version until a newer one ships).
+- Installing downloads with progress, verifies the minisign signature, then
+  restarts. A failure keeps the version so the same button becomes **Retry**.
+
 ## Required GitHub secrets
 
 - `TAURI_SIGNING_PRIVATE_KEY` (+ `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` if set) — updater signing, all platforms.

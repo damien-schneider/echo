@@ -61,10 +61,10 @@ const groups: Group[] = [
       {
         focusEditor: false,
         icon: <SparklesIcon />,
-        value: "AI",
         onSelect: (editor) => {
           editor.getApi(AIChatPlugin).aiChat.show();
         },
+        value: "AI",
       },
     ],
   },

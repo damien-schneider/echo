@@ -12,9 +12,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-use wasapi::{
-    initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat,
-};
+use wasapi::{initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode, WaveFormat};
 
 use super::SystemAudioCapture;
 use crate::audio_toolkit::audio::FrameResampler;
@@ -118,7 +116,9 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
     let h_event = audio_client
         .set_get_eventhandle()
         .context("WASAPI: event handle")?;
-    let buffer_frame_count = audio_client.get_buffer_size().context("WASAPI: buffer size")? as usize;
+    let buffer_frame_count = audio_client
+        .get_buffer_size()
+        .context("WASAPI: buffer size")? as usize;
     let capture_client = audio_client
         .get_audiocaptureclient()
         .context("WASAPI: capture client")?;
@@ -131,7 +131,9 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
 
     let mut scratch = vec![0u8; blockalign * buffer_frame_count];
 
-    audio_client.start_stream().context("WASAPI: start_stream")?;
+    audio_client
+        .start_stream()
+        .context("WASAPI: start_stream")?;
 
     while !shutdown.load(Ordering::Relaxed) {
         if h_event.wait_for_event(1000).is_err() {

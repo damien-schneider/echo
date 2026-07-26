@@ -27,6 +27,7 @@ dist-ssr
 /target/
 recording_*
 .crush/
+.impeccable/
 
 # Playwright
 test-results/
@@ -34,3 +35,5 @@ playwright-report/
 playwright/.cache/
 
 .env
+src-tauri/.polish-runtime-cache/
+src-tauri/resources/polish-runtime/

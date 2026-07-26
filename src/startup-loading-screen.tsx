@@ -8,7 +8,6 @@ import { getNormalizedOsPlatform } from "@/lib/os";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/providers/theme-provider";
 
-// Cache platform at module level
 const isWindows = getNormalizedOsPlatform() === "windows";
 
 function Splashscreen() {

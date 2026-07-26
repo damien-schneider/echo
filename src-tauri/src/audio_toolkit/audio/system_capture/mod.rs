@@ -39,12 +39,12 @@ pub fn create_system_capture() -> Result<Box<dyn SystemAudioCapture>> {
 
 // Platform glue — each module exposes `is_available()` + `create()`.
 // Aliased so the rest of the file uses one stable name regardless of target.
-#[cfg(target_os = "macos")]
-use macos as platform;
 #[cfg(target_os = "windows")]
 use self::windows as platform;
 #[cfg(target_os = "linux")]
 use linux as platform;
+#[cfg(target_os = "macos")]
+use macos as platform;
 
 #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
 mod fallback {

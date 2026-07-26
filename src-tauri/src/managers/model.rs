@@ -1,24 +1,28 @@
 use crate::settings;
 use anyhow::Result;
-use bzip2::read::BzDecoder;
-use flate2::read::GzDecoder;
-use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tar::Archive;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+use super::model_catalog::{apply_artifact_state, available_model_catalog, ArtifactState};
+use super::model_download::receipt;
+#[cfg(test)]
+pub(super) use super::model_download::verification::verify_file_sha256;
+pub use super::transcription_profiles::{
+    transcription_profile_id, transcription_profile_statuses, transcription_profiles,
+    TranscriptionProfileSpec, TranscriptionProfileStatus,
+};
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EngineType {
     Whisper,
-    Parakeet,
     Diarization,
+    Polish,
 }
+
+pub const POLISH_MODEL_ID: &str = "polish-qwen3-4b-instruct-2507";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelInfo {
@@ -28,16 +32,16 @@ pub struct ModelInfo {
     pub filename: String,
     pub url: Option<String>,
     pub size_mb: u64,
+    pub size_bytes: u64,
+    pub sha256: Option<String>,
     pub is_downloaded: bool,
     pub is_downloading: bool,
     pub partial_size: u64,
     pub is_directory: bool,
     pub engine_type: EngineType,
-    pub accuracy_score: f32, // 0.0 to 1.0, higher is more accurate
-    pub speed_score: f32,    // 0.0 to 1.0, higher is faster
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DownloadProgress {
     pub model_id: String,
     pub downloaded: u64,
@@ -46,9 +50,9 @@ pub struct DownloadProgress {
 }
 
 pub struct ModelManager {
-    app_handle: AppHandle,
-    models_dir: PathBuf,
-    available_models: Mutex<HashMap<String, ModelInfo>>,
+    pub(super) app_handle: AppHandle,
+    pub(super) models_dir: PathBuf,
+    pub(super) available_models: Mutex<HashMap<String, ModelInfo>>,
 }
 
 impl ModelManager {
@@ -64,194 +68,7 @@ impl ModelManager {
             fs::create_dir_all(&models_dir)?;
         }
 
-        let mut available_models = HashMap::new();
-
-        // Realtime-suited models (sub-150 MB). Used as the default
-        // `realtime_model` for live meeting transcription where decode latency
-        // dominates UX. Hosted on the official ggerganov/whisper.cpp HF mirror.
-        available_models.insert(
-            "tiny".to_string(),
-            ModelInfo {
-                id: "tiny".to_string(),
-                name: "Whisper Tiny".to_string(),
-                description: "Smallest model. Fast enough for live transcription on CPU."
-                    .to_string(),
-                filename: "ggml-tiny.bin".to_string(),
-                url: Some(
-                    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-tiny.bin"
-                        .to_string(),
-                ),
-                size_mb: 75,
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: false,
-                engine_type: EngineType::Whisper,
-                accuracy_score: 0.35,
-                speed_score: 0.98,
-            },
-        );
-
-        available_models.insert(
-            "base".to_string(),
-            ModelInfo {
-                id: "base".to_string(),
-                name: "Whisper Base".to_string(),
-                description: "Good live-transcription baseline. Recommended realtime model."
-                    .to_string(),
-                filename: "ggml-base.bin".to_string(),
-                url: Some(
-                    "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
-                        .to_string(),
-                ),
-                size_mb: 142,
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: false,
-                engine_type: EngineType::Whisper,
-                accuracy_score: 0.45,
-                speed_score: 0.95,
-            },
-        );
-
-        // TODO this should be read from a JSON file or something..
-        available_models.insert(
-            "small".to_string(),
-            ModelInfo {
-                id: "small".to_string(),
-                name: "Whisper Small".to_string(),
-                description: "Fast and fairly accurate.".to_string(),
-                filename: "ggml-small.bin".to_string(),
-                url: Some("https://blob.handy.computer/ggml-small.bin".to_string()),
-                size_mb: 487,
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: false,
-                engine_type: EngineType::Whisper,
-                accuracy_score: 0.60,
-                speed_score: 0.85,
-            },
-        );
-
-        // Add downloadable models
-        available_models.insert(
-            "medium".to_string(),
-            ModelInfo {
-                id: "medium".to_string(),
-                name: "Whisper Medium".to_string(),
-                description: "Good accuracy, medium speed".to_string(),
-                filename: "whisper-medium-q4_1.bin".to_string(),
-                url: Some("https://blob.handy.computer/whisper-medium-q4_1.bin".to_string()),
-                size_mb: 492, // Approximate size
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: false,
-                engine_type: EngineType::Whisper,
-                accuracy_score: 0.75,
-                speed_score: 0.60,
-            },
-        );
-
-        available_models.insert(
-            "turbo".to_string(),
-            ModelInfo {
-                id: "turbo".to_string(),
-                name: "Whisper Turbo".to_string(),
-                description: "Balanced accuracy and speed.".to_string(),
-                filename: "ggml-large-v3-turbo.bin".to_string(),
-                url: Some("https://blob.handy.computer/ggml-large-v3-turbo.bin".to_string()),
-                size_mb: 1600, // Approximate size
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: false,
-                engine_type: EngineType::Whisper,
-                accuracy_score: 0.80,
-                speed_score: 0.40,
-            },
-        );
-
-        available_models.insert(
-            "large".to_string(),
-            ModelInfo {
-                id: "large".to_string(),
-                name: "Whisper Large".to_string(),
-                description: "Good accuracy, but slow.".to_string(),
-                filename: "ggml-large-v3-q5_0.bin".to_string(),
-                url: Some("https://blob.handy.computer/ggml-large-v3-q5_0.bin".to_string()),
-                size_mb: 1100, // Approximate size
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: false,
-                engine_type: EngineType::Whisper,
-                accuracy_score: 0.85,
-                speed_score: 0.30,
-            },
-        );
-
-        // Add NVIDIA Parakeet models (directory-based)
-        available_models.insert(
-            "parakeet-tdt-0.6b-v2".to_string(),
-            ModelInfo {
-                id: "parakeet-tdt-0.6b-v2".to_string(),
-                name: "Parakeet V2".to_string(),
-                description: "English only. The best model for English speakers.".to_string(),
-                filename: "parakeet-tdt-0.6b-v2-int8".to_string(), // Directory name
-                url: Some("https://blob.handy.computer/parakeet-v2-int8.tar.gz".to_string()),
-                size_mb: 473, // Approximate size for int8 quantized model
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: true,
-                engine_type: EngineType::Parakeet,
-                accuracy_score: 0.85,
-                speed_score: 0.85,
-            },
-        );
-
-        available_models.insert(
-            "parakeet-tdt-0.6b-v3".to_string(),
-            ModelInfo {
-                id: "parakeet-tdt-0.6b-v3".to_string(),
-                name: "Parakeet V3".to_string(),
-                description: "Fast and accurate".to_string(),
-                filename: "parakeet-tdt-0.6b-v3-int8".to_string(), // Directory name
-                url: Some("https://blob.handy.computer/parakeet-v3-int8.tar.gz".to_string()),
-                size_mb: 478, // Approximate size for int8 quantized model
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: true,
-                engine_type: EngineType::Parakeet,
-                accuracy_score: 0.80,
-                speed_score: 0.85,
-            },
-        );
-
-        // Diarization model (NVIDIA Sortformer end-to-end, 4-speaker max)
-        available_models.insert(
-            "diarization-sortformer".to_string(),
-            ModelInfo {
-                id: "diarization-sortformer".to_string(),
-                name: "NVIDIA Sortformer".to_string(),
-                description: "End-to-end speaker diarization (max 4 speakers)".to_string(),
-                filename: "diar_streaming_sortformer_4spk-v2.onnx".to_string(),
-                url: Some("https://huggingface.co/altunenes/parakeet-rs/resolve/main/diar_streaming_sortformer_4spk-v2.onnx".to_string()),
-                size_mb: 470, // verified via HEAD: 492 MB
-                is_downloaded: false,
-                is_downloading: false,
-                partial_size: 0,
-                is_directory: false,
-                engine_type: EngineType::Diarization,
-                accuracy_score: 0.0,
-                speed_score: 0.0,
-            },
-        );
-
+        let available_models = available_model_catalog();
         let manager = Self {
             app_handle: app_handle.clone(),
             models_dir,
@@ -264,28 +81,20 @@ impl ModelManager {
         // Check which models are already downloaded
         manager.update_download_status()?;
 
-        // Auto-select a model if none is currently selected
-        manager.auto_select_model_if_needed()?;
-
         Ok(manager)
     }
 
-    pub fn get_available_models(&self) -> Vec<ModelInfo> {
-        let models = self.available_models.lock().unwrap();
-        models.values().cloned().collect()
-    }
-
-    pub fn get_transcription_models(&self) -> Vec<ModelInfo> {
-        let models = self.available_models.lock().unwrap();
-        models
-            .values()
-            .filter(|m| !matches!(m.engine_type, EngineType::Diarization))
-            .cloned()
-            .collect()
+    pub fn get_transcription_profile_statuses(&self) -> Vec<TranscriptionProfileStatus> {
+        let active_size = settings::get_settings(&self.app_handle).transcription_model_size;
+        transcription_profile_statuses(active_size, |id| {
+            self.get_model_info(id)
+                .map(|model| (model.is_downloaded, model.is_downloading))
+                .unwrap_or((false, false))
+        })
     }
 
     pub fn get_model_info(&self, model_id: &str) -> Option<ModelInfo> {
-        let models = self.available_models.lock().unwrap();
+        let models = self.available_models.lock().ok()?;
         models.get(model_id).cloned()
     }
 
@@ -316,344 +125,54 @@ impl ModelManager {
         Ok(())
     }
 
-    fn update_download_status(&self) -> Result<()> {
-        let mut models = self.available_models.lock().unwrap();
+    pub(super) fn update_download_status(&self) -> Result<()> {
+        let mut models = self
+            .available_models
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Model catalog lock is poisoned"))?;
 
         for model in models.values_mut() {
-            if model.is_directory {
-                // For directory-based models, check if the directory exists
-                let model_path = self.models_dir.join(&model.filename);
-                let partial_path = self.models_dir.join(format!("{}.partial", &model.filename));
-                let extracting_path = self
-                    .models_dir
-                    .join(format!("{}.extracting", &model.filename));
-
-                // Clean up any leftover .extracting directories from interrupted extractions
-                if extracting_path.exists() {
-                    log::warn!("Cleaning up interrupted extraction for model: {}", model.id);
-                    let _ = fs::remove_dir_all(&extracting_path);
-                }
-
-                model.is_downloaded = model_path.exists() && model_path.is_dir();
-                model.is_downloading = partial_path.exists();
-
-                // Get partial file size if it exists (for the .tar.gz being downloaded)
-                if partial_path.exists() {
-                    model.partial_size = partial_path.metadata().map(|m| m.len()).unwrap_or(0);
-                } else {
-                    model.partial_size = 0;
-                }
-            } else {
-                // For file-based models (existing logic)
-                let model_path = self.models_dir.join(&model.filename);
-                let partial_path = self.models_dir.join(format!("{}.partial", &model.filename));
-
-                model.is_downloaded = model_path.exists();
-                model.is_downloading = partial_path.exists();
-
-                // Get partial file size if it exists
-                if partial_path.exists() {
-                    model.partial_size = partial_path.metadata().map(|m| m.len()).unwrap_or(0);
-                } else {
-                    model.partial_size = 0;
-                }
-            }
+            let artifact = self.artifact_state(model);
+            apply_artifact_state(model, artifact);
         }
 
         Ok(())
     }
 
-    fn auto_select_model_if_needed(&self) -> Result<()> {
-        // Check if we have a selected model in settings
-        let current = settings::get_settings(&self.app_handle);
-
-        // If no model is selected or selected model is empty
-        if current.selected_model.is_empty() {
-            // Find the first available (downloaded) transcription model
-            let models = self.available_models.lock().unwrap();
-            if let Some(available_model) = models
-                .values()
-                .find(|model| model.is_downloaded && !matches!(model.engine_type, EngineType::Diarization))
-            {
-                log::info!(
-                    "Auto-selecting model: {} ({})",
-                    available_model.id,
-                    available_model.name
-                );
-
-                let model_id = available_model.id.clone();
-                drop(models); // Release the models lock before acquiring settings lock
-                settings::update_settings(&self.app_handle, |s| {
-                    s.selected_model = model_id.clone();
-                });
-
-                log::info!("Successfully auto-selected model: {}", model_id);
-            }
+    fn artifact_state(&self, model: &ModelInfo) -> ArtifactState {
+        let model_path = self.models_dir.join(&model.filename);
+        let partial_path = self.models_dir.join(format!("{}.partial", &model.filename));
+        if model.is_directory {
+            self.discard_interrupted_extraction(model);
         }
-
-        Ok(())
-    }
-
-    pub async fn download_model(&self, model_id: &str) -> Result<()> {
-        let model_info = {
-            let models = self.available_models.lock().unwrap();
-            models.get(model_id).cloned()
-        };
-
-        let model_info =
-            model_info.ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
-
-        let url = model_info
-            .url
-            .ok_or_else(|| anyhow::anyhow!("No download URL for model"))?;
-        let model_path = self.models_dir.join(&model_info.filename);
-        let partial_path = self
-            .models_dir
-            .join(format!("{}.partial", &model_info.filename));
-
-        // Don't download if complete version already exists
-        if model_path.exists() {
-            // Clean up any partial file that might exist
-            if partial_path.exists() {
-                let _ = fs::remove_file(&partial_path);
-            }
-            self.update_download_status()?;
-            return Ok(());
-        }
-
-        // Check if we have a partial download to resume
-        let resume_from = if partial_path.exists() {
-            let size = partial_path.metadata()?.len();
-            log::info!("Resuming download of model {} from byte {}", model_id, size);
-            size
-        } else {
-            log::info!("Starting fresh download of model {} from {}", model_id, url);
-            0
-        };
-
-        // Mark as downloading
-        {
-            let mut models = self.available_models.lock().unwrap();
-            if let Some(model) = models.get_mut(model_id) {
-                model.is_downloading = true;
-            }
-        }
-
-        // Create HTTP client with range request for resuming
-        let client = reqwest::Client::new();
-        let mut request = client.get(&url);
-
-        if resume_from > 0 {
-            request = request.header("Range", format!("bytes={}-", resume_from));
-        }
-
-        let response = request.send().await?;
-
-        // Check for success or partial content status
-        if !response.status().is_success()
-            && response.status() != reqwest::StatusCode::PARTIAL_CONTENT
-        {
-            // Mark as not downloading on error
-            {
-                let mut models = self.available_models.lock().unwrap();
-                if let Some(model) = models.get_mut(model_id) {
-                    model.is_downloading = false;
-                }
-            }
-            return Err(anyhow::anyhow!(
-                "Failed to download model: HTTP {}",
-                response.status()
-            ));
-        }
-
-        let total_size = if resume_from > 0 {
-            // For resumed downloads, add the resume point to content length
-            resume_from + response.content_length().unwrap_or(0)
-        } else {
-            response.content_length().unwrap_or(0)
-        };
-
-        let mut downloaded = resume_from;
-        let mut stream = response.bytes_stream();
-
-        // Open file for appending if resuming, or create new if starting fresh
-        let mut file = if resume_from > 0 {
-            std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&partial_path)?
-        } else {
-            std::fs::File::create(&partial_path)?
-        };
-
-        // Emit initial progress
-        let initial_progress = DownloadProgress {
-            model_id: model_id.to_string(),
-            downloaded,
-            total: total_size,
-            percentage: if total_size > 0 {
-                (downloaded as f64 / total_size as f64) * 100.0
+        ArtifactState {
+            is_installed: if model.is_directory {
+                model_path.is_dir()
             } else {
-                0.0
+                model_path.exists()
             },
-        };
-        let _ = self
-            .app_handle
-            .emit("model-download-progress", &initial_progress);
-
-        // Download with progress
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|e| {
-                // Mark as not downloading on error
-                {
-                    let mut models = self.available_models.lock().unwrap();
-                    if let Some(model) = models.get_mut(model_id) {
-                        model.is_downloading = false;
-                    }
-                }
-                e
-            })?;
-
-            file.write_all(&chunk)?;
-            downloaded += chunk.len() as u64;
-
-            let percentage = if total_size > 0 {
-                (downloaded as f64 / total_size as f64) * 100.0
-            } else {
-                0.0
-            };
-
-            // Emit progress event
-            let progress = DownloadProgress {
-                model_id: model_id.to_string(),
-                downloaded,
-                total: total_size,
-                percentage,
-            };
-
-            let _ = self.app_handle.emit("model-download-progress", &progress);
+            partial_size: partial_path.metadata().map(|file| file.len()).unwrap_or(0),
         }
+    }
 
-        file.flush()?;
-        drop(file); // Ensure file is closed before moving
-
-        // Handle directory-based models (extract tar.gz) vs file-based models
-        if model_info.is_directory {
-            // Emit extraction started event
-            let _ = self.app_handle.emit("model-extraction-started", model_id);
-            log::info!("Extracting archive for directory-based model: {}", model_id);
-
-            // Use a temporary extraction directory to ensure atomic operations
-            let temp_extract_dir = self
-                .models_dir
-                .join(format!("{}.extracting", &model_info.filename));
-            let final_model_dir = self.models_dir.join(&model_info.filename);
-
-            // Clean up any previous incomplete extraction
-            if temp_extract_dir.exists() {
-                let _ = fs::remove_dir_all(&temp_extract_dir);
-            }
-
-            // Create temporary extraction directory
-            fs::create_dir_all(&temp_extract_dir)?;
-
-            // Open the downloaded archive file (supports .tar.gz and .tar.bz2)
-            let archive_file = File::open(&partial_path)?;
-            let is_bz2 = url.ends_with(".tar.bz2") || url.ends_with(".tbz2");
-
-            if is_bz2 {
-                let decoder = BzDecoder::new(archive_file);
-                let mut archive = Archive::new(decoder);
-                archive.unpack(&temp_extract_dir).map_err(|e| {
-                    let error_msg = format!("Failed to extract archive: {}", e);
-                    let _ = fs::remove_dir_all(&temp_extract_dir);
-                    let _ = self.app_handle.emit(
-                        "model-extraction-failed",
-                        &serde_json::json!({
-                            "model_id": model_id,
-                            "error": error_msg
-                        }),
-                    );
-                    anyhow::anyhow!(error_msg)
-                })?;
-            } else {
-                let decoder = GzDecoder::new(archive_file);
-                let mut archive = Archive::new(decoder);
-                archive.unpack(&temp_extract_dir).map_err(|e| {
-                    let error_msg = format!("Failed to extract archive: {}", e);
-                    let _ = fs::remove_dir_all(&temp_extract_dir);
-                    let _ = self.app_handle.emit(
-                        "model-extraction-failed",
-                        &serde_json::json!({
-                            "model_id": model_id,
-                            "error": error_msg
-                        }),
-                    );
-                    anyhow::anyhow!(error_msg)
-                })?;
-            }
-
-            // Find the actual extracted directory (archive might have a nested structure)
-            let extracted_dirs: Vec<_> = fs::read_dir(&temp_extract_dir)?
-                .filter_map(|entry| entry.ok())
-                .filter(|entry| entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false))
-                .collect();
-
-            if extracted_dirs.len() == 1 {
-                // Single directory extracted, move it to the final location
-                let source_dir = extracted_dirs[0].path();
-                if final_model_dir.exists() {
-                    fs::remove_dir_all(&final_model_dir)?;
-                }
-                fs::rename(&source_dir, &final_model_dir)?;
-                // Clean up temp directory
-                let _ = fs::remove_dir_all(&temp_extract_dir);
-            } else {
-                // Multiple items or no directories, rename the temp directory itself
-                if final_model_dir.exists() {
-                    fs::remove_dir_all(&final_model_dir)?;
-                }
-                fs::rename(&temp_extract_dir, &final_model_dir)?;
-            }
-
-            log::info!("Successfully extracted archive for model: {}", model_id);
-            // Emit extraction completed event
-            let _ = self.app_handle.emit("model-extraction-completed", model_id);
-
-            // Remove the downloaded tar.gz file
-            let _ = fs::remove_file(&partial_path);
-        } else {
-            // Move partial file to final location for file-based models
-            fs::rename(&partial_path, &model_path)?;
+    fn discard_interrupted_extraction(&self, model: &ModelInfo) {
+        let extracting_path = self
+            .models_dir
+            .join(format!("{}.extracting", &model.filename));
+        if extracting_path.exists() {
+            log::warn!("Cleaning up interrupted extraction for model: {}", model.id);
+            let _ = fs::remove_dir_all(&extracting_path);
         }
-
-        // Update download status
-        {
-            let mut models = self.available_models.lock().unwrap();
-            if let Some(model) = models.get_mut(model_id) {
-                model.is_downloading = false;
-                model.is_downloaded = true;
-                model.partial_size = 0;
-            }
-        }
-
-        // Emit completion event
-        let _ = self.app_handle.emit("model-download-complete", model_id);
-
-        log::info!(
-            "Successfully downloaded model {} to {:?}",
-            model_id,
-            model_path
-        );
-
-        Ok(())
     }
 
     pub fn delete_model(&self, model_id: &str) -> Result<()> {
         log::info!("ModelManager: delete_model called for: {}", model_id);
 
         let model_info = {
-            let models = self.available_models.lock().unwrap();
+            let models = self
+                .available_models
+                .lock()
+                .map_err(|_| anyhow::anyhow!("Model catalog lock is poisoned"))?;
             models.get(model_id).cloned()
         };
 
@@ -691,6 +210,8 @@ impl ModelManager {
                 deleted_something = true;
             }
         }
+
+        receipt::remove_receipt(&model_path);
 
         // Delete partial file if it exists (same for both types)
         if partial_path.exists() {
@@ -756,33 +277,13 @@ impl ModelManager {
         }
     }
 
-    pub fn cancel_download(&self, model_id: &str) -> Result<()> {
-        log::info!("ModelManager: cancel_download called for: {}", model_id);
-
-        let _model_info = {
-            let models = self.available_models.lock().unwrap();
-            models.get(model_id).cloned()
-        };
-
-        let _model_info =
-            _model_info.ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
-
-        // Mark as not downloading
-        {
-            let mut models = self.available_models.lock().unwrap();
-            if let Some(model) = models.get_mut(model_id) {
-                model.is_downloading = false;
-            }
-        }
-
-        // Note: The actual download cancellation would need to be handled
-        // by the download task itself. This just updates the state.
-        // The partial file is kept so the download can be resumed later.
-
-        // Update download status to reflect current state
-        self.update_download_status()?;
-
-        log::info!("ModelManager: Download cancelled for: {}", model_id);
-        Ok(())
+    pub(crate) fn model_file_path(&self, model_id: &str) -> Result<PathBuf> {
+        let model = self
+            .get_model_info(model_id)
+            .ok_or_else(|| anyhow::anyhow!("Model not found: {model_id}"))?;
+        Ok(self.models_dir.join(model.filename))
     }
 }
+
+#[cfg(test)]
+include!("model_tests.rs");

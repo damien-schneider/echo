@@ -129,17 +129,17 @@ export function DisclosureTrigger({
         }
         const childProps = child.props as Record<string, unknown>;
         return cloneElement(child, {
-          onClick: toggle,
-          role: "button",
           "aria-expanded": open,
-          tabIndex: 0,
+          className: cn(className, childProps.className as string | undefined),
+          onClick: toggle,
           onKeyDown: (e: { key: string; preventDefault: () => void }) => {
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
               toggle();
             }
           },
-          className: cn(className, childProps.className as string | undefined),
+          role: "button",
+          tabIndex: 0,
           ...childProps,
         } as Attributes);
       })}
@@ -158,19 +158,19 @@ export function DisclosureContent({
   const uniqueId = useId();
 
   const BASE_VARIANTS = {
-    expanded: {
-      height: "auto",
-      opacity: 1,
-    },
     collapsed: {
       height: 0,
       opacity: 0,
     },
+    expanded: {
+      height: "auto",
+      opacity: 1,
+    },
   };
 
   const combinedVariants = {
-    expanded: { ...BASE_VARIANTS.expanded, ...variants?.expanded },
     collapsed: { ...BASE_VARIANTS.collapsed, ...variants?.collapsed },
+    expanded: { ...BASE_VARIANTS.expanded, ...variants?.expanded },
   };
 
   return (
@@ -194,7 +194,7 @@ export function DisclosureContent({
 
 export default {
   Disclosure,
+  DisclosureContent,
   DisclosureProvider,
   DisclosureTrigger,
-  DisclosureContent,
 };

@@ -39,7 +39,6 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
           if (event.payload.status === "complete") {
             setIsProcessing(false);
             setCurrentFile(null);
-            // Reset progress after a delay
             setTimeout(() => {
               setProgress(null);
             }, 3000);
@@ -76,7 +75,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only reset if we're actually leaving the container (not entering a child)
+    // Only reset on leaving container — not on entering a child.
     const container = e.currentTarget;
     if (container && !container.contains(e.relatedTarget as Node)) {
       setIsDragging(false);
@@ -93,7 +92,6 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
     async (file: File) => {
       setError(null);
 
-      // Validate file type
       const validExtensions = [
         "wav",
         "wave",
@@ -118,8 +116,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
         return;
       }
 
-      // Validate file size (max 100MB)
-      const maxSize = 100 * 1024 * 1024; // 100MB
+      const maxSize = 100 * 1024 * 1024;
       if (file.size > maxSize) {
         setError(
           `File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum size is 100MB.`
@@ -127,7 +124,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
         return;
       }
 
-      // Validate minimum file size (10KB to avoid empty files)
+      // 10KB min — avoid empty uploads.
       const minSize = 10 * 1024;
       if (file.size < minSize) {
         setError(
@@ -140,30 +137,26 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
       setIsProcessing(true);
 
       try {
-        // We need to save the file to a temp location for Tauri to access
+        // Tauri needs file on disk; stage to temp.
         const { tempDir } = await import("@tauri-apps/api/path");
         const { open } = await import("@tauri-apps/plugin-fs");
 
         const tempDirPath = await tempDir();
 
-        // Create a safe filename
         const timestamp = Date.now();
         const safeFileName = `upload-${timestamp}-${file.name}`;
 
-        // Read file as ArrayBuffer
         const arrayBuffer = await file.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
 
-        // Write to temp directory using the V2 fs API
         const tempPath = `${tempDirPath}/${safeFileName}`;
         const fileHandle = await open(tempPath, {
-          write: true,
           create: true,
           truncate: true,
+          write: true,
         });
         await fileHandle.write(uint8Array);
 
-        // Call the transcription command
         const transcriptionText = await invoke<string>(
           "transcribe_audio_file",
           {
@@ -175,13 +168,12 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
           onTranscriptionComplete(transcriptionText);
         }
 
-        // Copy to clipboard
         await navigator.clipboard.writeText(transcriptionText);
 
         setProgress({
-          status: "complete",
-          progress: 1.0,
           message: "Transcription complete! Copied to clipboard.",
+          progress: 1.0,
+          status: "complete",
         });
       } catch (err) {
         console.error("Transcription failed:", err);

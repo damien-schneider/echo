@@ -7,141 +7,141 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/handy")({
+  component: HandyPage,
   head: () => ({
     meta: [
       {
         title: "Echo vs Handy — More Features, Same Privacy-First Philosophy",
       },
       {
+        content:
+          "Echo is built on top of Handy. Both are free, MIT-licensed, and 100% offline. Echo adds LLM tool-calling, redesigned UI, and polished onboarding on the same foundation.",
         name: "description",
-        content:
-          "Echo is built on top of Handy. Both are free, MIT-licensed, and 100% offline. Echo adds LLM tool-calling, redesigned UI, and polished onboarding on the same foundation.",
       },
       {
-        property: "og:title",
         content: "Echo vs Handy — More Features, Same Privacy-First Philosophy",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Echo is built on top of Handy. Both are free, MIT-licensed, and 100% offline. Echo adds LLM tool-calling, redesigned UI, and polished onboarding on the same foundation.",
+        property: "og:description",
       },
     ],
   }),
-  component: HandyPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "Free forever",
+    echo: "Free forever",
     echoPositive: false,
+    feature: "Price",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License",
     competitor: "MIT License (github.com/cjpais/Handy)",
+    echo: "MIT License",
     echoPositive: false,
+    feature: "Open Source",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux",
     competitor: "macOS, Windows, Linux",
+    echo: "macOS, Windows, Linux",
     echoPositive: false,
+    feature: "Platforms",
   },
   {
-    feature: "Offline Processing",
-    echo: "100% local — always offline",
     competitor: "100% local — always offline",
+    echo: "100% local — always offline",
     echoPositive: false,
+    feature: "Offline Processing",
   },
   {
-    feature: "Account Required",
-    echo: "Never",
     competitor: "Never",
+    echo: "Never",
     echoPositive: false,
+    feature: "Account Required",
   },
   {
-    feature: "Global Shortcut / Auto-Paste",
-    echo: "Yes — push-to-talk, pastes anywhere",
     competitor: "Yes — push-to-talk, pastes anywhere",
+    echo: "Yes — push-to-talk, pastes anywhere",
     echoPositive: false,
+    feature: "Global Shortcut / Auto-Paste",
   },
   {
-    feature: "Voice Activity Detection",
+    competitor: "Yes",
     echo: "Yes",
-    competitor: "Yes",
     echoPositive: false,
+    feature: "Voice Activity Detection",
   },
   {
-    feature: "LLM Tool-Calling",
-    echo: "Yes — extended AI capabilities",
     competitor: "Basic LLM support",
+    echo: "Yes — extended AI capabilities",
     echoPositive: true,
+    feature: "LLM Tool-Calling",
   },
   {
-    feature: "UI Design",
-    echo: "Redesigned with motion animations",
     competitor: "Minimal original design",
+    echo: "Redesigned with motion animations",
     echoPositive: true,
+    feature: "UI Design",
   },
   {
-    feature: "Update Checker",
-    echo: "Polished in-app update flow",
     competitor: "Basic",
+    echo: "Polished in-app update flow",
     echoPositive: true,
+    feature: "Update Checker",
   },
   {
-    feature: "Model Management",
-    echo: "Enhanced model management UI",
     competitor: "Basic model selection",
+    echo: "Enhanced model management UI",
     echoPositive: true,
+    feature: "Model Management",
   },
   {
-    feature: "Onboarding",
-    echo: "Guided setup experience",
     competitor: "Minimal onboarding",
+    echo: "Guided setup experience",
     echoPositive: true,
+    feature: "Onboarding",
   },
   {
-    feature: "CLI Support",
-    echo: "Not available",
     competitor: "Yes",
+    echo: "Not available",
     echoPositive: false,
+    feature: "CLI Support",
   },
   {
-    feature: "ASR Models",
-    echo: "Whisper + Parakeet",
     competitor: "Whisper + Parakeet + Breeze + SenseVoice",
+    echo: "Whisper + Parakeet",
     echoPositive: false,
+    feature: "ASR Models",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "Built on the Same Foundation",
     description:
       "Echo would not exist without Handy. cjpais created the original architecture — Tauri-based, privacy-first, cross-platform dictation with global shortcuts and auto-paste. Echo extends that foundation rather than replacing it.",
     icon: "◎",
+    title: "Built on the Same Foundation",
   },
   {
-    title: "Extended Feature Set",
     description:
       "Echo adds LLM tool-calling support, a redesigned interface with motion animations, polished onboarding, and improved model management UI. If you want more on top of what Handy provides, Echo is the extended version.",
     icon: "✦",
+    title: "Extended Feature Set",
   },
   {
-    title: "Same Privacy, More Polish",
     description:
       "Both apps share the same core values: 100% offline, MIT-licensed, no account, no cloud. Echo simply adds more interface polish and features for users who want a more complete experience.",
     icon: "⊕",
+    title: "Same Privacy, More Polish",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -217,7 +217,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -227,8 +227,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -358,7 +358,7 @@ function HandyPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Want the extended feature set?

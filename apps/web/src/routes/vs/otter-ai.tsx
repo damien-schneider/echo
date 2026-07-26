@@ -7,6 +7,7 @@ import EchoFooter from "@/components/landing/footer";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/vs/otter-ai")({
+  component: OtterAiPage,
   head: () => ({
     meta: [
       {
@@ -14,130 +15,129 @@ export const Route = createFileRoute("/vs/otter-ai")({
           "Echo vs Otter.ai — Private Offline Dictation vs Meeting Transcription",
       },
       {
-        name: "description",
         content:
           "Otter.ai records meetings in the cloud. Echo transcribes your voice locally in real time with no account, no subscription, and no audio ever leaving your device.",
+        name: "description",
       },
       {
-        property: "og:title",
         content:
           "Echo vs Otter.ai — Private Offline Dictation vs Meeting Transcription",
+        property: "og:title",
       },
       {
-        property: "og:description",
         content:
           "Otter.ai records meetings in the cloud. Echo transcribes your voice locally in real time with no account, no subscription, and no audio ever leaving your device.",
+        property: "og:description",
       },
     ],
   }),
-  component: OtterAiPage,
 });
 
 const COMPARISON_ROWS = [
   {
-    feature: "Primary Use Case",
-    echo: "Real-time voice dictation — speak, it types in any app",
     competitor: "Meeting transcription — joins Zoom/Teams/Meet calls",
+    echo: "Real-time voice dictation — speak, it types in any app",
     echoPositive: false,
+    feature: "Primary Use Case",
   },
   {
-    feature: "Price",
-    echo: "Free forever",
     competitor: "Free (300 min/month) · Pro $16.99/mo · Business $30/mo",
+    echo: "Free forever",
     echoPositive: true,
+    feature: "Price",
   },
   {
-    feature: "Audio Processing",
-    echo: "100% local — nothing leaves your device",
     competitor: "Cloud-based — audio sent to Otter servers",
+    echo: "100% local — nothing leaves your device",
     echoPositive: true,
+    feature: "Audio Processing",
   },
   {
-    feature: "Open Source",
-    echo: "MIT License — fully auditable",
     competitor: "Proprietary closed source",
+    echo: "MIT License — fully auditable",
     echoPositive: true,
+    feature: "Open Source",
   },
   {
-    feature: "Account Required",
-    echo: "Never",
     competitor: "Mandatory signup",
+    echo: "Never",
     echoPositive: true,
+    feature: "Account Required",
   },
   {
-    feature: "Platforms",
-    echo: "macOS, Windows, Linux desktop apps",
     competitor: "Web, iOS, Android (no desktop app)",
+    echo: "macOS, Windows, Linux desktop apps",
     echoPositive: true,
+    feature: "Platforms",
   },
   {
-    feature: "Global Shortcut / Auto-Paste",
-    echo: "Yes — push-to-talk, pastes into any app",
     competitor: "No — meeting recording focus only",
+    echo: "Yes — push-to-talk, pastes into any app",
     echoPositive: true,
+    feature: "Global Shortcut / Auto-Paste",
   },
   {
-    feature: "Speech Model",
-    echo: "Whisper + Parakeet (your choice, local)",
     competitor: "Proprietary cloud model",
+    echo: "Whisper + Parakeet (your choice, local)",
     echoPositive: true,
+    feature: "Speech Model",
   },
   {
-    feature: "Free Tier Limits",
-    echo: "Unlimited — no caps ever",
     competitor: "300 minutes/month, English/French/Spanish only",
+    echo: "Unlimited — no caps ever",
     echoPositive: true,
+    feature: "Free Tier Limits",
   },
   {
-    feature: "Meeting Summaries / Action Items",
-    echo: "Not yet (on roadmap)",
     competitor: "Yes — AI-generated summaries",
+    echo: "Not yet (on roadmap)",
     echoPositive: false,
+    feature: "Meeting Summaries / Action Items",
   },
   {
-    feature: "Zoom / Teams / Meet Integration",
-    echo: "Not available",
     competitor: "Yes — bot joins calls automatically",
+    echo: "Not available",
     echoPositive: false,
+    feature: "Zoom / Teams / Meet Integration",
   },
   {
-    feature: "Multi-Speaker Diarization",
-    echo: "Not yet",
     competitor: "Yes — identifies different speakers",
+    echo: "Not yet",
     echoPositive: false,
+    feature: "Multi-Speaker Diarization",
   },
   {
-    feature: "Data Retention",
-    echo: "Nothing leaves your device",
     competitor: "Audio stored on Otter servers",
+    echo: "Nothing leaves your device",
     echoPositive: true,
+    feature: "Data Retention",
   },
 ];
 
 const WIN_CARDS = [
   {
-    title: "Different Tools for Different Jobs",
     description:
       "Otter.ai is a meeting transcription tool — it joins your Zoom calls and generates summaries. Echo is a real-time dictation tool — you press a shortcut, speak, and it types in your email, document, or code editor. Most people searching for an 'Otter alternative' actually want the latter.",
     icon: "◈",
+    title: "Different Tools for Different Jobs",
   },
   {
-    title: "Completely Private",
     description:
       "Every word you speak stays on your machine. Echo processes audio entirely offline using Whisper and Parakeet models — no audio ever touches a server. Otter.ai sends your voice to their cloud every time you record, regardless of SOC 2 certification.",
     icon: "🔒",
+    title: "Completely Private",
   },
   {
-    title: "Free Forever, No Limits",
     description:
       "Otter's free plan caps you at 300 minutes per month and limits you to three languages. Echo has no limits of any kind — use it all day, every day, for as long as you want, in any of 100+ languages.",
     icon: "∞",
+    title: "Free Forever, No Limits",
   },
 ];
 
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
+  const inView = useInView(ref, { margin: "-80px", once: true });
 
   return (
     <motion.div
@@ -211,7 +211,7 @@ function ComparisonTable() {
 
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-60px" });
+  const inView = useInView(ref, { margin: "-60px", once: true });
 
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
@@ -221,8 +221,8 @@ function WinCards() {
           initial={{ opacity: 0, y: 24 }}
           key={card.title}
           transition={{
-            duration: 0.5,
             delay: index * 0.1,
+            duration: 0.5,
             ease: "easeOut",
           }}
         >
@@ -344,7 +344,7 @@ function OtterAiPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col items-center gap-4 rounded-2xl border border-border/60 bg-card px-8 py-14 text-center"
             initial={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
+            transition={{ delay: 0.2, duration: 0.5 }}
           >
             <h2 className="font-bold font-display text-2xl text-foreground tracking-tight md:text-3xl">
               Ready to ditch the cloud?

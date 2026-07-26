@@ -29,11 +29,12 @@ pub fn change_selected_language_setting(app: AppHandle, language: String) -> Res
 pub fn change_overlay_position_setting(app: AppHandle, position: String) -> Result<(), String> {
     let parsed = match position.as_str() {
         "none" => OverlayPosition::None,
+        "edge" => OverlayPosition::Edge,
         "top" => OverlayPosition::Top,
         "bottom" => OverlayPosition::Bottom,
         other => {
-            warn!("Invalid overlay position '{}', defaulting to bottom", other);
-            OverlayPosition::Bottom
+            warn!("Invalid overlay position '{}', defaulting to edge", other);
+            OverlayPosition::Edge
         }
     };
     settings::update_settings(&app, |s| {

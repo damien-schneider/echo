@@ -1,157 +1,149 @@
-use rustfft::{num_complex::Complex32, Fft, FftPlanner};
-use std::sync::Arc;
-
-const DB_MIN: f32 = -90.0; // Match AnalyserNode minDecibels default
-const DB_MAX: f32 = -30.0; // Match AnalyserNode maxDecibels default
-const GAIN: f32 = 1.2; // Slight boost to overall levels
-const CURVE_POWER: f32 = 0.7; // Gentle compression to make low volume more visible
-const SMOOTHING: f32 = 0.8; // Match AnalyserNode default smoothingTimeConstant
+const TARGET_FPS: usize = 30;
+const MIN_DB: f32 = -60.0;
+const MAX_DB: f32 = -6.0;
+const ATTACK_SMOOTHING: f32 = 0.65;
+const RELEASE_SMOOTHING: f32 = 0.22;
 
 pub struct AudioVisualiser {
-    fft: Arc<dyn Fft<f32>>,
-    window: Vec<f32>,
-    bucket_ranges: Vec<(usize, usize)>,
-    fft_input: Vec<Complex32>,
-    noise_floor: Vec<f32>,
-    prev_buckets: Vec<f32>,
-    buffer: Vec<f32>,
-    window_size: usize,
-    buckets: usize,
+    samples_per_frame: usize,
+    sample_count: usize,
+    sum_squares: f32,
+    peak: f32,
+    smoothed_level: f32,
 }
 
 impl AudioVisualiser {
-    pub fn new(
-        sample_rate: u32,
-        window_size: usize,
-        buckets: usize,
-        freq_min: f32,
-        freq_max: f32,
-    ) -> Self {
-        let mut planner = FftPlanner::<f32>::new();
-        let fft = planner.plan_fft_forward(window_size);
-
-        // Pre-compute Hann window
-        let window: Vec<f32> = (0..window_size)
-            .map(|i| {
-                0.5 * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / window_size as f32).cos())
-            })
-            .collect();
-
-        // Pre-compute bucket frequency ranges
-        let nyquist = sample_rate as f32 / 2.0;
-        let freq_min = freq_min.min(nyquist);
-        let freq_max = freq_max.min(nyquist);
-
-        let mut bucket_ranges = Vec::with_capacity(buckets);
-
-        for b in 0..buckets {
-            // Use linear spacing to match original implementation
-            let log_start = b as f32 / buckets as f32;
-            let log_end = (b + 1) as f32 / buckets as f32;
-
-            let start_hz = freq_min + (freq_max - freq_min) * log_start;
-            let end_hz = freq_min + (freq_max - freq_min) * log_end;
-
-            let start_bin = ((start_hz * window_size as f32) / sample_rate as f32) as usize;
-            let mut end_bin = ((end_hz * window_size as f32) / sample_rate as f32) as usize;
-
-            // Ensure each bucket has at least one bin
-            if end_bin <= start_bin {
-                end_bin = start_bin + 1;
-            }
-
-            // Clamp to valid range
-            let start_bin = start_bin.min(window_size / 2);
-            let end_bin = end_bin.min(window_size / 2);
-
-            bucket_ranges.push((start_bin, end_bin));
-        }
-
+    pub fn new(sample_rate: u32) -> Self {
         Self {
-            fft,
-            window,
-            bucket_ranges,
-            fft_input: vec![Complex32::new(0.0, 0.0); window_size],
-            noise_floor: vec![-40.0; buckets], // Initialize to reasonable noise floor
-            prev_buckets: vec![0.0; buckets],
-            buffer: Vec::with_capacity(window_size * 2),
-            window_size,
-            buckets,
+            samples_per_frame: (sample_rate as usize / TARGET_FPS).max(1),
+            sample_count: 0,
+            sum_squares: 0.0,
+            peak: 0.0,
+            smoothed_level: 0.0,
         }
     }
 
-    pub fn feed(&mut self, samples: &[f32]) -> Option<Vec<f32>> {
-        // Add new samples to buffer
-        self.buffer.extend_from_slice(samples);
-
-        // Only process if we have enough samples
-        if self.buffer.len() < self.window_size {
+    pub fn recording_level(&mut self, samples: &[f32], recording: bool) -> Option<Vec<f32>> {
+        if !recording {
             return None;
         }
+        let mut emitted_level = None;
 
-        // Take the required window of samples
-        let window_samples = &self.buffer[..self.window_size];
+        for raw_sample in samples {
+            let sample = finite_sample(*raw_sample);
+            self.sum_squares += sample * sample;
+            self.peak = self.peak.max(sample.abs());
+            self.sample_count += 1;
 
-        // Remove DC component
-        let mean = window_samples.iter().sum::<f32>() / self.window_size as f32;
-
-        // Apply window function and prepare FFT input
-        for (i, &sample) in window_samples.iter().enumerate() {
-            let windowed_sample = (sample - mean) * self.window[i];
-            self.fft_input[i] = Complex32::new(windowed_sample, 0.0);
+            if self.sample_count == self.samples_per_frame {
+                emitted_level = Some(self.finish_frame());
+            }
         }
 
-        // Perform FFT
-        self.fft.process(&mut self.fft_input);
-
-        // Compute power spectrum and bucket levels
-        let mut buckets = vec![0.0; self.buckets];
-
-        for (bucket_idx, &(start_bin, end_bin)) in self.bucket_ranges.iter().enumerate() {
-            if start_bin >= end_bin || end_bin > self.fft_input.len() / 2 {
-                continue;
-            }
-
-            // Calculate average power in this frequency range
-            let mut power_sum = 0.0;
-            for bin_idx in start_bin..end_bin {
-                let magnitude = self.fft_input[bin_idx].norm();
-                power_sum += magnitude * magnitude;
-            }
-
-            let avg_power = power_sum / (end_bin - start_bin) as f32;
-
-            // Convert to dB with proper scaling
-            let db = if avg_power > 1e-12 {
-                20.0 * (avg_power.sqrt() / self.window_size as f32).log10()
-            } else {
-                -100.0 // Very low floor for zero power
-            };
-
-            // Map configurable dB range to 0-1 with gain and curve shaping
-            let normalized = ((db - DB_MIN) / (DB_MAX - DB_MIN)).clamp(0.0, 1.0);
-
-            // Exact replication of AnalyserNode behavior: Linear mapping
-            let target_value = (normalized * GAIN).powf(CURVE_POWER).clamp(0.0, 1.0);
-
-            // Apply temporal smoothing
-            buckets[bucket_idx] =
-                self.prev_buckets[bucket_idx] * SMOOTHING + target_value * (1.0 - SMOOTHING);
-        }
-
-        // Update previous buckets
-        self.prev_buckets = buckets.clone();
-
-        // Clear processed samples from buffer
-        self.buffer.clear();
-
-        Some(buckets)
+        emitted_level.map(|level| vec![level])
     }
 
     pub fn reset(&mut self) {
-        self.buffer.clear();
-        // Reset noise floor to initial values
-        self.noise_floor.fill(-40.0);
-        self.prev_buckets.fill(0.0);
+        self.sample_count = 0;
+        self.sum_squares = 0.0;
+        self.peak = 0.0;
+        self.smoothed_level = 0.0;
+    }
+
+    fn finish_frame(&mut self) -> f32 {
+        let rms = (self.sum_squares / self.sample_count as f32).sqrt();
+        let target = normalize_level(rms, self.peak);
+        let smoothing = if target > self.smoothed_level {
+            ATTACK_SMOOTHING
+        } else {
+            RELEASE_SMOOTHING
+        };
+        self.smoothed_level += (target - self.smoothed_level) * smoothing;
+        self.sample_count = 0;
+        self.sum_squares = 0.0;
+        self.peak = 0.0;
+        self.smoothed_level.clamp(0.0, 1.0)
+    }
+}
+
+fn finite_sample(sample: f32) -> f32 {
+    if sample.is_finite() {
+        sample.clamp(-1.0, 1.0)
+    } else {
+        0.0
+    }
+}
+
+fn normalize_level(rms: f32, peak: f32) -> f32 {
+    let amplitude = (rms * 0.75 + peak * 0.25).max(1e-6);
+    let decibels = 20.0 * amplitude.log10();
+    ((decibels - MIN_DB) / (MAX_DB - MIN_DB))
+        .clamp(0.0, 1.0)
+        .powf(0.75)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AudioVisualiser;
+
+    #[test]
+    fn high_sample_rate_visualization_emits_at_thirty_fps() {
+        let mut visualizer = AudioVisualiser::new(48_000);
+        let callback = vec![0.1_f32; 512];
+        let emissions = (0..94)
+            .filter(|_| visualizer.recording_level(&callback, true).is_some())
+            .count();
+
+        assert_eq!(emissions, 30);
+    }
+
+    #[test]
+    fn louder_audio_produces_a_stronger_level() {
+        let mut quiet_visualizer = AudioVisualiser::new(30);
+        let mut loud_visualizer = AudioVisualiser::new(30);
+
+        let quiet = quiet_visualizer
+            .recording_level(&[0.002], true)
+            .expect("quiet level")[0];
+        let loud = loud_visualizer
+            .recording_level(&[0.5], true)
+            .expect("loud level")[0];
+
+        assert!(loud > quiet, "quiet={quiet}, loud={loud}");
+    }
+
+    #[test]
+    fn non_finite_and_out_of_range_samples_produce_a_finite_clamped_level() {
+        let mut visualizer = AudioVisualiser::new(150);
+
+        let levels = visualizer
+            .recording_level(
+                &[f32::NAN, f32::INFINITY, f32::NEG_INFINITY, 2.0, -2.0],
+                true,
+            )
+            .expect("level");
+
+        assert_eq!(levels.len(), 1);
+        assert!(levels[0].is_finite());
+        assert!((0.0..=1.0).contains(&levels[0]));
+    }
+
+    #[test]
+    fn reset_discards_partial_meter_frame() {
+        let mut visualizer = AudioVisualiser::new(300);
+
+        assert!(visualizer.recording_level(&[0.5; 9], true).is_none());
+        visualizer.reset();
+
+        assert!(visualizer.recording_level(&[0.5], true).is_none());
+    }
+
+    #[test]
+    fn idle_audio_does_not_advance_the_meter() {
+        let mut visualizer = AudioVisualiser::new(300);
+
+        assert!(visualizer.recording_level(&[0.5; 5], false).is_none());
+
+        assert!(visualizer.recording_level(&[0.5; 9], true).is_none());
     }
 }

@@ -58,8 +58,8 @@ function FakeNotch({
     <div
       className="relative mx-auto flex flex-col overflow-hidden rounded-b-3xl bg-black text-white"
       style={{
-        width: 310,
         transformOrigin: "top center",
+        width: 310,
       }}
     >
       {/* Top row: Logo + Bars */}
@@ -71,12 +71,12 @@ function FakeNotch({
               className="w-[3px] rounded-full bg-white"
               key={delay}
               style={{
-                height: state === "recording" ? `${30 + delay * 0.1}%` : "20%",
-                opacity: state === "recording" ? 0.7 : 0.3,
                 animation:
                   state === "transcribing"
                     ? `notch-bar-pulse 1.2s ease-in-out infinite ${delay}ms`
                     : undefined,
+                height: state === "recording" ? `${30 + delay * 0.1}%` : "20%",
+                opacity: state === "recording" ? 0.7 : 0.3,
               }}
             />
           ))}
@@ -102,9 +102,9 @@ function FakeNotch({
           <div
             className="h-full w-full"
             style={{
+              animation: "notch-progress-sweep 2.4s ease-in-out infinite",
               background:
                 "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.6) 50%, transparent 100%)",
-              animation: "notch-progress-sweep 2.4s ease-in-out infinite",
             }}
           />
         </div>
@@ -145,7 +145,7 @@ function Step({
       animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 32 }}
       className="flex flex-col items-center"
       initial={{ opacity: 0, y: 32 }}
-      transition={{ duration: 0.6, delay, ease: "easeOut" }}
+      transition={{ delay, duration: 0.6, ease: "easeOut" }}
     >
       <div className="mb-4 flex h-8 w-8 items-center justify-center rounded-full border border-foreground/10 bg-foreground/5 font-medium font-mono text-foreground text-sm">
         {number}
@@ -221,7 +221,7 @@ const WAVEFORM_BAR_IDS = Array.from({ length: 24 }, (_, i) => `bar-${i}`);
 
 export default function HowItWorks() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const isInView = useInView(containerRef, { once: true, margin: "-100px" });
+  const isInView = useInView(containerRef, { margin: "-100px", once: true });
   const time = useTime();
 
   return (

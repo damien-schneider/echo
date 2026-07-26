@@ -24,7 +24,7 @@ import {
   useSettingsStore,
 } from "@/stores/settings-store";
 
-type InstalledApp = [string, string]; // [name, bundle_id]
+type InstalledApp = [name: string, bundleId: string];
 
 interface InputTrackingExcludedAppsProps {
   descriptionMode?: "inline" | "tooltip";
@@ -46,7 +46,6 @@ export const InputTrackingExcludedApps = ({
   const [loadingApps, setLoadingApps] = useState(false);
   const [appsLoaded, setAppsLoaded] = useState(false);
 
-  // Lazy load apps only when popover opens
   const fetchApps = async () => {
     if (appsLoaded || loadingApps) {
       return;

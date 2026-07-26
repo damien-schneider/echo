@@ -91,19 +91,18 @@ pub fn create() -> Result<Box<dyn SystemAudioCapture>> {
 fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result<()> {
     let mut proplist = Proplist::new().ok_or_else(|| anyhow!("Pulse: Proplist::new failed"))?;
     proplist
-        .set_str(libpulse_binding::proplist::properties::APPLICATION_NAME, "echo")
+        .set_str(
+            libpulse_binding::proplist::properties::APPLICATION_NAME,
+            "echo",
+        )
         .map_err(|_| anyhow!("Pulse: set application.name failed"))?;
 
     let mainloop = Rc::new(RefCell::new(
         Mainloop::new().ok_or_else(|| anyhow!("Pulse: Mainloop::new failed"))?,
     ));
     let context = Rc::new(RefCell::new(
-        PaContext::new_with_proplist(
-            mainloop.borrow().deref(),
-            "echo-system-capture",
-            &proplist,
-        )
-        .ok_or_else(|| anyhow!("Pulse: Context::new_with_proplist failed"))?,
+        PaContext::new_with_proplist(mainloop.borrow().deref(), "echo-system-capture", &proplist)
+            .ok_or_else(|| anyhow!("Pulse: Context::new_with_proplist failed"))?,
     ));
 
     {
@@ -114,7 +113,10 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
             .set_state_callback(Some(Box::new(move || {
                 if let (Some(ml), Some(ctx)) = (ml_ptr.upgrade(), ctx_weak.upgrade()) {
                     let st = ctx.borrow().get_state();
-                    if matches!(st, CtxState::Ready | CtxState::Failed | CtxState::Terminated) {
+                    if matches!(
+                        st,
+                        CtxState::Ready | CtxState::Failed | CtxState::Terminated
+                    ) {
                         // SAFETY: PA's threaded mainloop serializes state-callback
                         // invocations under its own lock; we hold the lock at
                         // the wait-loop above before signal() races with us.
@@ -135,7 +137,10 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
         .borrow_mut()
         .connect(None, CtxFlagSet::NOFLAGS, None)
         .context("Pulse: Context::connect")?;
-    mainloop.borrow_mut().start().context("Pulse: Mainloop::start")?;
+    mainloop
+        .borrow_mut()
+        .start()
+        .context("Pulse: Mainloop::start")?;
 
     // Wait for context Ready
     mainloop.borrow_mut().lock();
@@ -212,37 +217,35 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
         let s = stream.clone();
         let tx = tx.clone();
         let rs = resampler.clone();
-        stream.borrow_mut().set_read_callback(Some(Box::new(move |_nbytes| {
-            let mut s = s.borrow_mut();
-            loop {
-                match s.peek() {
-                    Ok(PeekResult::Empty) => break,
-                    Ok(PeekResult::Hole(_)) => {
-                        let _ = s.discard();
-                    }
-                    Ok(PeekResult::Data(buf)) => {
-                        let n = buf.len() / 4;
-                        let mut samples = Vec::with_capacity(n);
-                        for i in 0..n {
-                            let b = [
-                                buf[i * 4],
-                                buf[i * 4 + 1],
-                                buf[i * 4 + 2],
-                                buf[i * 4 + 3],
-                            ];
-                            samples.push(f32::from_le_bytes(b));
+        stream
+            .borrow_mut()
+            .set_read_callback(Some(Box::new(move |_nbytes| {
+                let mut s = s.borrow_mut();
+                loop {
+                    match s.peek() {
+                        Ok(PeekResult::Empty) => break,
+                        Ok(PeekResult::Hole(_)) => {
+                            let _ = s.discard();
                         }
-                        let mut rs = rs.borrow_mut();
-                        let tx = tx.clone();
-                        rs.push(&samples, |frame| {
-                            let _ = tx.send(frame.to_vec());
-                        });
-                        let _ = s.discard();
+                        Ok(PeekResult::Data(buf)) => {
+                            let n = buf.len() / 4;
+                            let mut samples = Vec::with_capacity(n);
+                            for i in 0..n {
+                                let b =
+                                    [buf[i * 4], buf[i * 4 + 1], buf[i * 4 + 2], buf[i * 4 + 3]];
+                                samples.push(f32::from_le_bytes(b));
+                            }
+                            let mut rs = rs.borrow_mut();
+                            let tx = tx.clone();
+                            rs.push(&samples, |frame| {
+                                let _ = tx.send(frame.to_vec());
+                            });
+                            let _ = s.discard();
+                        }
+                        Err(_) => break,
                     }
-                    Err(_) => break,
                 }
-            }
-        })));
+            })));
     }
 
     let flags = StreamFlagSet::ADJUST_LATENCY | StreamFlagSet::AUTO_TIMING_UPDATE;

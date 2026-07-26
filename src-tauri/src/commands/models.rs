@@ -1,33 +1,47 @@
-use crate::managers::model::{ModelInfo, ModelManager};
+use crate::managers::model::{ModelManager, TranscriptionProfileStatus};
 use crate::managers::transcription::TranscriptionManager;
-use crate::settings;
+use crate::settings::{self, TranscriptionModelSize};
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
 #[tauri::command]
-pub async fn get_available_models(
+pub async fn get_transcription_profiles(
     model_manager: State<'_, Arc<ModelManager>>,
-) -> Result<Vec<ModelInfo>, String> {
-    Ok(model_manager.get_transcription_models())
+) -> Result<Vec<TranscriptionProfileStatus>, String> {
+    Ok(model_manager.get_transcription_profile_statuses())
 }
 
 #[tauri::command]
-pub async fn get_model_info(
+pub async fn select_transcription_model_size(
+    app_handle: AppHandle,
     model_manager: State<'_, Arc<ModelManager>>,
-    model_id: String,
-) -> Result<Option<ModelInfo>, String> {
-    Ok(model_manager.get_model_info(&model_id))
-}
-
-#[tauri::command]
-pub async fn download_model(
-    model_manager: State<'_, Arc<ModelManager>>,
-    model_id: String,
+    transcription_manager: State<'_, Arc<TranscriptionManager>>,
+    size: TranscriptionModelSize,
 ) -> Result<(), String> {
-    model_manager
-        .download_model(&model_id)
-        .await
-        .map_err(|e| e.to_string())
+    let model_id = size.as_str();
+    let model = model_manager
+        .get_model_info(model_id)
+        .ok_or_else(|| format!("Transcription profile not found: {model_id}"))?;
+
+    if !model.is_downloaded {
+        model_manager
+            .download_model(model_id)
+            .await
+            .map_err(|error| error.to_string())?;
+    }
+
+    let previous_size = settings::get_settings(&app_handle).transcription_model_size;
+    settings::update_settings(&app_handle, |current| {
+        current.transcription_model_size = size;
+    });
+    if let Err(error) = transcription_manager.load_model(model_id) {
+        settings::update_settings(&app_handle, |current| {
+            current.transcription_model_size = previous_size;
+        });
+        return Err(error.to_string());
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -38,42 +52,6 @@ pub async fn delete_model(
     model_manager
         .delete_model(&model_id)
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn set_active_model(
-    app_handle: AppHandle,
-    model_manager: State<'_, Arc<ModelManager>>,
-    transcription_manager: State<'_, Arc<TranscriptionManager>>,
-    model_id: String,
-) -> Result<(), String> {
-    // Check if model exists and is available
-    let model_info = model_manager
-        .get_model_info(&model_id)
-        .ok_or_else(|| format!("Model not found: {}", model_id))?;
-
-    if !model_info.is_downloaded {
-        return Err(format!("Model not downloaded: {}", model_id));
-    }
-
-    // Load the model in the transcription manager
-    transcription_manager
-        .load_model(&model_id)
-        .map_err(|e| e.to_string())?;
-
-    // Update settings atomically
-    let model_id_clone = model_id.clone();
-    settings::update_settings(&app_handle, |s| {
-        s.selected_model = model_id_clone;
-    });
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn get_current_model(app_handle: AppHandle) -> Result<String, String> {
-    let s = settings::get_settings(&app_handle);
-    Ok(s.selected_model)
 }
 
 #[tauri::command]
@@ -96,31 +74,23 @@ pub async fn is_model_loading(
 pub async fn has_any_models_available(
     model_manager: State<'_, Arc<ModelManager>>,
 ) -> Result<bool, String> {
-    let models = model_manager.get_transcription_models();
-    Ok(models.iter().any(|m| m.is_downloaded))
+    Ok(model_manager
+        .get_transcription_profile_statuses()
+        .iter()
+        .any(|profile| profile.is_downloaded))
 }
 
 #[tauri::command]
 pub async fn has_any_models_or_downloads(
     model_manager: State<'_, Arc<ModelManager>>,
 ) -> Result<bool, String> {
-    let models = model_manager.get_transcription_models();
-    // Return true if any models are downloaded OR if any downloads are in progress
-    Ok(models.iter().any(|m| m.is_downloaded))
-}
-
-#[tauri::command]
-pub async fn cancel_download(
-    model_manager: State<'_, Arc<ModelManager>>,
-    model_id: String,
-) -> Result<(), String> {
-    model_manager
-        .cancel_download(&model_id)
-        .map_err(|e| e.to_string())
+    Ok(model_manager
+        .get_transcription_profile_statuses()
+        .iter()
+        .any(|profile| profile.is_downloaded || profile.is_downloading))
 }
 
 #[tauri::command]
 pub async fn get_recommended_first_model() -> Result<String, String> {
-    // Recommend Parakeet V3 model for first-time users - fastest and most accurate
-    Ok("parakeet-tdt-0.6b-v3".to_string())
+    Ok(TranscriptionModelSize::Medium.as_str().to_string())
 }

@@ -9,484 +9,15 @@ use tauri::AppHandle;
 use tauri_plugin_log::LogLevel;
 use tauri_plugin_store::StoreExt;
 
-/// Global mutex that serialises all settings reads-and-writes so no
-/// concurrent command can read stale state and clobber another command's update.
+/// Serialises read-modify-write against concurrent command clobbers.
 static SETTINGS_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ShortcutBinding {
-    pub id: String,
-    pub name: String,
-    pub description: String,
-    pub default_binding: String,
-    pub current_binding: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct LLMPrompt {
-    pub id: String,
-    pub name: String,
-    pub prompt: String,
-}
-
-/// Single entry of the on-device cleanup dictionary. `canonical` is the
-/// spelling we want preserved verbatim in cleaned output; `variants` are
-/// alternative spellings or phonetic mistranscriptions to map onto it.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct DictionaryEntrySetting {
-    pub canonical: String,
-    #[serde(default)]
-    pub variants: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PostProcessProvider {
-    pub id: String,
-    pub label: String,
-    pub base_url: String,
-    #[serde(default)]
-    pub allow_base_url_edit: bool,
-    #[serde(default)]
-    pub models_endpoint: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum OverlayPosition {
-    None,
-    Top,
-    Bottom,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ModelUnloadTimeout {
-    Never,
-    Immediately,
-    Min2,
-    Min5,
-    Min10,
-    Min15,
-    Hour1,
-    Sec5, // Debug mode only
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum PasteMethod {
-    CtrlV,
-    /// Direct character input via enigo.text().
-    /// Only available on Linux - on macOS this causes cascading suffix duplication
-    /// in terminals like Ghostty due to CGEvent handling issues.
-    #[cfg(target_os = "linux")]
-    Direct,
-    #[cfg(not(target_os = "macos"))]
-    ShiftInsert,
-    ClipboardOnly,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ClipboardHandling {
-    DontModify,
-    CopyToClipboard,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum RecordingRetentionPeriod {
-    Never,
-    PreserveLimit,
-    Days3,
-    Weeks2,
-    Months3,
-}
-
-impl Default for ModelUnloadTimeout {
-    fn default() -> Self {
-        ModelUnloadTimeout::Never
-    }
-}
-
-impl Default for PasteMethod {
-    fn default() -> Self {
-        #[cfg(target_os = "linux")]
-        {
-            // On Wayland, auto-paste is not supported (see clipboard.rs).
-            // Default to ClipboardOnly — user pastes manually with Ctrl+V.
-            if crate::wayland::is_wayland() {
-                return PasteMethod::ClipboardOnly;
-            }
-            return PasteMethod::Direct;
-        }
-        #[cfg(not(target_os = "linux"))]
-        return PasteMethod::CtrlV;
-    }
-}
-
-impl Default for ClipboardHandling {
-    fn default() -> Self {
-        ClipboardHandling::DontModify
-    }
-}
-
-impl ModelUnloadTimeout {
-    pub fn to_minutes(self) -> Option<u64> {
-        match self {
-            ModelUnloadTimeout::Never => None,
-            ModelUnloadTimeout::Immediately => Some(0), // Special case for immediate unloading
-            ModelUnloadTimeout::Min2 => Some(2),
-            ModelUnloadTimeout::Min5 => Some(5),
-            ModelUnloadTimeout::Min10 => Some(10),
-            ModelUnloadTimeout::Min15 => Some(15),
-            ModelUnloadTimeout::Hour1 => Some(60),
-            ModelUnloadTimeout::Sec5 => Some(0), // Special case for debug - handled separately
-        }
-    }
-
-    pub fn to_seconds(self) -> Option<u64> {
-        match self {
-            ModelUnloadTimeout::Never => None,
-            ModelUnloadTimeout::Immediately => Some(0), // Special case for immediate unloading
-            ModelUnloadTimeout::Sec5 => Some(5),
-            _ => self.to_minutes().map(|m| m * 60),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum SoundTheme {
-    Marimba,
-    Pop,
-    Custom,
-}
-
-impl SoundTheme {
-    fn as_str(&self) -> &'static str {
-        match self {
-            SoundTheme::Marimba => "marimba",
-            SoundTheme::Pop => "pop",
-            SoundTheme::Custom => "custom",
-        }
-    }
-
-    pub fn to_start_path(&self) -> String {
-        format!("resources/{}_start.wav", self.as_str())
-    }
-
-    pub fn to_stop_path(&self) -> String {
-        format!("resources/{}_stop.wav", self.as_str())
-    }
-}
-
-/* still echo for composing the initial JSON in the store ------------- */
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AppSettings {
-    pub bindings: HashMap<String, ShortcutBinding>,
-    pub push_to_talk: bool,
-    pub audio_feedback: bool,
-    #[serde(default = "default_audio_feedback_volume")]
-    pub audio_feedback_volume: f32,
-    #[serde(default = "default_sound_theme")]
-    pub sound_theme: SoundTheme,
-    #[serde(default = "default_start_hidden")]
-    pub start_hidden: bool,
-    #[serde(default = "default_autostart_enabled")]
-    pub autostart_enabled: bool,
-    #[serde(default = "default_model")]
-    pub selected_model: String,
-    /// Model used by the realtime streaming worker during a meeting. Kept
-    /// separate from `selected_model` so the batch (post-stop) pass can use a
-    /// big high-quality model while the live decode uses something CPU can
-    /// keep up with.
-    #[serde(default = "default_realtime_model")]
-    pub realtime_model: String,
-    #[serde(default = "default_always_on_microphone")]
-    pub always_on_microphone: bool,
-    #[serde(default)]
-    pub selected_microphone: Option<String>,
-    #[serde(default)]
-    pub clamshell_microphone: Option<String>,
-    #[serde(default)]
-    pub selected_output_device: Option<String>,
-    #[serde(default = "default_translate_to_english")]
-    pub translate_to_english: bool,
-    #[serde(default = "default_selected_language")]
-    pub selected_language: String,
-    #[serde(default = "default_overlay_position")]
-    pub overlay_position: OverlayPosition,
-    #[serde(default = "default_debug_mode")]
-    pub debug_mode: bool,
-    #[serde(default = "default_debug_logging_enabled")]
-    pub debug_logging_enabled: bool,
-    #[serde(default = "default_log_level")]
-    pub log_level: LogLevel,
-    #[serde(default)]
-    pub custom_words: Vec<String>,
-    #[serde(default)]
-    pub model_unload_timeout: ModelUnloadTimeout,
-    #[serde(default = "default_word_correction_threshold")]
-    pub word_correction_threshold: f64,
-    #[serde(default = "default_history_limit")]
-    pub history_limit: usize,
-    #[serde(default = "default_recording_retention_period")]
-    pub recording_retention_period: RecordingRetentionPeriod,
-    #[serde(default)]
-    pub paste_method: PasteMethod,
-    #[serde(default)]
-    pub clipboard_handling: ClipboardHandling,
-    #[serde(default = "default_post_process_provider_id")]
-    pub post_process_provider_id: String,
-    #[serde(default = "default_post_process_providers")]
-    pub post_process_providers: Vec<PostProcessProvider>,
-    #[serde(default = "default_post_process_api_keys")]
-    pub post_process_api_keys: HashMap<String, String>,
-    #[serde(default)]
-    pub post_process_enabled: bool,
-    #[serde(default = "default_post_process_models")]
-    pub post_process_models: HashMap<String, String>,
-    #[serde(default = "default_post_process_prompts")]
-    pub post_process_prompts: Vec<LLMPrompt>,
-    #[serde(default)]
-    pub post_process_selected_prompt_id: Option<String>,
-    #[serde(default = "default_voice_commands_enabled")]
-    pub voice_commands_enabled: bool,
-    #[serde(default)]
-    pub mute_while_recording: bool,
-    #[serde(default)]
-    pub input_tracking_enabled: bool,
-    #[serde(default)]
-    pub input_tracking_excluded_apps: Vec<String>,
-    /// Idle timeout in seconds for input tracking. None or 0 means disabled (only count on app switch/click).
-    #[serde(default = "default_input_tracking_idle_timeout")]
-    pub input_tracking_idle_timeout: Option<u64>,
-    #[serde(default)]
-    pub tts_enabled: bool,
-    #[serde(default)]
-    pub meeting_system_audio_enabled: bool,
-    #[serde(default)]
-    pub meeting_system_audio_device: Option<String>,
-    #[serde(default)]
-    pub meeting_auto_summary: bool,
-    #[serde(default = "default_meeting_chunk_duration_secs")]
-    pub meeting_chunk_duration_secs: u32,
-    #[serde(default = "default_diarization_threshold")]
-    pub meeting_diarization_threshold: f32,
-    /// Enable the on-device transcription cleanup pass (Qwen 2.5 1.5B GGUF).
-    /// Privacy-first: defaults to false.
-    #[serde(default = "default_cleanup_enabled")]
-    pub cleanup_enabled: bool,
-    /// Identifier of the cleanup GGUF model to load.
-    #[serde(default = "default_cleanup_model_id")]
-    pub cleanup_model_id: String,
-    /// When true, the cleanup prompt may include the name of the focused
-    /// application (e.g. to set register). Defaults to false for privacy.
-    #[serde(default = "default_cleanup_app_context_enabled")]
-    pub cleanup_app_context_enabled: bool,
-    /// User-provided dictionary of canonical names / variants to preserve
-    /// verbatim during cleanup.
-    #[serde(default)]
-    pub cleanup_dictionary: Vec<DictionaryEntrySetting>,
-}
-
-fn default_audio_feedback_volume() -> f32 {
-    0.5
-}
-
-fn default_sound_theme() -> SoundTheme {
-    SoundTheme::Marimba
-}
-
-fn default_model() -> String {
-    "".to_string()
-}
-
-fn default_realtime_model() -> String {
-    "tiny".to_string()
-}
-
-fn default_always_on_microphone() -> bool {
-    false
-}
-
-fn default_translate_to_english() -> bool {
-    false
-}
-
-fn default_start_hidden() -> bool {
-    false
-}
-
-fn default_autostart_enabled() -> bool {
-    false
-}
-
-fn default_selected_language() -> String {
-    "auto".to_string()
-}
-
-fn default_overlay_position() -> OverlayPosition {
-    #[cfg(target_os = "linux")]
-    return OverlayPosition::None;
-    #[cfg(not(target_os = "linux"))]
-    return OverlayPosition::Bottom;
-}
-
-fn default_debug_mode() -> bool {
-    false
-}
-
-fn default_word_correction_threshold() -> f64 {
-    0.18
-}
-
-fn default_history_limit() -> usize {
-    5
-}
-
-fn default_recording_retention_period() -> RecordingRetentionPeriod {
-    RecordingRetentionPeriod::PreserveLimit
-}
-
-fn default_input_tracking_idle_timeout() -> Option<u64> {
-    Some(2) // Default 2 seconds
-}
-
-fn default_voice_commands_enabled() -> bool {
-    true
-}
-
-fn default_meeting_chunk_duration_secs() -> u32 {
-    30
-}
-
-fn default_diarization_threshold() -> f32 {
-    0.5
-}
-
-fn default_post_process_provider_id() -> String {
-    "openai".to_string()
-}
-
-fn default_cleanup_enabled() -> bool {
-    false
-}
-
-fn default_cleanup_model_id() -> String {
-    "qwen2.5-1.5b-instruct-q4_k_m".to_string()
-}
-
-fn default_cleanup_app_context_enabled() -> bool {
-    false
-}
-
-fn default_debug_logging_enabled() -> bool {
-    false
-}
-
-fn default_log_level() -> LogLevel {
-    LogLevel::Info
-}
-
-fn default_post_process_providers() -> Vec<PostProcessProvider> {
-    vec![
-        PostProcessProvider {
-            id: "openai".to_string(),
-            label: "OpenAI".to_string(),
-            base_url: "https://api.openai.com/v1".to_string(),
-            allow_base_url_edit: false,
-            models_endpoint: Some("/models".to_string()),
-        },
-        PostProcessProvider {
-            id: "openrouter".to_string(),
-            label: "OpenRouter".to_string(),
-            base_url: "https://openrouter.ai/api/v1".to_string(),
-            allow_base_url_edit: false,
-            models_endpoint: Some("/models".to_string()),
-        },
-        PostProcessProvider {
-            id: "anthropic".to_string(),
-            label: "Anthropic".to_string(),
-            base_url: "https://api.anthropic.com/v1".to_string(),
-            allow_base_url_edit: false,
-            models_endpoint: Some("/models".to_string()),
-        },
-        PostProcessProvider {
-            id: "ollama".to_string(),
-            label: "Ollama".to_string(),
-            base_url: "http://localhost:11434/v1".to_string(),
-            allow_base_url_edit: true,
-            models_endpoint: Some("/api/tags".to_string()),
-        },
-        PostProcessProvider {
-            id: "custom".to_string(),
-            label: "Custom".to_string(),
-            base_url: "http://localhost:8080/v1".to_string(),
-            allow_base_url_edit: true,
-            models_endpoint: Some("/models".to_string()),
-        },
-    ]
-}
-
-fn default_post_process_api_keys() -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    for provider in default_post_process_providers() {
-        map.insert(provider.id, String::new());
-    }
-    map
-}
-
-fn default_post_process_models() -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    for provider in default_post_process_providers() {
-        map.insert(provider.id, String::new());
-    }
-    map
-}
-
-fn default_post_process_prompts() -> Vec<LLMPrompt> {
-    vec![LLMPrompt {
-        id: "default_improve_transcriptions".to_string(),
-        name: "Improve Transcriptions".to_string(),
-        prompt: "Clean this transcript:\n1. Fix spelling, capitalization, and punctuation errors\n2. Convert number words to digits (twenty-five → 25, ten percent → 10%, five dollars → $5)\n3. Replace spoken punctuation with symbols (period → ., comma → ,, question mark → ?)\n4. Remove filler words (um, uh, like as filler)\n5. Keep the language in the original version (if it was french, keep it in french for example)\n\nPreserve exact meaning and word order. Do not paraphrase or reorder content.\n\nReturn only the cleaned transcript.\n\nTranscript:\n${output}".to_string(),
-    }]
-}
-
-pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
-
-/// Get the default shortcut for the current platform and display server.
-///
-/// On Linux Wayland, uses Ctrl+Shift+Space to avoid conflicts (Wayland shortcuts
-/// don't consume keyboard events, so Ctrl+Space would also trigger in the active app).
-fn get_default_shortcut() -> &'static str {
-    #[cfg(target_os = "windows")]
-    {
-        "ctrl+space"
-    }
-    #[cfg(target_os = "macos")]
-    {
-        "option+space"
-    }
-    #[cfg(target_os = "linux")]
-    {
-        // On Wayland, use Ctrl+Shift+Space to avoid conflicts
-        // (Wayland shortcuts don't consume keyboard events)
-        if std::env::var("XDG_SESSION_TYPE")
-            .map(|s| s.eq_ignore_ascii_case("wayland"))
-            .unwrap_or(false)
-        {
-            "ctrl+shift+space"
-        } else {
-            "ctrl+space"
-        }
-    }
-    #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
-    {
-        "alt+space"
-    }
-}
-
+#[path = "settings_types.rs"]
+mod settings_types;
+pub use settings_types::*;
+#[path = "settings_defaults.rs"]
+mod settings_defaults;
+use settings_defaults::*;
 pub fn get_default_settings() -> AppSettings {
     let default_shortcut = get_default_shortcut();
 
@@ -501,6 +32,7 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: default_shortcut.to_string(),
         },
     );
+    bindings.insert("polish".to_string(), default_polish_binding());
 
     AppSettings {
         bindings,
@@ -510,20 +42,20 @@ pub fn get_default_settings() -> AppSettings {
         sound_theme: default_sound_theme(),
         start_hidden: default_start_hidden(),
         autostart_enabled: default_autostart_enabled(),
-        selected_model: "".to_string(),
-        realtime_model: default_realtime_model(),
+        transcription_model_size: TranscriptionModelSize::default(),
         always_on_microphone: false,
         selected_microphone: None,
         clamshell_microphone: None,
         selected_output_device: None,
         translate_to_english: false,
         selected_language: "auto".to_string(),
-        overlay_position: OverlayPosition::Bottom,
+        overlay_position: OverlayPosition::Edge,
+        overlay_dock_edge: OverlayDockEdge::Right,
+        overlay_dock_offset: 0.5,
         debug_mode: false,
         debug_logging_enabled: default_debug_logging_enabled(),
         log_level: default_log_level(),
         custom_words: Vec::new(),
-        model_unload_timeout: ModelUnloadTimeout::Never,
         word_correction_threshold: default_word_correction_threshold(),
         history_limit: default_history_limit(),
         recording_retention_period: default_recording_retention_period(),
@@ -548,9 +80,18 @@ pub fn get_default_settings() -> AppSettings {
         meeting_chunk_duration_secs: default_meeting_chunk_duration_secs(),
         meeting_diarization_threshold: default_diarization_threshold(),
         cleanup_enabled: default_cleanup_enabled(),
-        cleanup_model_id: default_cleanup_model_id(),
         cleanup_app_context_enabled: default_cleanup_app_context_enabled(),
         cleanup_dictionary: Vec::new(),
+    }
+}
+
+fn default_polish_binding() -> ShortcutBinding {
+    ShortcutBinding {
+        id: "polish".to_string(),
+        name: "Polish".to_string(),
+        description: "Fix spelling and grammar in selected text.".to_string(),
+        default_binding: get_default_polish_shortcut().to_string(),
+        current_binding: get_default_polish_shortcut().to_string(),
     }
 }
 
@@ -577,19 +118,79 @@ impl AppSettings {
     }
 }
 
+/// A store seeded before the profiles diverged still holds the other build's
+/// combinations, and both apps would fire on them.
+fn migrate_shortcuts_to_profile_defaults(settings: &mut AppSettings) -> bool {
+    let profiles = [
+        (
+            "transcribe",
+            get_default_shortcut(),
+            release_default_shortcut(),
+        ),
+        (
+            "polish",
+            get_default_polish_shortcut(),
+            release_default_polish_shortcut(),
+        ),
+    ];
+    let mut updated = false;
+    for (id, wanted, foreign) in profiles {
+        if wanted == foreign {
+            continue;
+        }
+        let Some(binding) = settings.bindings.get_mut(id) else {
+            continue;
+        };
+        if !binding.current_binding.eq_ignore_ascii_case(foreign) {
+            continue;
+        }
+        warn!("Moving '{id}' off the release shortcut '{foreign}' to '{wanted}'");
+        binding.current_binding = wanted.to_string();
+        binding.default_binding = wanted.to_string();
+        updated = true;
+    }
+    updated
+}
+
 fn apply_settings_migrations_from_raw(
     settings: &mut AppSettings,
-    _raw_settings: Option<&serde_json::Value>,
+    raw_settings: Option<&serde_json::Value>,
 ) -> bool {
-    let mut updated = false;
+    let mut updated = migrate_shortcuts_to_profile_defaults(settings);
 
-    // Migration: Add Ollama provider if it doesn't exist
+    let has_transcription_model_size = raw_settings
+        .and_then(|raw| raw.get("transcription_model_size"))
+        .is_some();
+    if !has_transcription_model_size {
+        let legacy_model = raw_settings
+            .and_then(|raw| raw.get("selected_model"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or_default();
+        settings.transcription_model_size = transcription_model_size_from_legacy(legacy_model);
+        updated = true;
+    }
+
+    let has_overlay_dock_edge = raw_settings
+        .and_then(|raw| raw.get("overlay_dock_edge"))
+        .is_some();
+    if !has_overlay_dock_edge {
+        settings.overlay_dock_edge = OverlayDockEdge::Right;
+        settings.overlay_dock_offset = 0.5;
+        if matches!(
+            settings.overlay_position,
+            OverlayPosition::Top | OverlayPosition::Bottom
+        ) {
+            settings.overlay_position = OverlayPosition::Edge;
+        }
+        updated = true;
+    }
+
     if !settings
         .post_process_providers
         .iter()
         .any(|p| p.id == "ollama")
     {
-        // Find the position to insert (before "custom" if it exists, otherwise at the end)
+        // Insert before "custom".
         let insert_pos = settings
             .post_process_providers
             .iter()
@@ -609,9 +210,8 @@ fn apply_settings_migrations_from_raw(
         updated = true;
     }
 
-    // Migration: Remove invalid bindings that don't have corresponding actions
-    // This cleans up stale bindings like 'cancel' from older versions
-    let valid_binding_ids = ["transcribe", "test"];
+    // Cleans stale bindings (e.g. 'cancel') from old versions.
+    let valid_binding_ids = ["transcribe", "polish", "test"];
     let original_count = settings.bindings.len();
     settings.bindings.retain(|id, _| {
         let is_valid = valid_binding_ids.contains(&id.as_str());
@@ -626,8 +226,13 @@ fn apply_settings_migrations_from_raw(
     if settings.bindings.len() != original_count {
         updated = true;
     }
+    if !settings.bindings.contains_key("polish") {
+        settings
+            .bindings
+            .insert("polish".to_string(), default_polish_binding());
+        updated = true;
+    }
 
-    // Migration: Auto-select default prompt if none is selected
     if (settings.post_process_selected_prompt_id.is_none()
         || settings
             .post_process_selected_prompt_id
@@ -636,7 +241,6 @@ fn apply_settings_migrations_from_raw(
             .unwrap_or(true))
         && !settings.post_process_prompts.is_empty()
     {
-        // Try to find the default one first
         if settings
             .post_process_prompts
             .iter()
@@ -645,7 +249,6 @@ fn apply_settings_migrations_from_raw(
             settings.post_process_selected_prompt_id =
                 Some("default_improve_transcriptions".to_string());
         } else {
-            // Fallback to first available
             settings.post_process_selected_prompt_id =
                 settings.post_process_prompts.first().map(|p| p.id.clone());
         }
@@ -656,33 +259,36 @@ fn apply_settings_migrations_from_raw(
 }
 
 pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
-    // Initialize store
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
 
     let settings = if let Some(settings_value) = store.get("settings") {
-        // Parse the entire settings object
         match serde_json::from_value::<AppSettings>(settings_value.clone()) {
             Ok(mut settings) => {
                 #[cfg(debug_assertions)]
                 debug!("Found existing settings: {:?}", settings);
                 if apply_settings_migrations_from_raw(&mut settings, Some(&settings_value)) {
-                    store.set("settings", serde_json::to_value(&settings).unwrap());
+                    if let Some(value) = serialize_settings(&settings) {
+                        store.set("settings", value);
+                    }
                 }
                 settings
             }
             Err(e) => {
                 warn!("Failed to parse settings: {}", e);
-                // Fall back to default settings if parsing fails
                 let default_settings = get_default_settings();
-                store.set("settings", serde_json::to_value(&default_settings).unwrap());
+                if let Some(value) = serialize_settings(&default_settings) {
+                    store.set("settings", value);
+                }
                 default_settings
             }
         }
     } else {
         let default_settings = get_default_settings();
-        store.set("settings", serde_json::to_value(&default_settings).unwrap());
+        if let Some(value) = serialize_settings(&default_settings) {
+            store.set("settings", value);
+        }
         default_settings
     };
 
@@ -699,13 +305,17 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
             Ok(settings) => settings,
             Err(_) => {
                 let default_settings = get_default_settings();
-                store.set("settings", serde_json::to_value(&default_settings).unwrap());
+                if let Some(value) = serialize_settings(&default_settings) {
+                    store.set("settings", value);
+                }
                 default_settings
             }
         }
     } else {
         let default_settings = get_default_settings();
-        store.set("settings", serde_json::to_value(&default_settings).unwrap());
+        if let Some(value) = serialize_settings(&default_settings) {
+            store.set("settings", value);
+        }
         default_settings
     }
 }
@@ -715,13 +325,22 @@ pub fn write_settings(app: &AppHandle, settings: AppSettings) {
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
 
-    store.set("settings", serde_json::to_value(&settings).unwrap());
+    if let Some(value) = serialize_settings(&settings) {
+        store.set("settings", value);
+    }
 }
 
-/// Atomically read-modify-write settings under the global lock.
-///
-/// The closure receives a mutable reference to the current `AppSettings`.
-/// After it returns, the modified settings are written back to the store.
+fn serialize_settings(settings: &AppSettings) -> Option<serde_json::Value> {
+    match serde_json::to_value(settings) {
+        Ok(value) => Some(value),
+        Err(error) => {
+            warn!("Failed to serialize settings: {error}");
+            None
+        }
+    }
+}
+
+/// Atomic R-M-W under global lock.
 pub fn update_settings<F>(app: &AppHandle, f: F)
 where
     F: FnOnce(&mut AppSettings),
@@ -732,9 +351,7 @@ where
     write_settings(app, settings);
 }
 
-/// Like [`update_settings`] but the closure can fail.
-///
-/// If the closure returns `Err`, the settings are **not** written back.
+/// Fallible variant; Err skips write.
 pub fn try_update_settings<F>(app: &AppHandle, f: F) -> Result<(), String>
 where
     F: FnOnce(&mut AppSettings) -> Result<(), String>,
@@ -771,139 +388,4 @@ pub fn get_recording_retention_period(app: &AppHandle) -> RecordingRetentionPeri
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn enabled_false_survives_serialization() {
-        let mut settings = get_default_settings();
-        settings.post_process_enabled = false;
-
-        let json = serde_json::to_value(&settings).unwrap();
-        let deserialized: AppSettings = serde_json::from_value(json).unwrap();
-
-        assert!(
-            !deserialized.post_process_enabled,
-            "post_process_enabled should remain false after round-trip serialization"
-        );
-    }
-
-    #[test]
-    fn migration_preserves_enabled_flag() {
-        let mut settings = get_default_settings();
-        settings.post_process_enabled = false;
-        // Ensure the auto-select prompt migration won't fire by pre-setting prompt
-        settings.post_process_selected_prompt_id =
-            Some("default_improve_transcriptions".to_string());
-
-        let raw = serde_json::to_value(&settings).unwrap();
-        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
-
-        assert!(
-            !settings.post_process_enabled,
-            "post_process_enabled should remain false after migrations"
-        );
-    }
-
-    /// Simulates the race scenario: two sequential updates to different fields
-    /// should both be preserved because each goes through the lock.
-    /// (Without Tauri runtime we can't call update_settings, so we test the
-    /// serialization pattern that the lock protects.)
-    #[test]
-    fn sequential_updates_to_different_fields_both_preserved() {
-        let mut settings = get_default_settings();
-
-        // Simulate first command: disable post-processing
-        settings.post_process_enabled = false;
-        let json = serde_json::to_value(&settings).unwrap();
-        let mut after_first: AppSettings = serde_json::from_value(json).unwrap();
-
-        // Simulate second command: change model (on the result of the first write)
-        after_first
-            .post_process_models
-            .insert("ollama".to_string(), "llama3".to_string());
-        let json = serde_json::to_value(&after_first).unwrap();
-        let final_settings: AppSettings = serde_json::from_value(json).unwrap();
-
-        // Both changes should be preserved
-        assert!(
-            !final_settings.post_process_enabled,
-            "post_process_enabled should remain false after model update"
-        );
-        assert_eq!(
-            final_settings.post_process_models.get("ollama").unwrap(),
-            "llama3",
-            "model should be updated"
-        );
-    }
-
-    #[test]
-    fn default_cleanup_disabled() {
-        let s = get_default_settings();
-        assert!(!s.cleanup_enabled, "cleanup_enabled must default to false");
-        assert!(
-            !s.cleanup_app_context_enabled,
-            "cleanup_app_context_enabled must default to false"
-        );
-        assert_eq!(s.cleanup_model_id, "qwen2.5-1.5b-instruct-q4_k_m");
-        assert!(s.cleanup_dictionary.is_empty());
-    }
-
-    #[test]
-    fn dictionary_serialization_roundtrip() {
-        let entries = vec![
-            DictionaryEntrySetting {
-                canonical: "Anthropic".to_string(),
-                variants: vec!["anthropics".to_string(), "anth".to_string()],
-            },
-            DictionaryEntrySetting {
-                canonical: "Damien".to_string(),
-                variants: Vec::new(),
-            },
-        ];
-        let j = serde_json::to_value(&entries).unwrap();
-        let back: Vec<DictionaryEntrySetting> = serde_json::from_value(j).unwrap();
-        assert_eq!(back.len(), 2);
-        assert_eq!(back[0].canonical, "Anthropic");
-        assert_eq!(back[0].variants, vec!["anthropics", "anth"]);
-        assert_eq!(back[1].canonical, "Damien");
-        assert!(back[1].variants.is_empty());
-    }
-
-    #[test]
-    fn cleanup_settings_survive_full_settings_roundtrip() {
-        let mut s = get_default_settings();
-        s.cleanup_enabled = true;
-        s.cleanup_app_context_enabled = true;
-        s.cleanup_dictionary
-            .push(DictionaryEntrySetting {
-                canonical: "Echo".to_string(),
-                variants: vec!["eko".to_string()],
-            });
-
-        let json = serde_json::to_value(&s).unwrap();
-        let back: AppSettings = serde_json::from_value(json).unwrap();
-
-        assert!(back.cleanup_enabled);
-        assert!(back.cleanup_app_context_enabled);
-        assert_eq!(back.cleanup_dictionary.len(), 1);
-        assert_eq!(back.cleanup_dictionary[0].canonical, "Echo");
-    }
-
-    /// Verifies that the SETTINGS_LOCK is a true global singleton.
-    #[test]
-    fn settings_lock_is_singleton() {
-        let guard1 = SETTINGS_LOCK.try_lock();
-        assert!(guard1.is_ok(), "First lock should succeed");
-
-        // While held, a second attempt should fail
-        let guard2 = SETTINGS_LOCK.try_lock();
-        assert!(guard2.is_err(), "Second lock should fail while first is held");
-
-        drop(guard1);
-
-        // After releasing, lock should succeed again
-        let guard3 = SETTINGS_LOCK.try_lock();
-        assert!(guard3.is_ok(), "Lock should succeed after release");
-    }
-}
+include!("settings_tests.rs");
