@@ -47,14 +47,18 @@ impl ClipboardPort for PlatformClipboard {
             .lock()
             .map_err(|_| anyhow::anyhow!("Clipboard lock is poisoned"))?;
         #[cfg(target_os = "windows")]
-        return snapshot_windows(&context);
+        {
+            snapshot_windows(&context)
+        }
         #[cfg(not(target_os = "windows"))]
-        let formats = restorable_formats(
-            platform_format_naming(),
-            context.available_formats().map_err(clipboard_error)?,
-            |name| context.get_buffer(name).map_err(clipboard_error),
-        );
-        Ok(ClipboardSnapshot { formats })
+        {
+            let formats = restorable_formats(
+                platform_format_naming(),
+                context.available_formats().map_err(clipboard_error)?,
+                |name| context.get_buffer(name).map_err(clipboard_error),
+            );
+            Ok(ClipboardSnapshot { formats })
+        }
     }
 
     fn read_text(&self) -> Result<String> {
@@ -83,19 +87,23 @@ impl ClipboardPort for PlatformClipboard {
             .lock()
             .map_err(|_| anyhow::anyhow!("Clipboard lock is poisoned"))?;
         #[cfg(target_os = "windows")]
-        return restore_windows(&context, snapshot);
-        #[cfg(not(target_os = "windows"))]
-        if snapshot.formats.is_empty() {
-            context.clear().map_err(clipboard_error)?;
-            return Ok(());
+        {
+            restore_windows(&context, snapshot)
         }
-        let contents = snapshot
-            .formats
-            .iter()
-            .map(|format| ClipboardContent::Other(format.name.clone(), format.data.clone()))
-            .collect();
-        context.set(contents).map_err(clipboard_error)?;
-        Ok(())
+        #[cfg(not(target_os = "windows"))]
+        {
+            if snapshot.formats.is_empty() {
+                context.clear().map_err(clipboard_error)?;
+                return Ok(());
+            }
+            let contents = snapshot
+                .formats
+                .iter()
+                .map(|format| ClipboardContent::Other(format.name.clone(), format.data.clone()))
+                .collect();
+            context.set(contents).map_err(clipboard_error)?;
+            Ok(())
+        }
     }
 }
 
