@@ -191,6 +191,20 @@ jobs:
           version: 1.4.309.0
           cache: true
 
+      - name: Shorten the build root (Windows)
+        if: contains(inputs.platform, 'windows')
+        shell: pwsh
+        run: |
+          # whisper.cpp builds its Vulkan shader generator as a nested CMake
+          # ExternalProject, and its scratch files land 7 to 8 characters past
+          # MAX_PATH under the default target directory. Neither rc.exe
+          # ("fatal error RC1109") nor MSBuild's FileTracker ("error FTK1011")
+          # is long-path aware, so both Windows targets die during configure.
+          # A short target root buys back the ~30 characters the workspace path
+          # costs, which is the whole margin this build needs.
+          New-Item -ItemType Directory -Force -Path C:\b | Out-Null
+          Add-Content -Path $env:GITHUB_ENV -Value "CARGO_TARGET_DIR=C:\b"
+
       # humbletim/install-vulkan-sdk@v1.2 cannot target Windows ARM64 yet.
       # Download prebuilt binaries (Bin) + build headers/libs from source.
       # See https://github.com/humbletim/install-vulkan-sdk/pull/22 for prebuilt ARM64 support progress.
@@ -518,23 +532,34 @@ jobs:
           SERVER=$(find "$APP" -path '*/Resources/resources/polish-runtime/llama-server' | head -1)
           test -x "$SERVER"
           file "$SERVER" | grep -q "${{ contains(inputs.target, 'aarch64') && 'arm64' || 'x86_64' }}"
-          codesign --verify --strict "$SERVER"
+          # Only a signed build has anything to verify: the linker ad-hoc signs
+          # arm64 binaries on its own, but the x86_64 sidecar stays unsigned
+          # until Tauri signs the bundle, and a dry run never gets that far.
+          if [ "${{ inputs.sign-binaries }}" = "true" ]; then
+            codesign --verify --strict "$SERVER"
+          fi
 
       - name: Verify Polish sidecar in Linux bundles
         if: contains(inputs.platform, 'ubuntu')
         shell: bash
         run: |
           set -euo pipefail
+          SIDECAR='resources/polish-runtime/llama-server'
+          # Listings are captured before they are searched: `grep -q` leaves as
+          # soon as it matches, and the writer on the other end of the pipe dies
+          # of SIGPIPE, which `pipefail` reports as a failed verification.
           FOUND=0
           for DEB in src-tauri/target/${{ steps.build-profile.outputs.profile }}/bundle/deb/*.deb; do
             if [ -f "$DEB" ]; then
-              dpkg-deb -c "$DEB" | grep -q 'resources/polish-runtime/llama-server'
+              LISTING=$(dpkg-deb -c "$DEB")
+              printf '%s\n' "$LISTING" | grep -q "$SIDECAR"
               FOUND=1
             fi
           done
           for RPM in src-tauri/target/${{ steps.build-profile.outputs.profile }}/bundle/rpm/*.rpm; do
             if [ -f "$RPM" ]; then
-              rpm -qlp "$RPM" | grep -q 'resources/polish-runtime/llama-server'
+              LISTING=$(rpm -qlp "$RPM")
+              printf '%s\n' "$LISTING" | grep -q "$SIDECAR"
               FOUND=1
             fi
           done
@@ -542,8 +567,9 @@ jobs:
             if [ -f "$APPIMAGE" ]; then
               chmod +x "$APPIMAGE"
               "$APPIMAGE" --appimage-extract >/dev/null
-              find squashfs-root -path '*/resources/polish-runtime/llama-server' -type f | grep -q .
+              LISTING=$(find squashfs-root -path "*/$SIDECAR" -type f)
               rm -rf squashfs-root
+              test -n "$LISTING"
               FOUND=1
             fi
           done
@@ -555,10 +581,12 @@ jobs:
         run: |
           $profile = "${{ steps.build-profile.outputs.profile }}"
           $target = "${{ inputs.target }}"
+          # Windows builds under a short root to stay inside MAX_PATH.
+          $root = if ($env:CARGO_TARGET_DIR) { $env:CARGO_TARGET_DIR } else { "src-tauri/target" }
           $base = if ($target -eq "x86_64-pc-windows-msvc") {
-            "src-tauri/target/$profile/bundle"
+            "$root/$profile/bundle"
           } else {
-            "src-tauri/target/$target/$profile/bundle"
+            "$root/$target/$profile/bundle"
           }
           $installers = Get-ChildItem $base -Recurse -Include *.msi,*.exe
           if ($installers.Count -eq 0) { throw "No Windows installer found" }
@@ -646,7 +674,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.asset-prefix }}-${{ inputs.target }}
+          # CARGO_TARGET_DIR is the short Windows build root set above.
           path: |
-            src-tauri/target/${{ inputs.target != '' && inputs.target != 'x86_64-pc-windows-msvc' && format('{0}/{1}', inputs.target, steps.build-profile.outputs.profile) || steps.build-profile.outputs.profile }}/bundle/msi/*.msi
-            src-tauri/target/${{ inputs.target != '' && inputs.target != 'x86_64-pc-windows-msvc' && format('{0}/{1}', inputs.target, steps.build-profile.outputs.profile) || steps.build-profile.outputs.profile }}/bundle/nsis/*.exe
+            ${{ env.CARGO_TARGET_DIR }}/${{ inputs.target != '' && inputs.target != 'x86_64-pc-windows-msvc' && format('{0}/{1}', inputs.target, steps.build-profile.outputs.profile) || steps.build-profile.outputs.profile }}/bundle/msi/*.msi
+            ${{ env.CARGO_TARGET_DIR }}/${{ inputs.target != '' && inputs.target != 'x86_64-pc-windows-msvc' && format('{0}/{1}', inputs.target, steps.build-profile.outputs.profile) || steps.build-profile.outputs.profile }}/bundle/nsis/*.exe
           retention-days: 30
