@@ -591,21 +591,29 @@ jobs:
           $installers = Get-ChildItem $base -Recurse -Include *.msi,*.exe
           if ($installers.Count -eq 0) { throw "No Windows installer found" }
           foreach ($installer in $installers) {
-            # An MSI names its payload in a table 7z does not print, so the
-            # installer is unpacked and searched instead of being listed. The
-            # files themselves sit in an embedded cabinet, one level deeper.
-            $extract = Join-Path $env:RUNNER_TEMP "verify-$($installer.BaseName)"
+            $kind = $installer.Extension.TrimStart(".")
+            $extract = Join-Path $env:RUNNER_TEMP "verify-$kind-$($installer.BaseName)"
             Remove-Item $extract -Recurse -Force -ErrorAction Ignore
-            & 7z x $installer.FullName "-o$extract" -y -bso0 -bsp0 | Out-Null
-            foreach ($cab in Get-ChildItem $extract -Recurse -Filter *.cab) {
-              & 7z x $cab.FullName "-o$extract" -y -bso0 -bsp0 | Out-Null
+            New-Item -ItemType Directory -Force -Path $extract | Out-Null
+            if ($kind -eq "msi") {
+              # An MSI names its streams after WiX identifiers rather than the
+              # files they carry, so neither listing nor unpacking it shows a
+              # real name. An administrative install lays the payload out.
+              $run = Start-Process msiexec.exe -Wait -PassThru -ArgumentList @(
+                "/a", "`"$($installer.FullName)`"", "/qn", "TARGETDIR=`"$extract`""
+              )
+              if ($run.ExitCode -ne 0) {
+                throw "msiexec /a failed on $($installer.Name) with $($run.ExitCode)"
+              }
+            } else {
+              & 7z x $installer.FullName "-o$extract" -y -bso0 -bsp0 | Out-Null
             }
             $found = Get-ChildItem $extract -Recurse -File |
               Where-Object { $_.Name -eq "llama-server.exe" }
             if (-not $found) {
               Write-Host "Unpacked $($installer.Name) contains:"
               Get-ChildItem $extract -Recurse -File |
-                Select-Object -First 60 -ExpandProperty Name |
+                Select-Object -First 60 -ExpandProperty FullName |
                 ForEach-Object { Write-Host "  $_" }
               throw "Polish sidecar missing from $($installer.FullName)"
             }
