@@ -77,12 +77,6 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             .expect("Failed to initialize transcription manager"),
     );
 
-    // Prevents idle eviction during mic capture.
-
-    // Main-engine boot prewarm happens below (after the realtime block). It was
-    // previously disabled over engine.lock contention, but the streaming preview
-    // now runs on a SEPARATE engine slot and the stop flow is fully bounded, so
-    // warming the batch engine at boot no longer starves the post-stop transcribe.
     let history_manager =
         Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
 
@@ -132,15 +126,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
                             "Realtime model '{}' resident for live preview",
                             realtime_model_id
                         );
-                        // Pre-compile the whisper Metal/CoreML kernels with one
-                        // silent decode so the FIRST live-preview decode is warm.
-                        // A cold first decode can run for seconds — and that is
-                        // exactly the in-flight decode the stop-flow worker-join
-                        // budget must wait on before detaching. Warming it here
-                        // makes that detach path rare. Runs on a dedicated thread
-                        // (whisper FFI is blocking) and only touches the streaming
-                        // engine, never the main engine, so it cannot contend the
-                        // post-stop final transcribe.
+                        // cold first decode runs for seconds — pre-compile the Metal/CoreML kernels off-thread
                         let tm_warm = tm.clone();
                         std::thread::spawn(move || {
                             let warm_start = std::time::Instant::now();
@@ -172,13 +158,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         }
     }
 
-    // Main (batch) engine prewarm — keep the post-stop transcription model loaded
-    // AND warm so the FIRST dictation decodes in ~1s instead of paying ONNX/Metal
-    // cold-start cost at the worst moment (the final transcribe on key release).
-    // We also pin it resident via a never-released keepalive so the idle watcher
-    // can't evict it back to a cold state between dictations (Wispr-style always-
-    // warm model). Opt out with PrewarmStrategy::Off. Safe now: the live preview
-    // uses a separate engine slot, so this never contends the stop-flow decode.
+    // pinned by a never-released keepalive so the idle watcher can't evict it cold between dictations
     let selected_model_id = managers::model::transcription_profile_id(
         settings::get_settings(app_handle).transcription_model_size,
     );
@@ -193,8 +173,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
                 log::warn!("Boot prewarm of main engine failed: {e:#}");
                 return;
             }
-            // Pin BEFORE the warmup decode so an `Immediately`-unload setting
-            // can't drop the model the instant the synthetic decode returns.
+            // pin before the decode — `Immediately`-unload would drop the model the instant it returns
             match tm.warmup_decode_dummy() {
                 Ok(()) => log::info!(
                     "Main transcription engine prewarmed + pinned resident for fast dictation"
@@ -566,8 +545,7 @@ pub fn run() {
                 #[cfg(debug_assertions)]
                 let _ = main_window.set_title("Echo Dev");
 
-                // Window created with decorations: false in tauri.conf.json to avoid GTK CSD artifacts
-                // (faint top bar, corner ghosts). macOS/Windows re-enable + style here before first show.
+                // tauri.conf.json ships decorations:false to dodge GTK CSD artifacts; macOS/Windows re-enable here
 
                 #[cfg(target_os = "macos")]
                 #[allow(deprecated)] // cocoa deprecated for objc2-app-kit.
@@ -575,7 +553,7 @@ pub fn run() {
                     use cocoa::appkit::{NSWindow, NSWindowStyleMask, NSWindowTitleVisibility};
                     use cocoa::base::{id, YES};
 
-                    // Single atomic setStyleMask_ = decorations:true + titleBarStyle:Overlay; traffic lights inside glass.
+                    // one atomic setStyleMask_ — traffic lights land inside the glass
                     if let Ok(ns_win) = main_window.ns_window() {
                         unsafe {
                             let window = ns_win as id;

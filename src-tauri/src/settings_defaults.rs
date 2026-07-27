@@ -162,8 +162,7 @@ pub(super) fn default_post_process_prompts() -> Vec<LLMPrompt> {
 
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 
-/// Dev build gets its own combinations: global hotkeys are per-process, so an
-/// installed Echo and a dev Echo sharing one combination both fire on it.
+/// Global hotkeys are per-process — a shared combo fires in both the installed and the dev Echo.
 pub(super) fn get_default_shortcut() -> &'static str {
     if cfg!(debug_assertions) {
         dev_default_shortcut()

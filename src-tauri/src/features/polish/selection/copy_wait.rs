@@ -5,14 +5,7 @@ const EAGER_ATTEMPTS: usize = 8;
 const PATIENT_INTERVAL: Duration = Duration::from_millis(25);
 const PATIENT_ATTEMPTS: usize = 32;
 
-/// How long the capture keeps looking at the clipboard after sending the copy
-/// shortcut, one delay per look.
-///
-/// A copy crosses the OS event queue and the target application's main thread,
-/// so the answer lands in a millisecond in a text field and hundreds of them in
-/// a terminal or an editor busy elsewhere. The eager head keeps the common case
-/// instant; the patient tail is what stops a slow application from being
-/// reported to the user as an empty selection.
+/// One delay per clipboard poll: eager head for text fields, patient tail so a busy app isn't read as empty.
 pub(super) fn copy_poll_delays() -> impl Iterator<Item = Duration> {
     std::iter::repeat_n(EAGER_INTERVAL, EAGER_ATTEMPTS)
         .chain(std::iter::repeat_n(PATIENT_INTERVAL, PATIENT_ATTEMPTS))

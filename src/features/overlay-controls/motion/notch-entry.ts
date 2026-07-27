@@ -1,17 +1,14 @@
 import type { TargetAndTransition } from "motion/react";
 import type { OverlaySurface } from "@/features/overlay-controls/runtime/overlay-surface";
 
-// Without a hardware notch the surface still has to come from somewhere: a
-// short seam at the very top edge reads the same way once it grows.
+// no hardware notch — a short seam at the top edge reads the same once it grows
 const SEAM_WIDTH = 104;
 const SEAM_HEIGHT = 6;
 const SEAM_RADIUS = 12;
 
 export type IslandEntry = TargetAndTransition;
 
-/// Where a notification is born and where it goes back to: the notch itself.
-/// Growing out of that box is what makes it read as part of the hardware
-/// instead of a panel flying in from another corner of the screen.
+/// Growing out of the notch box is what makes it read as hardware, not a panel flying in.
 export const notchEntry = (surface: OverlaySurface): IslandEntry => {
   const { island, notch, window: origin } = surface;
   const box = notch

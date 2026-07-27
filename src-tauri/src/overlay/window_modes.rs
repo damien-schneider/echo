@@ -9,17 +9,14 @@ use log::warn;
 use std::sync::Mutex;
 use tauri::AppHandle;
 
-/// What one window is showing and what it is on its way to showing. The pending
-/// mode keeps the window covering both surfaces until the webview reports the
-/// morph is over.
+/// The pending mode keeps the window covering both surfaces until the webview reports the morph done.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct SurfaceModeState {
     pending: Option<RecordingOverlayMode>,
     settled: Option<RecordingOverlayMode>,
 }
 
-/// The HUD is always on screen while the overlay is enabled; the notification
-/// starts with nothing to say.
+/// HUD is always up while the overlay is enabled; the notification starts empty.
 static HUD_MODE: Mutex<SurfaceModeState> = Mutex::new(SurfaceModeState {
     pending: None,
     settled: Some(RecordingOverlayMode::Compact),
@@ -47,8 +44,7 @@ fn render_mode(state: SurfaceModeState) -> Option<RecordingOverlayMode> {
     state.pending.or(state.settled)
 }
 
-/// Modes whose window must stay covered while the island morphs, so the frame
-/// never moves out from under an in-flight animation.
+/// Frame must not move out from under an in-flight morph.
 fn covered_modes(
     state: SurfaceModeState,
     rendered: RecordingOverlayMode,
@@ -123,8 +119,7 @@ fn render_notification(app_handle: &AppHandle) -> Result<(), String> {
     render_surface(app_handle, OverlaySurfaceKind::Notification, state, mode)
 }
 
-/// Both windows follow the same monitor and the same settings, so a placement
-/// or screen change redraws the pair.
+/// Both windows share a monitor and settings — placement changes redraw the pair.
 pub(crate) fn update_overlay_position(app_handle: &AppHandle) {
     if let Err(error) = render_notification(app_handle) {
         warn!("[Overlay] Failed to update the notification surface: {error}");
@@ -165,8 +160,7 @@ pub(super) fn settle_hud_mode(app_handle: &AppHandle, mode: &str) -> Result<(), 
     result
 }
 
-/// Showing or hiding the notification can uncover a HUD that had stood down for
-/// it, so the pair is always redrawn together.
+/// Toggling the notification can uncover a HUD that stood down for it — redraw both.
 pub(super) fn set_notification_mode(app_handle: &AppHandle, mode: &str) -> Result<(), String> {
     let requested = parse_notification_mode(mode)?;
     let state = current_state(&NOTIFICATION_MODE);

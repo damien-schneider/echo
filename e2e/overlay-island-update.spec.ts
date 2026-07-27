@@ -14,8 +14,7 @@ const available = {
   version: "9.9.9",
 };
 
-// The island morph never settles under a spring, so a click target only holds
-// still with motion reduced.
+// the morph never settles under a spring — a click target holds still only with motion reduced
 const openNotificationWindow = async (
   page: Parameters<typeof emitTauriEvent>[0]
 ) => {

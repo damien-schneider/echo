@@ -1,4 +1,4 @@
-//! Realtime preview pipeline for dictation (PTT) — single-source mirror of meeting_streaming.
+//! Realtime preview pipeline for dictation (PTT).
 
 use crate::audio_toolkit::CapturedAudioFrame;
 use anyhow::Context;
@@ -10,12 +10,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
-/// Upper bound on how long [`DictationStreamingHandle::stop_in_place`] waits for
-/// the worker to exit. A single in-flight whisper FFI decode is non-cancellable
-/// (the shutdown flag is only observed *between* decode batches), so past this
-/// budget we detach the thread instead of blocking the caller. The orphan exits
-/// on its own once the FFI returns and only ever touches `streaming_engine`,
-/// never the main engine, so it cannot starve the post-stop final transcribe.
+/// Whisper FFI decode is non-cancellable — past this budget the worker thread is detached, not joined.
 const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 const WORKER_FINISH_BUDGET: Duration = Duration::from_secs(8);
 
@@ -78,19 +73,15 @@ fn coalesce_audio_backlog(
     CoalescedAudioBacklog { frames, terminal }
 }
 
-/// Narrow seam between the streaming worker and the underlying engine.
-/// Production impl lives on [`TranscriptionManager`]; tests inject scripted
-/// decoders to drive lifecycle edge cases without a real model file.
+/// Seam so tests can script decodes without a real model file.
 pub trait DictationDecoder: Send + Sync + 'static {
     fn transcribe_chunk(&self, audio: Vec<f32>) -> anyhow::Result<String>;
 }
 
-/// Drain for live preview text. Production: emits a Tauri event. Tests: collect.
 pub trait ProgressSink: Send + Sync + 'static {
     fn emit(&self, text: &str);
 }
 
-/// Production sink: forwards every interim/final to the overlay window.
 pub struct AppHandleProgressSink {
     app_handle: AppHandle,
 }
@@ -107,10 +98,7 @@ impl ProgressSink for AppHandleProgressSink {
     }
 }
 
-/// Skip-decoder used when no streaming engine is loaded. Falling back to the
-/// main engine here contends `engine.lock()` with the post-stop final transcribe
-/// and reproduces a 30s TimedOut on release; returning empty instead keeps the
-/// main engine uncontested at the cost of disabling the live preview.
+/// No streaming engine — returns empty rather than contend `engine.lock()` with the final transcribe.
 pub struct NoOpDecoder;
 
 impl DictationDecoder for NoOpDecoder {
@@ -124,7 +112,6 @@ pub struct DictationStreamingWorker {
     shutdown_flag: Arc<AtomicBool>,
 }
 
-/// Owns worker thread; consumed on stop. `on_cleanup` is injected so lifecycle is unit-testable.
 pub struct DictationStreamingHandle {
     cmd_tx: mpsc::Sender<Cmd>,
     shutdown_flag: Arc<AtomicBool>,
@@ -132,7 +119,7 @@ pub struct DictationStreamingHandle {
     on_cleanup: Option<Box<dyn FnOnce() + Send>>,
 }
 
-/// Runs `on_cleanup` on drop unless `disarm`ed — guarantees keepalive release if thread spawn bails.
+/// Runs `on_cleanup` on drop unless `disarm`ed — releases keepalive if thread spawn bails.
 struct CleanupGuard(Option<Box<dyn FnOnce() + Send>>);
 
 impl CleanupGuard {
@@ -140,7 +127,6 @@ impl CleanupGuard {
         Self(Some(on_cleanup))
     }
 
-    /// Hands the closure to the caller; the guard no longer runs it on drop.
     fn disarm(mut self) -> Box<dyn FnOnce() + Send> {
         self.0.take().expect("CleanupGuard disarmed twice")
     }
@@ -155,8 +141,6 @@ impl Drop for CleanupGuard {
 }
 
 impl DictationStreamingWorker {
-    /// Production entry point. Wires the TranscriptionManager + AppHandle into
-    /// the injectable spawn path so the same code runs in tests with mocks.
     pub fn spawn(
         app_handle: AppHandle,
         transcription_manager: Arc<TranscriptionManager>,
@@ -198,17 +182,14 @@ impl DictationStreamingWorker {
         result
     }
 
-    /// Injectable spawn — used by tests and by [`spawn`] alike. Decoder + sink
-    /// are the only contact with the outside world; cleanup runs exactly once
-    /// on stop or Drop.
+    /// Cleanup runs exactly once, on stop or Drop.
     pub fn spawn_with_decoder(
         decoder: Arc<dyn DictationDecoder>,
         sink: Arc<dyn ProgressSink>,
         on_cleanup: Box<dyn FnOnce() + Send>,
         cfg: StreamingConfig,
     ) -> std::io::Result<(Arc<Self>, DictationStreamingHandle)> {
-        // If the `?` below bails, the guard drops and runs on_cleanup — releasing the keepalive
-        // acquired in spawn() before this call, which would otherwise leak forever.
+        // `?` below bails → guard drops → keepalive acquired in spawn() released, not leaked
         let cleanup_guard = CleanupGuard::new(on_cleanup);
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
         let shutdown_flag = Arc::new(AtomicBool::new(false));
@@ -273,14 +254,7 @@ impl DictationStreamingHandle {
         self.stop_in_place();
     }
 
-    /// Idempotent: stop+Drop or double stop both safe.
-    ///
-    /// Bounded: the worker only checks `shutdown_flag` *between* decode batches,
-    /// so a single in-flight whisper FFI decode cannot be preempted. Rather than
-    /// block the caller (and through it the un-abortable stop-flow task) on an
-    /// unbounded `h.join()`, we poll for [`WORKER_JOIN_BUDGET`] then detach the
-    /// thread. The orphan finishes on its own and only touches `streaming_engine`,
-    /// so it can never starve the main-engine final transcribe.
+    /// Idempotent. Bounded by [`WORKER_JOIN_BUDGET`] — an un-preemptable decode gets detached, never joined.
     fn stop_in_place(&mut self) {
         if self.join.is_none() && self.on_cleanup.is_none() {
             return;
@@ -329,15 +303,14 @@ impl DictationStreamingHandle {
 
 impl Drop for DictationStreamingHandle {
     fn drop(&mut self) {
-        // Safety net: signal shutdown and release the keepalive even if the
-        // owner forgot to call stop() (bounded — see stop_in_place).
+        // owner may have skipped stop() — release keepalive anyway
         if self.join.is_some() || self.on_cleanup.is_some() {
             self.stop_in_place();
         }
     }
 }
 
-/// Lets pipeline.push bail mid-decode batch; otherwise h.join() blocks past 30s timeout floor.
+/// Lets pipeline.push bail mid-batch; without it `h.join()` blocks past the 30s timeout floor.
 fn decode_or_skip_on_shutdown<F>(
     shutdown_flag: &AtomicBool,
     samples: &[f32],

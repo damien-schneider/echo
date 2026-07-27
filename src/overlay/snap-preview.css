@@ -36,8 +36,7 @@ body {
   opacity: 1;
 }
 
-/* Only an edge change animates: along one edge the placeholder tracks the
-   pointer, and a transition restarting every sample reads as stutter. */
+/* only an edge change animates — a transition restarting every sample reads as stutter */
 .echo-snap-preview[data-glide="true"] {
   transition:
     opacity 90ms ease-out,

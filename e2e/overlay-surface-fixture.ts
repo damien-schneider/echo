@@ -1,5 +1,4 @@
-// Mirrors src-tauri/src/overlay/surface.rs so the harness answers the same
-// geometry contract the native side publishes.
+// mirrors src-tauri/src/overlay/surface.rs — same geometry contract as the native side
 export const setupOverlaySurface = () => {
   const state = window.__ECHO_TEST_STATE__;
   const INSET = 4;
@@ -107,8 +106,7 @@ export const setupOverlaySurface = () => {
     };
   };
 
-  // Each window owns a channel, exactly like the native side: the HUD never
-  // hears about the geometry of a notification and the other way round.
+  // one channel per window, like the native side — neither hears the other's geometry
   state.surfaceEventFor = (mode: string) =>
     isResident(mode) ? "overlay-surface" : "overlay-notification-surface";
 

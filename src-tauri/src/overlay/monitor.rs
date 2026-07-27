@@ -36,8 +36,7 @@ struct NotchCacheKey {
     name: Option<String>,
 }
 
-/// Notch probing walks every NSScreen on the main thread; the answer only
-/// changes when the display arrangement does, so key the cache on identity.
+/// Notch probing walks every NSScreen on the main thread — cache keyed on display arrangement.
 static NOTCH_CACHE: std::sync::Mutex<Option<(NotchCacheKey, Option<OverlayNotchGeometry>)>> =
     std::sync::Mutex::new(None);
 

@@ -95,13 +95,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const animationRef = useRef<number | undefined>(undefined);
   const dragTimeRef = useRef<number>(0);
 
-  // Use refs to avoid stale closures in animation loop
+  // refs, not state — the animation loop would close over stale values
   const isPlayingRef = useRef(false);
   const isDraggingRef = useRef(false);
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
 
-  // Generate consistent waveform data based on the src
   const waveformData = useMemo(() => {
     const seed = src
       .split("")
@@ -113,7 +112,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     return Array.from({ length: barCount }, (_, i) => 0.15 + random(i) * 0.7);
   }, [src, barCount]);
 
-  // Keep refs in sync with state
   useEffect(() => {
     isPlayingRef.current = isPlaying;
   }, [isPlaying]);
@@ -130,7 +128,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     durationRef.current = duration;
   }, [duration]);
 
-  // Canvas resize handler
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -157,7 +154,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     return () => resizeObserver.disconnect();
   }, []);
 
-  // Render waveform
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Already extracted helpers, remaining complexity is inherent to waveform rendering
   const renderWaveform = useCallback(() => {
     const canvas = canvasRef.current;
@@ -229,16 +225,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     waveformData,
   ]);
 
-  // Watch for theme changes to re-render with new colors
   useEffect(() => {
     const observer = new MutationObserver(() => {
-      // Trigger re-render when theme changes
       setThemeVersion((v) => v + 1);
-      // Also immediately re-render the waveform
       renderWaveform();
     });
 
-    // Watch for class/attribute changes on html and body elements
     observer.observe(document.documentElement, {
       attributeFilter: ["class", "data-theme", "style"],
       attributes: true,
@@ -249,12 +241,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     });
 
     return () => observer.disconnect();
-  }, [
-    // Also immediately re-render the waveform
-    renderWaveform,
-  ]);
+  }, [renderWaveform]);
 
-  // Animation loop for playback
   useEffect(() => {
     const tick = () => {
       if (audioRef.current && !isDraggingRef.current) {
@@ -279,7 +267,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         cancelAnimationFrame(animationRef.current);
         animationRef.current = undefined;
       }
-      // Still render when not playing to show current state
       renderWaveform();
     }
 
@@ -295,14 +282,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     renderWaveform,
   ]);
 
-  // Re-render when currentTime changes (for scrubbing)
   useEffect(() => {
     if (!isPlaying) {
       renderWaveform();
     }
   }, [isPlaying, renderWaveform]);
 
-  // Audio event handlers
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) {
@@ -339,7 +324,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     };
   }, [renderWaveform]);
 
-  // Calculate time from click position
   const getTimeFromPosition = useCallback(
     (clientX: number) => {
       const container = containerRef.current;
@@ -361,7 +345,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     [barWidth, barGap, barCount, duration]
   );
 
-  // Mouse/touch handlers for scrubbing
   const handlePointerDown = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(true);

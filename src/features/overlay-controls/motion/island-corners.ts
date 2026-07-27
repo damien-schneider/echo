@@ -21,9 +21,7 @@ interface IslandCornerOptions {
   presentation: OverlayPresentation;
 }
 
-// A docked island grows out of the screen edge: the two corners touching that
-// edge stay square so the surface reads as attached rather than floating. An
-// island bridged to the notch touches the screen top the same way.
+// corners touching a screen edge stay square so the surface reads as attached, not floating
 export const islandCornerRadii = ({
   anchor,
   bridgesNotch,

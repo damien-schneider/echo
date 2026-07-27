@@ -30,8 +30,7 @@ pub(crate) fn release_recording_overlay_focus(app_handle: &AppHandle) -> Result<
     window::release_recording_overlay_focus(app_handle)
 }
 
-/// Holds the overlay panel out of key-window possession while synthetic paste
-/// keystrokes are in flight, so they reach the target app instead of the HUD.
+/// Keeps synthetic paste keystrokes off the HUD and on the target app.
 #[cfg(target_os = "macos")]
 pub(crate) struct OverlayPasteKeyGuard;
 
@@ -87,8 +86,7 @@ pub(crate) fn snap_recording_overlay_to_nearest_edge(app_handle: AppHandle) -> R
     snap::finish_drag(&app_handle)
 }
 
-/// Handing the island to the cursor's display is a teleport: the webview fades
-/// it out first, then asks for the move.
+/// A teleport — the webview fades the island out before asking for the move.
 #[tauri::command]
 pub(crate) fn move_recording_overlay_to_cursor_screen(app_handle: AppHandle) {
     window_modes::update_overlay_position(&app_handle);
@@ -131,9 +129,7 @@ pub(crate) fn hide_overlay_notification(app_handle: AppHandle) -> Result<(), Str
     window_modes::hide_notification(&app_handle)
 }
 
-/// The HUD opens chat and the model panel, but they are drawn by the
-/// notification window: the request crosses through Rust instead of one webview
-/// reaching into the other.
+/// Chat and the model panel live in the notification window — the request crosses through Rust.
 #[tauri::command]
 pub(crate) fn request_overlay_notification(
     app_handle: AppHandle,
@@ -142,8 +138,7 @@ pub(crate) fn request_overlay_notification(
     events::request_overlay_notification(&app_handle, &surface)
 }
 
-/// A HUD control that fails has nowhere to say so — the handle is a few pixels
-/// tall. The message goes out as a warning notification like any other.
+/// The HUD handle is a few pixels tall — failures surface as a warning notification instead.
 #[tauri::command]
 pub(crate) fn warn_from_overlay(app_handle: AppHandle, message: String) {
     events::show_warning_overlay(&app_handle, &message);

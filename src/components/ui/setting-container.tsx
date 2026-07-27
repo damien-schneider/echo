@@ -96,7 +96,6 @@ export const SettingContainer: React.FC<SettingContainerProps> = ({
     );
   }
 
-  // Horizontal layout (default)
   const horizontalContainerClasses = grouped
     ? "flex items-center justify-between py-2 px-4"
     : "flex items-center justify-between py-2 px-4 rounded-lg border border-border/20";

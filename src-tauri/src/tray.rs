@@ -14,21 +14,18 @@ pub enum TrayIconState {
 pub enum AppTheme {
     Dark,
     Light,
-    Colored, // Pink/colored theme for Linux
+    Colored,
 }
 
-/// Gets the current app theme, with Linux defaulting to Colored theme
 pub fn get_current_theme(app: &AppHandle) -> AppTheme {
     if cfg!(target_os = "linux") {
-        // On Linux, always use the colored theme
         AppTheme::Colored
     } else {
-        // On other platforms, map system theme to our app theme
         if let Some(main_window) = app.get_webview_window("main") {
             match main_window.theme().unwrap_or(Theme::Dark) {
                 Theme::Light => AppTheme::Light,
                 Theme::Dark => AppTheme::Dark,
-                _ => AppTheme::Dark, // Default fallback
+                _ => AppTheme::Dark,
             }
         } else {
             AppTheme::Dark
@@ -36,18 +33,14 @@ pub fn get_current_theme(app: &AppHandle) -> AppTheme {
     }
 }
 
-/// Gets the appropriate icon path for the given theme and state
 pub fn get_icon_path(theme: AppTheme, state: TrayIconState) -> &'static str {
     match (theme, state) {
-        // Dark theme uses light icons
         (AppTheme::Dark, TrayIconState::Idle) => "resources/tray_idle.png",
         (AppTheme::Dark, TrayIconState::Recording) => "resources/tray_idle.png",
         (AppTheme::Dark, TrayIconState::Transcribing) => "resources/tray_idle.png",
-        // Light theme uses dark icons
         (AppTheme::Light, TrayIconState::Idle) => "resources/tray_idle_dark.png",
         (AppTheme::Light, TrayIconState::Recording) => "resources/tray_idle_dark.png",
         (AppTheme::Light, TrayIconState::Transcribing) => "resources/tray_idle_dark.png",
-        // Colored theme uses echo icons (for Linux)
         (AppTheme::Colored, TrayIconState::Idle) => "resources/echo-icon-dark.png",
         (AppTheme::Colored, TrayIconState::Recording) => "resources/echo-icon-dark.png",
         (AppTheme::Colored, TrayIconState::Transcribing) => "resources/echo-icon-dark.png",
@@ -69,18 +62,15 @@ pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
         .expect("failed to set icon"),
     ));
 
-    // Update menu based on state
     update_tray_menu(app, &icon);
 }
 
 pub fn update_tray_menu(app: &AppHandle, state: &TrayIconState) {
-    // Platform-specific accelerators
     #[cfg(target_os = "macos")]
     let (settings_accelerator, quit_accelerator) = (Some("Cmd+,"), Some("Cmd+Q"));
     #[cfg(not(target_os = "macos"))]
     let (settings_accelerator, quit_accelerator) = (Some("Ctrl+,"), Some("Ctrl+Q"));
 
-    // Create common menu items
     // Dev build sits next to an installed Echo in the tray — the menu says which is which.
     let product_label = if cfg!(debug_assertions) {
         "Echo Dev"

@@ -3,14 +3,12 @@ use hound::{WavReader, WavSpec, WavWriter};
 use log::debug;
 use std::path::Path;
 
-/// Load audio samples from a WAV file
 pub fn load_wav_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let reader = WavReader::open(file_path.as_ref())
         .with_context(|| format!("Failed to open WAV file: {:?}", file_path.as_ref()))?;
 
     let spec = reader.spec();
 
-    // Read samples and convert to f32
     let samples: Vec<f32> = match spec.sample_format {
         hound::SampleFormat::Int => {
             let max_value = (1 << (spec.bits_per_sample - 1)) as f32;
@@ -34,7 +32,6 @@ pub fn load_wav_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     Ok(samples)
 }
 
-/// Save audio samples as a WAV file
 pub async fn save_wav_file<P: AsRef<Path>>(file_path: P, samples: &[f32]) -> Result<()> {
     let spec = WavSpec {
         channels: 1,
@@ -45,7 +42,6 @@ pub async fn save_wav_file<P: AsRef<Path>>(file_path: P, samples: &[f32]) -> Res
 
     let mut writer = WavWriter::create(file_path.as_ref(), spec)?;
 
-    // Convert f32 samples to i16 for WAV
     for sample in samples {
         let sample_i16 = (sample * i16::MAX as f32) as i16;
         writer.write_sample(sample_i16)?;

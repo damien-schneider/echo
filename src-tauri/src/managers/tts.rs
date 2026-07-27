@@ -1,14 +1,9 @@
-//! TTS Manager - System Text-to-Speech
-//!
-//! Manages system native TTS with automatic language detection
-
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
 use std::sync::Mutex;
 use tts::{Features, Tts, Voice};
 use whichlang::detect_language;
 
-/// Manager for system TTS with automatic language detection
 pub struct TtsManager {
     system_tts: Mutex<Option<Tts>>,
     #[allow(dead_code)]
@@ -16,7 +11,6 @@ pub struct TtsManager {
 }
 
 impl TtsManager {
-    /// Create a new TTS manager
     pub fn new() -> Self {
         Self {
             system_tts: Mutex::new(None),
@@ -24,7 +18,6 @@ impl TtsManager {
         }
     }
 
-    /// Initialize the system TTS engine
     pub fn initialize(&self) -> Result<()> {
         info!("Initializing native TTS engine...");
 
@@ -43,12 +36,10 @@ impl TtsManager {
         Ok(())
     }
 
-    /// Check if the system engine is ready
     pub fn is_ready(&self) -> bool {
         self.system_tts.lock().unwrap().is_some()
     }
 
-    /// Detect the language of the given text
     fn detect_language(&self, text: &str) -> Option<String> {
         let detected = detect_language(text);
         let lang_code = match detected {
@@ -77,7 +68,6 @@ impl TtsManager {
         Some(lang_code.to_string())
     }
 
-    /// Find the best voice for the given language (system TTS)
     fn find_voice_for_language(&self, language: &str) -> Option<Voice> {
         if !self.is_ready() {
             if let Err(e) = self.initialize() {
@@ -90,7 +80,6 @@ impl TtsManager {
         let tts = guard.as_ref()?;
         let voices = tts.voices().ok()?;
 
-        // Find a voice that matches the language prefix
         voices.into_iter().find(|v| {
             let voice_lang = v.language().to_string().to_lowercase();
             let target_lang = language.to_lowercase();
@@ -99,13 +88,11 @@ impl TtsManager {
         })
     }
 
-    /// Speak text using system TTS with automatic language detection and voice selection
     pub fn speak(&self, text: &str) -> Result<()> {
         if !self.is_ready() {
             self.initialize()?;
         }
 
-        // Detect language and find appropriate voice
         if let Some(detected_lang) = self.detect_language(text) {
             if let Some(voice) = self.find_voice_for_language(&detected_lang) {
                 let mut guard = self.system_tts.lock().unwrap();
@@ -126,7 +113,6 @@ impl TtsManager {
             }
         }
 
-        // Fallback to default voice
         debug!("Falling back to default voice");
         let mut guard = self.system_tts.lock().unwrap();
         let tts = guard.as_mut().context("TTS not initialized")?;

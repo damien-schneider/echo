@@ -9,15 +9,13 @@ import {
 import type { OverlayMode } from "@/features/overlay-controls/recording-overlay-state";
 import type { OverlayWindowChannel } from "@/features/overlay-controls/runtime/overlay-windows";
 
-// Backstop for a morph that never reports completion (interrupted animation,
-// detached surface): the window must not stay at its transition size.
+// backstop — a morph that never reports completion would strand the window at transition size
 const MORPH_SETTLE_TIMEOUT_MS = 900;
 
 interface NativeOverlayTransitionOptions<Mode extends OverlayMode> {
   channel: OverlayWindowChannel;
   initialMode: Mode;
-  /// `null` leaves the window untouched: the surface is on its way out and
-  /// keeps the frame it already holds until the exit animation is over.
+  /// `null` leaves the window untouched — an outgoing surface keeps its frame until the exit ends.
   mode: Mode | null;
 }
 

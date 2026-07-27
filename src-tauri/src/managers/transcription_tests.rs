@@ -156,8 +156,7 @@ mod timeout_tests {
 
     #[test]
     fn timeout_switches_at_floor_boundary() {
-        // At 10s (floor/multiplier) floor saturates; past that multiplier wins.
-        // Floor-relative so this stays correct if the floor const changes.
+        // floor saturates at floor/multiplier; expressed relative to the const so a bump stays correct
         let boundary_secs =
             (MIN_TRANSCRIPTION_TIMEOUT_SECS / TRANSCRIPTION_TIMEOUT_MULTIPLIER) as usize;
         let at_boundary = WHISPER_SAMPLE_RATE * boundary_secs;

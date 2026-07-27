@@ -11,8 +11,7 @@ pub(super) enum FormatNaming {
     Opaque,
 }
 
-/// The clipboard entries worth keeping, so restoring the user's clipboard puts
-/// back everything the platform will accept and nothing it will reject.
+/// Only entries the platform will accept back on restore.
 pub(super) fn restorable_formats(
     naming: FormatNaming,
     names: impl IntoIterator<Item = String>,
@@ -35,10 +34,7 @@ fn is_restorable(naming: FormatNaming, name: &str) -> bool {
     is_uniform_type_identifier(name)
 }
 
-/// AppKit reports the legacy name of a payload (`NSStringPboardType`) next to
-/// its modern identifier (`public.utf8-plain-text`). Writing the legacy one
-/// back is refused — "not a valid UTI string" — and takes the whole restore
-/// down with it, leaving the user without their clipboard.
+/// AppKit also reports legacy names (`NSStringPboardType`); writing one back fails with "not a valid UTI string".
 fn is_uniform_type_identifier(name: &str) -> bool {
     name.contains('.')
         && !name.starts_with('.')

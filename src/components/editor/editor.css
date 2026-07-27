@@ -1,12 +1,8 @@
-/* Plate Editor Styles */
-
-/* Base editor styles */
 [data-slate-editor] {
   min-height: 180px;
   outline: none;
 }
 
-/* Headings */
 [data-slate-editor] h1 {
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
@@ -40,14 +36,12 @@
   font-weight: 600;
 }
 
-/* Paragraphs */
 [data-slate-editor] p {
   margin-bottom: 0.5rem;
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
-/* Links */
 [data-slate-editor] a {
   color: hsl(var(--primary));
   text-decoration: underline;
@@ -59,7 +53,6 @@
   color: hsl(var(--primary) / 0.8);
 }
 
-/* Lists */
 [data-slate-editor] ul,
 [data-slate-editor] ol {
   padding-left: 1.5rem;
@@ -82,7 +75,6 @@
   margin-bottom: 0;
 }
 
-/* Task lists */
 [data-slate-editor] [data-slate-node="element"][data-slate-type="action_item"] {
   display: flex;
   gap: 0.5rem;
@@ -99,7 +91,6 @@
   cursor: pointer;
 }
 
-/* Blockquote */
 [data-slate-editor] blockquote {
   padding-left: 1rem;
   margin-bottom: 0.5rem;
@@ -109,7 +100,6 @@
   border-left: 3px solid hsl(var(--border));
 }
 
-/* Inline code */
 [data-slate-editor] code:not(pre code) {
   padding: 0.125rem 0.375rem;
   font-family:
@@ -120,7 +110,6 @@
   border-radius: 0.25rem;
 }
 
-/* Code blocks */
 [data-slate-editor] [data-slate-type="code_block"] {
   padding: 1rem;
   margin-bottom: 0.5rem;
@@ -141,14 +130,12 @@
   border-radius: 0;
 }
 
-/* Horizontal rule */
 [data-slate-editor] hr {
   margin: 1.5rem 0;
   border: none;
   border-top: 1px solid hsl(var(--border));
 }
 
-/* Selection */
 [data-slate-editor] ::selection {
   background-color: hsl(var(--primary) / 0.3);
 }
@@ -157,7 +144,6 @@
   background-color: hsl(var(--primary) / 0.3);
 }
 
-/* Mention styles */
 [data-slate-editor] [data-slate-type="mention"] {
   padding: 0.125rem 0.375rem;
   font-weight: 500;
@@ -166,7 +152,6 @@
   border-radius: 0.25rem;
 }
 
-/* Mention input styles */
 [data-slate-editor] [data-slate-type="mention_input"] {
   padding: 0.125rem 0.25rem;
   color: hsl(var(--primary));

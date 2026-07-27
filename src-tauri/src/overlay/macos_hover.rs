@@ -15,9 +15,7 @@ const HOVER_EXIT_MARGIN: f64 = 2.0;
 
 pub(super) static PASTE_KEY_SUPPRESSED: AtomicBool = AtomicBool::new(false);
 
-/// One panel's live hover state. The two overlay panels share a pointer, so
-/// each tracks its own possession: the notification taking key for chat must
-/// not make the HUD believe the pointer sits over its handle.
+/// Per-panel — the notification taking key for chat must not make the HUD think the pointer is on its handle.
 pub(super) struct PanelHoverState {
     accepts_key: AtomicBool,
     hover_box: Mutex<Option<OverlayBoxPayload>>,
@@ -91,11 +89,7 @@ impl PanelHoverState {
         self.pointer_inside.store(inside, Ordering::Release);
     }
 
-    /// The DOM cannot see the pointer until the panel is key, and WebKit only
-    /// reports moves once the pointer travels again — so reveal/collapse of the
-    /// resident island rides on this authoritative native boundary signal
-    /// instead of WebKit timing. Other modes own their surface; boundary noise
-    /// must not reveal the controls over them.
+    /// WebKit only reports moves once the pointer travels again, so the island rides this native boundary instead.
     pub(super) fn publish_pointer_boundary(&self, app_handle: &AppHandle, inside: bool) {
         if !self.is_resident.load(Ordering::Acquire) {
             return;
@@ -154,9 +148,7 @@ pub(super) struct HoverKeySample {
     pub(super) pointer_inside: bool,
 }
 
-/// Key-possession policy for one pointer sample. Deliberately stateless: a
-/// mode change under the pointer makes the panel transiently lose key, so
-/// possession is simply re-taken whenever the pointer is inside without it.
+/// Stateless — a mode change drops key transiently, so possession is just re-taken while the pointer is inside.
 pub(super) fn decide_hover_key(sample: HoverKeySample) -> HoverKeyAction {
     if sample.keyboard_mode {
         // Chat owns key deliberately, wherever the pointer goes.
@@ -174,8 +166,7 @@ pub(super) fn decide_hover_key(sample: HoverKeySample) -> HoverKeyAction {
     HoverKeyAction::TakeKey
 }
 
-/// AppKit frames grow upward from the bottom-left; the shared island box is
-/// window-local with a top-left origin, so the vertical axis flips here.
+/// AppKit origin is bottom-left, the island box top-left — the vertical axis flips here.
 fn hover_region_in_screen(
     frame: (f64, f64, f64, f64),
     island: OverlayBoxPayload,
@@ -200,8 +191,7 @@ pub(super) fn overlay_hover_region_for_pointer(
     Some(hover_region_in_screen(frame, island?))
 }
 
-/// Rectangle test with asymmetric hysteresis: entry requires the pointer
-/// inside the rendered surface; exit allows a small margin around it.
+/// Asymmetric hysteresis — entry needs the pointer inside, exit allows a margin.
 pub(super) fn hover_pointer_inside(
     frame: (f64, f64, f64, f64),
     pointer: (f64, f64),

@@ -4,8 +4,7 @@ use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 const SCREEN_HANDOFF_EVENT: &str = "overlay-screen-handoff";
-/// Reaching for the island can overshoot a pixel onto the next display: the
-/// pointer has to settle there before the island follows it over.
+/// Reaching for the island can overshoot onto the next display — the pointer must settle before it follows.
 pub(super) const SCREEN_FOLLOW_DWELL: Duration = Duration::from_secs(2);
 
 static DWELL_SINCE: Mutex<Option<Instant>> = Mutex::new(None);
@@ -57,8 +56,7 @@ pub(super) fn disarm() {
     replace_dwell(None);
 }
 
-/// The webview fades the island out and then asks for the move: a window that
-/// teleports mid-animation reads as a flicker.
+/// The webview fades out before asking for the move — a mid-animation teleport reads as a flicker.
 pub(super) fn request_handoff(app_handle: &AppHandle) {
     let _ = app_handle.emit_to(RECORDING_OVERLAY_LABEL, SCREEN_HANDOFF_EVENT, ());
 }

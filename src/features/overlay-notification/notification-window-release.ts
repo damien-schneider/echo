@@ -1,7 +1,6 @@
 import type { NotificationMode } from "@/features/overlay-controls/recording-overlay-state";
 
-/// Long enough to outlast the island morph and its exit animation, so the
-/// backstop only ever fires on a surface that truly stopped arriving.
+/// Outlasts the morph and its exit animation, so the backstop only fires on a surface that never arrived.
 export const NOTIFICATION_RELEASE_DELAY_MS = 1200;
 
 interface NotificationWindowEmptinessOptions {
@@ -10,10 +9,7 @@ interface NotificationWindowEmptinessOptions {
   mode: NotificationMode | null;
 }
 
-/// Rust shows the native window before React has anything to draw into it. When
-/// the surface never lands or the mode is dropped without an exit animation,
-/// nothing unmounts and the empty frame would stay on screen — this is what
-/// folds it back into the notch.
+/// Rust shows the native window before React can draw — without this the empty frame would stay on screen.
 export const notificationWindowIsEmpty = ({
   hasSurface,
   isPreparing,

@@ -1,9 +1,4 @@
-//! Core shortcut initialization and registration logic.
-//!
-//! This module handles keyboard shortcut registration with platform-specific backends:
-//! - **X11 (Linux)**: Uses tauri-plugin-global-shortcut (via global-hotkey crate)
-//! - **Wayland (Linux)**: Uses XDG Desktop Portal GlobalShortcuts
-//! - **Windows/macOS**: Uses tauri-plugin-global-shortcut
+//! Wayland goes through the XDG Desktop Portal; every other platform uses tauri-plugin-global-shortcut.
 
 use log::{error, info, warn};
 use tauri::{AppHandle, Manager};
@@ -89,14 +84,8 @@ where
     Ok(())
 }
 
-/// Initialize all shortcuts from settings.
-/// Only registers shortcuts that have corresponding actions in ACTION_MAP.
-///
-/// On Linux, automatically detects X11 vs Wayland and uses the appropriate backend:
-/// - X11: Uses tauri-plugin-global-shortcut (works reliably)
-/// - Wayland: Uses XDG Desktop Portal GlobalShortcuts (standard Wayland approach)
+/// Skips bindings with no entry in ACTION_MAP.
 pub fn init_shortcuts(app: &AppHandle) {
-    // On Linux, check if we're running under Wayland
     #[cfg(target_os = "linux")]
     {
         let session_type = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();
@@ -114,11 +103,9 @@ pub fn init_shortcuts(app: &AppHandle) {
         info!("[Shortcuts] X11 session detected, using standard global shortcut plugin");
     }
 
-    // X11, Windows, macOS: use standard tauri-plugin-global-shortcut
     init_x11_shortcuts(app);
 }
 
-/// Initialize shortcuts for X11/Windows/macOS using tauri-plugin-global-shortcut.
 fn init_x11_shortcuts(app: &AppHandle) {
     let settings = settings::load_or_create_app_settings(app);
 
@@ -128,7 +115,6 @@ fn init_x11_shortcuts(app: &AppHandle) {
     );
 
     for (_id, binding) in settings.bindings {
-        // Skip bindings that don't have corresponding actions
         if !ACTION_MAP.contains_key(&binding.id) {
             warn!(
                 "Skipping binding '{}' - no action defined in ACTION_MAP",
@@ -147,12 +133,10 @@ fn init_x11_shortcuts(app: &AppHandle) {
     }
 }
 
-/// Initialize shortcuts for Wayland using XDG Desktop Portal.
 #[cfg(target_os = "linux")]
 fn init_wayland_shortcuts(app: &AppHandle) {
     let app_clone = app.clone();
 
-    // Spawn async task for Wayland portal initialization
     tauri::async_runtime::spawn(async move {
         match super::wayland::init_wayland_shortcuts(&app_clone).await {
             Ok(()) => {
@@ -166,9 +150,7 @@ fn init_wayland_shortcuts(app: &AppHandle) {
     });
 }
 
-/// Determine whether a shortcut string contains at least one non-modifier key.
-/// We allow single non-modifier keys (e.g. "f5" or "space") but disallow
-/// modifier-only combos (e.g. "ctrl" or "ctrl+shift").
+/// Rejects modifier-only combos; a bare "f5" or "space" is fine.
 pub fn validate_shortcut_string(raw: &str) -> Result<(), String> {
     let modifiers = [
         "ctrl", "control", "shift", "alt", "option", "meta", "command", "cmd", "super", "win",
@@ -184,7 +166,6 @@ pub fn validate_shortcut_string(raw: &str) -> Result<(), String> {
     }
 }
 
-/// Register a single shortcut binding.
 pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
     let binding_id = binding.id.clone();
     let binding_text = binding.current_binding.clone();
@@ -316,7 +297,6 @@ fn shortcut_event(state: ShortcutState) -> ShortcutEvent {
     ShortcutEvent::Released
 }
 
-/// Unregister a single shortcut binding.
 pub fn unregister_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
     let shortcut = match binding.current_binding.parse::<Shortcut>() {
         Ok(s) => s,

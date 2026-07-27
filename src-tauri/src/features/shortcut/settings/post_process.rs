@@ -1,10 +1,7 @@
-//! Post-processing (LLM) related settings commands.
-
 use tauri::AppHandle;
 
 use crate::settings::{self, LLMPrompt};
 
-/// Generic helper to validate provider exists.
 fn validate_provider_exists(
     settings: &settings::AppSettings,
     provider_id: &str,
@@ -19,7 +16,6 @@ fn validate_provider_exists(
     Ok(())
 }
 
-/// Change post-process base URL setting.
 #[tauri::command]
 pub fn change_post_process_base_url_setting(
     app: AppHandle,
@@ -48,7 +44,6 @@ pub fn change_post_process_base_url_setting(
     })
 }
 
-/// Change post-process API key setting.
 #[tauri::command]
 pub fn change_post_process_api_key_setting(
     app: AppHandle,
@@ -63,7 +58,6 @@ pub fn change_post_process_api_key_setting(
     })
 }
 
-/// Change post-process model setting.
 #[tauri::command]
 pub fn change_post_process_model_setting(
     app: AppHandle,
@@ -78,7 +72,6 @@ pub fn change_post_process_model_setting(
     })
 }
 
-/// Set the active post-process provider.
 #[tauri::command]
 pub fn set_post_process_provider(app: AppHandle, provider_id: String) -> Result<(), String> {
     settings::try_update_settings(&app, |s| {
@@ -88,7 +81,6 @@ pub fn set_post_process_provider(app: AppHandle, provider_id: String) -> Result<
     })
 }
 
-/// Add a new post-process prompt.
 #[tauri::command]
 pub fn add_post_process_prompt(
     app: AppHandle,
@@ -111,7 +103,6 @@ pub fn add_post_process_prompt(
     Ok(result)
 }
 
-/// Update an existing post-process prompt.
 #[tauri::command]
 pub fn update_post_process_prompt(
     app: AppHandle,
@@ -130,7 +121,6 @@ pub fn update_post_process_prompt(
     })
 }
 
-/// Delete a post-process prompt.
 #[tauri::command]
 pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), String> {
     settings::try_update_settings(&app, |s| {
@@ -154,7 +144,6 @@ pub fn delete_post_process_prompt(app: AppHandle, id: String) -> Result<(), Stri
     })
 }
 
-/// Fetch available models from a post-process provider.
 #[tauri::command]
 pub async fn fetch_post_process_models(
     app: AppHandle,
@@ -162,22 +151,19 @@ pub async fn fetch_post_process_models(
 ) -> Result<Vec<String>, String> {
     let settings = settings::get_settings(&app);
 
-    // Find the provider
     let provider = settings
         .post_process_providers
         .iter()
         .find(|p| p.id == provider_id)
         .ok_or_else(|| format!("Provider '{}' not found", provider_id))?;
 
-    // Get API key
     let api_key = settings
         .post_process_api_keys
         .get(&provider_id)
         .cloned()
         .unwrap_or_default();
 
-    // Skip fetching if no API key for providers that typically need one
-    // Ollama and custom providers don't require API keys
+    // ollama + custom need no key
     if api_key.trim().is_empty() && !["custom", "ollama"].contains(&provider.id.as_str()) {
         return Err(format!(
             "API key is required for {}. Please add an API key to list available models.",
@@ -188,16 +174,12 @@ pub async fn fetch_post_process_models(
     fetch_models_manual(provider, api_key).await
 }
 
-/// Fetch models using manual HTTP request.
-/// This gives us more control and avoids issues with non-standard endpoints.
 async fn fetch_models_manual(
     provider: &crate::settings::PostProcessProvider,
     api_key: String,
 ) -> Result<Vec<String>, String> {
-    // Build the endpoint URL
-    // For Ollama, use the base URL without /v1 suffix for the tags endpoint
     let (base_url, models_endpoint) = if provider.id == "ollama" {
-        // Ollama's /api/tags endpoint is not under /v1
+        // ollama /api/tags sits outside /v1
         let base = provider
             .base_url
             .trim_end_matches('/')
@@ -214,7 +196,6 @@ async fn fetch_models_manual(
     };
     let endpoint = format!("{}/{}", base_url, models_endpoint);
 
-    // Create HTTP client with headers
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         "HTTP-Referer",
@@ -222,7 +203,6 @@ async fn fetch_models_manual(
     );
     headers.insert("X-Title", reqwest::header::HeaderValue::from_static("Echo"));
 
-    // Add provider-specific headers
     if provider.id == "anthropic" {
         if !api_key.is_empty() {
             headers.insert(
@@ -248,7 +228,6 @@ async fn fetch_models_manual(
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
 
-    // Make the request
     let response = http_client
         .get(&endpoint)
         .send()
@@ -267,7 +246,6 @@ async fn fetch_models_manual(
         ));
     }
 
-    // Parse the response
     let parsed: serde_json::Value = response
         .json()
         .await
@@ -275,7 +253,7 @@ async fn fetch_models_manual(
 
     let mut models = Vec::new();
 
-    // Handle Ollama format: { models: [ { name: "llama3:latest", ... }, ... ] }
+    // ollama: { models: [{ name }] }
     if let Some(ollama_models) = parsed.get("models").and_then(|m| m.as_array()) {
         for entry in ollama_models {
             if let Some(name) = entry.get("name").and_then(|n| n.as_str()) {
@@ -283,7 +261,7 @@ async fn fetch_models_manual(
             }
         }
     }
-    // Handle OpenAI format: { data: [ { id: "..." }, ... ] }
+    // openai: { data: [{ id }] }
     else if let Some(data) = parsed.get("data").and_then(|d| d.as_array()) {
         for entry in data {
             if let Some(id) = entry.get("id").and_then(|i| i.as_str()) {
@@ -293,7 +271,7 @@ async fn fetch_models_manual(
             }
         }
     }
-    // Handle array format: [ "model1", "model2", ... ]
+    // bare array of names
     else if let Some(array) = parsed.as_array() {
         for entry in array {
             if let Some(model) = entry.as_str() {
@@ -305,22 +283,17 @@ async fn fetch_models_manual(
     Ok(models)
 }
 
-/// Check whether a model supports tool calling for the given provider.
-///
-/// Returns `Some(true)` when tools are supported, `Some(false)` when they are
-/// not, and `None` when support cannot be determined (e.g. custom providers).
+/// `None` when support cannot be determined (custom providers).
 #[tauri::command]
 pub async fn check_model_tool_support(
     app: AppHandle,
     provider_id: String,
     model: String,
 ) -> Result<Option<bool>, String> {
-    // Known cloud providers always support tool calling
     if ["openai", "anthropic", "openrouter"].contains(&provider_id.as_str()) {
         return Ok(Some(true));
     }
 
-    // For Ollama, query the `/api/show` endpoint for capabilities
     if provider_id == "ollama" {
         let settings = settings::get_settings(&app);
         let provider = settings
@@ -333,11 +306,9 @@ pub async fn check_model_tool_support(
         return check_ollama_tool_support(&provider, &model).await;
     }
 
-    // Custom / unknown providers – we can't determine support
     Ok(None)
 }
 
-/// Query Ollama's `/api/show` endpoint and check the `capabilities` array.
 async fn check_ollama_tool_support(
     provider: &crate::settings::PostProcessProvider,
     model: &str,
@@ -359,8 +330,7 @@ async fn check_ollama_tool_support(
         .map_err(|e| format!("Failed to query Ollama model info: {}", e))?;
 
     if !response.status().is_success() {
-        // If the endpoint is unavailable (old Ollama, model not found, etc.)
-        // fall back to "unknown" rather than erroring out.
+        // old Ollama or missing model — unknown, not an error
         return Ok(None);
     }
 
@@ -369,17 +339,15 @@ async fn check_ollama_tool_support(
         .await
         .map_err(|e| format!("Failed to parse Ollama model info: {}", e))?;
 
-    // Recent Ollama versions expose a `capabilities` array, e.g. ["completion", "tools"]
+    // `capabilities` exists only on recent Ollama
     if let Some(capabilities) = parsed.get("capabilities").and_then(|c| c.as_array()) {
         let supports_tools = capabilities.iter().any(|cap| cap.as_str() == Some("tools"));
         return Ok(Some(supports_tools));
     }
 
-    // Older Ollama versions don't expose capabilities – unknown
     Ok(None)
 }
 
-/// Set the selected post-process prompt.
 #[tauri::command]
 pub fn set_post_process_selected_prompt(app: AppHandle, id: Option<String>) -> Result<(), String> {
     settings::try_update_settings(&app, |s| {
@@ -394,7 +362,6 @@ pub fn set_post_process_selected_prompt(app: AppHandle, id: Option<String>) -> R
     })
 }
 
-/// Change voice commands (tool calling) enabled setting.
 #[tauri::command]
 pub fn change_voice_commands_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     settings::update_settings(&app, |s| {
@@ -403,7 +370,6 @@ pub fn change_voice_commands_enabled_setting(app: AppHandle, enabled: bool) -> R
     Ok(())
 }
 
-/// Change post-process enabled setting.
 #[tauri::command]
 pub fn change_post_process_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     settings::update_settings(&app, |s| {

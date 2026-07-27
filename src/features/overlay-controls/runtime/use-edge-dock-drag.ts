@@ -18,8 +18,7 @@ import { listenCancellable } from "@/lib/tauri-listener";
 
 const invokeDrag = (command: string) => invoke(command).catch(() => undefined);
 
-// The compositor swallows the mouse-up that ends a native window drag, so Rust
-// watches the pointer and reports the drop back through one event.
+// the compositor swallows the mouse-up ending a native drag, so Rust reports the drop instead
 export const useEdgeDockDrag = () => {
   const [isDragging, setIsDragging] = useState(false);
   const holdsGrip = useRef(false);
@@ -63,8 +62,7 @@ export const useEdgeDockDrag = () => {
     };
   }, []);
 
-  // A fresh press always wins: it proves the previous release never reached the
-  // webview, and Rust restarts the session anyway.
+  // a fresh press proves the previous release never reached the webview
   const onGripPointerDown = async (
     event: ReactPointerEvent<HTMLButtonElement>
   ) => {

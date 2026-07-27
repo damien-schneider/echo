@@ -187,8 +187,7 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
         }
     );
 
-    // The overlay panel may hold key-window status for hover; synthetic
-    // keystrokes would land in the HUD instead of the target app.
+    // overlay may hold key for hover — synthetic keystrokes would land in the HUD
     #[cfg(target_os = "macos")]
     let _overlay_key_guard = crate::overlay::OverlayPasteKeyGuard::acquire(&app_handle);
 

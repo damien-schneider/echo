@@ -17,8 +17,7 @@ const viewportSurface = () =>
     width: window.innerWidth,
   });
 
-/// The HUD listens to the activity stream only to know whether an operation is
-/// running — the words themselves belong to the notification window.
+/// The HUD listens only for whether an operation is running; the words belong to the notification.
 export const useHudEvents = () => {
   const [activity, dispatch] = useReducer(
     reduceOverlayActivity,

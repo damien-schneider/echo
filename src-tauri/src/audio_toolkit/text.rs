@@ -1,26 +1,16 @@
 use natural::phonetics::soundex;
 use strsim::levenshtein;
 
-/// Applies custom word corrections to transcribed text using fuzzy matching
-///
-/// This function corrects words in the input text by finding the best matches
-/// from a list of custom words using a combination of:
-/// - Levenshtein distance for string similarity
-/// - Soundex phonetic matching for pronunciation similarity
-///
-/// # Arguments
-/// * `text` - The input text to correct
-/// * `custom_words` - List of custom words to match against
-/// * `threshold` - Maximum similarity score to accept (0.0 = exact match, 1.0 = any match)
-///
-/// # Returns
-/// The corrected text with custom words applied
+const MAX_MATCHABLE_WORD_LEN: usize = 50;
+const MAX_LEN_DIFF_FOR_MATCH: i32 = 5;
+const PHONETIC_MATCH_BONUS: f64 = 0.3;
+
+/// Levenshtein + Soundex fuzzy match; `threshold` is a max score — 0.0 exact, 1.0 anything.
 pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -> String {
     if custom_words.is_empty() {
         return text.to_string();
     }
 
-    // Pre-compute lowercase versions to avoid repeated allocations
     let custom_words_lower: Vec<String> = custom_words.iter().map(|w| w.to_lowercase()).collect();
 
     let words: Vec<&str> = text.split_whitespace().collect();
@@ -36,8 +26,7 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
             continue;
         }
 
-        // Skip extremely long words to avoid performance issues
-        if cleaned_word.len() > 50 {
+        if cleaned_word.len() > MAX_MATCHABLE_WORD_LEN {
             corrected_words.push(word.to_string());
             continue;
         }
@@ -46,13 +35,11 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
         let mut best_score = f64::MAX;
 
         for (i, custom_word_lower) in custom_words_lower.iter().enumerate() {
-            // Skip if lengths are too different (optimization)
             let len_diff = (cleaned_word.len() as i32 - custom_word_lower.len() as i32).abs();
-            if len_diff > 5 {
+            if len_diff > MAX_LEN_DIFF_FOR_MATCH {
                 continue;
             }
 
-            // Calculate Levenshtein distance (normalized by length)
             let levenshtein_dist = levenshtein(&cleaned_word, custom_word_lower);
             let max_len = cleaned_word.len().max(custom_word_lower.len()) as f64;
             let levenshtein_score = if max_len > 0.0 {
@@ -61,17 +48,14 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
                 1.0
             };
 
-            // Calculate phonetic similarity using Soundex
             let phonetic_match = soundex(&cleaned_word, custom_word_lower);
 
-            // Combine scores: favor phonetic matches, but also consider string similarity
             let combined_score = if phonetic_match {
-                levenshtein_score * 0.3 // Give significant boost to phonetic matches
+                levenshtein_score * PHONETIC_MATCH_BONUS
             } else {
                 levenshtein_score
             };
 
-            // Accept if the score is good enough (configurable threshold)
             if combined_score < threshold && combined_score < best_score {
                 best_match = Some(&custom_words[i]);
                 best_score = combined_score;
@@ -79,10 +63,8 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
         }
 
         if let Some(replacement) = best_match {
-            // Preserve the original case pattern as much as possible
             let corrected = preserve_case_pattern(word, replacement);
 
-            // Preserve punctuation from original word
             let (prefix, suffix) = extract_punctuation(word);
             corrected_words.push(format!("{}{}{}", prefix, corrected, suffix));
         } else {
@@ -93,7 +75,6 @@ pub fn apply_custom_words(text: &str, custom_words: &[String], threshold: f64) -
     corrected_words.join(" ")
 }
 
-/// Preserves the case pattern of the original word when applying a replacement
 fn preserve_case_pattern(original: &str, replacement: &str) -> String {
     if original.chars().all(|c| c.is_uppercase()) {
         replacement.to_uppercase()
@@ -108,7 +89,6 @@ fn preserve_case_pattern(original: &str, replacement: &str) -> String {
     }
 }
 
-/// Extracts punctuation prefix and suffix from a word
 fn extract_punctuation(word: &str) -> (&str, &str) {
     let prefix_end = word.chars().take_while(|c| !c.is_alphabetic()).count();
     let suffix_start = word

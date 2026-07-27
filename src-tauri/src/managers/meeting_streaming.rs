@@ -9,10 +9,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
-/// Upper bound on how long [`StreamingWorkerHandle::stop`] waits for the worker
-/// to exit. Mirrors the dictation worker: a single in-flight whisper FFI decode
-/// is non-cancellable (the shutdown flag is only observed *between* batches), so
-/// past this budget we detach the thread instead of blocking the async stop path.
+/// Whisper FFI decode is non-cancellable — past this budget the worker thread is detached, not joined.
 const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 
 use super::streaming::{PipelineEvent, StreamingConfig, StreamingPipeline};
@@ -184,13 +181,7 @@ impl StreamingWorker {
 }
 
 impl StreamingWorkerHandle {
-    /// Bounded stop: the worker only checks `shutdown_flag` *between* decode
-    /// batches, so a single in-flight whisper FFI decode is non-cancellable.
-    /// Rather than block the caller (and the async meeting-stop path) on an
-    /// unbounded `h.join()`, poll for [`WORKER_JOIN_BUDGET`] then detach. The
-    /// orphan exits on its own once the FFI returns — but it still holds the
-    /// streaming engine, so we must NOT unload the model on the detach path or
-    /// the orphan would decode against a torn-down engine.
+    /// Bounded by [`WORKER_JOIN_BUDGET`], then detaches. A detached orphan still holds the engine — never unload on that path.
     pub fn stop(mut self) {
         self.shutdown_flag.store(true, Ordering::SeqCst);
         let _ = self.cmd_tx.send(Cmd::Shutdown);

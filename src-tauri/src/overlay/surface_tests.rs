@@ -56,9 +56,7 @@ fn transient_surface_keeps_the_notch_strip_and_starts_below_it() {
     assert_eq!(surface.island.width, width - 8.0);
 }
 
-/// The webview only paints the strip between the notch and the island when the
-/// island is wide enough to hide the cut-out; residents stay narrower and keep
-/// floating below it.
+/// The notch strip is painted only when the island is wide enough to hide the cut-out.
 #[test]
 fn only_transient_top_surfaces_outgrow_the_notch_they_hang_from() {
     let top = placement(OverlayPosition::Top, OverlayDockEdge::Top);

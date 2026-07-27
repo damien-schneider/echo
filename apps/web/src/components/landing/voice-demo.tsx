@@ -4,8 +4,6 @@ import { AnimatePresence, motion, useInView } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import EchoLogo from "@/components/icons/echo-logo";
 
-/* ── Scene data ────────────────────────────────────────────────────── */
-
 const SCENES = [
   {
     id: "notes",
@@ -84,8 +82,6 @@ const SCENES = [
   },
 ];
 
-/* ── Scene notch overlay ───────────────────────────────────────────── */
-
 function SceneNotch({ text }: { text: string }) {
   const BAR_DELAYS = [0, 120, 240, 360];
 
@@ -127,8 +123,6 @@ function SceneNotch({ text }: { text: string }) {
     </div>
   );
 }
-
-/* ── Desktop scene ─────────────────────────────────────────────────── */
 
 function DesktopScene({ scene }: { scene: (typeof SCENES)[number] }) {
   const [charCount, setCharCount] = useState(0);
@@ -258,15 +252,11 @@ function Cursor() {
   );
 }
 
-/* ── CSS keyframes ─────────────────────────────────────────────────── */
-
 const notchCSS = `
 @keyframes scene-notch-pulse {
   0%, 100% { height: 20%; opacity: 0.3; }
   50% { height: 55%; opacity: 0.6; }
 }`;
-
-/* ── Main section ──────────────────────────────────────────────────── */
 
 export default function VoiceDemo() {
   const [active, setActive] = useState(0);

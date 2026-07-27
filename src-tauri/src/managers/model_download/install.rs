@@ -33,9 +33,7 @@ impl ModelManager {
         Ok(())
     }
 
-    /// An installed artifact is hashed once and answered from its receipt after
-    /// that: a 2.5 GB checksum on every launch costs more than the model load it
-    /// guards.
+    /// Hashed once, then answered from its receipt — a 2.5 GB checksum per launch costs more than it guards.
     fn verify_installed_artifact(&self, target: VerificationTarget<'_>) -> Result<()> {
         if receipt::artifact_is_verified(target.path, target.expected_sha256) {
             log::debug!(

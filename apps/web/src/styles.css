@@ -6,7 +6,6 @@
 
 :root {
   --radius: 0.625rem;
-  /* ─── Light: Morning paper studio ─── */
   --background: oklch(0.975 0.008 75);
   --foreground: oklch(0.13 0 0);
   --card: oklch(0.955 0.008 75);
@@ -86,7 +85,6 @@
 }
 
 .dark {
-  /* ─── Dark: Midnight recording booth ─── */
   --background: oklch(0.095 0 0);
   --foreground: oklch(0.93 0.01 80);
   --card: oklch(0.13 0 0);

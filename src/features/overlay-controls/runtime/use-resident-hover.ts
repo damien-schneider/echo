@@ -22,8 +22,7 @@ interface ResidentPointerExitOptions {
   residentRef: RefObject<HTMLDivElement | null>;
 }
 
-// Native events own the boundary on macOS. This window-level geometry check
-// is the DOM fallback for platforms where no native boundary event arrives.
+// DOM fallback for platforms with no native boundary event; macOS uses the native one
 const useResidentPointerExit = ({
   isExpanded,
   onDomLeave,
@@ -53,9 +52,7 @@ const useResidentPointerExit = ({
   }, [isExpanded]);
 };
 
-// Native boundary samples from the Rust hover monitors are authoritative on
-// macOS: the DOM sees no pointer until the panel becomes key, and WebKit
-// reports nothing further until the pointer moves again.
+// authoritative on macOS — the DOM sees no pointer until the panel is key, and only while it moves
 const useNativePointerBoundary = (
   dispatch: (event: ResidentHoverEvent) => void
 ) => {

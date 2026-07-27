@@ -1,5 +1,4 @@
-/// All the HUD tracks is whether its action row is out. Chat and the model
-/// panel live in the notification window, so they are not state here any more.
+/// Only whether the action row is out — chat and the model panel are notification state.
 export interface IslandControlState {
   isControlsOpen: boolean;
 }

@@ -11,8 +11,7 @@ const sizesMatch = (current: IslandSize | null, next: IslandSize) =>
   current.height === next.height &&
   current.width === next.width;
 
-// Content-sized surfaces (activity, panel, chat) only know their size once
-// laid out; the reserved box from Rust is the upper bound, not the target.
+// content-sized surfaces know their size only once laid out — Rust's box is the upper bound
 export const useMeasuredIslandSize = () => {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
   const [size, setSize] = useState<IslandSize | null>(null);

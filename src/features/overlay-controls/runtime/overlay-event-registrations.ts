@@ -40,8 +40,7 @@ export interface OverlayEventPorts {
 
 type ActivityPorts = Pick<OverlayEventPorts, "dispatch">;
 
-/// Both windows read the activity stream: the notification writes it out, the
-/// HUD only needs to know an operation is running to light its record button.
+/// The notification writes activity out; the HUD only needs it to light the record button.
 const visibilityRegistrations = (ports: ActivityPorts) => [
   () =>
     listen<unknown>("show-overlay", (event) => {
@@ -118,8 +117,7 @@ export const overlayEventRegistrations = (ports: OverlayEventPorts) => [
   ...surfaceRegistration(ports),
 ];
 
-/// The HUD never renders a transcript, a download or a microphone, so it stays
-/// out of those streams entirely.
+/// The HUD renders no transcript, download or microphone, so it skips those streams.
 export const hudEventRegistrations = (
   ports: Omit<OverlayEventPorts, "microphoneRef">
 ) => [...visibilityRegistrations(ports), ...surfaceRegistration(ports)];

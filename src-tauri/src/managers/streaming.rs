@@ -144,7 +144,6 @@ impl StreamingPipeline {
 
         let mut events = Vec::new();
 
-        // 1) Silence after speech → finalize.
         if self.had_speech_in_buffer
             && self.buffer.len() >= self.cfg.min_window_samples
             && self.silence_run_samples >= self.cfg.silence_flush_samples
@@ -155,7 +154,7 @@ impl StreamingPipeline {
             return events;
         }
 
-        // 2) Pure-silence past min_window → drop, never feed whisper.
+        // silence-only buffer never reaches whisper
         if !self.had_speech_in_buffer && self.buffer.len() >= self.cfg.min_window_samples {
             self.buffer.clear();
             self.samples_since_decode = 0;
@@ -164,7 +163,7 @@ impl StreamingPipeline {
             return events;
         }
 
-        // 3) Hard cap → force-final. Speech-gated to avoid empty Final.
+        // speech-gated — an empty buffer would emit an empty Final
         if self.had_speech_in_buffer && self.buffer.len() >= self.cfg.max_window_samples {
             if let Some(ev) = self.finalize_now(decode) {
                 events.push(ev);
@@ -172,7 +171,6 @@ impl StreamingPipeline {
             return events;
         }
 
-        // 4) Periodic interim.
         if self.had_speech_in_buffer
             && self.buffer.len() >= self.cfg.min_window_samples
             && self.samples_since_decode >= self.cfg.step_samples

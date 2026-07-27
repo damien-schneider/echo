@@ -19,8 +19,6 @@ pub struct ToolResult {
     pub success: bool,
 }
 
-// ── Voice-tool Tauri commands ──────────────────────────────────────────
-
 #[tauri::command]
 pub fn execute_change_sound_theme(app: AppHandle) -> ToolResult {
     let current_theme = settings::get_settings(&app).sound_theme;
@@ -49,7 +47,6 @@ pub fn execute_change_sound_theme(app: AppHandle) -> ToolResult {
 
 #[tauri::command]
 pub fn execute_create_note(app: AppHandle, title: String, content: String) -> ToolResult {
-    // Sanitize filename: strip path separators, limit length
     let sanitized_title: String = title
         .chars()
         .filter(|c| *c != '/' && *c != '\\' && *c != '\0')
@@ -202,9 +199,6 @@ pub fn execute_open_application(app_name: String) -> ToolResult {
     }
 }
 
-// ── Finalize transcription ─────────────────────────────────────────────
-
-/// The kind of post-processing result from the frontend LLM call.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PostProcessKind {
@@ -213,8 +207,6 @@ pub enum PostProcessKind {
     Empty,
 }
 
-/// Called by the frontend after the AI SDK post-processing completes.
-/// Handles paste, history save, overlay/tray reset, and staleness check.
 #[tauri::command]
 pub async fn finalize_transcription(
     app: AppHandle,
@@ -226,13 +218,9 @@ pub async fn finalize_transcription(
     audio_samples: Option<Vec<f32>>,
     post_process_prompt: Option<String>,
 ) -> Result<(), String> {
-    // Record that the frontend round-trip completed for this generation. The
-    // watchdog spawned by `TranscribeAction::stop` checks this before firing,
-    // so even the stale-skip path below counts as "handled" — we never want
-    // the watchdog to clobber the UI when the frontend did call back.
+    // stale-skip still counts as handled — the watchdog must not clobber a UI the frontend already answered for
     FINALIZE_DONE.store(op_generation, Ordering::SeqCst);
 
-    // Staleness check: if generation has moved on, this result is outdated
     if OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
         debug!("finalize_transcription: stale op_generation, skipping");
         return Ok(());
@@ -248,7 +236,6 @@ pub async fn finalize_transcription(
         PostProcessKind::Tool => {
             let message = tool_message.unwrap_or_default();
 
-            // Save to history (original transcription only)
             let hm_clone = Arc::clone(&hm);
             let transcription_for_history = original_transcription.clone();
             let samples = audio_samples.unwrap_or_default();
@@ -261,7 +248,6 @@ pub async fn finalize_transcription(
                 }
             });
 
-            // Show tool result in overlay, do NOT paste
             if OPERATION_GENERATION.load(Ordering::SeqCst) == op_generation {
                 show_tool_overlay(&app, &message);
                 change_tray_icon(&app, TrayIconState::Idle);
@@ -270,7 +256,6 @@ pub async fn finalize_transcription(
         PostProcessKind::Text => {
             let settings = settings::get_settings(&app);
 
-            // Trigger TTS if enabled
             if settings.tts_enabled {
                 let tts_clone = tts_manager.inner().clone();
                 let text_to_speak = text.clone();
@@ -282,7 +267,6 @@ pub async fn finalize_transcription(
                 });
             }
 
-            // Save to history
             let hm_clone = Arc::clone(&hm);
             let transcription_for_history = original_transcription.clone();
             let post_processed = Some(text.clone());
@@ -301,13 +285,11 @@ pub async fn finalize_transcription(
                 }
             });
 
-            // Final staleness check before paste
             if OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
                 debug!("Operation became stale during finalization, skipping paste");
                 return Ok(());
             }
 
-            // Paste the text
             let ah_clone = app.clone();
             let final_text = text;
             app.run_on_main_thread(move || {
@@ -329,7 +311,6 @@ pub async fn finalize_transcription(
         PostProcessKind::Empty => {
             let settings = settings::get_settings(&app);
 
-            // Save to history (no post-processing)
             let hm_clone = Arc::clone(&hm);
             let transcription_for_history = original_transcription.clone();
             let samples = audio_samples.unwrap_or_default();
@@ -342,13 +323,11 @@ pub async fn finalize_transcription(
                 }
             });
 
-            // Final staleness check before paste
             if OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
                 debug!("Operation became stale during finalization, skipping paste");
                 return Ok(());
             }
 
-            // TTS for raw transcription if enabled
             if settings.tts_enabled {
                 let tts_clone = tts_manager.inner().clone();
                 let text_to_speak = text.clone();
@@ -359,7 +338,6 @@ pub async fn finalize_transcription(
                 });
             }
 
-            // Paste original text
             let ah_clone = app.clone();
             let final_text = text;
             app.run_on_main_thread(move || {

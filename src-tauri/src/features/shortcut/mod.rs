@@ -1,34 +1,17 @@
-//! Shortcut feature module.
-//!
-//! This module handles all keyboard shortcut functionality including:
-//! - Shortcut initialization and registration (`init`)
-//! - Escape key handling for canceling operations (`escape`)
-//! - Binding management commands (`bindings`)
-//! - Registration failures the user must see (`failures`)
-//! - Settings commands organized by feature area (`settings`)
-//! - Wayland-specific global shortcuts via XDG Portal (`wayland`)
-
 pub mod bindings;
 pub mod escape;
 pub mod failures;
 pub mod init;
 pub mod settings;
 
-// Wayland support via XDG Desktop Portal (Linux only)
 #[cfg(target_os = "linux")]
 pub mod wayland;
 
-// Re-export the main initialization function
 pub use init::init_shortcuts;
 
-// Re-export Wayland types for use in lib.rs
 #[cfg(target_os = "linux")]
 pub use wayland::init_wayland_state;
-// WaylandShortcutInfo is used internally by the wayland module;
-// ManagedWaylandCommandSender is registered via app.manage() in init_wayland_state.
 
-/// Check if we're running in a Wayland session.
-/// Returns false on non-Linux platforms.
 #[tauri::command]
 pub fn is_wayland_session() -> bool {
     #[cfg(target_os = "linux")]
@@ -41,9 +24,7 @@ pub fn is_wayland_session() -> bool {
     }
 }
 
-/// Check if a shortcut binding has a printable key that may cause issues on Wayland.
-/// Returns the problematic key name if found, None otherwise.
-/// On non-Linux platforms, always returns None.
+/// Wayland leaks printable keys through to the focused app.
 #[tauri::command]
 pub fn check_wayland_shortcut_conflict(binding: String) -> Option<String> {
     #[cfg(target_os = "linux")]
@@ -57,9 +38,7 @@ pub fn check_wayland_shortcut_conflict(binding: String) -> Option<String> {
     }
 }
 
-/// Get the current Wayland shortcuts with their actual triggers from the portal.
-/// Returns an empty list if not on Wayland or if shortcuts haven't been initialized yet.
-/// On non-Linux platforms, always returns an empty list.
+/// Empty unless on Wayland with an initialized portal session.
 #[tauri::command]
 pub fn get_wayland_shortcuts(app: tauri::AppHandle) -> Vec<WaylandShortcutInfoResponse> {
     #[cfg(target_os = "linux")]
@@ -80,7 +59,6 @@ pub fn get_wayland_shortcuts(app: tauri::AppHandle) -> Vec<WaylandShortcutInfoRe
     }
 }
 
-/// Response type for get_wayland_shortcuts command
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct WaylandShortcutInfoResponse {
     pub id: String,
@@ -88,10 +66,7 @@ pub struct WaylandShortcutInfoResponse {
     pub has_printable_key: bool,
 }
 
-/// Open the system dialog to configure Wayland shortcuts.
-/// On Wayland, this opens the desktop portal's shortcut configuration UI (portal v2).
-/// Shortcut changes arrive asynchronously via the "wayland-shortcuts-changed" event.
-/// On non-Linux platforms, this returns an error.
+/// Portal v2 dialog; changes arrive later on the `wayland-shortcuts-changed` event.
 #[tauri::command]
 pub async fn open_wayland_shortcut_settings(app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "linux")]

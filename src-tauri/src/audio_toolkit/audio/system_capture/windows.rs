@@ -1,8 +1,4 @@
-//! Windows system audio capture via WASAPI loopback.
-//!
-//! Loopback hangs off the default render (output) endpoint. Initializing the
-//! audio client in shared mode against a render device with the loopback flag
-//! set delivers exactly what the user hears, without affecting playback.
+//! WASAPI loopback on the default render endpoint — captures what the user hears without touching playback.
 
 use anyhow::{anyhow, Context, Result};
 use log::{debug, warn};
@@ -154,7 +150,7 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
             }
             let n_bytes = frames as usize * blockalign;
             let n_frames = frames as usize;
-            // 4 bytes per sample (Float32), `channels` samples per frame
+            // Float32, `channels` samples per frame
             let mut interleaved: Vec<f32> = Vec::with_capacity(n_frames * channels);
             if info.flags.silent {
                 interleaved.resize(n_frames * channels, 0.0);
@@ -170,7 +166,6 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
                 }
             }
 
-            // Downmix to mono.
             let mut mono: Vec<f32> = Vec::with_capacity(n_frames);
             if channels == 1 {
                 mono = interleaved;

@@ -1,7 +1,6 @@
 import { z } from "zod";
 
-/// Mirrors the Rust `UpdateSnapshot`: one owner publishes it, every window
-/// renders from it.
+/// Mirrors the Rust `UpdateSnapshot` — one owner publishes, every window renders.
 export const UpdatePhaseSchema = z.enum([
   "available",
   "checking",
@@ -33,8 +32,7 @@ export const idleUpdateSnapshot: UpdateSnapshot = {
 const BRIDGE_FAILURE_MESSAGE =
   "Echo could not reach its updater. Reopen Echo and try again.";
 
-/// The updater lives in Rust: a broken command or an unreadable payload is a
-/// local failure, not something the backend published.
+/// A broken command or unreadable payload is a local failure, not something the backend published.
 export const updateBridgeFailure = (
   previous: UpdateSnapshot = idleUpdateSnapshot
 ): UpdateSnapshot => ({

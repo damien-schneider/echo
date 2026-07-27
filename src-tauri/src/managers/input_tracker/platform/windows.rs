@@ -2,8 +2,6 @@
 
 use super::ActiveAppInfo;
 
-/// Get information about the currently active window on Windows
-/// Uses native Windows APIs for fast and reliable detection
 pub fn get_active_app_info() -> ActiveAppInfo {
     use std::ffi::OsString;
     use std::os::windows::ffi::OsStringExt;

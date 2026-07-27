@@ -18,8 +18,7 @@ fn each_surface_publishes_on_its_own_window_and_channel() {
     );
 }
 
-/// A window missing from the capability file gets no IPC at all: its `listen`
-/// calls are denied and the webview reports a lost connection.
+/// A window missing from the capability file gets no IPC — `listen` is denied and the webview drops.
 #[test]
 fn every_overlay_webview_is_granted_ipc() {
     let capabilities = include_str!("../../capabilities/default.json");

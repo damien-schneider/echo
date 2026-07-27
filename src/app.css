@@ -1,7 +1,6 @@
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
-/* @import "tw-animate-css"; */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -26,7 +25,6 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  /* --brand: oklch(0.817 0.133 349.338); */
   --brand: --alpha(var(--color-black) / 100%);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
@@ -103,7 +101,6 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  /* --brand: oklch(0.817 0.133 349.338); */
   --brand: --alpha(var(--color-white) / 100%);
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
@@ -130,7 +127,6 @@
     @apply bg-background text-foreground;
   }
 
-  /* Tauri drag region support */
   [data-tauri-drag-region] {
     -webkit-app-region: drag !important;
     app-region: drag !important;
@@ -147,7 +143,6 @@
   }
 }
 
-/* Indeterminate progress bar animation */
 @keyframes indeterminate {
   0% {
     transform: translateX(-100%);

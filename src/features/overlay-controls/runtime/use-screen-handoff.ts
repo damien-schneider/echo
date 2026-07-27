@@ -10,8 +10,7 @@ import {
 } from "@/features/overlay-controls/runtime/screen-handoff";
 import { listenCancellable } from "@/lib/tauri-listener";
 
-// Rust never moves the island under an in-flight animation: it asks, the island
-// fades out, and the move happens while nothing is on screen.
+// Rust asks first — the island fades out and moves while nothing is on screen
 export const useScreenHandoff = () => {
   const [phase, setPhase] = useState<ScreenHandoffPhase>("idle");
   const step = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -26,8 +25,7 @@ export const useScreenHandoff = () => {
     scheduleStep(SCREEN_HANDOFF_ARRIVAL_MS, () => setPhase("idle"));
   };
 
-  // A refused move still has to bring the island back: an invisible HUD is
-  // worse than one on the wrong screen.
+  // a refused move must still bring the island back — invisible beats wrong screen
   const moveToCursorScreen = () =>
     invoke(SCREEN_HANDOFF_COMMAND)
       .catch(() => undefined)

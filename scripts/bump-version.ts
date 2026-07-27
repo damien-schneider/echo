@@ -1,5 +1,4 @@
 #!/usr/bin/env bun
-// Bump version across package.json, src-tauri/Cargo.toml, src-tauri/tauri.conf.json.
 // Usage: bun run version <x.y.z | major|minor|patch>
 
 import { execSync } from "node:child_process";

@@ -53,8 +53,7 @@ pub(crate) fn create_recording_overlay(app_handle: &AppHandle) {
     create_overlay_notification(app_handle, screen, placement);
 }
 
-/// The notification is its own window so activity can open at the notch while
-/// the HUD stays exactly where the user left it.
+/// Own window so activity can open at the notch while the HUD stays put.
 fn create_overlay_notification(
     app_handle: &AppHandle,
     screen: super::monitor::OverlayScreen,

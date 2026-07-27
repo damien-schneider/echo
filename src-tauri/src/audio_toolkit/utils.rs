@@ -1,5 +1,4 @@
-/// Returns the appropriate CPAL host for the current platform.
-/// On Linux, uses ALSA host. On other platforms, uses the default host.
+/// ALSA on Linux, default host elsewhere.
 pub fn get_cpal_host() -> cpal::Host {
     #[cfg(target_os = "linux")]
     {

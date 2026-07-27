@@ -1,28 +1,18 @@
-//! macOS-specific application detection using native Cocoa and Accessibility APIs.
-
 use super::ActiveAppInfo;
 
-/// Get information about the currently active (frontmost) application
-/// Uses native Cocoa NSWorkspace APIs and Accessibility APIs for reliable detection
-/// including overlay/panel apps like Raycast and Spotlight
 #[allow(deprecated)]
 pub fn get_active_app_info() -> ActiveAppInfo {
     use cocoa::base::{id, nil};
     use objc::{class, msg_send, sel, sel_impl};
 
     unsafe {
-        // First try: Get the focused application using Accessibility API
-        // This is more reliable for overlay/panel apps like Raycast
         let system_wide: id = msg_send![class!(NSWorkspace), sharedWorkspace];
 
-        // Try to get the running application that has keyboard focus via accessibility
-        // AXUIElementCopyAttributeValue with kAXFocusedApplicationAttribute
         let focused_app = get_focused_app_via_accessibility();
         if let Some(app_info) = focused_app {
             return app_info;
         }
 
-        // Fallback: Get the frontmost application from NSWorkspace
         if system_wide == nil {
             log::debug!("[InputTracker] Failed to get NSWorkspace");
             return ActiveAppInfo::default();
@@ -44,7 +34,6 @@ fn extract_app_info(app: cocoa::base::id) -> ActiveAppInfo {
     use objc::{msg_send, sel, sel_impl};
 
     unsafe {
-        // Get the localized name (displayed name, not process name)
         let localized_name: id = msg_send![app, localizedName];
         let name = if localized_name != nil {
             let c_str: *const i8 = msg_send![localized_name, UTF8String];
@@ -59,7 +48,6 @@ fn extract_app_info(app: cocoa::base::id) -> ActiveAppInfo {
             String::new()
         };
 
-        // Get the bundle identifier
         let bundle_id_ns: id = msg_send![app, bundleIdentifier];
         let bundle_id = if bundle_id_ns != nil {
             let c_str: *const i8 = msg_send![bundle_id_ns, UTF8String];
@@ -76,7 +64,6 @@ fn extract_app_info(app: cocoa::base::id) -> ActiveAppInfo {
             None
         };
 
-        // Get the process identifier (pid)
         let pid: i32 = msg_send![app, processIdentifier];
 
         if name.is_empty() {
@@ -91,14 +78,12 @@ fn extract_app_info(app: cocoa::base::id) -> ActiveAppInfo {
     }
 }
 
-/// Get the focused application using macOS Accessibility API
-/// This catches overlay apps like Raycast that don't become "frontmost" in the traditional sense
+/// Catches overlay apps like Raycast that never become frontmost.
 #[allow(deprecated)]
 fn get_focused_app_via_accessibility() -> Option<ActiveAppInfo> {
     use std::ffi::c_void;
     use std::ptr;
 
-    // Core Foundation and Accessibility types
     type CFTypeRef = *const c_void;
     type AXUIElementRef = CFTypeRef;
     type CFStringRef = *const c_void;
@@ -136,7 +121,6 @@ fn get_focused_app_via_accessibility() -> Option<ActiveAppInfo> {
             return None;
         }
 
-        // Try to get the focused UI element first (this works for text fields in any app)
         let focused_elem_attr = b"AXFocusedUIElement\0".as_ptr() as *const i8;
         let focused_elem_attr_cf =
             CFStringCreateWithCString(ptr::null(), focused_elem_attr, kCFStringEncodingUTF8);
@@ -157,7 +141,6 @@ fn get_focused_app_via_accessibility() -> Option<ActiveAppInfo> {
             return None;
         }
 
-        // Get the PID from the focused element using AXUIElementGetPid
         let mut pid: i32 = 0;
         let pid_result = AXUIElementGetPid(focused_elem, &mut pid);
 
@@ -167,7 +150,6 @@ fn get_focused_app_via_accessibility() -> Option<ActiveAppInfo> {
             return None;
         }
 
-        // Now get the NSRunningApplication for this PID
         use cocoa::base::{id, nil};
         use objc::{class, msg_send, sel, sel_impl};
 

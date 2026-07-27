@@ -1,5 +1,3 @@
-//! Tauri command handlers for meeting transcription.
-
 use crate::managers::export;
 use crate::managers::meeting::{
     ExportFormat, Meeting, MeetingManager, MeetingSegment, MeetingStatus,

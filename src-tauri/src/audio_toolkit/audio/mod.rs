@@ -1,4 +1,3 @@
-// Re-export all audio components
 mod decoder;
 mod device;
 pub mod recorder;

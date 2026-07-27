@@ -1,13 +1,7 @@
-//! Cross-manager signal primitives. Currently exposes a single shared
-//! "is the microphone recording right now?" flag that lets the transcription
-//! manager's idle watcher suppress eviction while a capture is in progress.
-
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-/// Shared "microphone capture in progress" signal. `AudioRecordingManager`
-/// flips this on start/stop; the transcription idle watcher reads it through
-/// the same `Arc` to decide whether it's safe to free the engine.
+/// Lets the transcription idle watcher skip eviction while a capture runs.
 #[derive(Clone, Default)]
 pub struct RecordingActiveSignal {
     inner: Arc<AtomicBool>,
@@ -26,8 +20,6 @@ impl RecordingActiveSignal {
         self.inner.load(Ordering::Relaxed)
     }
 
-    /// Hand out the underlying `Arc` so other managers can share the same
-    /// flag without going through the `RecordingActiveSignal` wrapper.
     pub fn shared(&self) -> Arc<AtomicBool> {
         Arc::clone(&self.inner)
     }
@@ -54,9 +46,6 @@ mod tests {
 
     #[test]
     fn shared_arc_observes_wrapper_writes() {
-        // The bare `Arc<AtomicBool>` handed to `TranscriptionManager::
-        // link_recording_signal` must reflect later `set()` calls from the
-        // original wrapper — otherwise the watcher reads a stale snapshot.
         let s = RecordingActiveSignal::new();
         let arc = s.shared();
         s.set(true);
@@ -67,10 +56,6 @@ mod tests {
 
     #[test]
     fn clones_share_inner_state() {
-        // `clone()` must share the same `Arc<AtomicBool>` — that's what lets
-        // the audio manager flip the flag while the transcription watcher
-        // reads it in another thread. A deep-copy clone would silently break
-        // the cross-manager link.
         let a = RecordingActiveSignal::new();
         let b = a.clone();
         a.set(true);

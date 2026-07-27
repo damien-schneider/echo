@@ -20,7 +20,6 @@ export const SCREEN_HANDOFF_STYLE: ScreenHandoffStyle = {
   "--echo-handoff-fade": `${SCREEN_HANDOFF_FADE_MS}ms`,
 };
 
-// The window jumps displays in one step: a spring would fly the island across
-// the gap it never travelled.
+// the window jumps displays in one step — a spring would fly it across a gap it never travelled
 export const screenHandoffFreezesLayout = (phase: ScreenHandoffPhase) =>
   phase !== "idle";

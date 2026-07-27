@@ -99,7 +99,6 @@ export const Route = createRootRoute({
           "speech to text, offline dictation, voice transcription, whisper AI, private speech recognition, local transcription, open source dictation, macOS dictation, Windows dictation",
         name: "keywords",
       },
-      // OpenGraph meta tags
       {
         content: "Echo",
         property: "og:site_name",
@@ -122,7 +121,6 @@ export const Route = createRootRoute({
         content: "website",
         property: "og:type",
       },
-      // Twitter Card meta tags
       {
         content: "summary_large_image",
         name: "twitter:card",

@@ -31,18 +31,15 @@ pub struct HistoryManager {
 
 impl HistoryManager {
     pub fn new(app_handle: &AppHandle) -> Result<Self> {
-        // Create recordings directory in app data dir
         let app_data_dir = app_handle.path().app_data_dir()?;
         let recordings_dir = app_data_dir.join("recordings");
         let db_path = app_data_dir.join("history.db");
 
-        // Ensure recordings directory exists
         if !recordings_dir.exists() {
             fs::create_dir_all(&recordings_dir)?;
             debug!("Created recordings directory: {:?}", recordings_dir);
         }
 
-        // Initialize database schema and run migrations
         database::initialize_database(&db_path).context("Failed to initialize history database")?;
 
         let manager = Self {
@@ -59,7 +56,6 @@ impl HistoryManager {
             .with_context(|| format!("Failed to open database at {:?}", self.db_path))
     }
 
-    /// Save a transcription to history (both database and WAV file)
     pub async fn save_transcription(
         &self,
         audio_samples: Vec<f32>,
@@ -71,11 +67,9 @@ impl HistoryManager {
         let file_name = format!("echo-{}.wav", timestamp);
         let title = self.format_timestamp_title(timestamp);
 
-        // Save WAV file
         let file_path = self.recordings_dir.join(&file_name);
         save_wav_file(file_path, &audio_samples).await?;
 
-        // Save to database
         self.save_to_database(
             file_name,
             timestamp,
@@ -85,10 +79,8 @@ impl HistoryManager {
             post_process_prompt,
         )?;
 
-        // Clean up old entries
         self.cleanup_old_entries()?;
 
-        // Emit history updated event
         if let Err(e) = self.app_handle.emit("history-updated", ()) {
             error!("Failed to emit history-updated event: {}", e);
         }
@@ -250,7 +242,6 @@ impl HistoryManager {
     pub async fn toggle_saved_status(&self, id: i64) -> Result<()> {
         let conn = self.get_connection()?;
 
-        // Get current saved status
         let current_saved: bool = conn.query_row(
             "SELECT saved FROM transcription_history WHERE id = ?1",
             params![id],
@@ -266,7 +257,6 @@ impl HistoryManager {
 
         debug!("Toggled saved status for entry {}: {}", id, new_saved);
 
-        // Emit history updated event
         if let Err(e) = self.app_handle.emit("history-updated", ()) {
             error!("Failed to emit history-updated event: {}", e);
         }
@@ -306,19 +296,15 @@ impl HistoryManager {
     pub async fn delete_entry(&self, id: i64) -> Result<()> {
         let conn = self.get_connection()?;
 
-        // Get the entry to find the file name
         if let Some(entry) = self.get_entry_by_id(id).await? {
-            // Delete the audio file first
             let file_path = self.get_audio_file_path(&entry.file_name);
             if file_path.exists() {
                 if let Err(e) = fs::remove_file(&file_path) {
                     error!("Failed to delete audio file {}: {}", entry.file_name, e);
-                    // Continue with database deletion even if file deletion fails
                 }
             }
         }
 
-        // Delete from database
         conn.execute(
             "DELETE FROM transcription_history WHERE id = ?1",
             params![id],
@@ -326,7 +312,6 @@ impl HistoryManager {
 
         debug!("Deleted history entry with id: {}", id);
 
-        // Emit history updated event
         if let Err(e) = self.app_handle.emit("history-updated", ()) {
             error!("Failed to emit history-updated event: {}", e);
         }
@@ -336,7 +321,6 @@ impl HistoryManager {
 
     fn format_timestamp_title(&self, timestamp: i64) -> String {
         if let Some(utc_datetime) = DateTime::from_timestamp(timestamp, 0) {
-            // Convert UTC to local timezone
             let local_datetime = utc_datetime.with_timezone(&Local);
             local_datetime.format("%B %e, %Y - %l:%M%p").to_string()
         } else {
@@ -344,11 +328,9 @@ impl HistoryManager {
         }
     }
 
-    /// Retranscribe a history entry using its stored audio file
     pub async fn retranscribe_entry(&self, id: i64, new_transcription: String) -> Result<()> {
         let conn = self.get_connection()?;
 
-        // Update the transcription text in the database
         conn.execute(
             "UPDATE transcription_history SET transcription_text = ?1, post_processed_text = NULL, post_process_prompt = NULL WHERE id = ?2",
             params![new_transcription, id],
@@ -356,7 +338,6 @@ impl HistoryManager {
 
         debug!("Retranscribed history entry with id: {}", id);
 
-        // Emit history updated event
         if let Err(e) = self.app_handle.emit("history-updated", ()) {
             error!("Failed to emit history-updated event: {}", e);
         }
@@ -364,13 +345,11 @@ impl HistoryManager {
         Ok(())
     }
 
-    /// Load audio samples from a history entry's WAV file
     pub fn load_audio_for_entry(&self, file_name: &str) -> Result<Vec<f32>> {
         let file_path = self.get_audio_file_path(file_name);
         load_wav_file(&file_path)
     }
 
-    /// Update post-processed text for a history entry
     pub async fn update_post_processed_text(
         &self,
         id: i64,
@@ -389,7 +368,6 @@ impl HistoryManager {
             id
         );
 
-        // Emit history updated event
         if let Err(e) = self.app_handle.emit("history-updated", ()) {
             error!("Failed to emit history-updated event: {}", e);
         }

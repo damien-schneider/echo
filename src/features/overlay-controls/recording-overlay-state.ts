@@ -8,8 +8,7 @@ export type OverlayState =
   | "tool"
   | "transcribing"
   | "warning";
-/// The HUD only ever shows its handle or its action row; everything else is a
-/// notification, drawn by the other window.
+/// Handle or action row — everything else is a notification, drawn by the other window.
 export type HudMode = "compact" | "actions";
 export type NotificationMode = "recording" | "panel" | "chat";
 export type OverlayMode = HudMode | NotificationMode;
@@ -142,8 +141,7 @@ interface NotificationModeOptions {
   request: NotificationRequest | null;
 }
 
-/// Activity outranks anything the HUD asked for: a recording that starts while
-/// chat is open takes the surface over.
+/// Activity outranks anything the HUD asked for — a recording takes the surface from chat.
 export const notificationModeFor = ({
   isShown,
   request,

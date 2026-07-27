@@ -21,9 +21,7 @@ const useReleaseEmptyWindow = (isEmpty: boolean, release: () => void) => {
   }, [isEmpty]);
 };
 
-/// The window that opens at the notch. It knows nothing about where the HUD
-/// sits, so there is no transition between the two — this surface simply grows
-/// out of the notch and folds back into it.
+/// Knows nothing about where the HUD sits — it only grows out of the notch and folds back in.
 const NotificationOverlay = () => {
   const controller = useNotificationController();
   const surface = controller.events.surface;

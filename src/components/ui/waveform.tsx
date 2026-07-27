@@ -811,14 +811,12 @@ export const LiveMicrophoneWaveform = ({
   const dragStartOffsetRef = useRef<number>(0);
   const playbackStartTimeRef = useRef<number>(0);
 
-  // Audio recording and playback refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioBufferRef = useRef<AudioBuffer | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const scrubSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
-  // Use external drag state if provided, otherwise use internal
   const dragOffset = externalDragOffset ?? internalDragOffset;
   const setDragOffset = externalSetDragOffset ?? setInternalDragOffset;
 
@@ -876,7 +874,6 @@ export const LiveMicrophoneWaveform = ({
           track.stop();
         }
       }
-      // Process recorded audio when stopping
       if (enableAudioPlayback && audioChunksRef.current.length > 0) {
         const audioBlob = new Blob(audioChunksRef.current, {
           type: "audio/webm",

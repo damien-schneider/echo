@@ -142,7 +142,6 @@ export const LiveWaveform = ({
 
   const heightStyle = typeof height === "number" ? `${height}px` : height;
 
-  // Handle canvas resizing
   useEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -162,7 +161,7 @@ export const LiveWaveform = ({
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.scale(dpr, dpr);
-        // Pre-warm the 2D context by forcing eager allocation
+        // force eager 2D context allocation
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       }
 
@@ -272,7 +271,6 @@ export const LiveWaveform = ({
     }
   }, [processing, active, barWidth, barGap, mode]);
 
-  // Handle microphone setup and teardown
   useEffect(() => {
     if (!active) {
       if (streamRef.current) {
@@ -334,7 +332,6 @@ export const LiveWaveform = ({
         audioContextRef.current = audioContext;
         analyserRef.current = analyser;
 
-        // Clear history when starting
         historyRef.current = [];
       } catch (error) {
         onError?.(error as Error);
@@ -374,7 +371,6 @@ export const LiveWaveform = ({
     disableInternalAudio,
   ]);
 
-  // Animation loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) {
@@ -390,17 +386,14 @@ export const LiveWaveform = ({
 
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Canvas animation loop with dual rendering modes requires inline branching
     const animate = (currentTime: number) => {
-      // Render waveform
       const rect = canvas.getBoundingClientRect();
 
-      // Pre-initialize bars with placeholders when active starts
       if (active && staticBarsRef.current.length === 0 && mode === "static") {
         const barCount = Math.floor(rect.width / (barWidth + barGap));
         staticBarsRef.current = new Array(barCount).fill(0.05);
         needsRedrawRef.current = true;
       }
 
-      // Update audio data if active
       if (active && currentTime - lastUpdateRef.current > updateRate) {
         lastUpdateRef.current = currentTime;
 
@@ -410,7 +403,6 @@ export const LiveWaveform = ({
           const sourceData = audioLevelsRef.current;
           const newTargetBars: number[] = [];
 
-          // Mirror the data for symmetric display
           for (let i = halfCount - 1; i >= 0; i--) {
             const normalizedIndex = (i / halfCount) * (sourceData.length - 1);
             const indexFloor = Math.floor(normalizedIndex);
@@ -443,16 +435,14 @@ export const LiveWaveform = ({
 
           targetBarsRef.current = newTargetBars;
 
-          // Initialize if size changed
           if (staticBarsRef.current.length !== newTargetBars.length) {
             staticBarsRef.current = new Array(newTargetBars.length).fill(0.02);
           }
 
-          // Direct assignment since backend handles smoothing
+          // backend already smoothed
           staticBarsRef.current = newTargetBars;
           lastActiveDataRef.current = staticBarsRef.current;
         } else {
-          // Scrolling mode - use average of current levels
           const sourceData = audioLevelsRef.current;
           let sum = 0;
           for (const level of sourceData) {
@@ -461,11 +451,9 @@ export const LiveWaveform = ({
           const average =
             sourceData.length > 0 ? (sum / sourceData.length) * sensitivity : 0;
 
-          // Add to history
           historyRef.current.push(Math.min(1, Math.max(0.05, average)));
           lastActiveDataRef.current = [...historyRef.current];
 
-          // Maintain history size
           if (historyRef.current.length > historySize) {
             historyRef.current.shift();
           }
@@ -473,7 +461,6 @@ export const LiveWaveform = ({
         needsRedrawRef.current = true;
       }
 
-      // Only redraw if needed
       if (!(needsRedrawRef.current || active)) {
         rafId = requestAnimationFrame(animate);
         return;
@@ -486,7 +473,6 @@ export const LiveWaveform = ({
         barColor ||
         (() => {
           const style = getComputedStyle(canvas);
-          // Try to get the computed color value directly
           const color = style.color;
           return color || "#000";
         })();
@@ -495,9 +481,7 @@ export const LiveWaveform = ({
       const barCount = Math.floor(rect.width / step);
       const centerY = rect.height / 2;
 
-      // Draw bars based on mode
       if (mode === "static") {
-        // Static mode - bars in fixed positions
         const dataToRender =
           processing || active || staticBarsRef.current.length > 0
             ? staticBarsRef.current
@@ -514,7 +498,6 @@ export const LiveWaveform = ({
           drawWfBar(ctx, x, y, barWidth, barHeight, barRadius);
         }
       } else {
-        // Scrolling mode - original behavior
         for (let i = 0; i < barCount && i < historyRef.current.length; i++) {
           const dataIndex = historyRef.current.length - 1 - i;
           const value = historyRef.current[dataIndex] || 0.1;
@@ -528,21 +511,15 @@ export const LiveWaveform = ({
         }
       }
 
-      // Apply edge fading
       if (fadeEdges && fadeWidth > 0 && rect.width > 0) {
-        // Cache gradient if width hasn't changed
         if (!gradientCacheRef.current || lastWidthRef.current !== rect.width) {
           const gradient = ctx.createLinearGradient(0, 0, rect.width, 0);
           const fadePercent = Math.min(0.3, fadeWidth / rect.width);
 
-          // destination-out: removes destination where source alpha is high
-          // We want: fade edges out, keep center solid
-          // Left edge: start opaque (1) = remove, fade to transparent (0) = keep
+          // destination-out — opaque removes, transparent keeps
           gradient.addColorStop(0, "rgba(255,255,255,1)");
           gradient.addColorStop(fadePercent, "rgba(255,255,255,0)");
-          // Center stays transparent = keep everything
           gradient.addColorStop(1 - fadePercent, "rgba(255,255,255,0)");
-          // Right edge: fade from transparent (0) = keep to opaque (1) = remove
           gradient.addColorStop(1, "rgba(255,255,255,1)");
 
           gradientCacheRef.current = gradient;

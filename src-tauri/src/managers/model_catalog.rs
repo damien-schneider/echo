@@ -13,9 +13,7 @@ pub(super) struct ArtifactState {
     pub(super) partial_size: u64,
 }
 
-/// Disk describes what is installed, never what is in flight: `is_downloading`
-/// belongs to the running attempt, and clearing it here would let a second
-/// transfer start on the same `.partial` file.
+/// `is_downloading` belongs to the running attempt — clearing it here would let a second transfer hit the same `.partial`.
 pub(super) fn apply_artifact_state(model: &mut ModelInfo, artifact: ArtifactState) {
     model.is_downloaded = artifact.is_installed;
     model.partial_size = artifact.partial_size;

@@ -95,7 +95,6 @@ pub fn clear_all_input_entries(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn get_installed_apps() -> Vec<(String, String)> {
-    // Run in blocking task to not freeze the UI
     tokio::task::spawn_blocking(get_apps_impl)
         .await
         .unwrap_or_default()
@@ -109,7 +108,6 @@ fn get_apps_impl() -> Vec<(String, String)> {
 
     let mut apps = Vec::new();
 
-    // 1. Get currently running apps (fast, single-line AppleScript)
     let output = Command::new("osascript")
         .args(["-e", "tell application \"System Events\" to get {name, bundle identifier} of every application process whose bundle identifier is not missing value"])
         .output();
@@ -117,9 +115,7 @@ fn get_apps_impl() -> Vec<(String, String)> {
     if let Ok(output) = output {
         if output.status.success() {
             let result = String::from_utf8_lossy(&output.stdout);
-            // Output format: "name1, name2, ..., bundleId1, bundleId2, ..."
             let trimmed = result.trim();
-            // Parse the two lists separated by the middle
             if let Some((names_part, ids_part)) = parse_applescript_lists(trimmed) {
                 for (name, bundle_id) in names_part.iter().zip(ids_part.iter()) {
                     if !name.is_empty() && !bundle_id.is_empty() {
@@ -130,7 +126,6 @@ fn get_apps_impl() -> Vec<(String, String)> {
         }
     }
 
-    // 2. Scan /Applications folder for installed apps
     let applications_dir = Path::new("/Applications");
     if let Ok(entries) = fs::read_dir(applications_dir) {
         for entry in entries.flatten() {
@@ -145,7 +140,6 @@ fn get_apps_impl() -> Vec<(String, String)> {
         }
     }
 
-    // 3. Add common apps that might be in other locations
     let common_apps = [
         ("Visual Studio Code", "com.microsoft.VSCode"),
         ("Cursor", "com.todesktop.230313mzl4w4u92"),
@@ -174,8 +168,7 @@ fn get_apps_impl() -> Vec<(String, String)> {
 
 #[cfg(target_os = "macos")]
 fn parse_applescript_lists(input: &str) -> Option<(Vec<String>, Vec<String>)> {
-    // AppleScript returns: "name1, name2, ..., id1, id2, ..."
-    // We need to split this into two equal halves
+    // AppleScript returns names then ids in one flat list: "name1, .., id1, .."
     let items: Vec<&str> = input.split(", ").collect();
     if items.len() < 2 || items.len() % 2 != 0 {
         return None;
@@ -192,7 +185,6 @@ fn parse_applescript_lists(input: &str) -> Option<(Vec<String>, Vec<String>)> {
 fn get_app_info_from_bundle(path: &std::path::Path) -> Option<(String, String)> {
     use std::process::Command;
 
-    // Use defaults to read the Info.plist
     let plist_path = path.join("Contents/Info.plist");
     if !plist_path.exists() {
         return None;
@@ -211,10 +203,7 @@ fn get_app_info_from_bundle(path: &std::path::Path) -> Option<(String, String)> 
         .ok()
         .filter(|o| o.status.success())
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .or_else(|| {
-            // Fallback to filename without .app extension
-            path.file_stem()?.to_str().map(|s| s.to_string())
-        })?;
+        .or_else(|| path.file_stem()?.to_str().map(|s| s.to_string()))?;
 
     if bundle_id.is_empty() {
         return None;

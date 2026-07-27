@@ -2,9 +2,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// A loaded Polish model holds gigabytes of weights resident for a feature the
-/// user touches a few times an hour. Reloading costs seconds off a warm page
-/// cache, so the runtime is let go once the user has clearly moved on.
+/// Gigabytes resident for a feature used a few times an hour — reload costs seconds off a warm page cache.
 pub(super) const IDLE_RELEASE_AFTER: Duration = Duration::from_secs(600);
 
 /// Coarse on purpose: the check only has to notice minutes of silence.
@@ -21,8 +19,7 @@ pub(super) fn should_release_idle_runtime(activity: RuntimeActivity) -> bool {
     activity.is_loaded && activity.in_flight == 0 && activity.idle_for >= IDLE_RELEASE_AFTER
 }
 
-/// Tracks what the idle decision needs: when the runtime was last asked for
-/// something, and whether anyone is waiting on it right now.
+/// Last request time plus whether anyone is waiting right now.
 pub(super) struct ActivityTracker {
     last_activity: Mutex<Instant>,
     in_flight: AtomicUsize,
@@ -44,9 +41,7 @@ impl ActivityTracker {
         }
     }
 
-    /// Holds the runtime for as long as the returned guard lives, so a request
-    /// that outlasts the idle deadline never has the server pulled from under
-    /// it.
+    /// Guard outlives the idle deadline, so a long request never loses the server under it.
     pub(super) fn begin_request(&self) -> RequestGuard<'_> {
         self.touch();
         self.in_flight.fetch_add(1, Ordering::SeqCst);
@@ -140,8 +135,7 @@ mod tests {
         assert_eq!(tracker.snapshot(true).in_flight, 0);
     }
 
-    /// A correction can take longer than the idle deadline; what counts as the
-    /// last activity is when it ended, not when it started.
+    /// Last activity is when the correction ended, not when it started.
     #[test]
     fn finishing_a_request_restarts_the_idle_countdown() {
         let tracker = ActivityTracker::default();

@@ -20,8 +20,7 @@ interface HudPresentationOptions {
   state: OverlayState;
 }
 
-/// The HUD reads the activity stream for one thing only: whether the record
-/// button is lit. What is being said belongs to the notification window.
+/// The HUD reads activity only to light its record button; the words belong to the notification.
 export const createHudPresentation = ({
   isControlsOpen,
   isVisible,

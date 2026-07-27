@@ -127,8 +127,7 @@ fn polish_preparation_plan(
     PolishPreparationPlan::Download
 }
 
-/// An operation the running task already reports on: a duplicate request rides
-/// its status and progress events instead of queueing behind it.
+/// A duplicate request rides the running task's status and progress events instead of queueing.
 fn polish_joins_active_operation(state: PolishState) -> bool {
     matches!(
         state,
@@ -266,8 +265,7 @@ mod tests {
         assert!(PolishPreparationIntent::Download.reuses_ready_status());
     }
 
-    /// A 2.5 GB transfer outlives any wait a second click could justify, so the
-    /// duplicate attaches to the running operation instead of timing out on it.
+    /// A 2.5 GB transfer outlives any wait, so a second click attaches instead of timing out.
     #[test]
     fn a_second_request_joins_an_operation_already_in_flight() {
         assert!(polish_joins_active_operation(PolishState::Downloading));

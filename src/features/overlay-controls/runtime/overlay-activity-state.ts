@@ -65,8 +65,7 @@ const downloadFinished = (
   download: state.download?.model_id === modelId ? null : state.download,
 });
 
-// Dismissal is per download: the same model must not reappear on its next
-// progress tick, while a different download still deserves the surface.
+// per-download — the same model must not reappear on its next progress tick
 const dismissed = (state: OverlayActivity): OverlayActivity => ({
   ...state,
   dismissedDownloadId: state.download?.model_id ?? state.dismissedDownloadId,

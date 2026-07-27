@@ -59,27 +59,22 @@ pub async fn retranscribe_history_entry(
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
     id: i64,
 ) -> Result<String, String> {
-    // Get the history entry to find the audio file
     let entry = history_manager
         .get_entry_by_id(id)
         .await
         .map_err(|e| e.to_string())?
         .ok_or_else(|| format!("History entry not found: {}", id))?;
 
-    // Load audio samples from the WAV file
     let audio_samples = history_manager
         .load_audio_for_entry(&entry.file_name)
         .map_err(|e| format!("Failed to load audio file: {}", e))?;
 
-    // Ensure model is loaded
     transcription_manager.initiate_model_load();
 
-    // Transcribe the audio
     let new_transcription = transcription_manager
         .transcribe(audio_samples)
         .map_err(|e| format!("Transcription failed: {}", e))?;
 
-    // Update the history entry with the new transcription
     history_manager
         .retranscribe_entry(id, new_transcription.clone())
         .await
@@ -98,7 +93,6 @@ pub async fn update_history_limit(
         s.history_limit = limit;
     });
 
-    // Side effect outside lock
     history_manager
         .cleanup_old_entries()
         .map_err(|e| e.to_string())?;
@@ -127,7 +121,6 @@ pub async fn update_recording_retention_period(
         s.recording_retention_period = retention_period;
     });
 
-    // Side effect outside lock
     history_manager
         .cleanup_old_entries()
         .map_err(|e| e.to_string())?;
@@ -146,7 +139,6 @@ pub async fn reprocess_history_entry(
 ) -> Result<String, String> {
     use log::{error, info};
 
-    // Get the history entry
     let entry = history_manager
         .get_entry_by_id(id)
         .await
@@ -157,13 +149,11 @@ pub async fn reprocess_history_entry(
         .clone()
         .unwrap_or_else(|| entry.transcription_text.clone());
 
-    // Update the history entry with the new post-processed text
     history_manager
         .update_post_processed_text(id, post_processed_text.clone(), post_process_prompt)
         .await
         .map_err(|e| format!("Failed to update history entry: {}", e))?;
 
-    // Trigger TTS if enabled and post-processing was successful
     let settings = get_settings(&app);
     if settings.tts_enabled && post_processed_text.is_some() {
         let tts_manager_clone = Arc::clone(&tts_manager);
@@ -179,7 +169,6 @@ pub async fn reprocess_history_entry(
     Ok(final_text)
 }
 
-/// Get the original transcription text for a history entry (for frontend reprocessing).
 #[tauri::command]
 pub async fn get_history_entry_transcription(
     history_manager: State<'_, Arc<HistoryManager>>,

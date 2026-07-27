@@ -374,8 +374,7 @@ describe("Polish model state", () => {
     ]);
   });
 
-  /// A duplicate download joins the transfer already running: the command
-  /// returns at once and must not blank the bar the running transfer feeds.
+  /// A duplicate download returns at once and must not blank the running transfer's bar.
   test("keeps the progress bar when the command returns to a running transfer", async () => {
     const progress: Array<PolishModelProgress | undefined> = [];
     const synchronizer = createPolishStatusSynchronizer({

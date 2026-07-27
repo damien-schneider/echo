@@ -71,8 +71,7 @@ interface IslandContentLayerProps {
   measurementRef: Ref<HTMLDivElement>;
 }
 
-// The anchor rides on the layer, not the root: an exiting layer keeps the
-// edge it entered against instead of jumping when the surface re-anchors.
+// anchor on the layer, not the root — an exiting layer keeps the edge it entered against
 const IslandContentLayer = ({
   anchor,
   children,
@@ -149,11 +148,9 @@ interface NotchStripStyle extends CSSProperties {
 interface IslandMorphProps {
   children: ReactNode;
   contentKey: string;
-  /// The box the surface grows out of and collapses back into. Only the
-  /// notification uses one: the HUD is already on screen and never enters.
+  /// Only the notification has one — the HUD is already on screen and never enters.
   entry?: IslandEntry;
-  /// A display handoff teleports the window: the island must land with it
-  /// instead of springing across the gap.
+  /// A handoff teleports the window — the island lands with it instead of springing across.
   freezesLayout?: boolean;
   isDragging?: boolean;
   mode: OverlayMode;
@@ -161,8 +158,7 @@ interface IslandMorphProps {
   surface: OverlaySurface;
 }
 
-// The island animates in screen space inside a canvas that cancels the window
-// origin: growing the native window for a transition then cannot drag it along.
+// the canvas cancels the window origin, so growing the native window cannot drag the island along
 export const IslandMorph = ({
   children,
   contentKey,
@@ -191,8 +187,7 @@ export const IslandMorph = ({
     measured ?? toScreenBox(surface.island, surface.window),
     surface
   );
-  // An unmeasured surface keeps the frame it already holds, so the island
-  // expands from the resident pill instead of snapping to the reserved box.
+  // unmeasured surface keeps its frame — the island expands from the pill, not the reserved box
   const frameTarget = measured === null ? null : bridged.frame;
   const notifyComplete = useEffectEvent(onMorphComplete);
   const reducedMotionKey = reduceMotion ? `${mode}:${contentKey}` : null;

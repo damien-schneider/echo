@@ -10,8 +10,6 @@ import {
 import { useRef } from "react";
 import EchoLogo from "@/components/icons/echo-logo";
 
-/* ── Animated waveform bar ─────────────────────────────────────────── */
-
 function WaveformBar({
   index,
   time,
@@ -41,8 +39,6 @@ function WaveformBar({
     />
   );
 }
-
-/* ── Fake notch overlay (matches real overlay exactly) ─────────────── */
 
 function FakeNotch({
   state,
@@ -123,8 +119,6 @@ function FakeNotch({
   );
 }
 
-/* ── Step card ─────────────────────────────────────────────────────── */
-
 function Step({
   number,
   title,
@@ -158,8 +152,6 @@ function Step({
     </motion.div>
   );
 }
-
-/* ── Fake editor window ────────────────────────────────────────────── */
 
 function FakeEditorWindow() {
   return (
@@ -197,8 +189,6 @@ function FakeEditorWindow() {
   );
 }
 
-/* ── CSS for notch animations (injected inline) ────────────────────── */
-
 const notchStyles = `
 @keyframes notch-bar-pulse {
   0%, 100% { height: 20%; opacity: 0.3; }
@@ -214,8 +204,6 @@ const notchStyles = `
   50% { background-color: rgba(20,20,20,0.5); }
 }
 `;
-
-/* ── Main section ──────────────────────────────────────────────────── */
 
 const WAVEFORM_BAR_IDS = Array.from({ length: 24 }, (_, i) => `bar-${i}`);
 

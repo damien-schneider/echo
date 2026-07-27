@@ -3,8 +3,6 @@
 import { motion, useInView, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 
-/* ── Data flow node ────────────────────────────────────────────────── */
-
 function FlowNode({
   label,
   sublabel,
@@ -46,8 +44,6 @@ function FlowNode({
   );
 }
 
-/* ── Connecting arrow ──────────────────────────────────────────────── */
-
 function FlowArrow({ delay, isInView }: { delay: number; isInView: boolean }) {
   return (
     <motion.div
@@ -61,8 +57,6 @@ function FlowArrow({ delay, isInView }: { delay: number; isInView: boolean }) {
     </motion.div>
   );
 }
-
-/* ── Blocked arrow (to cloud) ──────────────────────────────────────── */
 
 function BlockedArrow({
   delay,
@@ -92,8 +86,6 @@ function BlockedArrow({
   );
 }
 
-/* ── Mobile flow (vertical) ────────────────────────────────────────── */
-
 function MobileFlowArrow({
   delay,
   isInView,
@@ -113,8 +105,6 @@ function MobileFlowArrow({
     </motion.div>
   );
 }
-
-/* ── Main section ──────────────────────────────────────────────────── */
 
 export default function PrivacyManifesto() {
   const ref = useRef<HTMLDivElement>(null);

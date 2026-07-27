@@ -1,7 +1,6 @@
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
-// Subscribe to a Tauri listener that may be torn down before its promise resolves.
-// If teardown runs first, the late unlisten fires immediately so no listener leaks.
+// teardown may beat the subscribe promise — the late unlisten fires at once so nothing leaks
 export const listenCancellable = (
   subscribe: () => Promise<UnlistenFn>
 ): UnlistenFn => {

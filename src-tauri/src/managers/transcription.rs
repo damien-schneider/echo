@@ -15,10 +15,7 @@ use std::time::Duration;
 /// 16 kHz mono f32 — whisper + parakeet input format.
 pub const WHISPER_SAMPLE_RATE: usize = 16_000;
 
-/// Fail-fast deadline for one transcribe call. With the batch engine prewarmed
-/// + pinned resident at boot (see lib.rs), a real decode is ~1s, so an 8s floor
-/// surfaces a genuine hang quickly instead of stalling the UI for 30s. Longer
-/// clips still scale via the 3x multiplier below.
+/// Prewarmed decode is ~1s, so this floor surfaces a hang fast; longer clips scale by the multiplier below.
 pub const MIN_TRANSCRIPTION_TIMEOUT_SECS: u64 = 8;
 
 /// 3x audio length — first decode after load can approach realtime.
@@ -120,7 +117,7 @@ impl TranscriptionManager {
         let model_path = self.model_manager.get_model_path(model_id)?;
         match model_info.engine_type {
             EngineType::Whisper => {
-                // Observability only: mirror whisper.cpp's `<stem>-encoder.mlmodelc` lookup.
+                // observability only — mirrors whisper.cpp's `<stem>-encoder.mlmodelc` lookup
                 #[cfg(target_os = "macos")]
                 {
                     let stem = model_path
@@ -222,8 +219,7 @@ impl TranscriptionManager {
         self.engine.current_model_id().as_deref() == Some(target_id)
     }
 
-    /// Idempotent. Skips warmup decode: holding engine.lock during synthetic decode
-    /// would starve stop-flow transcribe and trip its 30s timeout.
+    /// Idempotent. No warmup decode — holding `engine.lock` would starve the stop-flow transcribe.
     pub fn prewarm(&self) -> Result<()> {
         let Some(_guard) = try_acquire_once_flag(&self.prewarm_in_progress) else {
             debug!("prewarm: skipped — another prewarm is already running");

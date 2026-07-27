@@ -48,13 +48,11 @@ impl RecorderState {
             return Ok(());
         }
 
-        // If we're currently recording, stop first
         if self.is_recording {
             println!("Stopping current recording to switch modes...");
             self.stop_recording()?;
         }
 
-        // Close if open and switching to on-demand, or if switching from on-demand to always-on
         if self.is_open {
             match (&self.mode, &new_mode) {
                 (RecorderMode::AlwaysOn, RecorderMode::OnDemand) => {
@@ -63,8 +61,7 @@ impl RecorderState {
                     println!("Closed recorder for On-Demand mode");
                 }
                 (RecorderMode::OnDemand, RecorderMode::AlwaysOn) => {
-                    // For switching from on-demand to always-on, we need to reopen
-                    // This will be handled when the user starts recording
+                    // reopen happens on the next start_recording
                 }
                 _ => {}
             }
@@ -100,7 +97,6 @@ impl RecorderState {
 
         match self.mode {
             RecorderMode::AlwaysOn => {
-                // In always-on mode, open once and keep open
                 if !self.is_open || self.current_device_index != device_index {
                     if self.is_open {
                         self.recorder.close()?;
@@ -113,7 +109,6 @@ impl RecorderState {
                 self.recorder.start()?;
             }
             RecorderMode::OnDemand => {
-                // In on-demand mode, open for each recording
                 if self.is_open {
                     self.recorder.close()?;
                 }
@@ -143,11 +138,9 @@ impl RecorderState {
 
         match self.mode {
             RecorderMode::AlwaysOn => {
-                // Keep the recorder open for next recording
                 println!("Recording stopped. Recorder remains open for next recording.");
             }
             RecorderMode::OnDemand => {
-                // Close the recorder after each recording
                 self.recorder.close()?;
                 self.is_open = false;
                 self.current_device_index = None;
@@ -294,9 +287,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 println!("Goodbye!");
                 break;
             }
-            "" => {
-                // Empty input, continue
-            }
+            "" => {}
             _ => {
                 println!(
                     "Unknown command: '{}'. Type 'help' for available commands.",

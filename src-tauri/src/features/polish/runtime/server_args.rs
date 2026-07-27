@@ -1,7 +1,4 @@
-/// Polish runs next to whatever the user is actually doing — a build, a call, a
-/// recording. Leaving llama.cpp on its default (every core) turns a two second
-/// correction into a stalled machine, so it gets half the cores and no more
-/// than this.
+/// llama.cpp defaults to every core, which stalls the machine mid-build or mid-call.
 const MAX_THREADS: usize = 8;
 
 const CONTEXT_SIZE: &str = "4096";
@@ -16,8 +13,7 @@ pub(super) fn polish_thread_count(available: usize) -> usize {
     (available / 2).clamp(1, MAX_THREADS).min(available.max(1))
 }
 
-/// The command line the local server is started with. Loopback host and a
-/// per-run key keep the model reachable only from this app.
+/// Loopback host plus a per-run key keep the server reachable only from this app.
 pub(super) fn server_arguments(binding: ServerBinding<'_>) -> Vec<String> {
     let threads = polish_thread_count(available_cores());
     [

@@ -27,8 +27,7 @@ pub(super) struct PaintedPreview {
     pub(super) payload: SnapPreviewPayload,
 }
 
-/// What the drag has committed to so far: the placement a release would keep,
-/// and the silhouette already on screen.
+/// The placement a release would keep, plus the silhouette already on screen.
 #[derive(Clone, Copy, Debug, Default)]
 pub(super) struct DragSession {
     pub(super) painted: Option<PaintedPreview>,

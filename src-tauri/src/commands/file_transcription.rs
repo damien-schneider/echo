@@ -11,6 +11,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+const INDETERMINATE_PROGRESS: f64 = -1.0;
+const MODEL_LOAD_HEADSTART: Duration = Duration::from_millis(500);
+
 #[derive(Clone, Serialize)]
 pub struct FileTranscriptionProgress {
     pub status: String,
@@ -20,7 +23,6 @@ pub struct FileTranscriptionProgress {
     pub file_name: Option<String>,
 }
 
-/// Check if a file is a video format
 fn is_video_file(path: &PathBuf) -> bool {
     let extension = path
         .extension()
@@ -43,7 +45,6 @@ pub async fn transcribe_audio_file(
 ) -> Result<String, String> {
     let path = PathBuf::from(&file_path);
 
-    // Validate file exists
     if !path.exists() {
         let err = format!("File not found: {}", file_path);
         emit_error(&app, &err, None);
@@ -55,12 +56,10 @@ pub async fn transcribe_audio_file(
         .and_then(|n| n.to_str())
         .map(ToString::to_string);
 
-    // Mark file transcription as active
     crate::set_file_transcription_active(true);
 
     let is_video = is_video_file(&path);
 
-    // Emit progress: Starting - different message for video vs audio
     emit_progress(
         &app,
         &FileTranscriptionProgress {
@@ -75,7 +74,7 @@ pub async fn transcribe_audio_file(
         },
     );
 
-    // Decode audio file to 16kHz mono f32
+    // 16 kHz mono f32
     let audio_samples = match decode_audio_file(&path) {
         Ok(samples) => samples,
         Err(e) => {
@@ -102,43 +101,35 @@ pub async fn transcribe_audio_file(
     let duration_mins = duration_secs / 60;
     let duration_secs_remainder = duration_secs % 60;
 
-    // Format duration string
     let duration_str = if duration_mins > 0 {
         format!("{}m {}s", duration_mins, duration_secs_remainder)
     } else {
         format!("{}s", duration_secs)
     };
 
-    // Emit progress: Decoding complete, starting transcription
     emit_progress(
         &app,
         &FileTranscriptionProgress {
             status: "transcribing".to_string(),
-            progress: -1.0, // Indeterminate progress
+            progress: INDETERMINATE_PROGRESS,
             message: format!("Transcribing {} of audio...", duration_str),
             file_name: file_name.clone(),
         },
     );
 
-    // Ensure model is loaded
     transcription_manager.initiate_model_load();
+    std::thread::sleep(MODEL_LOAD_HEADSTART);
 
-    // Wait a moment for model to start loading if it wasn't loaded
-    std::thread::sleep(std::time::Duration::from_millis(500));
-
-    // Start elapsed time tracking thread
     let progress_complete = Arc::new(AtomicBool::new(false));
     let progress_complete_clone = progress_complete.clone();
     let app_clone = app.clone();
     let file_name_clone = file_name.clone();
     let duration_str_clone = duration_str.clone();
 
-    // Spawn elapsed time display thread
     let progress_handle = std::thread::spawn(move || {
         let start_time = Instant::now();
         let update_interval = Duration::from_secs(5);
 
-        // Wait a bit before first update
         std::thread::sleep(update_interval);
 
         while !progress_complete_clone.load(Ordering::SeqCst) {
@@ -153,7 +144,7 @@ pub async fn transcribe_audio_file(
                 &app_clone,
                 &FileTranscriptionProgress {
                     status: "transcribing".to_string(),
-                    progress: -1.0, // Indeterminate progress
+                    progress: INDETERMINATE_PROGRESS,
                     message: format!(
                         "Transcribing {} of audio... ({})",
                         duration_str_clone, elapsed_str
@@ -166,15 +157,12 @@ pub async fn transcribe_audio_file(
         }
     });
 
-    // Transcribe the audio with a wall-clock cap derived from the audio
-    // length — a hung whisper FFI here used to leave
-    // `is_file_transcription_active` true forever, which blocks dictation.
+    // uncapped, a hung whisper FFI pins `is_file_transcription_active` and blocks dictation forever
     let transcription_result = transcription_manager.transcribe_with_timeout(
         audio_samples.clone(),
         transcription_timeout(audio_samples.len()),
     );
 
-    // Signal progress thread to stop
     progress_complete.store(true, Ordering::SeqCst);
     let _ = progress_handle.join();
 
@@ -193,7 +181,6 @@ pub async fn transcribe_audio_file(
         return Err(err);
     }
 
-    // Emit progress: Transcription complete, saving
     emit_progress(
         &app,
         &FileTranscriptionProgress {
@@ -204,7 +191,6 @@ pub async fn transcribe_audio_file(
         },
     );
 
-    // Get file name without extension for title
     let file_stem = path
         .file_stem()
         .and_then(|s| s.to_str())
@@ -212,8 +198,6 @@ pub async fn transcribe_audio_file(
 
     let title = format!("File: {}", file_stem);
 
-    // Save to history with a custom title
-    // We need to use save_transcription and then update the title
     if let Err(e) = history_manager
         .save_transcription(
             audio_samples,
@@ -225,11 +209,8 @@ pub async fn transcribe_audio_file(
     {
         let err = format!("Failed to save to history: {}", e);
         error!("{}", err);
-        // Don't return error here, transcription still succeeded
     }
 
-    // Update the title in the database to use the file name
-    // Get the most recent entry and update its title
     let db_path = app
         .path()
         .app_data_dir()
@@ -243,7 +224,6 @@ pub async fn transcribe_audio_file(
         );
     }
 
-    // Emit progress: Complete
     emit_progress(
         &app,
         &FileTranscriptionProgress {
@@ -254,10 +234,8 @@ pub async fn transcribe_audio_file(
         },
     );
 
-    // Clear file transcription active flag
     crate::set_file_transcription_active(false);
 
-    // Emit completion event with details for the dialog
     if let Err(e) = app.emit(
         "transcription-complete",
         json!({
@@ -274,7 +252,6 @@ pub async fn transcribe_audio_file(
         transcription_text.len()
     );
 
-    // Emit event to copy to clipboard
     if let Err(e) = app.emit("copy-to-clipboard", transcription_text.clone()) {
         error!("Failed to emit copy-to-clipboard event: {}", e);
     }
@@ -289,15 +266,12 @@ fn emit_progress(app: &AppHandle, progress: &FileTranscriptionProgress) {
 }
 
 fn emit_error(app: &AppHandle, error_message: &str, file_name: Option<String>) {
-    // Clear file transcription active flag
     crate::set_file_transcription_active(false);
 
-    // Emit as file-transcription-error for the listener
     if let Err(e) = app.emit("file-transcription-error", error_message.to_string()) {
         error!("Failed to emit error event: {}", e);
     }
 
-    // Also emit progress with error status so UI updates correctly
     emit_progress(
         app,
         &FileTranscriptionProgress {

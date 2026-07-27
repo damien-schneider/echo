@@ -85,7 +85,6 @@ impl AudioRecorder {
 
         let thread_device = device.clone();
         let vad = self.vad.clone();
-        // Move the optional level callback into the worker thread
         let level_cb = self.level_cb.clone();
 
         let worker = std::thread::spawn(move || {
@@ -129,9 +128,7 @@ impl AudioRecorder {
 
             stream.play().expect("failed to start stream");
 
-            // keep the stream alive while we process samples
             run_consumer(sample_rate, vad, sample_rx, cmd_rx, level_cb);
-            // stream is dropped here, after run_consumer returns
         });
 
         self.device = Some(device);
@@ -157,17 +154,13 @@ impl AudioRecorder {
 
     pub(crate) fn stop_with_metadata(&self) -> Result<RecordedAudio, Box<dyn std::error::Error>> {
         let (resp_tx, resp_rx) = mpsc::channel();
-        // If the recorder was never opened (or already closed) `cmd_tx` is None.
-        // The old code skipped the send but still blocked on `resp_rx.recv()`
-        // forever, since nothing would ever fill the channel — an unbounded
-        // hang. Bail with an empty buffer instead.
+        // no `cmd_tx` means nothing will ever answer `resp_rx` — bail instead of blocking forever
         let Some(tx) = &self.cmd_tx else {
             debug!("AudioRecorder::stop() called with no open stream — returning empty buffer");
             return Ok(RecordedAudio::default());
         };
         tx.send(Cmd::Stop(resp_tx))?;
-        // Bounded: the consumer thread replies as soon as it drains its queue.
-        // A wedged/unresponsive device must surface fast, not stall the caller.
+        // bounded — a wedged device must surface fast, not stall the caller
         match resp_rx.recv_timeout(Duration::from_millis(1500)) {
             Ok(recording) => Ok(recording),
             Err(mpsc::RecvTimeoutError::Timeout) => Err("recorder stop timed out".into()),
@@ -204,10 +197,8 @@ impl AudioRecorder {
             output_buffer.clear();
 
             if channels == 1 {
-                // Direct conversion without intermediate Vec
                 output_buffer.extend(data.iter().map(|&sample| sample.to_sample::<f32>()));
             } else {
-                // Convert to mono directly
                 let frame_count = data.len() / channels;
                 output_buffer.reserve(frame_count);
 
@@ -239,19 +230,16 @@ impl AudioRecorder {
     ) -> Result<cpal::SupportedStreamConfig, Box<dyn std::error::Error>> {
         let supported_configs = device.supported_input_configs()?;
 
-        // Try to find a config that supports 16kHz
         for config_range in supported_configs {
             if config_range.min_sample_rate().0 <= constants::WHISPER_SAMPLE_RATE
                 && config_range.max_sample_rate().0 >= constants::WHISPER_SAMPLE_RATE
             {
-                // Found a config that supports 16kHz, use it
                 return Ok(
                     config_range.with_sample_rate(cpal::SampleRate(constants::WHISPER_SAMPLE_RATE))
                 );
             }
         }
 
-        // If no config supports 16kHz, fall back to default
         Ok(device.default_input_config()?)
     }
 }
@@ -375,7 +363,7 @@ fn run_consumer(
     }
 
     loop {
-        // Check for commands FIRST, before processing audio
+        // commands before audio — shutdown must not queue behind a backlog
         while let Ok(cmd) = cmd_rx.try_recv() {
             match cmd {
                 Cmd::Start(tx) => {
@@ -411,12 +399,10 @@ fn run_consumer(
             }
         }
 
-        // Use recv_timeout to allow checking for shutdown commands even when
-        // no audio samples are being received (e.g., if the audio device is unresponsive)
+        // timeout so shutdown lands even when an unresponsive device sends no samples
         let raw = match sample_rx.recv_timeout(Duration::from_millis(100)) {
             Ok(s) => s,
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                // Check for shutdown command on timeout
                 if let Ok(Cmd::Shutdown) = cmd_rx.try_recv() {
                     return;
                 }
@@ -431,7 +417,6 @@ fn run_consumer(
             }
         }
 
-        // ---------- existing pipeline ------------------------------------ //
         frame_resampler.push(&raw, &mut |frame: &[f32]| {
             handle_frame(frame, recording, &vad, &mut recorded_audio, &chunk_tx)
         });

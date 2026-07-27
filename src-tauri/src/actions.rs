@@ -295,11 +295,7 @@ pub static FINALIZE_DONE: AtomicU64 = AtomicU64::new(0);
 
 pub const POST_PROCESS_WATCHDOG: Duration = Duration::from_secs(30);
 
-/// Hard ceiling for the blocking `stop_recording` teardown (worker join +
-/// recorder stop + on-demand mic close). Past this we abandon the audio path and
-/// surface an error so the UI never sticks on "transcribing". Comfortably above
-/// the sum of the inner per-join budgets (~3s) yet far below the old unbounded
-/// hang. Fail-fast requirement: error visible within a few seconds, not minutes.
+/// Last resort above the inner per-join budgets (~3s) — past it the audio path is abandoned so the UI can't stick.
 pub const STOP_RECORDING_CEILING: Duration = Duration::from_secs(10);
 
 /// Aborted on new stop/cancel to halt stale LLM post-process calls.
@@ -436,8 +432,7 @@ fn apply_dictation_cleanup(app: &AppHandle, raw: &str, settings: &AppSettings) -
 
 /// Outcome of the pre-flight model check run before a dictation starts.
 enum ModelReadiness {
-    /// Batch model is downloaded — recording may proceed (load, if needed, is
-    /// handled by the decode path).
+    /// Downloaded; the decode path loads it if needed.
     Ready,
     /// Cannot record right now; show `String` and abort the press.
     Blocked(String),
@@ -626,11 +621,7 @@ impl ShortcutAction for TranscribeAction {
                 binding_id
             );
 
-            // `stop_recording` is blocking (thread joins + channel recvs). Run it
-            // on a blocking pool with a hard ceiling so the async task always has
-            // an `.await` boundary (cancel/abort works) and can never park forever
-            // on an OS join. The inner joins are individually bounded (worker join
-            // budget + recorder stop timeout), so this ceiling is the last resort.
+            // `stop_recording` blocks on OS joins — the blocking pool keeps an `.await` boundary so abort still works
             let stop_recording_time = Instant::now();
             let rm_stop = Arc::clone(&rm_for_task);
             let bid = binding_id.clone();

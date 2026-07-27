@@ -1,5 +1,3 @@
-//! TTS-related settings commands.
-
 use crate::settings;
 use tauri::AppHandle;
 

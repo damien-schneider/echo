@@ -15,8 +15,6 @@ import { motion, useInView, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 import EchoLogo from "@/components/icons/echo-logo";
 
-/* ── Sidebar items ─────────────────────────────────────────────────── */
-
 const sidebarItems = [
   { active: false, icon: Settings2, label: "App Settings" },
   { active: false, icon: AudioLines, label: "Transcription" },
@@ -26,8 +24,6 @@ const sidebarItems = [
   { active: false, icon: Box, label: "Models" },
   { active: true, icon: History, label: "History" },
 ];
-
-/* ── Transcription history data ────────────────────────────────────── */
 
 const historyEntries = [
   {
@@ -63,8 +59,6 @@ const historyEntries = [
     words: 13,
   },
 ];
-
-/* ── Floating notch overlay ────────────────────────────────────────── */
 
 function FloatingNotch() {
   const BAR_DELAYS = [0, 150, 300, 450];
@@ -129,8 +123,6 @@ const notchCSS = `
   50% { translate: 100% 0; }
   100% { translate: -100% 0; }
 }`;
-
-/* ── Fake app window — History view ────────────────────────────────── */
 
 function FakeAppWindow() {
   return (
@@ -235,8 +227,6 @@ function FakeAppWindow() {
     </div>
   );
 }
-
-/* ── Section ───────────────────────────────────────────────────────── */
 
 export default function InterfaceShowcase() {
   const ref = useRef<HTMLDivElement>(null);

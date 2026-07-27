@@ -50,8 +50,7 @@ pub(crate) struct OverlayOriginPayload {
     pub(crate) y: f64,
 }
 
-/// Everything the webview needs to draw one frame: island boxes in window-local
-/// coordinates plus the window origin, so a pure window move never re-animates.
+/// Island boxes are window-local, so a pure window move never re-animates.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct OverlaySurfacePayload {
@@ -88,8 +87,7 @@ fn surface_insets(placement: OverlayPlacement) -> SurfaceInsets {
     insets
 }
 
-/// Hardware notch owns the top strip of its screen: every top-anchored surface
-/// starts below it, and the window keeps the strip so the bridge can paint it.
+/// The notch owns its screen's top strip — top-anchored surfaces start below, the window keeps the strip to paint.
 fn notch_top_inset(placement: OverlayPlacement, notch: Option<OverlayNotchGeometry>) -> f64 {
     match notch {
         Some(notch) if placement.resolved_anchor() == OverlayDockEdge::Top => notch.top_inset,
@@ -104,8 +102,7 @@ fn notch_center_shift(placement: OverlayPlacement, notch: Option<OverlayNotchGeo
     }
 }
 
-/// A side dock keeps one size: it already shows every action, so growing it
-/// under the pointer would only shift the icons the user is aiming at.
+/// A side dock keeps one size — growing under the pointer would shift the icons the user is aiming at.
 fn resident_island_dimensions(
     mode: RecordingOverlayMode,
     placement: OverlayPlacement,
@@ -207,8 +204,7 @@ fn union_frames(first: OverlayFrame, second: OverlayFrame) -> OverlayFrame {
     }
 }
 
-/// The window covers both the outgoing and incoming surfaces for the whole
-/// morph, so the island slides inside a window that never moves under it.
+/// The window covers both surfaces for the whole morph, so the island slides inside a frame that never moves.
 pub(super) fn transition_window(
     monitor: MonitorBounds,
     frames: impl IntoIterator<Item = OverlayFrame>,
@@ -236,8 +232,7 @@ fn window_local_box(island: OverlayFrame, window: OverlayFrame) -> OverlayBoxPay
     }
 }
 
-/// Native hit testing follows the drawn island, not the transparent canvas
-/// around it. Transient surfaces fill their canvas, so they own all of it.
+/// Hit testing follows the drawn island, not the transparent canvas; transient surfaces fill theirs.
 pub(super) fn surface_hover_box(
     request: SurfaceRequest,
     window: OverlayFrame,

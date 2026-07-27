@@ -53,8 +53,7 @@ fn settle_accepts_only_the_current_pending_mode() {
     );
 }
 
-/// A window with nothing settled and nothing staged draws nothing at all: the
-/// notification stays off screen until activity asks for it.
+/// Nothing settled and nothing staged draws nothing at all.
 #[test]
 fn a_silent_window_renders_no_mode_until_one_is_staged() {
     assert_eq!(render_mode(SILENT), None);
@@ -65,8 +64,7 @@ fn a_silent_window_renders_no_mode_until_one_is_staged() {
     );
 }
 
-/// The staged mode is what the webview is animating towards, so it wins over
-/// the settled one for as long as the morph lasts.
+/// Staged wins over settled for as long as the morph lasts.
 #[test]
 fn the_staged_mode_is_the_one_being_drawn() {
     let state = stage_mode(IDLE_HUD, RecordingOverlayMode::Actions);

@@ -13,8 +13,6 @@ import {
 import EchoLogo from "@/components/icons/echo-logo";
 import { useGithubData } from "@/hooks/use-github-data";
 
-/* ── Three.js shader background (black-and-white ray-march) ─────────── */
-
 function ShaderPlane({
   vertexShader,
   fragmentShader,
@@ -126,8 +124,6 @@ function ShaderBackground({ isActive }: { isActive: boolean }) {
   );
 }
 
-/* ── Animated waveform bar ─────────────────────────────────────────── */
-
 const BAR_COUNT = 28;
 
 function WaveBar({ index }: { index: number }) {
@@ -151,8 +147,6 @@ function WaveBar({ index }: { index: number }) {
     />
   );
 }
-
-/* ── Hero notch — the product's signature UI ───────────────────────── */
 
 function HeroNotch() {
   return (
@@ -197,8 +191,6 @@ function HeroNotch() {
     </motion.div>
   );
 }
-
-/* ── Hero section ──────────────────────────────────────────────────── */
 
 export default function Hero() {
   const { version } = useGithubData();

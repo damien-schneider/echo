@@ -1,7 +1,6 @@
 use rubato::{FftFixedIn, Resampler};
 use std::time::Duration;
 
-// Make this a constant you can tweak
 const RESAMPLER_CHUNK_SIZE: usize = 1024;
 
 pub struct FrameResampler {
@@ -17,7 +16,6 @@ impl FrameResampler {
         let frame_samples = ((out_hz as f64 * frame_dur.as_secs_f64()).round()) as usize;
         assert!(frame_samples > 0, "frame duration too short");
 
-        // Use fixed chunk size instead of GCD-based
         let chunk_in = RESAMPLER_CHUNK_SIZE;
 
         let resampler = (in_hz != out_hz).then(|| {
@@ -47,15 +45,12 @@ impl FrameResampler {
             src = &src[take..];
 
             if self.in_buf.len() == self.chunk_in {
-                // let start = std::time::Instant::now();
                 if let Ok(out) = self
                     .resampler
                     .as_mut()
                     .unwrap()
                     .process(&[&self.in_buf[..]], None)
                 {
-                    // let duration = start.elapsed();
-                    // println!("Resampler took: {:?}", duration);
                     self.emit_frames(&out[0], &mut emit);
                 }
                 self.in_buf.clear();
@@ -64,10 +59,8 @@ impl FrameResampler {
     }
 
     pub fn finish(&mut self, mut emit: impl FnMut(&[f32])) {
-        // Process any remaining input samples
         if let Some(ref mut resampler) = self.resampler {
             if !self.in_buf.is_empty() {
-                // Pad with zeros to reach chunk size
                 self.in_buf.resize(self.chunk_in, 0.0);
                 if let Ok(out) = resampler.process(&[&self.in_buf[..]], None) {
                     self.emit_frames(&out[0], &mut emit);
@@ -75,7 +68,6 @@ impl FrameResampler {
             }
         }
 
-        // Emit any remaining pending frame (padded with zeros)
         if !self.pending.is_empty() {
             self.pending.resize(self.frame_samples, 0.0);
             emit(&self.pending);

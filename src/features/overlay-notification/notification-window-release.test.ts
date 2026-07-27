@@ -15,8 +15,7 @@ describe("Notification window release", () => {
     ).toBe(false);
   });
 
-  /// Rust shows the window before the geometry reaches the webview: releasing
-  /// mid-transition would close the surface that is opening.
+  /// Rust shows the window before geometry reaches the webview — releasing now would close what is opening.
   test("a window still opening is left alone", () => {
     expect(
       notificationWindowIsEmpty({

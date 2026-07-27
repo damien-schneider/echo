@@ -40,8 +40,7 @@ interface SubscriptionPorts {
   setSurface: (state: OverlaySurfaceState) => void;
 }
 
-/// The first geometry comes from a command because the window may already be
-/// placed when the webview boots; every later one arrives on the event channel.
+/// First geometry comes from a command — the window may already be placed when the webview boots.
 export const startOverlaySubscription = (ports: SubscriptionPorts) => {
   let cleanup: UnlistenFn = () => undefined;
   let stopped = false;

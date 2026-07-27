@@ -57,7 +57,6 @@ pub struct ModelManager {
 
 impl ModelManager {
     pub fn new(app_handle: &AppHandle) -> Result<Self> {
-        // Create models directory in app data
         let models_dir = app_handle
             .path()
             .app_data_dir()
@@ -75,10 +74,8 @@ impl ModelManager {
             available_models: Mutex::new(available_models),
         };
 
-        // Migrate any bundled models to user directory
         manager.migrate_bundled_models()?;
 
-        // Check which models are already downloaded
         manager.update_download_status()?;
 
         Ok(manager)
@@ -99,7 +96,6 @@ impl ModelManager {
     }
 
     fn migrate_bundled_models(&self) -> Result<()> {
-        // Check for bundled models and copy them to user directory
         let bundled_models = ["ggml-small.bin"]; // Add other bundled models here if any
 
         for filename in &bundled_models {
@@ -112,7 +108,6 @@ impl ModelManager {
                 if bundled_path.exists() {
                     let user_path = self.models_dir.join(filename);
 
-                    // Only copy if user doesn't already have the model
                     if !user_path.exists() {
                         log::info!("Migrating bundled model {} to user directory", filename);
                         fs::copy(&bundled_path, &user_path)?;
@@ -191,7 +186,6 @@ impl ModelManager {
         let mut deleted_something = false;
 
         if model_info.is_directory {
-            // Delete complete model directory if it exists
             if model_path.exists() && model_path.is_dir() {
                 log::info!(
                     "ModelManager: Deleting model directory at: {:?}",
@@ -202,7 +196,6 @@ impl ModelManager {
                 deleted_something = true;
             }
         } else {
-            // Delete complete model file if it exists
             if model_path.exists() {
                 log::info!("ModelManager: Deleting model file at: {:?}", model_path);
                 fs::remove_file(&model_path)?;
@@ -213,7 +206,6 @@ impl ModelManager {
 
         receipt::remove_receipt(&model_path);
 
-        // Delete partial file if it exists (same for both types)
         if partial_path.exists() {
             log::info!("ModelManager: Deleting partial file at: {:?}", partial_path);
             fs::remove_file(&partial_path)?;
@@ -225,7 +217,6 @@ impl ModelManager {
             return Err(anyhow::anyhow!("No model files found to delete"));
         }
 
-        // Update download status
         self.update_download_status()?;
         log::debug!("ModelManager: Download status updated");
 
@@ -241,7 +232,6 @@ impl ModelManager {
             return Err(anyhow::anyhow!("Model not available: {}", model_id));
         }
 
-        // Ensure we don't return partial files/directories
         if model_info.is_downloading {
             return Err(anyhow::anyhow!(
                 "Model is currently downloading: {}",
@@ -255,7 +245,6 @@ impl ModelManager {
             .join(format!("{}.partial", &model_info.filename));
 
         if model_info.is_directory {
-            // For directory-based models, ensure the directory exists and is complete
             if model_path.exists() && model_path.is_dir() && !partial_path.exists() {
                 Ok(model_path)
             } else {
@@ -265,7 +254,6 @@ impl ModelManager {
                 ))
             }
         } else {
-            // For file-based models (existing logic)
             if model_path.exists() && !partial_path.exists() {
                 Ok(model_path)
             } else {

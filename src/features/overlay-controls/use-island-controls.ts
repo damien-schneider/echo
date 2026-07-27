@@ -21,8 +21,7 @@ interface IslandControlOptions {
   polishStatus: PolishStatus;
 }
 
-/// Chat and the model panel are drawn by the notification window: the HUD asks
-/// Rust for them and goes straight back to being a handle.
+/// Chat and the model panel are drawn by the notification window — the HUD only asks Rust.
 const requestNotification = (surface: NotificationRequest) =>
   invoke(NOTIFICATION_REQUEST_COMMAND, { surface }).catch(() => undefined);
 
@@ -37,8 +36,7 @@ const useIslandSurface = () => {
   };
 };
 
-/// A failing control has nowhere to speak on a handle a few pixels tall, so the
-/// message is handed to the notification window.
+/// A handle a few pixels tall has nowhere to speak — failures go to the notification window.
 const useControlInvocation = () => {
   const invocationGeneration = useRef(0);
   return async (action: OverlayControlAction) => {

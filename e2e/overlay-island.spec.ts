@@ -394,8 +394,7 @@ test("settles back to the exact compact target before the next hover", async ({
 test("native pointer boundary reverses a connected resident morph", async ({
   page,
 }) => {
-  // macOS delivers no DOM pointer events to the webview until the panel
-  // becomes key, so the Rust monitors emit boundary crossings directly.
+  // macOS sends no DOM pointer events until the panel is key — Rust emits the boundary instead
   await page.goto(overlayUrl);
   await waitForTauriListener(page, "overlay-pointer-boundary");
   const morph = page.locator('[data-component="echo-island-morph"]');

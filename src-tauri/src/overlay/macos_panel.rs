@@ -119,8 +119,7 @@ pub(super) fn configure(
     Ok(())
 }
 
-/// The notification never opens on its own: it stays hidden until activity or
-/// a HUD action asks Rust to show it.
+/// The notification never opens on its own — activity or a HUD action asks Rust to show it.
 pub(super) fn configure_notification(window: &WebviewWindow) -> Result<(), String> {
     notification_panel::configure(window)?;
     register_panel_window(OverlaySurfaceKind::Notification, window)
@@ -130,9 +129,7 @@ pub(super) fn configure_snap_preview(window: &WebviewWindow) -> Result<(), Strin
     snap_preview_panel::configure(window)
 }
 
-/// Synthetic keystrokes from a paste would land in a panel while it holds key
-/// for hover — release them and refuse hover key possession until the paste is
-/// over. Chat mode is exempt: there the panel owns key deliberately.
+/// A panel holding key for hover would swallow paste keystrokes; chat mode is exempt, it owns key deliberately.
 pub(super) fn begin_paste_key_suppression(app_handle: &AppHandle) {
     PASTE_KEY_SUPPRESSED.store(true, Ordering::Release);
     for panel in HOVER_PANELS {

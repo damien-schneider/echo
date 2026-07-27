@@ -1,9 +1,4 @@
-//! Platform-abstracted system audio capture.
-//!
-//! Each platform module implements [`SystemAudioCapture`] and emits 16 kHz mono
-//! f32 PCM samples down an [`mpsc::Receiver`]. Sample rate conversion and
-//! channel downmix happen inside the platform module so callers only ever see
-//! Whisper-ready audio.
+//! Resample and downmix happen per platform — callers only ever see 16 kHz mono f32.
 
 use anyhow::Result;
 use std::sync::mpsc;
@@ -15,30 +10,24 @@ mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
 
-/// Trait for capturing system audio.
 pub trait SystemAudioCapture: Send {
-    /// Start capturing. Returns a receiver yielding 16 kHz mono f32 chunks.
+    /// Yields 16 kHz mono f32 chunks.
     fn start(&mut self) -> Result<mpsc::Receiver<Vec<f32>>>;
-    /// Stop capturing.
     fn stop(&mut self) -> Result<()>;
-    /// Check if system audio capture is available on this platform.
     fn is_available() -> bool
     where
         Self: Sized;
 }
 
-/// Whether system audio capture can be used on this OS at runtime.
 pub fn is_system_audio_available() -> bool {
     platform::is_available()
 }
 
-/// Construct a platform-appropriate capture instance.
 pub fn create_system_capture() -> Result<Box<dyn SystemAudioCapture>> {
     platform::create()
 }
 
-// Platform glue — each module exposes `is_available()` + `create()`.
-// Aliased so the rest of the file uses one stable name regardless of target.
+// aliased so the rest of the file names one backend regardless of target
 #[cfg(target_os = "windows")]
 use self::windows as platform;
 #[cfg(target_os = "linux")]

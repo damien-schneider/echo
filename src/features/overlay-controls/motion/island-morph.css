@@ -100,8 +100,7 @@
   clip-path: var(--echo-dock-shape-bottom);
 }
 
-/* A dragged island hangs off no edge: the docked silhouette would read as a
-   torn-off shape while it flies under the pointer. */
+/* a dragged island hangs off no edge — a docked silhouette would read as torn off */
 .echo-island-morph[data-presentation="docked"][data-dragging="true"]:is(
     [data-mode="compact"],
     [data-mode="actions"]
@@ -109,8 +108,7 @@
   clip-path: none;
 }
 
-/* A handoff teleports the window to another display: the island fades out, the
-   window jumps, and the fade back in covers the repaint on the new screen. */
+/* fade out, jump display, fade in — the fade covers the repaint on the new screen */
 .recording-overlay-root[data-handoff="leaving"] .echo-island-morph {
   opacity: 0;
   filter: blur(6px);

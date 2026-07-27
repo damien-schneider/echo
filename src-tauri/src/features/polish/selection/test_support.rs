@@ -7,8 +7,7 @@ use std::time::Duration;
 
 #[derive(Clone, Default)]
 pub(super) struct ClipboardFaults {
-    /// Number of leading `read_text` calls that report a failure, standing in
-    /// for a pasteboard caught mid-write by the application being copied from.
+    /// Leading `read_text` failures, standing in for a pasteboard caught mid-write.
     pub(super) unreadable_reads: usize,
     pub(super) restore_fails: bool,
 }

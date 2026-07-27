@@ -2,8 +2,7 @@ import type { OverlayMode } from "@/features/overlay-controls/recording-overlay-
 
 export type NativeOverlayTransitionPhase = "idle" | "morphing" | "preparing";
 
-/// Each window carries its own mode alphabet, so the staged mode never widens
-/// to the other window's surfaces.
+/// Per-window mode alphabet — a staged mode never widens to the other window's surfaces.
 export interface StagedNativeOverlayTransition<Mode extends OverlayMode> {
   generation: number;
   mode: Mode;
@@ -26,8 +25,7 @@ export type NativeOverlayTransitionEvent<Mode extends OverlayMode> =
     }
   | { error: string | null; generation: number; type: "settle_finished" };
 
-/// Each window starts staged on the mode it opens with: the HUD on its handle,
-/// the notification on the first surface it is asked for.
+/// Each window stages the mode it opens with.
 export const initialNativeOverlayTransition = <Mode extends OverlayMode>(
   mode: Mode
 ): NativeOverlayTransitionState<Mode> => ({
@@ -44,8 +42,7 @@ const isStale = <Mode extends OverlayMode>(
   generation: number
 ) => generation < state.staged.generation;
 
-// A failed native preflight still stages the render: a stuck window is
-// recoverable, an island frozen in the previous mode is not.
+// stage anyway — a stuck window recovers, an island frozen in the old mode does not
 export const reduceNativeOverlayTransition = <Mode extends OverlayMode>(
   state: NativeOverlayTransitionState<Mode>,
   event: NativeOverlayTransitionEvent<Mode>

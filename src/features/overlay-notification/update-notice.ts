@@ -24,8 +24,7 @@ interface UpdateNoticeOptions {
 const isRunning = (phase: UpdateSnapshot["phase"]) =>
   phase === "downloading" || phase === "installing";
 
-/// A check the user started answers in the window they started it from; the
-/// notch only speaks up about a version it can install.
+/// A user-started check answers in its own window; the notch only mentions an installable version.
 const hasNothingToOffer = ({
   dismissedVersion,
   snapshot,

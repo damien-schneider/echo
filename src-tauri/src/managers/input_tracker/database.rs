@@ -1,15 +1,11 @@
-//! Database operations for persisting input tracking entries.
-
 use super::types::InputEntry;
 use rusqlite::Connection;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
 
-/// Save an input entry to the database and emit event to frontend
 pub fn save_entry_to_db(db_path: &PathBuf, entry: &InputEntry, app_handle: &AppHandle) {
     match Connection::open(db_path) {
         Ok(conn) => {
-            // Ensure table exists (handles migration edge cases)
             let table_exists: bool = conn
                 .query_row(
                     "SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='input_entries'",
@@ -40,7 +36,7 @@ pub fn save_entry_to_db(db_path: &PathBuf, entry: &InputEntry, app_handle: &AppH
                     return;
                 }
             } else {
-                // Check if app_pid column exists, add it if missing (handles upgrade from older versions)
+                // app_pid arrived in a later version
                 let has_app_pid: bool = conn
                     .prepare("PRAGMA table_info(input_entries)")
                     .and_then(|mut stmt| {
@@ -58,7 +54,6 @@ pub fn save_entry_to_db(db_path: &PathBuf, entry: &InputEntry, app_handle: &AppH
                         conn.execute("ALTER TABLE input_entries ADD COLUMN app_pid INTEGER", [])
                     {
                         log::error!("[InputTracker] Failed to add app_pid column: {}", e);
-                        // Continue anyway, we'll just not save the pid
                     }
                 }
             }
@@ -84,7 +79,6 @@ pub fn save_entry_to_db(db_path: &PathBuf, entry: &InputEntry, app_handle: &AppH
                         entry.app_pid,
                         entry.content.len()
                     );
-                    // Emit event to notify frontend
                     if let Err(e) = app_handle.emit("input-entries-updated", ()) {
                         log::warn!("[InputTracker] Failed to emit update event: {}", e);
                     }

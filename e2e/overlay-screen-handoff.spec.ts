@@ -20,8 +20,7 @@ const waitForHandoffPhase = (page: Page, phase: string) =>
     { polling: "raf" }
   );
 
-/// The island must be gone before the window jumps, so the snapshot is taken
-/// mid-fade rather than after it.
+/// The island must be gone before the window jumps, so this samples mid-fade.
 const commandsWhileFading = (page: Page) =>
   page
     .waitForFunction(

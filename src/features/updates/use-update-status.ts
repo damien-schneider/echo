@@ -12,8 +12,7 @@ import {
 } from "@/features/updates/update-status";
 import { listenCancellable } from "@/lib/tauri-listener";
 
-/// The backend owns the state; a window that boots mid-download reads it once
-/// and follows the event stream from there.
+/// A window booting mid-download reads state once, then follows the event stream.
 const useUpdateSubscription = (
   setSnapshot: (snapshot: UpdateSnapshot) => void
 ) => {

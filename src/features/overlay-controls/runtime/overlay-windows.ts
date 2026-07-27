@@ -1,8 +1,6 @@
 import { z } from "zod";
 
-// Two native windows, two independent channels. The HUD is the handle the user
-// drags; the notification is what activity opens at the notch. Neither knows
-// the other's geometry, so nothing ever travels between them.
+// two native windows, two channels — neither knows the other's geometry
 export interface OverlayWindowChannel {
   prepareCommand: string;
   settleCommand: string;
@@ -29,8 +27,7 @@ export const NOTIFICATION_REQUEST_COMMAND = "request_overlay_notification";
 export const NOTIFICATION_REQUEST_EVENT = "overlay-notification-request";
 export const OVERLAY_WARNING_COMMAND = "warn_from_overlay";
 
-/// The HUD can only ask for the two surfaces it has buttons for; activity opens
-/// the notification on its own.
+/// The HUD may only ask for surfaces it has buttons for; activity opens the notification itself.
 export const NotificationRequestSchema = z.enum(["chat", "panel"]);
 
 export type NotificationRequest = z.infer<typeof NotificationRequestSchema>;

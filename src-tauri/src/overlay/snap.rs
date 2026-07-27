@@ -212,8 +212,7 @@ fn paint_snap_preview(
     Ok(())
 }
 
-/// Pointer samples arrive faster than the compositor draws: everything the
-/// preview already shows is left alone.
+/// Pointer samples outrun the compositor — whatever the preview already shows is left alone.
 pub(super) fn refresh_snap_preview(app_handle: &AppHandle) -> Result<(), String> {
     let Some(session) = current_session() else {
         return Ok(());
@@ -270,8 +269,7 @@ fn drop_placement(app_handle: &AppHandle, session: DragSession) -> Option<Overla
     })
 }
 
-/// Idempotent: the native mouse-up and the webview pointer release both land
-/// here, and only the first one owns the drop.
+/// Idempotent — native mouse-up and webview pointer release both land here; first one owns the drop.
 pub(super) fn finish_drag(app_handle: &AppHandle) -> Result<(), String> {
     let Some(session) = current_session() else {
         return Ok(());

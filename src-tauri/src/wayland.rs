@@ -2,8 +2,6 @@
 use log::{debug, error, info, warn};
 use tauri::{Runtime, WebviewWindow};
 
-/// Check if running under a Wayland session.
-/// Centralised helper used by clipboard, overlay, and shortcut modules.
 #[cfg(target_os = "linux")]
 pub fn is_wayland() -> bool {
     std::env::var("WAYLAND_DISPLAY").is_ok()
@@ -18,12 +16,6 @@ pub fn is_wayland() -> bool {
     false
 }
 
-/// Initialize gtk-layer-shell for a Wayland overlay window.
-/// This allows the window to appear above other windows and ignore input in transparent areas.
-///
-/// **Important**: `init_layer_shell()` must be called *before* the GTK window is realized.
-/// Since Tauri realizes the window during `builder.build()`, we first unrealize it,
-/// apply the layer-shell configuration, and let it be re-realized on the next `show()`.
 #[cfg(target_os = "linux")]
 pub fn init_layer_shell<R: Runtime>(
     window: &WebviewWindow<R>,
@@ -42,7 +34,6 @@ pub fn init_layer_shell<R: Runtime>(
         }
     };
 
-    // Check if we're actually on Wayland
     if !gtk_layer_shell::is_supported() {
         warn!("[LayerShell] gtk-layer-shell is NOT supported on this display server");
         warn!("[LayerShell] Overlay will use fallback mode (may not appear above other windows)");
@@ -51,30 +42,24 @@ pub fn init_layer_shell<R: Runtime>(
 
     info!("[LayerShell] gtk-layer-shell is supported, initializing...");
 
-    // --- Critical workaround ---
-    // gtk-layer-shell requires init_layer_shell() to be called BEFORE the window
-    // is realized. Tauri's builder.build() already realizes the window, so we
-    // must unrealize it first, apply layer-shell, then let it re-realize on show().
+    // gtk-layer-shell needs init before GTK realize — Tauri `build()` already realized it
     if gtk_window.is_realized() {
         debug!("[LayerShell] Window already realized, unrealizing before init...");
         gtk_window.unrealize();
     }
 
-    // Initialize layer shell (now on an unrealized window — the correct state)
     gtk_window.init_layer_shell();
     info!("[LayerShell] Layer shell initialized");
 
-    // Set the layer to Overlay (Always on top)
     gtk_window.set_layer(gtk_layer_shell::Layer::Overlay);
     debug!("[LayerShell] Set layer to Overlay");
 
-    // Set keyboard interactivity to false (None)
     use gtk::glib::Cast;
     let window_base: &gtk::Window = gtk_window.upcast_ref();
     window_base.set_keyboard_interactivity(false);
     debug!("[LayerShell] Disabled keyboard interactivity");
 
-    // Set exclusive zone to 0 (passthrough/don't move other windows)
+    // zone 0 — reserves no space, never reflows other windows
     gtk_window.set_exclusive_zone(0);
     debug!("[LayerShell] Set exclusive zone to 0");
 
@@ -95,13 +80,9 @@ pub fn init_layer_shell<R: Runtime>(
     _window: &WebviewWindow<R>,
     _anchors: (bool, bool, bool, bool),
 ) -> Result<(), String> {
-    // No-op on other platforms
     Ok(())
 }
 
-/// Configure GNOME overlay fallback without presenting/showing.
-/// Applies the focus policy so the overlay never steals focus from the user's app.
-/// Should be called during window creation.
 #[cfg(target_os = "linux")]
 pub fn configure_gnome_overlay<R: Runtime>(window: &WebviewWindow<R>) {
     use gtk::prelude::*;
@@ -126,9 +107,6 @@ pub fn configure_gnome_overlay<R: Runtime>(window: &WebviewWindow<R>) {
     );
 }
 
-/// Bring an overlay window to the front on GNOME Wayland using GTK-level APIs.
-/// Uses `show()` instead of `present()` to avoid stealing keyboard focus.
-/// Should be called every time the window is shown.
 #[cfg(target_os = "linux")]
 pub fn present_gnome_overlay<R: Runtime>(window: &WebviewWindow<R>) {
     use gtk::prelude::*;
@@ -149,40 +127,29 @@ pub fn present_gnome_overlay<R: Runtime>(window: &WebviewWindow<R>) {
     gtk_window.set_accept_focus(policy.accept_focus);
     gtk_window.set_focus_on_map(policy.focus_on_map);
 
-    // show() makes the window visible without stealing focus,
-    // unlike present() which would grab keyboard focus
+    // show() not present() — present() steals keyboard focus on GNOME
     gtk_window.show();
 }
 
 #[cfg(not(target_os = "linux"))]
 #[allow(dead_code)]
-pub fn configure_gnome_overlay<R: Runtime>(_window: &WebviewWindow<R>) {
-    // No-op
-}
+pub fn configure_gnome_overlay<R: Runtime>(_window: &WebviewWindow<R>) {}
 
 #[cfg(not(target_os = "linux"))]
 #[allow(dead_code)]
-pub fn present_gnome_overlay<R: Runtime>(_window: &WebviewWindow<R>) {
-    // No-op
-}
+pub fn present_gnome_overlay<R: Runtime>(_window: &WebviewWindow<R>) {}
 
-/// Describes the focus policy for a GNOME overlay window.
-/// Extracted so the configuration decisions can be tested on any platform.
 #[derive(Debug, PartialEq)]
 #[cfg(any(target_os = "linux", test))]
 pub struct GnomeOverlayFocusPolicy {
-    /// Whether the window should accept keyboard focus
     pub accept_focus: bool,
-    /// Whether the window should grab focus when first mapped
     pub focus_on_map: bool,
-    /// Whether to call `present()` (which steals focus) vs just `show()`
+    /// `present()` steals focus on GNOME; `show()` does not
     pub use_present: bool,
-    /// Whether to set keep_above (always on top)
     pub keep_above: bool,
 }
 
-/// Returns the focus policy for a GNOME overlay window.
-/// The overlay must never steal focus from the user's active application.
+/// Overlay must never steal focus from user's active app.
 #[cfg(any(target_os = "linux", test))]
 pub fn gnome_overlay_focus_policy() -> GnomeOverlayFocusPolicy {
     GnomeOverlayFocusPolicy {

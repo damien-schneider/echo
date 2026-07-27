@@ -16,8 +16,6 @@ import { motion, useInView, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 import EchoLogo from "@/components/icons/echo-logo";
 
-/* ── Mini UI: Notch overlay (privacy) ──────────────────────────────── */
-
 function MiniNotch() {
   return (
     <div className="flex flex-col items-center gap-3">
@@ -57,8 +55,6 @@ function MiniNotch() {
   );
 }
 
-/* ── Mini UI: Shortcut config ──────────────────────────────────────── */
-
 function MiniShortcutConfig() {
   return (
     <div className="space-y-2">
@@ -91,8 +87,6 @@ function MiniShortcutConfig() {
     </div>
   );
 }
-
-/* ── Mini UI: VAD waveform ─────────────────────────────────────────── */
 
 function MiniVadWaveform() {
   const bars = [
@@ -142,8 +136,6 @@ function MiniVadWaveform() {
   );
 }
 
-/* ── Mini UI: File drop ────────────────────────────────────────────── */
-
 function MiniFileDrop() {
   return (
     <div className="space-y-2">
@@ -179,8 +171,6 @@ function MiniFileDrop() {
     </div>
   );
 }
-
-/* ── Mini UI: Language selector ─────────────────────────────────────── */
 
 function MiniLanguageSelector() {
   const langs = [
@@ -221,8 +211,6 @@ function MiniLanguageSelector() {
   );
 }
 
-/* ── Mini UI: Post-processing ──────────────────────────────────────── */
-
 function MiniPostProcessing() {
   return (
     <div className="space-y-2">
@@ -245,8 +233,6 @@ function MiniPostProcessing() {
     </div>
   );
 }
-
-/* ── Mini UI: Tool Calls ───────────────────────────────────────────── */
 
 function MiniToolCalls() {
   return (
@@ -282,8 +268,6 @@ function MiniToolCalls() {
   );
 }
 
-/* ── Mini UI: Cross-platform ───────────────────────────────────────── */
-
 function MiniCrossPlatform() {
   const platforms = [
     { name: "macOS", sub: "Intel & Apple Silicon" },
@@ -309,8 +293,6 @@ function MiniCrossPlatform() {
     </div>
   );
 }
-
-/* ── Feature data ──────────────────────────────────────────────────── */
 
 const features = [
   {
@@ -373,8 +355,6 @@ const features = [
   },
 ];
 
-/* ── Scroll-triggered feature card ─────────────────────────────────── */
-
 function FeatureCard({
   feature,
   index,
@@ -425,8 +405,6 @@ function FeatureCard({
     </motion.div>
   );
 }
-
-/* ── Main section ──────────────────────────────────────────────────── */
 
 export default function Features() {
   const containerRef = useRef<HTMLDivElement>(null);

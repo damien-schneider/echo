@@ -8,8 +8,7 @@ pub(crate) use service::UpdateManager;
 use service::{check, install, snapshot, CheckTrigger};
 use status::UpdateSnapshot;
 
-/// A dev build runs from src-tauri/target, so installing a release bundle over
-/// it would wreck the tree instead of updating anything.
+/// A dev build runs from src-tauri/target — installing a bundle over it would wreck the tree.
 const UPDATER_ENABLED: bool = !cfg!(debug_assertions);
 
 pub(crate) fn manager() -> Arc<UpdateManager> {
@@ -22,8 +21,7 @@ pub(crate) fn watch(app: &AppHandle) {
     }
 }
 
-/// Fires a check the user asked for from the tray, where no window is listening
-/// for the answer.
+/// Tray-initiated check — no window is listening for the answer.
 pub(crate) fn check_in_background(app: &AppHandle) {
     if !UPDATER_ENABLED {
         return;
@@ -43,8 +41,7 @@ pub(crate) fn get_update_status(app: AppHandle) -> UpdateSnapshot {
     }
 }
 
-/// Resolves once the check is over so the caller can tell "up to date" from
-/// "never checked"; every window learns the same through `update-status`.
+/// Resolves after the check so the caller can tell "up to date" from "never checked".
 #[tauri::command]
 pub(crate) async fn check_for_updates(app: AppHandle) -> UpdateSnapshot {
     if !UPDATER_ENABLED {

@@ -1,5 +1,3 @@
-//! Wayland global shortcuts through XDG Desktop Portal.
-
 mod actions;
 mod dconf;
 mod portal;

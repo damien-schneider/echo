@@ -199,9 +199,7 @@ impl PolishTransaction {
         selected
     }
 
-    /// The clipboard cannot be read while the copied application holds the
-    /// pasteboard mid-write, so a failed read means "not yet" — treating it as
-    /// an error would abort a copy that is about to land.
+    /// A failed read means "not yet" — the copied app holds the pasteboard mid-write.
     async fn poll_for_selection(&self, marker: &str, generation: u64) -> Result<Option<String>> {
         for delay in copy_poll_delays() {
             self.ensure_current(generation)?;
@@ -215,9 +213,7 @@ impl PolishTransaction {
         Ok(None)
     }
 
-    /// Putting the clipboard back is cleanup, not the operation: a pasteboard
-    /// that refuses its own former contents must not cost the user the polish
-    /// they asked for, nor mask the error that led here.
+    /// Restore is cleanup — a refused pasteboard must not cost the polish nor mask the real error.
     fn restore_best_effort(&self, snapshot: &ClipboardSnapshot) {
         if let Err(error) = self.ports.clipboard.restore(snapshot) {
             log::warn!("Could not put the clipboard back after Polish: {error:#}");

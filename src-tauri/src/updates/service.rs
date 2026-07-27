@@ -25,8 +25,7 @@ struct UpdateRuntime {
     snapshot: UpdateSnapshot,
 }
 
-/// One owner for the whole app: every window reads the same snapshot and the
-/// same handle installs it, whatever window asked.
+/// One owner app-wide — every window reads the same snapshot.
 #[derive(Default)]
 pub(crate) struct UpdateManager {
     runtime: Mutex<UpdateRuntime>,
@@ -66,8 +65,7 @@ impl UpdateManager {
         snapshot
     }
 
-    /// `None` means work is already running and this request is dropped rather
-    /// than racing the one in flight.
+    /// `None` — work already running, this request is dropped.
     fn begin(
         &self,
         app: &AppHandle,
@@ -193,8 +191,7 @@ async fn download_and_install(
         .map_err(describe_error)
 }
 
-/// Windows hands the app over to its installer, so this only runs where the
-/// bundle was swapped in place.
+/// Windows hands off to its installer — this only runs where the bundle was swapped in place.
 fn restart(app: &AppHandle) -> Result<(), String> {
     let handle = app.clone();
     app.run_on_main_thread(move || {
@@ -239,8 +236,7 @@ pub(crate) async fn install(app: &AppHandle) -> Result<(), String> {
     }
 }
 
-/// Checks once the app has settled, then keeps looking on a slow loop so a
-/// long-running session still learns about a release.
+/// Slow loop after startup so a long-running session still sees a release.
 pub(crate) fn watch(app: &AppHandle) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

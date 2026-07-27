@@ -31,8 +31,7 @@ mod tests {
         assert_eq!(partial_recovery(2_048, 2_048), PartialRecovery::Verify);
     }
 
-    /// A range request past the end of the artifact answers HTTP 416, so an
-    /// oversized leftover would dead-end every retry until it is discarded.
+    /// A range past the artifact end answers HTTP 416 — an oversized leftover dead-ends every retry.
     #[test]
     fn oversized_partial_is_discarded_instead_of_resumed_into_a_range_error() {
         assert_eq!(partial_recovery(2_049, 2_048), PartialRecovery::Discard);

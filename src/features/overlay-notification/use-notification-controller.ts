@@ -56,9 +56,7 @@ const useEscapeShortcut = (capturesEscape: boolean) => {
   }, [capturesEscape]);
 };
 
-/// Chat and the model panel are opened from the HUD, one window away: the
-/// request arrives through Rust and is dropped as soon as activity needs the
-/// surface or the user closes it.
+/// Opened from the HUD one window away, dropped as soon as activity needs the surface.
 const useNotificationRequest = () => {
   const [request, setRequest] = useState<NotificationRequest | null>(null);
   useEffect(
@@ -107,8 +105,7 @@ const useFollowStreamingText = (
 
 const UPDATE_NOTICE_LINGER_MS = 15_000;
 
-/// The notch is a notification, not a banner: the offer steps aside on its own
-/// so the HUD handle comes back, and the app window keeps showing it.
+/// A notification, not a banner — the offer steps aside so the HUD handle comes back.
 const useUpdateNotice = () => {
   const update = useUpdateStatus();
   const [dismissedVersion, setDismissedVersion] = useState<string | null>(null);
@@ -117,8 +114,7 @@ const useUpdateNotice = () => {
     dismissedVersion,
     snapshot: update.snapshot,
   });
-  // Only a notice the user could dismiss steps aside on its own; a download in
-  // flight keeps the surface until it is done.
+  // a download in flight keeps the surface; only a dismissible notice steps aside
   const isLingering = version !== null && (notice?.isDismissible ?? false);
 
   useEffect(() => {
@@ -180,9 +176,7 @@ export const useNotificationController = () => {
   useEscapeShortcut(presentation.escapeIntent === "cancel_operation");
   useFollowStreamingText(events.streamingText, textScrollRef);
 
-  /// Closing chat or the model panel only takes back what the HUD asked for:
-  /// passive activity waiting behind it becomes visible again instead of being
-  /// thrown away with it.
+  /// Takes back only what the HUD asked for — passive activity behind it resurfaces.
   const dismissSurface = () => {
     transition.dismissError();
     if (request !== null) {
@@ -222,8 +216,7 @@ export const useNotificationController = () => {
       invoke(NOTIFICATION_HIDE_COMMAND).catch(() => undefined);
     },
     renderMode,
-    /// Stopping a recording and installing an update share the one button the
-    /// activity bar has room for.
+    /// Stop-recording and install-update share the activity bar's single button.
     runActivityAction: (intent: ActivityAction["intent"]) => {
       if (intent === "install_update") {
         update.install();

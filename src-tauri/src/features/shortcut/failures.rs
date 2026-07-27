@@ -1,8 +1,4 @@
-//! Registration failures the user must learn about.
-//!
-//! The OS owns global hotkeys: another process holding the same combination
-//! makes registration fail, and shortcuts register before any window exists.
-//! Failures wait here until a window asks for them.
+//! Shortcuts register before any window exists, so a combo already held by another process parks its failure here.
 
 use serde::Serialize;
 use std::sync::Mutex;
@@ -28,7 +24,7 @@ impl ShortcutFailures {
             .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
-    /// One binding, one failure: a retry replaces what it failed at before.
+    /// One failure per binding — a retry replaces the previous one.
     pub fn record(&self, failure: ShortcutFailure) {
         let mut entries = self.entries();
         entries.retain(|entry| entry.binding_id != failure.binding_id);

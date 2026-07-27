@@ -1,16 +1,13 @@
 #[cfg(test)]
 impl DictationStreamingHandle {
-    /// Worker that ignores the shutdown flag and blocks in a simulated FFI
-    /// decode for `decode_duration`, mirroring a non-cancellable whisper call.
-    /// Used to prove `stop()` detaches instead of blocking past the budget.
+    /// Ignores the shutdown flag, mirroring a non-cancellable whisper decode.
     pub(crate) fn for_testing_stuck_in_decode(decode_duration: Duration) -> Self {
         let (cmd_tx, _cmd_rx) = mpsc::channel::<Cmd>();
         let shutdown_flag = Arc::new(AtomicBool::new(false));
         let join = thread::Builder::new()
             .name("dictation-streaming-stuck-test".to_string())
             .spawn(move || {
-                // Deliberately does NOT poll shutdown_flag — emulates being parked
-                // inside an in-flight, non-cancellable FFI decode.
+                // never polls shutdown_flag — emulates a parked FFI decode
                 thread::sleep(decode_duration);
             })
             .expect("spawn stuck test worker");
@@ -255,9 +252,7 @@ mod lifecycle_tests {
         );
     }
 
-    /// Regression for the "transcribing" hang: a worker parked in a long,
-    /// non-cancellable FFI decode must not block stop() past the join budget.
-    /// Pre-fix `stop()` did an unbounded `h.join()` and hung for the full decode.
+    /// Regression: a parked FFI decode must not block `stop()` past the join budget.
     #[test]
     fn stop_detaches_when_worker_stuck_in_decode() {
         let start = Instant::now();

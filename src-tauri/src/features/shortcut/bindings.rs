@@ -1,10 +1,4 @@
-//! Shortcut binding management commands.
-//!
-//! On X11/Windows/macOS, changing a binding unregisters the old shortcut and
-//! registers the new one via the global shortcut plugin.
-//! On Wayland, shortcuts are managed by the XDG Portal; changing a binding
-//! saves the new value and re-initializes the portal session so the user
-//! is prompted to authorize the new shortcut.
+//! Wayland routes every binding through the XDG Portal; other platforms use the global shortcut plugin.
 
 #[cfg(target_os = "linux")]
 use log::{debug, info};
@@ -22,18 +16,14 @@ pub struct BindingResponse {
     pub error: Option<String>,
 }
 
-/// Change a shortcut binding to a new key combination.
-///
-/// On Wayland, this updates settings and re-initializes shortcuts via the
-/// XDG Portal. We *await* the portal so the system dialog appears and the user
-/// can authorize the new shortcut; any error is returned to the frontend.
+/// Awaits the Wayland portal so its authorization dialog can surface.
 #[tauri::command]
 pub async fn change_binding(
     app: AppHandle,
     id: String,
     binding: String,
 ) -> Result<BindingResponse, String> {
-    // Read current binding to get the old value (for X11 unregister).
+    // old value needed for the X11 unregister
     let binding_to_modify = match settings::get_settings(&app).bindings.get(&id).cloned() {
         Some(b) => b,
         None => {
@@ -47,30 +37,24 @@ pub async fn change_binding(
         }
     };
 
-    // Validate the new shortcut before updating
     if let Err(e) = validate_shortcut_string(&binding) {
         warn!("change_binding validation error: {}", e);
         return Err(e);
     }
 
-    // Create the updated binding (clone so we keep binding_to_modify for X11 unregister)
     let mut updated_binding = binding_to_modify.clone();
     updated_binding.current_binding = binding.clone();
 
-    // Atomically update the binding in the settings (we save before re-init so Wayland reads the new value)
+    // save before re-init — Wayland reads settings back
     let ub = updated_binding.clone();
     settings::update_settings(&app, |s| {
         s.bindings.insert(id.clone(), ub);
     });
 
-    // Platform-specific: register the new shortcut
     #[cfg(target_os = "linux")]
     {
         if super::wayland::is_wayland_session() {
-            // Wayland: open the system configuration dialog (portal v2).
-            // The preferred_trigger is saved in settings and will be used on next
-            // session init. For immediate changes, the user configures via the
-            // system dialog and we receive ShortcutsChanged asynchronously.
+            // portal v2 confirms asynchronously via ShortcutsChanged
             info!("[Shortcuts] Wayland: opening configure dialog for '{}'", id);
             match super::wayland::request_configure(&app, None).await {
                 Ok(()) => {
@@ -102,7 +86,6 @@ pub async fn change_binding(
     do_change_binding_x11(&app, binding_to_modify, updated_binding)
 }
 
-/// X11 / Windows / macOS: unregister old shortcut and register the new one.
 fn do_change_binding_x11(
     app: &AppHandle,
     binding_to_modify: ShortcutBinding,
@@ -130,19 +113,13 @@ fn do_change_binding_x11(
     })
 }
 
-/// Reset a shortcut binding to its default value.
 #[tauri::command]
 pub async fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, String> {
     let binding = settings::get_stored_binding(&app, &id);
     change_binding(app, id, binding.default_binding).await
 }
 
-/// Temporarily unregister a binding while the user is editing it in the UI.
-/// This avoids firing the action while keys are being recorded.
-///
-/// On Wayland, this is a no-op: the XDG Portal manages all shortcuts as a session;
-/// the new shortcut is applied when the user confirms (change_binding) and the
-/// portal is re-initialized.
+/// Keeps the action from firing while keys are being recorded. No-op on Wayland.
 #[tauri::command]
 pub fn suspend_binding(app: AppHandle, id: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
@@ -163,9 +140,7 @@ pub fn suspend_binding(app: AppHandle, id: String) -> Result<(), String> {
     Ok(())
 }
 
-/// Re-register the binding after the user has finished editing.
-///
-/// On Wayland, this is a no-op (shortcuts are re-applied when change_binding is called).
+/// No-op on Wayland — `change_binding` re-applies there.
 #[tauri::command]
 pub fn resume_binding(app: AppHandle, id: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]

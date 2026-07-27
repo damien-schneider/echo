@@ -1,11 +1,8 @@
-//! Meeting export engine — SRT, VTT, TXT, and Markdown serializers.
-
 use crate::managers::meeting::{
     format_ms_to_hms, format_ms_to_srt_time, format_ms_to_vtt_time, ExportFormat, Meeting,
     MeetingSegment,
 };
 
-/// Export meeting transcript in the requested format.
 pub fn export(meeting: &Meeting, segments: &[MeetingSegment], format: &ExportFormat) -> String {
     match format {
         ExportFormat::Srt => export_srt(segments),
@@ -122,8 +119,6 @@ mod tests {
         ]
     }
 
-    // ── SRT ────────────────────────────────────────────────────────────
-
     #[test]
     fn srt_has_sequence_numbers() {
         let output = export_srt(&sample_segments());
@@ -159,8 +154,6 @@ mod tests {
         assert!(output.is_empty());
     }
 
-    // ── VTT ────────────────────────────────────────────────────────────
-
     #[test]
     fn vtt_starts_with_header() {
         let output = export_vtt(&sample_segments());
@@ -173,7 +166,6 @@ mod tests {
     #[test]
     fn vtt_uses_dot_millis_separator() {
         let output = export_vtt(&sample_segments());
-        // After header, timestamps should use dots
         let after_header = &output["WEBVTT\n\n".len()..];
         assert!(after_header.contains(".000"), "VTT must use dot for millis");
     }
@@ -194,8 +186,6 @@ mod tests {
         assert_eq!(output, "WEBVTT\n\n");
     }
 
-    // ── TXT ────────────────────────────────────────────────────────────
-
     #[test]
     fn txt_has_timestamp_speaker_text_format() {
         let output = export_txt(&sample_segments());
@@ -208,8 +198,6 @@ mod tests {
         let output = export_txt(&[]);
         assert!(output.is_empty());
     }
-
-    // ── Markdown ───────────────────────────────────────────────────────
 
     #[test]
     fn markdown_starts_with_title_heading() {
@@ -251,8 +239,6 @@ mod tests {
         assert!(output.contains("# Weekly Standup"));
         assert!(output.contains("## Transcript"));
     }
-
-    // ── Dispatch ───────────────────────────────────────────────────────
 
     #[test]
     fn export_dispatches_to_correct_format() {

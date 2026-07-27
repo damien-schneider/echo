@@ -15,8 +15,6 @@ use tauri_nspanel::objc2_foundation::{NSPoint, NSRect};
 
 static HOVER_KEY_MONITORS_INSTALLED: AtomicBool = AtomicBool::new(false);
 
-/// A panel joins the pointer sampling once AppKit has given it a window; the
-/// monitors themselves are installed once and serve every registered panel.
 pub(super) fn register_panel_window(
     kind: OverlaySurfaceKind,
     window: &WebviewWindow,
@@ -29,18 +27,8 @@ pub(super) fn register_panel_window(
     install_hover_key_monitors(window.app_handle().clone())
 }
 
-/// CSS `:hover` inside a WKWebView only updates while the hosting window is
-/// key: WebKit's own tracking area is `NSTrackingActiveInKeyWindow`, and the
-/// web process demotes mouse moves on non-key windows to read-only scrollbar
-/// hit tests that freeze hover (WebViewImpl.mm, WebFrame.cpp). Synthetic event
-/// forwarding cannot help either — WKWebView has not implemented `mouseMoved:`
-/// since 2022 (rdar://88025610). The one working route is the Spotlight
-/// pattern: make this non-activating panel key while the pointer is over it
-/// (the app never activates and the menu bar stays with the frontmost app) and
-/// resign key as soon as the pointer leaves. Pointer position comes from a
-/// global + local NSEvent monitor pair — global sees moves routed to other
-/// apps (Echo inactive), local sees moves routed to Echo once the panel is
-/// key; both are event-driven and cost one rectangle test per sample.
+/// CSS `:hover` in a WKWebView only updates while the host window is key, and `mouseMoved:` is unimplemented (rdar://88025610).
+/// Spotlight's workaround: take key on this non-activating panel while the pointer is inside, resign the moment it leaves.
 fn install_hover_key_monitors(app_handle: AppHandle) -> Result<(), String> {
     if HOVER_KEY_MONITORS_INSTALLED.swap(true, Ordering::AcqRel) {
         return Ok(());
@@ -71,7 +59,6 @@ fn install_hover_key_monitors(app_handle: AppHandle) -> Result<(), String> {
         HOVER_KEY_MONITORS_INSTALLED.store(false, Ordering::Release);
         return Err("Failed to install the local overlay hover monitor".to_string());
     };
-    // The overlay lives for the whole app session; the monitors are never removed.
     std::mem::forget(global_monitor);
     std::mem::forget(local_monitor);
     log::info!("[Overlay] hover monitors installed");
@@ -86,8 +73,7 @@ unsafe fn handle_overlay_pointer_event(app_handle: &AppHandle, event: NonNull<NS
     sync_hover_key_possession(app_handle);
 }
 
-/// A drag owns the pointer: hover possession and screen-follow would fight the
-/// window the compositor is moving, and collapse the island mid-flight.
+/// A drag owns the pointer — hover possession would fight the compositor and collapse the island mid-flight.
 fn drive_active_drag(app_handle: &AppHandle, event_type: NSEventType) {
     if event_type != NSEventType::LeftMouseUp {
         let _ = super::snap::refresh_snap_preview(app_handle);
@@ -97,8 +83,7 @@ fn drive_active_drag(app_handle: &AppHandle, event_type: NSEventType) {
     sync_hover_key_possession(app_handle);
 }
 
-/// Samples the pointer against every registered panel. Panels are independent:
-/// the one under the pointer takes key, the others let it go.
+/// Panels are independent — the one under the pointer takes key, the others let it go.
 pub(super) fn sync_hover_key_possession(app_handle: &AppHandle) {
     let mut pointer_captured = false;
     let mut keyboard_mode = false;
@@ -146,8 +131,7 @@ unsafe fn sync_panel_hover_key(
         paste_suppressed: PASTE_KEY_SUPPRESSED.load(Ordering::Acquire),
         pointer_inside,
     });
-    // Publish the pointer state before enabling hit testing or making the
-    // window key so AppKit consults the current ownership state.
+    // publish pointer state first — AppKit reads ownership when hit testing turns on
     panel.store_pointer_inside(pointer_inside);
     if pointer_inside && !was_inside {
         set_ignores_mouse_events(ns_window, false);
@@ -176,8 +160,7 @@ unsafe fn set_ignores_mouse_events(ns_window: *mut AnyObject, ignores: bool) {
     let _: () = msg_send![&*ns_window, setIgnoresMouseEvents: ignores];
 }
 
-/// The island lives on one screen but the user works wherever the cursor is:
-/// when the pointer settles on another display, hand the island over.
+/// Pointer settling on another display hands the island over to it.
 unsafe fn follow_cursor_screen(ns_window: *mut AnyObject, app_handle: &AppHandle) {
     let is_visible: bool = msg_send![&*ns_window, isVisible];
     let screen: *mut AnyObject = msg_send![&*ns_window, screen];

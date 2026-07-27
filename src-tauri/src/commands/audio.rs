@@ -42,7 +42,6 @@ pub fn update_microphone_mode(app: AppHandle, always_on: bool) -> Result<(), Str
         s.always_on_microphone = always_on;
     });
 
-    // Side effect outside lock: update the audio manager mode
     let rm = app.state::<Arc<AudioRecordingManager>>();
     let new_mode = if always_on {
         MicrophoneMode::AlwaysOn
@@ -90,7 +89,6 @@ pub fn set_selected_microphone(app: AppHandle, device_name: String) -> Result<()
         };
     });
 
-    // Side effect outside lock: update the audio manager to use the new device
     let rm = app.state::<Arc<AudioRecordingManager>>();
     rm.update_selected_device()
         .map_err(|e| format!("Failed to update selected device: {}", e))?;
@@ -108,7 +106,7 @@ pub fn set_clamshell_microphone(app: AppHandle, device_name: String) -> Result<(
         };
     });
 
-    // Side effect outside lock: restart the recorder if necessary so we pick up the new device
+    // restart so the recorder picks up the new device
     let rm = app.state::<Arc<AudioRecordingManager>>();
     rm.update_selected_device()
         .map_err(|e| format!("Failed to update clamshell device: {}", e))?;

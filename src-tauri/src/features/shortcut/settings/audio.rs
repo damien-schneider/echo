@@ -1,15 +1,11 @@
-//! Audio-related settings commands.
-
 use log::warn;
 use tauri::AppHandle;
 
 use crate::settings::{self, SoundTheme};
 
-/// Change push-to-talk setting.
 #[tauri::command]
 pub fn change_ptt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    // TODO if the setting is currently false, we probably want to
-    // cancel any ongoing recordings or actions
+    // TODO: cancel ongoing recordings when toggling off
     settings::update_settings(&app, |s| {
         s.push_to_talk = enabled;
     });
@@ -17,7 +13,6 @@ pub fn change_ptt_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     Ok(())
 }
 
-/// Change audio feedback enabled setting.
 #[tauri::command]
 pub fn change_audio_feedback_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     settings::update_settings(&app, |s| {
@@ -26,7 +21,6 @@ pub fn change_audio_feedback_setting(app: AppHandle, enabled: bool) -> Result<()
     Ok(())
 }
 
-/// Change audio feedback volume setting.
 #[tauri::command]
 pub fn change_audio_feedback_volume_setting(app: AppHandle, volume: f32) -> Result<(), String> {
     settings::update_settings(&app, |s| {
@@ -35,7 +29,6 @@ pub fn change_audio_feedback_volume_setting(app: AppHandle, volume: f32) -> Resu
     Ok(())
 }
 
-/// Change sound theme setting.
 #[tauri::command]
 pub fn change_sound_theme_setting(app: AppHandle, theme: String) -> Result<(), String> {
     let parsed = match theme.as_str() {
@@ -53,7 +46,6 @@ pub fn change_sound_theme_setting(app: AppHandle, theme: String) -> Result<(), S
     Ok(())
 }
 
-/// Change mute while recording setting.
 #[tauri::command]
 pub fn change_mute_while_recording_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     settings::update_settings(&app, |s| {

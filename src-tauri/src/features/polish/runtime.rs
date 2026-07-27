@@ -59,16 +59,13 @@ impl PolishRuntime {
         }
     }
 
-    /// Hands back the memory a loaded model holds once the user has stopped
-    /// asking for corrections. The next request pays a reload; sitting on
-    /// gigabytes between two of them costs the whole machine.
+    /// Frees the resident weights once the user stops asking; next request pays the reload.
     pub(super) async fn release_if_idle(&self) -> bool {
         if !should_release_idle_runtime(self.activity.snapshot(self.is_loaded().await)) {
             return false;
         }
         let mut process = self.process.lock().await;
-        // The decision was taken before the lock: whoever holds a request now
-        // reloaded the runtime and it is no longer idle.
+        // decided before the lock — a request taken since then reloaded the runtime
         if !should_release_idle_runtime(self.activity.snapshot(process.state == ServerState::Ready))
         {
             return false;
@@ -77,7 +74,7 @@ impl PolishRuntime {
             log::warn!("Could not release the idle Polish runtime: {error:#}");
             return false;
         }
-        // A voluntary stop is not a crash: the restart budget starts over.
+        // voluntary stop, not a crash — restart budget starts over
         *process = RuntimeProcess::default();
         log::info!("Released the idle Polish model");
         true

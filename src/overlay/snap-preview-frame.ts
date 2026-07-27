@@ -19,8 +19,7 @@ export const previewFrameVars = (payload: SnapPreviewPayload) => ({
   "--preview-y": `${payload.y}px`,
 });
 
-// Only an edge change is worth animating: along one edge the placeholder must
-// track the pointer 1:1, and a restarted transition reads as stutter.
+// along one edge the placeholder tracks the pointer 1:1 — a restarted transition reads as stutter
 export const previewGlides = (
   painted: SnapPreviewPayload | null,
   next: SnapPreviewPayload

@@ -1,6 +1,5 @@
 use serde::Serialize;
 
-/// What the app is doing about an update, mirrored to every window.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) enum UpdatePhase {
@@ -34,8 +33,7 @@ pub(crate) struct UpdateSnapshot {
 }
 
 impl UpdateSnapshot {
-    /// A known version survives the check so the UI keeps offering it while the
-    /// next check runs.
+    /// Survives the next check so the UI keeps offering it.
     pub(crate) fn checking(&self) -> Self {
         Self {
             error: None,
@@ -86,8 +84,7 @@ impl UpdateSnapshot {
         }
     }
 
-    /// The bundle is already swapped: retrying would reinstall it, so the
-    /// version goes and only the sentence stays.
+    /// Bundle already swapped — retrying would reinstall it.
     pub(crate) fn awaiting_restart() -> Self {
         Self {
             error: Some("Update installed. Restart Echo to finish.".to_string()),

@@ -26,8 +26,7 @@ pub(super) fn surface_window_label(kind: OverlaySurfaceKind) -> &'static str {
     }
 }
 
-/// Each window listens to its own geometry channel: a broadcast would make the
-/// HUD redraw itself against the notification's frame.
+/// Per-window channel — a broadcast would redraw the HUD against the notification's frame.
 fn surface_event_name(kind: OverlaySurfaceKind) -> &'static str {
     match kind {
         OverlaySurfaceKind::Hud => OVERLAY_SURFACE_EVENT,
@@ -52,8 +51,7 @@ pub(super) struct OverlayRender<'a> {
     pub(super) app_handle: &'a AppHandle,
     pub(super) covered: Vec<RecordingOverlayMode>,
     pub(super) kind: OverlaySurfaceKind,
-    /// `None` renders nothing: the overlay is off, or this window has no
-    /// surface to show right now.
+    /// `None` renders nothing — overlay off, or no surface right now.
     pub(super) mode: Option<RecordingOverlayMode>,
 }
 
@@ -82,9 +80,7 @@ pub(super) fn render_overlay_surface(render: OverlayRender<'_>) -> Result<(), St
     };
     let settings = settings::get_settings(render.app_handle);
     let placement = OverlayPlacement::from_settings(&settings);
-    // A window shown before its frame is known would stay on screen empty: the
-    // webview never receives a surface, so nothing mounts and nothing folds it
-    // back away.
+    // shown before its frame is known, the webview never gets a surface and the window stays empty forever
     let Some(screen) = overlay_screen(render.app_handle) else {
         let _ = withdraw_overlay_surface(render.app_handle, &window, render.kind);
         return Err("No monitor is available for the overlay".to_string());
@@ -102,8 +98,7 @@ pub(super) fn render_overlay_surface(render: OverlayRender<'_>) -> Result<(), St
             overlay_surface_payload(request, frame),
         );
     };
-    // Growing first keeps the island inside the canvas; when shrinking, the
-    // webview must learn the new origin before the frame moves under it.
+    // grow first to keep the island inside the canvas; shrinking, the webview needs the origin before the frame moves
     let grows = frame_grows(&window, frame);
     if !grows {
         publish();
@@ -226,8 +221,7 @@ pub(super) fn apply_absolute_overlay_frame(
     Ok(())
 }
 
-/// Re-ordering a window that is already up blinks it: every reposition would
-/// otherwise pay for a show it does not need.
+/// Re-ordering a visible window blinks it, so a reposition never pays for a show it does not need.
 fn show_overlay_window(
     app_handle: &AppHandle,
     _overlay_window: &WebviewWindow,

@@ -12,8 +12,7 @@ import { useHudEvents } from "@/features/overlay-controls/use-hud-events";
 import { useIslandControls } from "@/features/overlay-controls/use-island-controls";
 import { usePolishModel } from "@/features/polish/use-polish-model";
 
-/// An operation starting takes the user's attention to the notification, so the
-/// HUD folds back into its handle instead of leaving a row of buttons open.
+/// Attention moves to the notification, so the HUD folds back into its handle.
 const useCollapseOnActiveOperation = (
   hasActiveOperation: boolean,
   collapse: () => void
@@ -51,8 +50,7 @@ export const useRecordingOverlayController = () => {
   const drag = useEdgeDockDrag();
   const handoff = useScreenHandoff();
   const isSideDocked = isSideDockedSurface(events.surface);
-  // A drag holds the island open: collapsing would resize the window the
-  // compositor is already moving, under the pointer that grabbed it.
+  // collapsing mid-drag would resize the window the compositor is already moving
   const holdsIslandOpen = isSideDocked || drag.isDragging;
   const hover = useResidentHover({
     isExpanded: renderMode === "actions" && !isSideDocked,

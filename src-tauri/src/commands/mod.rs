@@ -79,16 +79,13 @@ fn map_log_level_u8_to_tauri(level: u8) -> tauri_plugin_log::LogLevel {
 
 #[tauri::command]
 pub fn set_log_level(app: AppHandle, level: u8) -> Result<(), String> {
-    // Map integer to LogLevel enum used in settings
     let pl_level = map_log_level_u8_to_tauri(level);
 
-    // Update the file log level atomic so the filter picks up the new level
     crate::FILE_LOG_LEVEL.store(
         map_log_level_u8_to_filter(level) as u8,
         std::sync::atomic::Ordering::Relaxed,
     );
 
-    // Also persist to settings for the UI (store LogLevel as enum value)
     settings::update_settings(&app, |s| {
         s.log_level = pl_level;
     });

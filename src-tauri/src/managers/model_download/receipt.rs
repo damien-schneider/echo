@@ -4,8 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
-/// Proof that an installed artifact already passed its checksum. Re-hashing a
-/// 2.5 GB model on every launch costs more than the download it protects.
+/// Re-hashing a 2.5 GB model on every launch costs more than the download it protects.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct VerificationReceipt {
     sha256: String,

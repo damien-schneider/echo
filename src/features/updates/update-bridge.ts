@@ -21,13 +21,11 @@ export const subscribeUpdateStatus = (
     onChange(parseUpdateSnapshot(event.payload));
   });
 
-/// Throws on an unreachable or unreadable updater: nobody asked for this read,
-/// so the caller keeps quiet instead of showing a failure.
+/// Throws on an unreachable updater — nobody asked for this read, so the caller stays quiet.
 export const readUpdateStatus = async (): Promise<UpdateSnapshot> =>
   UpdateSnapshotSchema.parse(await invoke<unknown>(UPDATE_COMMAND.read));
 
-/// Resolves once the backend finished looking, so the caller can tell
-/// "up to date" from "never checked".
+/// Resolves after the backend looked, so the caller can tell "up to date" from "never checked".
 export const requestUpdateCheck = async (
   previous: UpdateSnapshot
 ): Promise<UpdateSnapshot> =>

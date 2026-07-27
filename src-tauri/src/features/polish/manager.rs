@@ -70,8 +70,7 @@ impl PolishManager {
             .context("Failed to stop local Polish runtime")
     }
 
-    /// The model stays installed and the status stays ready: only the resident
-    /// weights are handed back, and the next correction reloads them.
+    /// Hands back only the resident weights — model stays installed and ready.
     pub(crate) async fn release_idle_runtime(&self) -> bool {
         self.runtime.release_if_idle().await
     }
@@ -129,9 +128,7 @@ impl PolishManager {
         self.prepare_explicit(plan).await
     }
 
-    /// `None` means another task already owns the operation the user asked for;
-    /// its status and progress events are the answer, and blocking here would
-    /// only expire against a multi-gigabyte download.
+    /// `None` — another task owns the operation; its status events are the answer.
     async fn acquire_preparation(&self) -> Result<Option<tokio::sync::MutexGuard<'_, ()>>> {
         if let Ok(guard) = self.preparation.try_lock() {
             return Ok(Some(guard));

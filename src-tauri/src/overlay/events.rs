@@ -21,8 +21,7 @@ fn parse_notification_request(surface: &str) -> Result<&'static str, String> {
     }
 }
 
-/// Only the notification window hears the request: the HUD asked for it and
-/// then goes back to being a handle.
+/// Only the notification window hears it — the HUD asked, then went back to being a handle.
 pub(super) fn request_overlay_notification(
     app_handle: &AppHandle,
     surface: &str,
@@ -130,7 +129,7 @@ pub(crate) fn show_warning_overlay(app_handle: &AppHandle, message: &str) {
     );
 }
 
-/// Auto-hides after 3s (longer than warning for readability).
+/// Auto-hides after 3s — longer than a warning, for readability.
 pub(crate) fn show_tool_overlay(app_handle: &AppHandle, message: &str) {
     show_overlay_presentation(
         app_handle,

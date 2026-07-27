@@ -31,7 +31,6 @@ export function useGithubData() {
   });
 
   useEffect(() => {
-    // Fetch repo info for stars
     fetch("https://api.github.com/repos/damien-schneider/Echo")
       .then((res) => res.json())
       .then((repoData) => {
@@ -41,7 +40,6 @@ export function useGithubData() {
       })
       .catch((err) => console.error("Failed to fetch repo data", err));
 
-    // Fetch latest release for version and assets
     fetch("https://api.github.com/repos/damien-schneider/Echo/releases/latest")
       .then((res) => res.json())
       .then((releaseData) => {

@@ -2,8 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { z } from "zod";
 
-/// Mirrors the Rust `ShortcutFailure`: the OS refused the combination, so the
-/// shortcut silently does nothing until the user picks another one.
+/// Mirrors the Rust `ShortcutFailure` — the OS refused the combination, so the shortcut does nothing.
 export const ShortcutFailureSchema = z.object({
   binding: z.string(),
   bindingId: z.string(),
@@ -27,8 +26,7 @@ export const shortcutFailureMessage = ({
   return `Shortcut ${binding} is not active — another app already owns it${cause}.`;
 };
 
-/// Registration runs before any window exists, so a window that just opened
-/// reads what it missed instead of waiting for an event that already fired.
+/// Registration runs before any window exists, so a new window reads what it missed.
 export const readShortcutFailures = async (): Promise<ShortcutFailure[]> => {
   const failures = await invoke<unknown>("get_shortcut_failures");
   return z.array(ShortcutFailureSchema).parse(failures);

@@ -63,8 +63,7 @@ const activityActionFor = (
   return null;
 };
 
-/// A null mode means the window has nothing to say and collapses back into the
-/// notch.
+/// A null mode means nothing to say — the window collapses back into the notch.
 export const createNotificationPresentation = ({
   events,
   modelState,

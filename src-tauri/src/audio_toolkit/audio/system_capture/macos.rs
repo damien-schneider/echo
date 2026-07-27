@@ -1,13 +1,4 @@
-//! macOS system audio capture via ScreenCaptureKit (12.3+, audio extraction
-//! requires 13.0+).
-//!
-//! ScreenCaptureKit can deliver an audio-only feed of the system mix when the
-//! stream config has `captures_audio = true`. Video must still be requested
-//! (CoreMedia constraint) but we ask for a tiny 2x2 frame and discard the
-//! Screen output type in the handler.
-//!
-//! Requires `NSScreenCaptureUsageDescription` in the app's Info.plist; the OS
-//! prompts the user the first time `start_capture()` is called.
+//! SCK audio needs macOS 13.0+, `NSScreenCaptureUsageDescription`, and a video track — hence the 2x2 frame.
 
 use anyhow::{anyhow, Context, Result};
 use log::{debug, warn};
@@ -93,9 +84,7 @@ pub fn create() -> Result<Box<dyn SystemAudioCapture>> {
     Ok(Box::new(MacOsSystemCapture::new()?))
 }
 
-/// Receives ScreenCaptureKit audio buffers, resamples to 16 kHz mono f32, ships
-/// them down `tx`. The output trait callback runs on a CoreMedia dispatch
-/// queue; SCK serializes calls per handler so the Mutex is uncontended.
+/// SCK serializes callbacks per handler, so the Mutex is uncontended.
 struct AudioHandler {
     tx: mpsc::Sender<Vec<f32>>,
     resampler: Arc<Mutex<FrameResampler>>,
@@ -127,8 +116,7 @@ impl SCStreamOutputTrait for AudioHandler {
         let mut input_samples: Vec<f32> = Vec::new();
         for buf in abl.iter() {
             let bytes = buf.data();
-            // SCK with .with_captures_audio(true) delivers Float32 PCM.
-            // bytes.len() is always a multiple of 4.
+            // SCK delivers Float32 PCM — `bytes.len()` is always a multiple of 4
             let n = bytes.len() / 4;
             input_samples.reserve(n);
             for i in 0..n {

@@ -1,5 +1,3 @@
-//! Meeting settings commands.
-
 use crate::managers::diarization::DIARIZATION_MODEL_ID;
 use crate::managers::model::ModelManager;
 use std::sync::Arc;
@@ -45,8 +43,7 @@ pub fn change_meeting_chunk_duration_setting(
     Ok(())
 }
 
-/// Status of the diarization model download. Frontend polls this so it can
-/// gate the "Start meeting" button until the model is on disk.
+/// Polled by the frontend to gate "Start meeting" until the model is on disk.
 #[tauri::command]
 pub fn get_diarization_status(app: AppHandle) -> Result<DiarizationStatus, String> {
     let model_manager = app.state::<Arc<ModelManager>>();

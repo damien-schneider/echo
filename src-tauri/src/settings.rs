@@ -118,8 +118,7 @@ impl AppSettings {
     }
 }
 
-/// A store seeded before the profiles diverged still holds the other build's
-/// combinations, and both apps would fire on them.
+/// A store seeded before the profiles diverged still holds the other build's combos — both apps would fire.
 fn migrate_shortcuts_to_profile_defaults(settings: &mut AppSettings) -> bool {
     let profiles = [
         (
@@ -210,7 +209,7 @@ fn apply_settings_migrations_from_raw(
         updated = true;
     }
 
-    // Cleans stale bindings (e.g. 'cancel') from old versions.
+    // drops bindings retired in older versions ('cancel')
     let valid_binding_ids = ["transcribe", "polish", "test"];
     let original_count = settings.bindings.len();
     settings.bindings.retain(|id, _| {

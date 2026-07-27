@@ -1,34 +1,18 @@
-//! Database initialization and migration management.
-//!
-//! This module provides a clean, self-managed SQLite database initialization system
-//! using rusqlite directly. It handles schema creation and versioned migrations
-//! with proper transaction support.
-//!
-//! # Architecture
-//!
-//! - Migrations are defined as versioned SQL statements
-//! - Schema version is tracked in a `schema_version` table
-//! - All migrations run within a transaction for atomicity
-//! - Operations assume valid schema after initialization (fail-fast on errors)
-
 use anyhow::{Context, Result};
 use log::{debug, info};
 use rusqlite::Connection;
 use std::path::Path;
 
-/// Current schema version. Increment this when adding new migrations.
+/// Bump when adding a migration.
 const CURRENT_SCHEMA_VERSION: u32 = 6;
 
-/// A database migration with version and SQL statement.
 struct Migration {
     version: u32,
     description: &'static str,
     sql: &'static str,
 }
 
-/// All migrations for the history database, in order.
-/// Each migration should be idempotent where possible (using IF NOT EXISTS, etc.)
-/// but the migration runner ensures each only runs once.
+/// Ordered — runner applies each exactly once.
 const MIGRATIONS: &[Migration] = &[
     Migration {
         version: 1,
@@ -101,47 +85,28 @@ const MIGRATIONS: &[Migration] = &[
     },
 ];
 
-/// Initialize the database at the given path, creating schema and running migrations.
-///
-/// This function is idempotent - it can be called multiple times safely.
-/// It will:
-/// 1. Create the database file if it doesn't exist
-/// 2. Create the schema_version table if needed
-/// 3. Run any pending migrations in order
-/// 4. Verify the schema is at the expected version
-///
-/// # Errors
-///
-/// Returns an error if:
-/// - Database file cannot be created or opened
-/// - Any migration fails (entire transaction is rolled back)
-/// - Schema version is higher than expected (indicates newer app version was used)
+/// Idempotent; fails if the on-disk schema is newer than this build.
 pub fn initialize_database(db_path: &Path) -> Result<()> {
     let conn = Connection::open(db_path)
         .with_context(|| format!("Failed to open database at {:?}", db_path))?;
 
-    // Enable foreign keys and WAL mode for better performance
     conn.execute_batch(
         "PRAGMA foreign_keys = ON;
          PRAGMA journal_mode = WAL;",
     )
     .context("Failed to set database pragmas")?;
 
-    // Check for legacy sqlx migrations table (from tauri-plugin-sql)
+    // legacy table left by tauri-plugin-sql
     let has_sqlx_migrations = check_table_exists(&conn, "_sqlx_migrations")?;
     let has_schema_version = check_table_exists(&conn, "schema_version")?;
     let has_history_table = check_table_exists(&conn, "transcription_history")?;
 
     if has_sqlx_migrations && !has_schema_version {
-        // Database was previously managed by tauri-plugin-sql
-        // Migrate to our schema version tracking
         migrate_from_sqlx(&conn)?;
     } else if !has_schema_version {
-        // Fresh database or legacy database without version tracking
         create_schema_version_table(&conn)?;
 
         if has_history_table {
-            // Existing database without version tracking - detect current state
             let detected_version = detect_schema_version(&conn)?;
             set_schema_version(&conn, detected_version)?;
             info!(
@@ -151,7 +116,6 @@ pub fn initialize_database(db_path: &Path) -> Result<()> {
         }
     }
 
-    // Run pending migrations
     run_migrations(&conn)?;
 
     let final_version = get_schema_version(&conn)?;
@@ -163,7 +127,6 @@ pub fn initialize_database(db_path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Check if a table exists in the database.
 fn check_table_exists(conn: &Connection, table_name: &str) -> Result<bool> {
     let count: i32 = conn
         .query_row(
@@ -176,7 +139,6 @@ fn check_table_exists(conn: &Connection, table_name: &str) -> Result<bool> {
     Ok(count > 0)
 }
 
-/// Check if a column exists in a table.
 fn check_column_exists(conn: &Connection, table_name: &str, column_name: &str) -> Result<bool> {
     let mut stmt = conn
         .prepare(&format!("PRAGMA table_info({})", table_name))
@@ -190,7 +152,6 @@ fn check_column_exists(conn: &Connection, table_name: &str, column_name: &str) -
     Ok(columns.contains(&column_name.to_string()))
 }
 
-/// Create the schema_version table.
 fn create_schema_version_table(conn: &Connection) -> Result<()> {
     conn.execute(
         "CREATE TABLE schema_version (
@@ -202,7 +163,6 @@ fn create_schema_version_table(conn: &Connection) -> Result<()> {
     )
     .context("Failed to create schema_version table")?;
 
-    // Initialize with version 0 (no migrations applied yet)
     conn.execute(
         "INSERT INTO schema_version (id, version, updated_at) VALUES (1, 0, strftime('%s', 'now'))",
         [],
@@ -213,7 +173,6 @@ fn create_schema_version_table(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-/// Get the current schema version.
 fn get_schema_version(conn: &Connection) -> Result<u32> {
     let version: u32 = conn
         .query_row(
@@ -226,7 +185,6 @@ fn get_schema_version(conn: &Connection) -> Result<u32> {
     Ok(version)
 }
 
-/// Set the schema version.
 fn set_schema_version(conn: &Connection, version: u32) -> Result<()> {
     conn.execute(
         "UPDATE schema_version SET version = ?1, updated_at = strftime('%s', 'now') WHERE id = 1",
@@ -237,14 +195,12 @@ fn set_schema_version(conn: &Connection, version: u32) -> Result<()> {
     Ok(())
 }
 
-/// Detect the current schema version by inspecting table structure.
-/// Used for databases that exist but don't have version tracking.
+/// Fallback for databases created before version tracking existed.
 fn detect_schema_version(conn: &Connection) -> Result<u32> {
     if !check_table_exists(conn, "transcription_history")? {
         return Ok(0);
     }
 
-    // Check for tables/columns added in later migrations
     let has_input_entries = check_table_exists(conn, "input_entries")?;
     let has_app_pid = check_column_exists(conn, "input_entries", "app_pid")?;
     let has_post_process_prompt =
@@ -269,19 +225,13 @@ fn detect_schema_version(conn: &Connection) -> Result<u32> {
     }
 }
 
-/// Migrate from tauri-plugin-sql's sqlx migration tracking.
 fn migrate_from_sqlx(conn: &Connection) -> Result<()> {
     info!("Migrating from tauri-plugin-sql to native schema management");
 
-    // Create our schema_version table
     create_schema_version_table(conn)?;
 
-    // Detect current version from sqlx migrations or table structure
     let detected_version = detect_schema_version(conn)?;
     set_schema_version(conn, detected_version)?;
-
-    // Optionally drop the sqlx migrations table (keep for safety/debugging)
-    // conn.execute("DROP TABLE IF EXISTS _sqlx_migrations", [])?;
 
     info!(
         "Migrated from sqlx, detected schema version: {}",
@@ -290,7 +240,6 @@ fn migrate_from_sqlx(conn: &Connection) -> Result<()> {
     Ok(())
 }
 
-/// Run all pending migrations.
 fn run_migrations(conn: &Connection) -> Result<()> {
     let current_version = get_schema_version(conn)?;
 
@@ -316,7 +265,6 @@ fn run_migrations(conn: &Connection) -> Result<()> {
         current_version, CURRENT_SCHEMA_VERSION
     );
 
-    // Run each pending migration in a transaction
     for migration in MIGRATIONS.iter() {
         if migration.version <= current_version {
             continue;
@@ -327,7 +275,7 @@ fn run_migrations(conn: &Connection) -> Result<()> {
             migration.version, migration.description
         );
 
-        // Use a savepoint for each migration so we can provide better error context
+        // savepoint per migration — a failure rolls back only that one
         conn.execute_batch(&format!(
             "SAVEPOINT migration_{version};
              {sql};
@@ -369,7 +317,6 @@ mod tests {
         let version = get_schema_version(&conn).unwrap();
         assert_eq!(version, CURRENT_SCHEMA_VERSION);
 
-        // Verify table exists with all columns
         assert!(check_table_exists(&conn, "transcription_history").unwrap());
         assert!(
             check_column_exists(&conn, "transcription_history", "post_processed_text").unwrap()
@@ -384,7 +331,6 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
 
-        // Initialize twice
         initialize_database(&db_path).unwrap();
         initialize_database(&db_path).unwrap();
 
@@ -398,7 +344,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
 
-        // Create a database manually at version 1
+        // v1 shape
         let conn = Connection::open(&db_path).unwrap();
         conn.execute(
             "CREATE TABLE transcription_history (
@@ -414,14 +360,12 @@ mod tests {
         .unwrap();
         drop(conn);
 
-        // Initialize should detect version 1 and migrate to current
         initialize_database(&db_path).unwrap();
 
         let conn = Connection::open(&db_path).unwrap();
         let version = get_schema_version(&conn).unwrap();
         assert_eq!(version, CURRENT_SCHEMA_VERSION);
 
-        // Verify new columns exist
         assert!(
             check_column_exists(&conn, "transcription_history", "post_processed_text").unwrap()
         );

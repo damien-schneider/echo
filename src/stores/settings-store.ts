@@ -565,7 +565,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 }));
 
-// Selector hooks — single-value subscriptions avoid cascading re-renders across 30+ consumers.
+// single-value subscriptions — a whole-store selector cascades re-renders across every consumer
 
 export function useSetting<K extends keyof Settings>(
   key: K

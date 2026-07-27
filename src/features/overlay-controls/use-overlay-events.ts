@@ -17,8 +17,7 @@ const viewportSurface = () =>
     width: window.innerWidth,
   });
 
-/// Everything the notification says comes through here: activity, transcript,
-/// microphone level and model downloads.
+/// Activity, transcript, microphone level and model downloads all arrive here.
 export const useOverlayEvents = (
   microphoneRef: RefObject<HTMLSpanElement | null>
 ) => {

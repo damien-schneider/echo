@@ -1,7 +1,6 @@
 #[cfg(target_os = "macos")]
 use std::process::Command;
 
-/// Determine whether macOS currently reports clamshell (lid-closed) mode.
 #[cfg(target_os = "macos")]
 #[tauri::command]
 pub fn is_clamshell() -> Result<bool, String> {
@@ -21,10 +20,7 @@ pub fn is_clamshell() -> Result<bool, String> {
     Ok(stdout.contains("\"AppleClamshellState\" = Yes"))
 }
 
-/// Checks if the Mac is a laptop by detecting battery presence
-///
-/// This uses pmset to check for battery information.
-/// Returns true if a battery is detected (laptop), false otherwise (desktop)
+/// Battery presence via pmset — laptops have one, desktops do not.
 #[cfg(target_os = "macos")]
 #[tauri::command]
 pub fn is_laptop() -> Result<bool, String> {
@@ -36,19 +32,15 @@ pub fn is_laptop() -> Result<bool, String> {
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Check if InternalBattery is present (laptops have batteries, desktops typically don't)
     Ok(stdout.contains("InternalBattery"))
 }
 
-/// Stub for non-macOS platforms.
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn is_clamshell() -> Result<bool, String> {
     Ok(false)
 }
 
-/// Stub implementation for non-macOS platforms
-/// Always returns false since laptop detection is macOS-specific
 #[cfg(not(target_os = "macos"))]
 #[tauri::command]
 pub fn is_laptop() -> Result<bool, String> {

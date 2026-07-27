@@ -4,8 +4,7 @@ use std::time::Duration;
 #[cfg(target_os = "macos")]
 use tokio::time;
 #[cfg(target_os = "macos")]
-// 200ms balances UI responsiveness with allowing the splash screen to fully close
-// before resetting window elevation. Adjust with caution.
+// splash must finish closing before elevation drops
 const MACOS_WINDOW_FOREGROUND_DELAY_MS: u64 = 200;
 use log::{error, warn};
 use tauri::{AppHandle, Manager, State};
@@ -22,8 +21,7 @@ pub type ManagedStartupState = Mutex<StartupState>;
 
 pub fn show_main_window(app: &AppHandle) {
     if let Some(main_window) = app.get_webview_window("main") {
-        // On Linux and Windows, disable native decorations to use custom title bar
-        // macOS uses titleBarStyle: "Overlay" from tauri.conf.json for native traffic lights
+        // custom title bar; macOS keeps native traffic lights via tauri.conf.json titleBarStyle
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         {
             if let Err(e) = main_window.set_decorations(false) {
@@ -36,7 +34,7 @@ pub fn show_main_window(app: &AppHandle) {
             if let Err(e) = app.set_activation_policy(tauri::ActivationPolicy::Regular) {
                 error!("Failed to set activation policy to Regular: {}", e);
             }
-            // Temporarily keep the window on top to fight macOS z-order jumps
+            // macOS z-order jumps during splash teardown
             if let Err(e) = main_window.set_always_on_top(true) {
                 warn!("Failed to elevate window temporarily: {}", e);
             }
@@ -55,7 +53,6 @@ pub fn show_main_window(app: &AppHandle) {
             let app_handle = app.clone();
             let window_label = main_window.label().to_string();
             tauri::async_runtime::spawn(async move {
-                // Delay ensures the splash window finishes closing before we drop elevation
                 time::sleep(Duration::from_millis(MACOS_WINDOW_FOREGROUND_DELAY_MS)).await;
                 if let Some(window) = app_handle.get_webview_window(&window_label) {
                     if let Err(e) = window.set_always_on_top(false) {

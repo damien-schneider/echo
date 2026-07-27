@@ -1,16 +1,12 @@
-//! Escape key shortcut handling for canceling operations.
-
 use log::{error, warn};
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::utils;
 
-/// Register the escape key shortcut for canceling recordings.
-/// This should be called when the recording overlay becomes visible.
+/// Call when the recording overlay becomes visible.
 #[tauri::command]
 pub fn register_escape_shortcut(app: AppHandle) -> Result<(), String> {
-    // Parse the escape key shortcut
     let escape_shortcut = match "escape".parse::<Shortcut>() {
         Ok(s) => s,
         Err(e) => {
@@ -20,8 +16,7 @@ pub fn register_escape_shortcut(app: AppHandle) -> Result<(), String> {
         }
     };
 
-    // Check if escape is already registered and unregister it if it exists
-    // This ensures our escape handler takes precedence
+    // ours must take precedence over any existing handler
     if app.global_shortcut().is_registered(escape_shortcut) {
         warn!("Escape shortcut already registered, unregistering to use our handler");
         if let Err(e) = app.global_shortcut().unregister(escape_shortcut) {
@@ -32,11 +27,9 @@ pub fn register_escape_shortcut(app: AppHandle) -> Result<(), String> {
         }
     }
 
-    // Register the escape key shortcut
     app.global_shortcut()
         .on_shortcut(escape_shortcut, move |ah, scut, event| {
             if scut == &escape_shortcut && event.state == ShortcutState::Pressed {
-                // Cancel the current operation when escape is pressed
                 utils::cancel_current_operation(ah);
             }
         })
@@ -49,11 +42,9 @@ pub fn register_escape_shortcut(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-/// Unregister the escape key shortcut.
-/// This should be called when the recording overlay becomes hidden.
+/// Call when the recording overlay becomes hidden.
 #[tauri::command]
 pub fn unregister_escape_shortcut(app: AppHandle) -> Result<(), String> {
-    // Parse the escape key shortcut
     let escape_shortcut = match "escape".parse::<Shortcut>() {
         Ok(s) => s,
         Err(e) => {
@@ -63,7 +54,6 @@ pub fn unregister_escape_shortcut(app: AppHandle) -> Result<(), String> {
         }
     };
 
-    // Only unregister if it's currently registered
     if app.global_shortcut().is_registered(escape_shortcut) {
         app.global_shortcut()
             .unregister(escape_shortcut)

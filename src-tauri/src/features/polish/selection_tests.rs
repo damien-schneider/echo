@@ -125,9 +125,7 @@ async fn missing_selection_gives_up_within_the_copy_wait_budget() {
     assert_eq!(fixture.clipboard.current(), original);
 }
 
-/// The reported bug: a terminal or an editor busy elsewhere answers the copy
-/// shortcut long after it was sent, and the user is told nothing was selected
-/// while the text sits highlighted in front of them.
+/// Regression: a busy app answers the copy shortcut late and the selection reads as empty.
 #[tokio::test(start_paused = true)]
 async fn selection_answered_late_by_a_busy_application_is_still_captured() {
     let fixture = fixture_with_options(FixtureOptions {
@@ -149,8 +147,7 @@ async fn selection_answered_late_by_a_busy_application_is_still_captured() {
     );
 }
 
-/// The pasteboard is briefly empty between the moment the copied application
-/// clears it and the moment it writes the selection into it.
+/// The pasteboard is briefly empty between the clear and the write.
 #[tokio::test(start_paused = true)]
 async fn a_clipboard_that_reads_back_empty_does_not_end_the_wait() {
     let fixture = fixture_with_options(FixtureOptions {
@@ -172,9 +169,7 @@ async fn a_clipboard_that_reads_back_empty_does_not_end_the_wait() {
     assert_eq!(outcome, PolishOutcome::Replaced);
 }
 
-/// Putting the user's clipboard back is cleanup, not the operation: macOS
-/// refuses some pasteboard payloads, and losing the polish over it would waste
-/// the selection the user already highlighted.
+/// Restore is cleanup — a payload macOS refuses must not cost the polish.
 #[tokio::test(start_paused = true)]
 async fn a_clipboard_that_cannot_be_restored_still_polishes_the_selection() {
     let fixture = fixture_with_options(FixtureOptions {

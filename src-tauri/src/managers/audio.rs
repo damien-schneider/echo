@@ -330,8 +330,6 @@ fn create_audio_recorder(
         .map_err(|e| anyhow::anyhow!("Failed to create SileroVad: {}", e))?;
     let smoothed_vad = SmoothedVad::new(Box::new(silero), 15, 15, 2);
 
-    // Recorder with VAD plus a spectrum-level callback that forwards updates to
-    // the frontend.
     let recorder = AudioRecorder::new()
         .map_err(|e| anyhow::anyhow!("Failed to create AudioRecorder: {}", e))?
         .with_vad(Box::new(smoothed_vad))
@@ -357,13 +355,9 @@ pub struct AudioRecordingManager {
     selected_device_cache: SelectedDeviceCache<cpal::Device>,
     is_open: Arc<Mutex<bool>>,
     is_recording: Arc<Mutex<bool>>,
-    /// Shared mirror of `is_recording`, read by the transcription idle
-    /// watcher to suppress model eviction during an active capture. Lock-free
-    /// because the watcher polls it every 10s from another thread.
+    /// Lock-free mirror of `is_recording` — idle watcher polls it from another thread.
     recording_signal: RecordingActiveSignal,
     did_mute: Arc<Mutex<bool>>,
-    /// Handle to the realtime preview worker for the current recording.
-    /// `Some` only while a recording is in progress; cleared on stop / cancel.
     dictation_streaming: Arc<Mutex<Option<ActiveDictationStreaming>>>,
 }
 
@@ -392,11 +386,10 @@ impl AudioRecordingManager {
             dictation_streaming: Arc::new(Mutex::new(None)),
         };
 
-        // Always-on?  Open immediately.
         if matches!(mode, MicrophoneMode::AlwaysOn) {
             manager.start_microphone_stream()?;
         } else {
-            // Pre-load the VAD model in the background to prevent freeze on first record
+            // preload VAD off-thread — first record would otherwise freeze
             let manager_clone = manager.clone();
             std::thread::spawn(move || {
                 if let Err(e) = manager_clone.preload_recorder() {
@@ -408,9 +401,6 @@ impl AudioRecordingManager {
         Ok(manager)
     }
 
-    /// Hand out a clone of the shared recording-active signal. The
-    /// transcription manager links this on boot via `link_recording_signal`
-    /// so its idle watcher can read it directly from another thread.
     pub fn recording_signal_handle(&self) -> RecordingActiveSignal {
         self.recording_signal.clone()
     }
@@ -452,11 +442,7 @@ impl AudioRecordingManager {
             .and_then(|mut state| claim_recording_stop(&mut state, binding_id))
     }
 
-    /// Single point of truth for flipping the recording flag — keeps the
-    /// `Mutex<bool>` and the lock-free `RecordingActiveSignal` mirror in
-    /// sync. Centralised so no future caller can update one without the
-    /// other, which would silently re-open the eviction-during-recording
-    /// race.
+    /// Only way to flip the flag — updating the `Mutex<bool>` without its signal mirror re-opens the eviction race.
     fn set_is_recording(&self, active: bool) {
         *self.is_recording.lock().unwrap() = active;
         self.recording_signal.set(active);
@@ -584,7 +570,6 @@ impl AudioRecordingManager {
             *recorder_opt = Some(create_audio_recorder(vad_path, &self.app_handle)?);
         }
 
-        // Get the selected device from settings (switches in clamshell mode)
         let settings = get_settings(&self.app_handle);
         let selected_device = self.get_effective_microphone_device(&settings);
 
@@ -612,7 +597,6 @@ impl AudioRecordingManager {
         }
 
         if let Some(rec) = self.recorder.lock().unwrap().as_mut() {
-            // If still recording, stop first.
             if *self.is_recording.lock().unwrap() {
                 let _ = rec.stop();
                 self.set_is_recording(false);
@@ -882,10 +866,7 @@ impl AudioRecordingManager {
     }
 }
 
-/// Pad a very short recording up to 1.25 s of trailing silence so whisper has
-/// enough context to decode reliably. Buffers >= 1 s pass through untouched,
-/// and an empty buffer (no audio captured) stays empty so we don't fabricate
-/// silence for whisper to hallucinate over.
+/// Whisper decodes sub-second clips unreliably; an empty buffer stays empty so it has nothing to hallucinate over.
 pub fn pad_short_samples(samples: Vec<f32>) -> Vec<f32> {
     let len = samples.len();
     if len == 0 || len >= WHISPER_SAMPLE_RATE {
@@ -902,9 +883,6 @@ mod pad_tests {
 
     #[test]
     fn empty_input_stays_empty() {
-        // We must NOT turn a "no audio" recording into 1+ seconds of silence —
-        // that would confuse whisper and produce hallucinations on what was
-        // really a zero-sample buffer.
         let v: Vec<f32> = vec![];
         let padded = pad_short_samples(v);
         assert!(padded.is_empty());
@@ -915,11 +893,9 @@ mod pad_tests {
         let v: Vec<f32> = vec![0.1; WHISPER_SAMPLE_RATE / 2]; // 0.5s
         let padded = pad_short_samples(v);
         assert_eq!(padded.len(), WHISPER_SAMPLE_RATE * 5 / 4);
-        // Original samples are preserved at the start.
         for &s in &padded[..WHISPER_SAMPLE_RATE / 2] {
             assert_eq!(s, 0.1);
         }
-        // Padding is zeros at the tail.
         for &s in &padded[WHISPER_SAMPLE_RATE / 2..] {
             assert_eq!(s, 0.0);
         }
@@ -927,8 +903,7 @@ mod pad_tests {
 
     #[test]
     fn input_exactly_one_second_is_not_padded() {
-        // The original guard was `< WHISPER_SAMPLE_RATE`, so a buffer of
-        // exactly 16_000 samples must pass through unchanged.
+        // guard is strict `<` — exactly 16_000 samples must pass through
         let v: Vec<f32> = vec![0.2; WHISPER_SAMPLE_RATE];
         let padded = pad_short_samples(v.clone());
         assert_eq!(padded, v);
@@ -944,8 +919,6 @@ mod pad_tests {
 
     #[test]
     fn single_sample_input_is_padded() {
-        // Edge case: one sample is still > 0 and < 16_000, so the pad branch
-        // fires and the resulting buffer is whisper-friendly length.
         let v: Vec<f32> = vec![0.4];
         let padded = pad_short_samples(v);
         assert_eq!(padded.len(), WHISPER_SAMPLE_RATE * 5 / 4);

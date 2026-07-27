@@ -25,9 +25,7 @@ export const initialResidentHoverSources: ResidentHoverSources = {
   nativePointer: null,
 };
 
-// Emitted by the Rust hover monitors when the pointer crosses the overlay
-// window edge. Authoritative: it fires even while WebKit delivers no pointer
-// events (panel not yet key, pointer entered and stopped moving).
+// from the Rust hover monitors — fires even while WebKit delivers no pointer events at all
 export const OVERLAY_POINTER_BOUNDARY_EVENT = "overlay-pointer-boundary";
 
 export const boundaryToHoverEvent = (inside: boolean): ResidentHoverEvent => ({

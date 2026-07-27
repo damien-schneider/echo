@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 
 const TITLEBAR_HEIGHT = "2rem";
 
-// Cache platform at module level to avoid repeated calls
 const platform = getNormalizedOsPlatform();
 const isMacOS = platform === "mac";
 
@@ -66,7 +65,7 @@ const TitleBar = ({
 }: ComponentPropsWithoutRef<"div"> & {
   ref?: React.Ref<HTMLDivElement>;
 }) => {
-  // On macOS, use native traffic light controls - don't render custom title bar
+  // macOS keeps its native traffic lights
   if (isMacOS) {
     return (
       <div

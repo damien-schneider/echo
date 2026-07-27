@@ -1,5 +1,3 @@
-//! Context assembly and shared state for deterministic transcript cleanup.
-
 #[cfg(test)]
 use std::future::Future;
 use std::sync::Arc;

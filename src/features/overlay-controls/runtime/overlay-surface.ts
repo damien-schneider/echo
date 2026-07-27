@@ -43,8 +43,7 @@ export interface IslandSize {
   width: number;
 }
 
-// Last resort when the native geometry is unreachable: fill the webview so the
-// island still renders instead of vanishing.
+// native geometry unreachable — fill the webview so the island still renders
 export const viewportOverlaySurface = (
   viewport: IslandSize
 ): OverlaySurface => ({
@@ -55,8 +54,7 @@ export const viewportOverlaySurface = (
   window: { x: 0, y: 0 },
 });
 
-// Desktop coordinates: growing the window for a transition shifts the origin
-// and the window-local box by the same amount, leaving this invariant.
+// growing the window shifts origin and window-local box equally, leaving this invariant
 export const toScreenBox = (
   box: OverlayBox,
   origin: OverlaySurface["window"]
@@ -116,10 +114,7 @@ export interface BridgedIsland {
 const hidesTheCutOut = (island: OverlayBox, left: number, width: number) =>
   island.x <= left && island.x + island.width >= left + width;
 
-// A hardware notch only reads as part of the island when the surface is wide
-// enough to hide the cut-out. The frame then grows up to the screen top and
-// swallows the strip beside the notch, so the two paint as one shape instead
-// of leaving daylight in the corners. Narrower surfaces keep floating below.
+// only a surface wide enough to hide the cut-out may swallow the notch strip; narrower ones float below
 export const bridgeToNotch = (
   island: OverlayBox,
   surface: OverlaySurface

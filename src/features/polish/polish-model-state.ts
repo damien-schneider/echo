@@ -81,9 +81,7 @@ export const createPolishStatusSynchronizer = (
     }
   };
   let currentStatus: PolishStatus | undefined;
-  /// The refreshed snapshot is authoritative too: events that arrive after it
-  /// are judged against what the backend just reported, not against the last
-  /// status an event happened to set.
+  /// The refreshed snapshot is authoritative — later events are judged against it, not the last event.
   const refresh = () => {
     generation += 1;
     const refreshGeneration = generation;
@@ -267,8 +265,7 @@ export const runPolishModelCommand = async ({
     return;
   }
   await statusSynchronizer.refresh();
-  /// A duplicate command returns to a transfer that is still running: its bar
-  /// belongs to that operation, not to this call.
+  /// A duplicate command returns to a running transfer — the bar belongs to that operation.
   if (!reportsProgress(statusSynchronizer.currentState())) {
     setProgress(undefined);
   }

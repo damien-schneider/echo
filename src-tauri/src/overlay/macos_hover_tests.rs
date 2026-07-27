@@ -170,9 +170,7 @@ fn chat_mode_disables_hover_key_management() {
     assert_eq!(inside_during_chat, HoverKeyAction::Stand);
 }
 
-/// The two panels share a pointer but never share possession: chat opening in
-/// the notification must not hand the HUD the keyboard, and the pointer resting
-/// on the HUD must not wake the notification.
+/// Shared pointer, never shared possession — neither panel may wake the other.
 #[test]
 fn panel_key_policy_follows_chat_hover_and_paste_state() {
     use std::sync::atomic::Ordering;

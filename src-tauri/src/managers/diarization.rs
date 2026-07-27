@@ -1,8 +1,4 @@
-//! Speaker diarization manager.
-//!
-//! Runs offline speaker diarization on full audio to identify "who spoke when",
-//! using NVIDIA Sortformer (single end-to-end transformer model, max 4 speakers)
-//! via the parakeet-rs crate.
+//! NVIDIA Sortformer via parakeet-rs — offline, max 4 speakers.
 
 use anyhow::{Context, Result};
 use log::info;
@@ -31,17 +27,13 @@ impl DiarizationManager {
         Ok(Self { model_manager })
     }
 
-    /// Check if the diarization model is downloaded and ready.
     pub fn is_available(&self) -> bool {
         self.model_manager
             .get_model_path(DIARIZATION_MODEL_ID)
             .is_ok()
     }
 
-    /// Run speaker diarization on 16kHz mono f32 samples.
-    ///
-    /// `threshold` is preserved for API compatibility but not used by Sortformer
-    /// (Sortformer is end-to-end and does not expose a clustering threshold).
+    /// 16 kHz mono f32; `threshold` unused — Sortformer exposes no clustering knob.
     pub fn diarize(&self, samples: &[f32], _threshold: f32) -> Result<Vec<DiarizationSegment>> {
         let model_dir = self
             .model_manager
@@ -59,16 +51,13 @@ impl DiarizationManager {
             samples.len() as f32 / 16000.0
         );
 
-        // Loaded fresh per call. Acceptable because diarize() runs once at
-        // meeting end. If we ever stream live diarization, cache the instance
-        // on DiarizationManager.
+        // fresh per call — diarize() runs once at meeting end
         let mut sortformer =
             Sortformer::with_config(&model_path, None, DiarizationConfig::callhome()).map_err(
                 |e| anyhow::anyhow!("Failed to load Sortformer from {:?}: {}", model_path, e),
             )?;
 
-        // Sortformer expects 16 kHz mono. Channels=1 since DiarizationManager's
-        // caller (meeting.rs:450) already downmixes to mono before this point.
+        // caller already downmixed to mono
         let raw_segments = sortformer
             .diarize(samples.to_vec(), 16_000, 1)
             .map_err(|e| anyhow::anyhow!("Sortformer inference failed: {}", e))?;
@@ -76,7 +65,7 @@ impl DiarizationManager {
         let result: Vec<DiarizationSegment> = raw_segments
             .into_iter()
             .map(|seg| DiarizationSegment {
-                // Sortformer returns sample offsets at 16 kHz; ms = samples / 16.
+                // Sortformer emits sample offsets at 16 kHz
                 start_ms: (seg.start / 16) as i64,
                 end_ms: (seg.end / 16) as i64,
                 speaker_id: seg.speaker_id as i32,
@@ -87,8 +76,7 @@ impl DiarizationManager {
         Ok(result)
     }
 
-    /// Merge consecutive same-speaker segments up to a maximum duration.
-    /// This produces longer segments for better transcription context.
+    /// Longer segments give transcription more context.
     pub fn merge_consecutive(
         segments: &[DiarizationSegment],
         max_duration_ms: i64,
@@ -127,8 +115,6 @@ mod tests {
         }
     }
 
-    // ── merge_consecutive: empty / single ──────────────────────────────
-
     #[test]
     fn merge_empty_returns_empty() {
         let result = DiarizationManager::merge_consecutive(&[], 30_000);
@@ -144,8 +130,6 @@ mod tests {
         assert_eq!(result[0].end_ms, 5000);
         assert_eq!(result[0].speaker_id, 0);
     }
-
-    // ── merge_consecutive: same speaker merging ────────────────────────
 
     #[test]
     fn merge_consecutive_same_speaker() {
@@ -178,8 +162,6 @@ mod tests {
         assert_eq!(result.len(), 4);
     }
 
-    // ── merge_consecutive: max duration enforcement ────────────────────
-
     #[test]
     fn merge_respects_max_duration() {
         let input = [
@@ -188,8 +170,6 @@ mod tests {
             seg(20000, 30000, 0),
             seg(30000, 40000, 0),
         ];
-        // Max 25s — first two merge (0–20000 = 20s < 25s),
-        // adding third would be 0–30000 = 30s > 25s, so split
         let result = DiarizationManager::merge_consecutive(&input, 25_000);
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].start_ms, 0);
@@ -200,10 +180,8 @@ mod tests {
 
     #[test]
     fn merge_max_duration_exactly_at_limit() {
-        // Two segments whose combined span equals exactly max_duration
         let input = [seg(0, 15000, 0), seg(15000, 30000, 0)];
         let result = DiarizationManager::merge_consecutive(&input, 30_000);
-        // 30000 - 0 == 30000, not > 30000, so they merge
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].end_ms, 30000);
     }
@@ -212,11 +190,8 @@ mod tests {
     fn merge_max_duration_one_over_limit() {
         let input = [seg(0, 15000, 0), seg(15000, 30001, 0)];
         let result = DiarizationManager::merge_consecutive(&input, 30_000);
-        // 30001 - 0 > 30000, so they stay separate
         assert_eq!(result.len(), 2);
     }
-
-    // ── merge_consecutive: mixed merging ───────────────────────────────
 
     #[test]
     fn merge_mixed_speakers_with_merging() {
@@ -240,13 +215,10 @@ mod tests {
         assert_eq!(result[2].speaker_id, 0);
     }
 
-    // ── Edge cases ─────────────────────────────────────────────────────
-
     #[test]
     fn merge_zero_length_segments() {
         let input = [seg(5000, 5000, 0), seg(5000, 5000, 0)];
         let result = DiarizationManager::merge_consecutive(&input, 30_000);
-        // Same speaker, zero duration — should merge
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].start_ms, 5000);
         assert_eq!(result[0].end_ms, 5000);
@@ -254,10 +226,8 @@ mod tests {
 
     #[test]
     fn merge_very_small_max_duration() {
-        // max_duration = 0 means no merging should happen (each segment > 0ms exceeds limit)
         let input = [seg(0, 5000, 0), seg(5000, 10000, 0)];
         let result = DiarizationManager::merge_consecutive(&input, 0);
-        // would_exceed = (10000 - 0) > 0 → true, so they stay split
         assert_eq!(result.len(), 2);
     }
 
@@ -271,11 +241,9 @@ mod tests {
 
     #[test]
     fn merge_many_same_speaker_splits_at_max() {
-        // 10 segments of 5s each = 50s total, max 15s
         let input: Vec<DiarizationSegment> =
             (0..10).map(|i| seg(i * 5000, (i + 1) * 5000, 0)).collect();
         let result = DiarizationManager::merge_consecutive(&input, 15_000);
-        // Each merged segment should be at most 15s
         for s in &result {
             assert!(
                 (s.end_ms - s.start_ms) <= 15_000,
@@ -283,13 +251,11 @@ mod tests {
                 s.end_ms - s.start_ms
             );
         }
-        // First: 0-15000 (3 segments), then 15000-30000, 30000-45000, 45000-50000
         assert_eq!(result.len(), 4);
     }
 
     #[test]
     fn merge_non_contiguous_same_speaker_still_merges() {
-        // Gaps between segments should still merge if same speaker under max
         let input = [seg(0, 3000, 0), seg(5000, 8000, 0)];
         let result = DiarizationManager::merge_consecutive(&input, 30_000);
         assert_eq!(result.len(), 1);

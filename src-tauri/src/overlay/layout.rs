@@ -22,9 +22,7 @@ pub(super) enum RecordingOverlayMode {
     Chat,
 }
 
-/// Two windows, two jobs. The HUD is the handle the user drags and presses; the
-/// notification is the surface activity opens at the notch. They never trade
-/// modes, so nothing has to travel from one to the other.
+/// HUD is the draggable handle, notification the notch surface — they never trade modes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum OverlaySurfaceKind {
     Hud,
@@ -38,8 +36,7 @@ pub(super) fn surface_kind_for_mode(mode: RecordingOverlayMode) -> OverlaySurfac
     OverlaySurfaceKind::Notification
 }
 
-/// The notification owns the top-centre strip. A HUD anchored there would be
-/// buried under it, so that one placement stands down while activity shows.
+/// Notification owns the top-centre strip, so a HUD anchored there stands down while activity shows.
 pub(super) fn hud_yields_to_notification(placement: OverlayPlacement) -> bool {
     placement.resolved_anchor() == OverlayDockEdge::Top
 }
@@ -145,9 +142,7 @@ pub(super) fn overlay_mode_accepts_keyboard(mode: RecordingOverlayMode) -> bool 
     mode == RecordingOverlayMode::Chat
 }
 
-/// Resident modes are the idle island (handle + action buttons). Only they
-/// react to native pointer-boundary samples: in every other mode a boundary
-/// reveal would stomp the surface currently on screen.
+/// Only the idle island reacts to pointer-boundary samples — elsewhere a reveal would stomp the live surface.
 pub(super) fn overlay_mode_is_resident(mode: RecordingOverlayMode) -> bool {
     matches!(
         mode,
@@ -166,8 +161,7 @@ fn parse_overlay_mode(mode: &str) -> Result<RecordingOverlayMode, String> {
     }
 }
 
-/// Each window only answers for its own modes: a mode meant for the other
-/// surface is a bug in the caller, not a window that quietly re-shapes itself.
+/// A mode meant for the other surface is a caller bug, not a window that re-shapes itself.
 fn parse_mode_for_kind(
     mode: &str,
     kind: OverlaySurfaceKind,

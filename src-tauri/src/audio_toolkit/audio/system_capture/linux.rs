@@ -1,9 +1,4 @@
-//! Linux system audio capture via PulseAudio monitor source.
-//!
-//! Connecting to `<default-sink>.monitor` works against both real PulseAudio
-//! and PipeWire's `pipewire-pulse` shim, which is the default on every modern
-//! desktop distro. We resample 48 kHz mono → 16 kHz mono inside the read
-//! callback so the public channel only carries Whisper-ready audio.
+//! `<default-sink>.monitor` covers both real PulseAudio and PipeWire's `pipewire-pulse` shim.
 
 use anyhow::{anyhow, Context, Result};
 use log::{debug, warn};
@@ -74,8 +69,7 @@ impl SystemAudioCapture for LinuxSystemCapture {
     }
 
     fn is_available() -> bool {
-        // We can't reliably probe Pulse/PipeWire from a simple bool here, so we
-        // optimistically advertise availability and let start() surface failure.
+        // no cheap probe for Pulse/PipeWire — start() surfaces the real failure
         true
     }
 }
@@ -117,14 +111,8 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
                         st,
                         CtxState::Ready | CtxState::Failed | CtxState::Terminated
                     ) {
-                        // SAFETY: PA's threaded mainloop serializes state-callback
-                        // invocations under its own lock; we hold the lock at
-                        // the wait-loop above before signal() races with us.
-                        // RefCell::as_ptr gives us a *mut Mainloop directly,
-                        // so reborrow into &mut. Avoid `borrow_mut()` here:
-                        // pulling `BorrowMut` into scope would steal method
-                        // resolution for every Rc<RefCell<_>>.borrow_mut()
-                        // elsewhere in this module.
+                        // SAFETY: PA serializes state callbacks under the lock held by the wait loop above.
+                        // `as_ptr` not `borrow_mut()` — importing `BorrowMut` hijacks method resolution module-wide.
                         unsafe {
                             (&mut *ml.as_ptr()).signal(false);
                         }
@@ -142,7 +130,6 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
         .start()
         .context("Pulse: Mainloop::start")?;
 
-    // Wait for context Ready
     mainloop.borrow_mut().lock();
     loop {
         match context.borrow().get_state() {
@@ -156,7 +143,6 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
     }
     mainloop.borrow_mut().unlock();
 
-    // Resolve default sink → monitor source name
     let default_sink: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
     {
         let ml_ptr = Rc::downgrade(&mainloop);
@@ -167,10 +153,7 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
                 *cell.borrow_mut() = Some(name.to_string());
             }
             if let Some(ml) = ml_ptr.upgrade() {
-                // SAFETY: introspector callback runs on the mainloop thread
-                // under PA's internal lock. Reborrow the *mut Mainloop from
-                // RefCell::as_ptr into a &mut to call signal(); see the
-                // identical pattern in the state callback above.
+                // SAFETY: same as the state callback above — mainloop thread, PA lock held.
                 unsafe {
                     (&mut *ml.as_ptr()).signal(false);
                 }
@@ -189,7 +172,6 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
             .ok_or_else(|| anyhow!("Pulse: default sink unavailable"))?
     );
 
-    // Build record stream
     let spec = SampleSpec {
         format: SampleFormat::F32le,
         channels: 1,
@@ -205,8 +187,7 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
             .ok_or_else(|| anyhow!("Pulse: Stream::new failed"))?,
     ));
 
-    // Resampler shared between thread + read callback (callback runs on
-    // mainloop thread; we own the stream from this thread under the lock).
+    // read callback runs on the mainloop thread; this thread owns the stream under the lock
     let resampler = Rc::new(RefCell::new(FrameResampler::new(
         NATIVE_SAMPLE_RATE as usize,
         TARGET_SAMPLE_RATE as usize,
@@ -254,7 +235,6 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
         .connect_record(Some(&monitor), None, flags)
         .context("Pulse: connect_record")?;
 
-    // Wait for stream Ready
     loop {
         match stream.borrow().get_state() {
             StreamState::Ready => break,
@@ -267,12 +247,10 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
     }
     mainloop.borrow_mut().unlock();
 
-    // Run until shutdown is signalled.
     while !shutdown.load(Ordering::Relaxed) {
         thread::sleep(Duration::from_millis(100));
     }
 
-    // Tear down inside the lock.
     mainloop.borrow_mut().lock();
     let _ = stream.borrow_mut().disconnect();
     mainloop.borrow_mut().unlock();
