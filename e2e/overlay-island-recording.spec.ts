@@ -2,6 +2,7 @@ import {
   emitTauriEvent,
   invokedCommands,
   NOTIFICATION_URL,
+  setOverlayNotch,
   test,
   waitForTauriListener,
 } from "@e2e/fixtures";
@@ -69,6 +70,52 @@ test("recording offers explicit transcribe and cancel actions", async ({
 
   await page.getByRole("button", { name: "Cancel current operation" }).click();
   await expect.poll(() => invokedCommands(page)).toContain("cancel_operation");
+});
+
+test("recording uses the shared notch HUD flanks", async ({ page }) => {
+  const notch = { centerOffset: 0, topInset: 32, width: 196 };
+  await page.setViewportSize({ height: 620, width: 800 });
+  await page.goto(overlayUrl);
+  await setOverlayNotch(page, notch);
+  await waitForTauriListener(page, "show-overlay");
+  await emitTauriEvent(page, "show-overlay", "recording");
+
+  const morph = page.locator('[data-component="echo-island-morph"]');
+  const hud = page.locator(
+    '[data-component="island-hud"][data-layout="activity"]'
+  );
+  const body = hud.locator(':scope > [data-component="island-hud-body"]');
+  const leftFlank = hud.locator(
+    ':scope > .echo-island-hud-flank[data-side="left"]'
+  );
+  const rightFlank = hud.locator(
+    ':scope > .echo-island-hud-flank[data-side="right"]'
+  );
+  await expect(morph).toHaveAttribute("data-notch-bridge", "true");
+  await expect(hud).toHaveAttribute("data-flanked", "true");
+  const [bodyBox, leftBox, morphBox, rightBox] = await Promise.all([
+    body.boundingBox(),
+    leftFlank.boundingBox(),
+    morph.boundingBox(),
+    rightFlank.boundingBox(),
+  ]);
+  if (!(bodyBox && leftBox && morphBox && rightBox)) {
+    throw new Error("Shared activity HUD did not render");
+  }
+  const viewportSize = page.viewportSize();
+  if (viewportSize === null) {
+    throw new Error("Activity viewport was unavailable");
+  }
+  const notchLeft = viewportSize.width / 2 - notch.width / 2;
+  const notchRight = notchLeft + notch.width;
+  expect(leftBox.y).toBeLessThanOrEqual(morphBox.y + 0.5);
+  expect(leftBox.y).toBeGreaterThanOrEqual(morphBox.y - 0.5);
+  expect(rightBox.y).toBeLessThanOrEqual(morphBox.y + 0.5);
+  expect(rightBox.y).toBeGreaterThanOrEqual(morphBox.y - 0.5);
+  expect(leftBox.y + leftBox.height).toBeLessThanOrEqual(bodyBox.y);
+  expect(rightBox.y + rightBox.height).toBeLessThanOrEqual(bodyBox.y);
+  expect(leftBox.x + leftBox.width).toBeLessThanOrEqual(notchLeft + 0.5);
+  expect(rightBox.x).toBeGreaterThanOrEqual(notchRight - 0.5);
 });
 
 test("recording ambience becomes still with reduced motion", async ({

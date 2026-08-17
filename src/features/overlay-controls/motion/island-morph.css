@@ -1,14 +1,12 @@
-@import "../../../overlay/dock-shape.css";
-
-@property --echo-island-orbit-angle {
+@property --echo-island-trace-angle {
   syntax: "<angle>";
   inherits: false;
   initial-value: 0deg;
 }
 
-@keyframes echo-island-processing-orbit {
+@keyframes echo-island-edge-trace {
   to {
-    --echo-island-orbit-angle: 360deg;
+    --echo-island-trace-angle: 360deg;
   }
 }
 
@@ -34,20 +32,29 @@
   position: absolute;
   top: 0;
   left: 0;
+  contain: paint;
   overflow: hidden;
   pointer-events: auto;
   isolation: isolate;
-  transform-origin: top left;
+  transform-origin: center;
   transition:
     background-color 160ms ease-out,
-    box-shadow 160ms ease-out,
-    clip-path 180ms cubic-bezier(0.25, 1, 0.5, 1);
-  will-change: width, height, transform;
+    box-shadow 160ms ease-out;
+  will-change: transform;
 }
 
 .echo-island-morph-measure {
   position: absolute;
   inset: 0;
+}
+
+/* the cut-out is a hole, not a surface — a bridged island bleeds nothing and rims only its free sides */
+.echo-island-morph[data-notch-bridge="true"] {
+  background: rgb(5, 5, 5);
+  box-shadow:
+    inset 1px 0 0 rgba(255, 255, 255, 0.12),
+    inset -1px 0 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.12);
 }
 
 .echo-island-morph[data-mode="compact"] {
@@ -76,36 +83,6 @@
 
 .echo-island-morph[data-mode="actions"][data-presentation="docked"]::after {
   opacity: 0;
-}
-
-.echo-island-morph[data-presentation="docked"][data-anchor="left"]:is(
-    [data-mode="compact"],
-    [data-mode="actions"]
-  ) {
-  clip-path: var(--echo-dock-shape-left);
-}
-
-.echo-island-morph[data-presentation="docked"][data-anchor="right"]:is(
-    [data-mode="compact"],
-    [data-mode="actions"]
-  ) {
-  clip-path: var(--echo-dock-shape-right);
-}
-
-.echo-island-morph[data-presentation="docked"][data-mode="actions"][data-anchor="top"] {
-  clip-path: var(--echo-dock-shape-top);
-}
-
-.echo-island-morph[data-presentation="docked"][data-mode="actions"][data-anchor="bottom"] {
-  clip-path: var(--echo-dock-shape-bottom);
-}
-
-/* a dragged island hangs off no edge — a docked silhouette would read as torn off */
-.echo-island-morph[data-presentation="docked"][data-dragging="true"]:is(
-    [data-mode="compact"],
-    [data-mode="actions"]
-  ) {
-  clip-path: none;
 }
 
 /* fade out, jump display, fade in — the fade covers the repaint on the new screen */
@@ -234,38 +211,25 @@
   opacity: 0;
 }
 
-.recording-overlay-root[data-anchor="top"] .echo-island-morph {
-  transform-origin: top center;
-}
-
-.recording-overlay-root[data-anchor="bottom"] .echo-island-morph {
-  transform-origin: bottom center;
-}
-
-.recording-overlay-root[data-anchor="left"] .echo-island-morph {
-  transform-origin: center left;
-}
-
-.recording-overlay-root[data-anchor="right"] .echo-island-morph {
-  transform-origin: center right;
-}
-.echo-island-processing-orbit {
+/* rides the frame, not the content: the trace runs the whole outline, cut-out strip included */
+.echo-island-edge-trace {
   position: absolute;
-  inset: 1px;
-  z-index: 0;
-  padding: 1px;
+  inset: 0;
+  z-index: 5;
+  padding: 2px;
   pointer-events: none;
+  /* arc stays under the ~148° the top edge subtends, so the comet fully hides while crossing it */
   background: conic-gradient(
-    from var(--echo-island-orbit-angle),
-    transparent 0deg 210deg,
-    rgba(139, 178, 255, 0.08) 230deg,
-    rgba(207, 220, 255, 0.3) 258deg,
-    rgba(255, 255, 255, 0.44) 276deg,
-    rgba(255, 190, 224, 0.18) 298deg,
-    transparent 326deg 360deg
+    from var(--echo-island-trace-angle),
+    transparent 0deg 252deg,
+    rgba(139, 178, 255, 0.2) 282deg,
+    rgba(207, 220, 255, 0.6) 312deg,
+    rgba(255, 255, 255, 0.95) 336deg,
+    rgba(255, 190, 224, 0.45) 348deg,
+    transparent 356deg 360deg
   );
-  border-radius: 15px;
-  opacity: 0.72;
+  border-radius: inherit;
+  opacity: 1;
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
@@ -274,7 +238,63 @@
     linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  animation: echo-island-processing-orbit 3.4s linear infinite;
+  animation: echo-island-edge-trace 3.4s linear infinite;
+}
+
+@property --echo-microphone-orbit-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 12deg;
+}
+
+@keyframes echo-microphone-orbit {
+  to {
+    --echo-microphone-orbit-angle: 372deg;
+  }
+}
+
+/* same frame ride as the trace — listening breathes on the whole outline, not the text box */
+.echo-island-microphone-ambience {
+  --echo-mic-energy: 0;
+  --echo-mic-peak: 0;
+  position: absolute;
+  inset: 1px;
+  z-index: 5;
+  padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(
+    from var(--echo-microphone-orbit-angle),
+    transparent 0deg 42deg,
+    rgba(101, 135, 213, 0.42) 68deg,
+    rgba(222, 232, 255, 0.9) 92deg,
+    transparent 132deg 224deg,
+    rgba(255, 190, 218, 0.34) 258deg,
+    rgba(216, 230, 255, 0.72) 288deg,
+    transparent 330deg 360deg
+  );
+  border-radius: inherit;
+  opacity: calc(0.22 + var(--echo-mic-energy) * 0.66);
+  filter: saturate(1.08);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  scale: calc(0.99 + var(--echo-mic-energy) * 0.02);
+  transition:
+    opacity 75ms linear,
+    scale 90ms cubic-bezier(0.25, 1, 0.5, 1);
+  animation: echo-microphone-orbit 7.2s linear infinite;
+  will-change: scale, opacity;
+}
+
+/* a bridged frame fuses with the bezel — its top run would read as a stray line on the screen edge */
+.echo-island-morph[data-notch-bridge="true"]
+:is(.echo-island-edge-trace, .echo-island-microphone-ambience) {
+  top: -4px;
 }
 
 .echo-polish-phase-indicator {
@@ -315,55 +335,20 @@
   animation: echo-polish-progress-travel 1.65s ease-in-out infinite;
 }
 
-.echo-island-activity[data-decoration="progress"] {
-  display: flex;
-  align-items: center;
-  width: 310px;
-  min-height: 52px;
-  padding: 0 12px;
-}
-
-.echo-island-activity[data-decoration="progress"]
-  .echo-island-activity-dismiss {
-  top: 12px;
-}
-
-.echo-island-activity[data-decoration="orbit"] {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 220px;
-  min-height: 52px;
-}
-
-.echo-island-activity[data-decoration="orbit"] .echo-island-activity-dismiss {
-  top: 12px;
-}
-
-.echo-island-activity[data-decoration="none"] {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 62px;
-}
-
-.echo-island-activity[data-decoration="orbit"] output,
-.echo-island-activity[data-decoration="none"] output {
-  position: relative;
-  z-index: 1;
-  margin-top: 0;
-  text-align: center;
-}
-
 @media (prefers-reduced-motion: reduce) {
   .echo-island-morph,
   .echo-island-morph::before,
   .echo-island-morph::after,
-  .echo-island-processing-orbit,
+  .echo-island-edge-trace,
+  .echo-island-microphone-ambience,
   .recording-overlay-root[data-handoff="leaving"] .echo-island-morph,
   .recording-overlay-root[data-handoff="arriving"] .echo-island-morph {
     transition: none;
     animation: none;
+  }
+
+  .echo-island-microphone-ambience {
+    --echo-microphone-orbit-angle: 34deg;
   }
 
   .echo-polish-phase-indicator,

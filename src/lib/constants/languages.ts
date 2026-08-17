@@ -1,11 +1,13 @@
+import { z } from "zod";
+
 export interface Language {
-  countryCode?: string; // ISO 3166-1 alpha-2 country code for flag
+  countryCode?: string;
   label: string;
   value: string;
 }
 
-export const LANGUAGES: Language[] = [
-  { label: "Auto Detect", value: "auto" }, // No flag for auto
+export const LANGUAGES = [
+  { label: "Auto Detect", value: "auto" },
   { countryCode: "GB", label: "English", value: "en" },
   { countryCode: "CN", label: "Simplified Chinese", value: "zh-Hans" },
   { countryCode: "TW", label: "Traditional Chinese", value: "zh-Hant" },
@@ -58,4 +60,9 @@ export const LANGUAGES: Language[] = [
   { countryCode: "EE", label: "Estonian", value: "et" },
   { countryCode: "MK", label: "Macedonian", value: "mk" },
   { countryCode: "FR", label: "Breton", value: "br" },
-];
+] as const satisfies readonly Language[];
+
+export const TranscriptionLanguageSchema = z.enum(
+  LANGUAGES.map((language) => language.value)
+);
+export type TranscriptionLanguage = z.infer<typeof TranscriptionLanguageSchema>;

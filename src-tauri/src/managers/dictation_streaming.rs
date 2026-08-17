@@ -17,7 +17,7 @@ const WORKER_FINISH_BUDGET: Duration = Duration::from_secs(8);
 use crate::managers::meeting_streaming::is_whisper_hallucination;
 use crate::managers::model::transcription_profile_id;
 use crate::managers::streaming::{PipelineEvent, StreamingConfig, StreamingPipeline};
-use crate::managers::transcription::TranscriptionManager;
+use crate::managers::transcription::{StreamingTranscriber, TranscriptionManager};
 use crate::settings;
 
 #[path = "dictation_accumulator.rs"]
@@ -76,6 +76,10 @@ fn coalesce_audio_backlog(
 /// Seam so tests can script decodes without a real model file.
 pub trait DictationDecoder: Send + Sync + 'static {
     fn transcribe_chunk(&self, audio: Vec<f32>) -> anyhow::Result<String>;
+    fn observe_audio(&self, _samples: &[f32], _is_speech: bool) {}
+    fn language_is_pinned(&self) -> bool {
+        true
+    }
 }
 
 pub trait ProgressSink: Send + Sync + 'static {
@@ -104,6 +108,20 @@ pub struct NoOpDecoder;
 impl DictationDecoder for NoOpDecoder {
     fn transcribe_chunk(&self, _audio: Vec<f32>) -> anyhow::Result<String> {
         Ok(String::new())
+    }
+}
+
+impl DictationDecoder for StreamingTranscriber {
+    fn observe_audio(&self, samples: &[f32], is_speech: bool) {
+        StreamingTranscriber::observe_audio(self, samples, is_speech);
+    }
+
+    fn language_is_pinned(&self) -> bool {
+        StreamingTranscriber::language_is_pinned(self)
+    }
+
+    fn transcribe_chunk(&self, audio: Vec<f32>) -> anyhow::Result<String> {
+        self.transcribe(audio)
     }
 }
 
@@ -145,8 +163,9 @@ impl DictationStreamingWorker {
         app_handle: AppHandle,
         transcription_manager: Arc<TranscriptionManager>,
     ) -> std::io::Result<(Arc<Self>, DictationStreamingHandle)> {
-        let model_size = settings::get_settings(&app_handle).transcription_model_size;
-        let realtime_model = transcription_profile_id(model_size).to_string();
+        let settings = settings::get_settings(&app_handle);
+        let realtime_model =
+            transcription_profile_id(settings.transcription_model_size).to_string();
         let streaming_loaded = if realtime_model.is_empty() {
             false
         } else {
@@ -164,7 +183,10 @@ impl DictationStreamingWorker {
 
         let (decoder, on_cleanup): (Arc<dyn DictationDecoder>, Box<dyn FnOnce() + Send>) =
             if streaming_loaded {
-                (transcription_manager, Box::new(|| {}))
+                let transcriber =
+                    StreamingTranscriber::new(transcription_manager, &settings.selected_language)
+                        .map_err(std::io::Error::other)?;
+                (Arc::new(transcriber), Box::new(|| {}))
             } else {
                 let noop: Box<dyn FnOnce() + Send> = Box::new(|| {});
                 (Arc::new(NoOpDecoder), noop)
@@ -376,7 +398,9 @@ fn run_worker(
             if shutdown_flag.load(Ordering::Relaxed) {
                 break;
             }
-            let events = pipeline.push(&frame.samples, frame.is_speech, &mut decode);
+            decoder.observe_audio(&frame.samples, frame.is_speech);
+            let is_speech = frame.is_speech || !decoder.language_is_pinned();
+            let events = pipeline.push(&frame.samples, is_speech, &mut decode);
             emit_events(events, &mut accumulator, &sink);
         }
         match backlog.terminal {

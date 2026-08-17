@@ -1,5 +1,5 @@
 use crate::managers::history::{HistoryEntry, HistoryManager};
-use crate::managers::transcription::TranscriptionManager;
+use crate::managers::transcription::{transcription_timeout, TranscriptionManager};
 use crate::managers::tts::TtsManager;
 use crate::settings::get_settings;
 use std::sync::Arc;
@@ -71,8 +71,9 @@ pub async fn retranscribe_history_entry(
 
     transcription_manager.initiate_model_load();
 
+    let timeout = transcription_timeout(audio_samples.len());
     let new_transcription = transcription_manager
-        .transcribe(audio_samples)
+        .transcribe_with_timeout(audio_samples, timeout)
         .map_err(|e| format!("Transcription failed: {}", e))?;
 
     history_manager

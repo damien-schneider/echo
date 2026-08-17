@@ -14,6 +14,8 @@ pub fn change_translate_to_english_setting(app: AppHandle, enabled: bool) -> Res
 
 #[tauri::command]
 pub fn change_selected_language_setting(app: AppHandle, language: String) -> Result<(), String> {
+    crate::managers::transcription::whisper_language(&language)
+        .map_err(|error| error.to_string())?;
     settings::update_settings(&app, |s| {
         s.selected_language = language.clone();
     });

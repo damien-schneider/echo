@@ -16,6 +16,12 @@ fn official_whisper_model_transcribes_real_speech() -> anyhow::Result<()> {
 
     let runtime = WhisperRuntime::new();
     runtime.load("small", std::path::Path::new(&model_path))?;
+    let detection = runtime.detect_language(&audio, 4)?;
+    assert_eq!(detection.language, "en", "detection: {detection:?}");
+    assert!(
+        detection.probability >= 0.6,
+        "detection confidence: {detection:?}"
+    );
     let transcript = runtime.transcribe(
         &audio,
         &WhisperDecodeOptions {

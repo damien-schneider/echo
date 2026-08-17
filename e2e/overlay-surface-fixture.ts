@@ -28,7 +28,7 @@ export const setupOverlaySurface = () => {
 
   const residentSize = (mode: string) => {
     if (isSideDocked(mode)) {
-      return { height: 104, width: 32 };
+      return { height: 124, width: 32 };
     }
     return mode === "compact"
       ? { height: 5, width: 38 }

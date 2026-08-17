@@ -1,4 +1,4 @@
-import { domAnimation, LazyMotion } from "motion/react";
+import { domAnimation, LazyMotion, MotionConfig } from "motion/react";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "@/app.css";
@@ -13,9 +13,11 @@ if (!rootElement) {
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <LazyMotion features={domAnimation} strict={true}>
-      <ThemeProvider defaultTheme="system" storageKey="echo-ui-theme">
-        <NotificationOverlay />
-      </ThemeProvider>
+      <MotionConfig reducedMotion="user">
+        <ThemeProvider defaultTheme="system" storageKey="echo-ui-theme">
+          <NotificationOverlay />
+        </ThemeProvider>
+      </MotionConfig>
     </LazyMotion>
   </React.StrictMode>
 );

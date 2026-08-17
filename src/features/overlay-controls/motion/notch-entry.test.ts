@@ -1,4 +1,8 @@
 import { describe, expect, it } from "bun:test";
+import {
+  DOCK_SHOULDER,
+  dockSilhouettePath,
+} from "@/features/overlay-controls/motion/dock-silhouette";
 import { notchEntry } from "@/features/overlay-controls/motion/notch-entry";
 import type { OverlaySurface } from "@/features/overlay-controls/runtime/overlay-surface";
 
@@ -17,11 +21,29 @@ describe("notch entry", () => {
       borderBottomRightRadius: 12,
       borderTopLeftRadius: 0,
       borderTopRightRadius: 0,
+      clipPath: dockSilhouettePath({
+        anchor: "top",
+        height: 32,
+        shoulder: DOCK_SHOULDER,
+        width: 196,
+      }),
       height: 32,
       width: 196,
       x: 658,
       y: 0,
     });
+  });
+
+  // the exit replays the entry: without a path of its own the shoulders would freeze mid-fold
+  it("folds the shoulders back into the seam it came from", () => {
+    expect(notchEntry({ ...surface, notch: null }).clipPath).toBe(
+      dockSilhouettePath({
+        anchor: "top",
+        height: 6,
+        shoulder: DOCK_SHOULDER,
+        width: 104,
+      })
+    );
   });
 
   it("uses a seam at the top edge on a screen without a notch", () => {

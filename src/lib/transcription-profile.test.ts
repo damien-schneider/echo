@@ -22,11 +22,13 @@ describe("TranscriptionProfileStatusSchema", () => {
       is_active: true,
       is_downloaded: true,
       is_downloading: false,
+      is_recommended: true,
       label: "Medium",
       size: "medium",
     });
 
     expect(result.size).toBe("medium");
+    expect(result.is_recommended).toBe(true);
   });
 
   test("rejects internal model implementation fields", () => {
@@ -37,6 +39,7 @@ describe("TranscriptionProfileStatusSchema", () => {
       is_active: false,
       is_downloaded: false,
       is_downloading: false,
+      is_recommended: false,
       label: "Small",
       size: "small",
     });

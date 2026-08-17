@@ -106,6 +106,23 @@ export const islandFrame = ({
   return { ...bounded, ...islandOrigin({ anchor, box, size: bounded }) };
 };
 
+// a transient surface owns the cut-out — narrower than it, the bar reads as a sticker parked underneath
+export const spanTheNotch = (
+  frame: OverlayBox,
+  box: OverlayBox,
+  surface: OverlaySurface
+): OverlayBox => {
+  const { notch, window: origin } = surface;
+  if (!notch || surface.anchor !== "top") {
+    return frame;
+  }
+  const center = box.x + box.width / 2;
+  const left = notch.x + origin.x;
+  const reach = Math.max(center - left, left + notch.width - center) * 2;
+  const width = Math.min(Math.max(frame.width, reach), box.width);
+  return { ...frame, width, x: center - width / 2 };
+};
+
 export interface BridgedIsland {
   frame: OverlayBox;
   strip: number;

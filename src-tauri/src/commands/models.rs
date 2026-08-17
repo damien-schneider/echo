@@ -1,4 +1,4 @@
-use crate::managers::model::{ModelManager, TranscriptionProfileStatus};
+use crate::managers::model::{transcription_profile_id, ModelManager, TranscriptionProfileStatus};
 use crate::managers::transcription::TranscriptionManager;
 use crate::settings::{self, TranscriptionModelSize};
 use std::sync::Arc;
@@ -18,7 +18,7 @@ pub async fn select_transcription_model_size(
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
     size: TranscriptionModelSize,
 ) -> Result<(), String> {
-    let model_id = size.as_str();
+    let model_id = transcription_profile_id(size);
     let model = model_manager
         .get_model_info(model_id)
         .ok_or_else(|| format!("Transcription profile not found: {model_id}"))?;
@@ -91,5 +91,5 @@ pub async fn has_any_models_or_downloads(
 
 #[tauri::command]
 pub async fn get_recommended_first_model() -> Result<String, String> {
-    Ok(TranscriptionModelSize::Medium.as_str().to_string())
+    Ok(TranscriptionModelSize::default().as_str().to_string())
 }

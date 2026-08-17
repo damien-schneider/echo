@@ -12,7 +12,7 @@ fn sample() -> HoverKeySample {
         pointer_inside: false,
         panel_is_key: false,
         keyboard_mode: false,
-        paste_suppressed: false,
+        synthetic_key_suppressed: false,
     }
 }
 
@@ -137,10 +137,10 @@ fn pointer_exit_without_key_stands_down() {
 }
 
 #[test]
-fn paste_suppression_blocks_key_taking_until_it_ends() {
+fn synthetic_key_suppression_blocks_key_taking_until_it_ends() {
     let suppressed = decide_hover_key(HoverKeySample {
         pointer_inside: true,
-        paste_suppressed: true,
+        synthetic_key_suppressed: true,
         ..sample()
     });
     assert_eq!(suppressed, HoverKeyAction::Stand);
@@ -172,7 +172,7 @@ fn chat_mode_disables_hover_key_management() {
 
 /// Shared pointer, never shared possession — neither panel may wake the other.
 #[test]
-fn panel_key_policy_follows_chat_hover_and_paste_state() {
+fn panel_key_policy_follows_chat_hover_and_synthetic_key_state() {
     use std::sync::atomic::Ordering;
 
     let hud = super::panel_hover_state(OverlaySurfaceKind::Hud);
@@ -188,14 +188,15 @@ fn panel_key_policy_follows_chat_hover_and_paste_state() {
     hud.store_pointer_inside(true);
     assert!(hud.can_become_key_window());
     assert!(!notification.can_become_key_window());
-    super::PASTE_KEY_SUPPRESSED.store(true, Ordering::Release);
+    super::SYNTHETIC_KEY_SUPPRESSED.store(true, Ordering::Release);
     assert!(!hud.can_become_key_window());
     notification.set_key_policy(RecordingOverlayMode::Chat);
-    assert!(notification.can_become_key_window());
+    assert!(!notification.can_become_key_window());
 
+    super::SYNTHETIC_KEY_SUPPRESSED.store(false, Ordering::Release);
+    assert!(notification.can_become_key_window());
     notification.set_key_policy(RecordingOverlayMode::Recording);
     hud.store_pointer_inside(false);
-    super::PASTE_KEY_SUPPRESSED.store(false, Ordering::Release);
 }
 
 #[test]

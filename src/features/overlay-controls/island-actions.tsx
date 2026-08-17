@@ -26,16 +26,17 @@ const ACTION_TOOLBAR_VARIANTS = {
   },
 } as const;
 
+// nothing here may resize: the action row holds one layout while the shell grows around it
 const ACTION_ITEM_VARIANTS = {
   hidden: {
-    filter: "blur(3px)",
+    filter: "blur(2px)",
     opacity: 0,
     transition: { duration: 0.12, ease: [0.4, 0, 1, 1] },
   },
   visible: {
     filter: "blur(0px)",
     opacity: 1,
-    transition: { damping: 27, mass: 0.55, stiffness: 560, type: "spring" },
+    transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
   },
 } as const;
 

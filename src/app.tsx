@@ -26,8 +26,14 @@ import {
   type ModelState,
   subscribeModelState,
 } from "./lib/model-state";
+
 import { listenCancellable } from "./lib/tauri-listener";
 import { useSetting, useSettingsStore } from "./stores/settings-store";
+
+const isSidebarSection = (value: unknown): value is SidebarSection =>
+  typeof value === "string" && Object.hasOwn(SECTIONS_CONFIG, value);
+
+const READY_SIGNAL_RETRY_MS = 500;
 
 const renderSettingsContent = (section: SidebarSection) => {
   const ActiveComponent =
@@ -60,6 +66,18 @@ function App() {
 
   useEffect(
     () => listenCancellable(() => subscribeModelState(setModelState)),
+    []
+  );
+
+  useEffect(
+    () =>
+      listenCancellable(() =>
+        listen<unknown>("open-settings-section", (event) => {
+          if (isSidebarSection(event.payload)) {
+            setCurrentSection(event.payload);
+          }
+        })
+      ),
     []
   );
 
@@ -113,15 +131,22 @@ function App() {
   const isInitializing = isLoading || isCheckingOnboarding;
 
   useEffect(() => {
-    if (!(isInitializing || hasSignaledReady.current)) {
+    if (isInitializing || hasSignaledReady.current) {
+      return;
+    }
+    let retry: ReturnType<typeof setTimeout>;
+    const signalReady = () => {
       invoke("mark_frontend_ready")
         .then(() => {
           hasSignaledReady.current = true;
         })
         .catch((error) => {
           console.error("Failed to notify startup readiness", error);
+          retry = setTimeout(signalReady, READY_SIGNAL_RETRY_MS);
         });
-    }
+    };
+    signalReady();
+    return () => clearTimeout(retry);
   }, [isInitializing]);
 
   useEffect(() => {

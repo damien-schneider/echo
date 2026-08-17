@@ -196,6 +196,19 @@ const extractRuntime = async () => {
   await rm(temporaryDirectory, { force: true, recursive: true });
 };
 
+const verifyRuntime = async () => {
+  if (
+    requestedPlatform !== process.platform ||
+    requestedArch !== process.arch
+  ) {
+    return;
+  }
+  await execFileAsync(outputServer, ["--version"], {
+    cwd: outputDirectory,
+    timeout: 30_000,
+  });
+};
+
 const isRuntimeFile = (name: string) =>
   requestedPlatform === "darwin"
     ? macRuntimeFiles.has(name)
@@ -228,6 +241,8 @@ if (preparedMarker !== markerValue || !(await pathExists(outputServer))) {
   await extractRuntime();
   await writeFile(markerPath, markerValue);
 }
+
+await verifyRuntime();
 
 const executableHash = await sha256(outputServer);
 process.stdout.write(

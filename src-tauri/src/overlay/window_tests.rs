@@ -18,6 +18,45 @@ fn each_surface_publishes_on_its_own_window_and_channel() {
     );
 }
 
+#[test]
+fn surface_recovery_preserves_last_payload_per_window() {
+    use crate::{
+        overlay::{
+            layout::{OverlayPresentation, OverlaySurfaceKind},
+            surface::{OverlayBoxPayload, OverlayOriginPayload, OverlaySurfacePayload},
+        },
+        settings::OverlayDockEdge,
+    };
+
+    let payload = |x| OverlaySurfacePayload {
+        anchor: OverlayDockEdge::Top,
+        island: OverlayBoxPayload {
+            height: 100.0,
+            width: 200.0,
+            x,
+            y: 32.0,
+        },
+        notch: None,
+        presentation: OverlayPresentation::Bar,
+        window: OverlayOriginPayload { x, y: 0.0 },
+    };
+    let hud = payload(10.0);
+    let notification = payload(20.0);
+    let mut surfaces = super::SurfacePayloads {
+        hud: None,
+        notification: None,
+    };
+
+    surfaces.replace(OverlaySurfaceKind::Hud, Some(hud));
+    surfaces.replace(OverlaySurfaceKind::Notification, Some(notification));
+
+    assert_eq!(surfaces.current(OverlaySurfaceKind::Hud), Some(hud));
+    assert_eq!(
+        surfaces.current(OverlaySurfaceKind::Notification),
+        Some(notification)
+    );
+}
+
 /// A window missing from the capability file gets no IPC — `listen` is denied and the webview drops.
 #[test]
 fn every_overlay_webview_is_granted_ipc() {

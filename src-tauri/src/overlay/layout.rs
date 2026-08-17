@@ -6,9 +6,10 @@ const COMPACT_OVERLAY_WIDTH: f64 = 64.0;
 const COMPACT_OVERLAY_HEIGHT: f64 = 28.0;
 const ACTIONS_OVERLAY_WIDTH: f64 = 136.0;
 const ACTIONS_OVERLAY_HEIGHT: f64 = 48.0;
-const RECORDING_OVERLAY_WIDTH: f64 = 334.0;
+/// Notch-bridged widths carry 20px of slack past the content so the flank controls fit either side.
+const RECORDING_OVERLAY_WIDTH: f64 = 354.0;
 const RECORDING_OVERLAY_HEIGHT: f64 = 96.0;
-const PANEL_OVERLAY_WIDTH: f64 = 400.0;
+const PANEL_OVERLAY_WIDTH: f64 = 420.0;
 const PANEL_OVERLAY_HEIGHT: f64 = 220.0;
 pub(super) const CHAT_OVERLAY_WIDTH: f64 = 680.0;
 pub(super) const CHAT_OVERLAY_HEIGHT: f64 = 620.0;

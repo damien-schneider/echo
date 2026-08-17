@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -9,18 +10,59 @@ mod setup;
 use crate::managers::model::{ModelManager, POLISH_MODEL_ID};
 use crate::overlay::{show_processing_overlay, show_tool_overlay, show_warning_overlay};
 
-use super::platform::{PlatformClipboard, PlatformFocus, PlatformKeyboard};
+use super::platform::{
+    read_selected_text, DirectSelection, PlatformClipboard, PlatformFocus, PlatformKeyboard,
+};
 use super::runtime::PolishRuntime;
 use super::selection::{
-    CancellationClock, PolishOutcome, PolishTransaction, PolishTransactionPorts,
+    CancellationClock, PolishOutcome, PolishTransaction, PolishTransactionPorts, SelectionMode,
 };
 use super::{
     polish_failure_status, polish_failure_updates_shared_status, polish_joins_active_operation,
-    polish_preparation_plan, polish_use_preparation, polish_warning_message, PolishFailureStage,
-    PolishPreparationIntent, PolishPreparationPlan, PolishState, PolishStatus,
+    polish_preparation_plan, polish_use_preparation, polish_warning_message, BundledChatMessage,
+    PolishFailureStage, PolishPreparationIntent, PolishPreparationPlan, PolishState, PolishStatus,
     PolishUsePreparation,
 };
 use setup::{polish_initialization, polish_runtime_config, selection_mode};
+
+const MAX_CHAT_CONTEXT_CHARACTERS: usize = 20_000;
+
+fn chat_text_context(text: String, source: ChatContextSource) -> ChatTextContext {
+    let (text, truncated) = clipped_chat_text(text);
+    ChatTextContext {
+        source,
+        text,
+        truncated,
+    }
+}
+
+fn clipped_chat_text(text: String) -> (String, bool) {
+    let Some((byte_index, _)) = text.char_indices().nth(MAX_CHAT_CONTEXT_CHARACTERS) else {
+        return (text, false);
+    };
+    (text[..byte_index].to_owned(), true)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ChatContextSource {
+    Clipboard,
+    Selection,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub(crate) struct ChatTextContext {
+    pub(crate) source: ChatContextSource,
+    pub(crate) truncated: bool,
+    pub(crate) text: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ChatContextCapture {
+    PermissionRequired,
+    Ready(Option<ChatTextContext>),
+    Unavailable,
+}
 
 pub(crate) struct PolishManager {
     app: AppHandle,
@@ -29,6 +71,8 @@ pub(crate) struct PolishManager {
     runtime_path: PathBuf,
     initialization_error: Option<String>,
     cancellation: Arc<CancellationClock>,
+    clipboard_access: Arc<tokio::sync::Mutex<()>>,
+    chat_cancellation: Arc<CancellationClock>,
     status: Mutex<PolishStatus>,
     preparation: tokio::sync::Mutex<()>,
 }
@@ -48,7 +92,9 @@ impl PolishManager {
             runtime: Arc::new(PolishRuntime::new(initialization.config)),
             runtime_path,
             initialization_error: initialization.error,
+            clipboard_access: Arc::new(tokio::sync::Mutex::new(())),
             cancellation: Arc::new(CancellationClock::default()),
+            chat_cancellation: Arc::new(CancellationClock::default()),
             status: Mutex::new(initialization.status),
             preparation: tokio::sync::Mutex::new(()),
         }
@@ -60,6 +106,57 @@ impl PolishManager {
 
     pub(crate) fn cancel(&self) {
         self.cancellation.cancel();
+        self.chat_cancellation.cancel();
+    }
+
+    pub(crate) fn begin_chat_context_capture(&self) -> u64 {
+        self.chat_cancellation.begin()
+    }
+
+    pub(crate) async fn capture_chat_context(&self, generation: u64) -> Result<ChatContextCapture> {
+        let observed = self.observe_chat_context()?;
+        if observed != ChatContextCapture::Unavailable {
+            return Ok(observed);
+        }
+        let mode = selection_mode();
+        let transaction = self.transaction_with_cancellation(self.chat_cancellation.clone())?;
+        let context = transaction
+            .capture_text(mode, generation)
+            .await?
+            .map(|text| {
+                let source = match mode {
+                    SelectionMode::ReplaceSelection => ChatContextSource::Selection,
+                    SelectionMode::ClipboardOnly => ChatContextSource::Clipboard,
+                };
+                chat_text_context(text, source)
+            });
+        Ok(ChatContextCapture::Ready(context))
+    }
+
+    pub(crate) fn observe_chat_context(&self) -> Result<ChatContextCapture> {
+        Ok(match read_selected_text()? {
+            DirectSelection::Empty => ChatContextCapture::Ready(None),
+            DirectSelection::PermissionRequired => ChatContextCapture::PermissionRequired,
+            DirectSelection::Text(text) => ChatContextCapture::Ready(Some(chat_text_context(
+                text,
+                ChatContextSource::Selection,
+            ))),
+            DirectSelection::Unavailable => ChatContextCapture::Unavailable,
+        })
+    }
+
+    pub(crate) async fn chat(
+        &self,
+        system: &str,
+        messages: &[BundledChatMessage],
+    ) -> Result<String> {
+        if system.trim().is_empty() || messages.is_empty() {
+            anyhow::bail!("Chat request is empty");
+        }
+        self.prepare()
+            .await
+            .context("Failed to prepare Echo 4B for chat")?;
+        self.runtime.chat(system, messages).await
     }
 
     pub(crate) async fn shutdown(&self) -> Result<()> {
@@ -189,7 +286,7 @@ impl PolishManager {
     async fn ensure_ready_runtime(&self) -> Result<()> {
         let runtime_result = self.require_runtime();
         self.record_failure(PolishFailureStage::Runtime, runtime_result)?;
-        let load_result = self.runtime.ensure_ready().await;
+        let load_result = self.load_runtime().await;
         self.record_failure(PolishFailureStage::Loading, load_result)
     }
 
@@ -276,12 +373,20 @@ impl PolishManager {
     }
 
     fn transaction(&self) -> Result<PolishTransaction> {
+        self.transaction_with_cancellation(self.cancellation.clone())
+    }
+
+    fn transaction_with_cancellation(
+        &self,
+        cancellation: Arc<CancellationClock>,
+    ) -> Result<PolishTransaction> {
         Ok(PolishTransaction::new(PolishTransactionPorts {
             clipboard: Arc::new(PlatformClipboard::new()?),
+            clipboard_access: self.clipboard_access.clone(),
             keyboard: Arc::new(PlatformKeyboard),
             focus: Arc::new(PlatformFocus),
             inference: self.runtime.clone(),
-            cancellation: self.cancellation.clone(),
+            cancellation,
         }))
     }
 
@@ -316,9 +421,38 @@ impl PolishManager {
     }
 }
 
+#[cfg(test)]
+mod chat_context_tests {
+    use super::{clipped_chat_text, MAX_CHAT_CONTEXT_CHARACTERS};
+
+    #[test]
+    fn clips_chat_context_on_character_boundaries() {
+        let (short, short_was_clipped) = clipped_chat_text("short".to_string());
+        assert_eq!(short, "short");
+        assert!(!short_was_clipped);
+
+        let (long, long_was_clipped) =
+            clipped_chat_text("é".repeat(MAX_CHAT_CONTEXT_CHARACTERS + 1));
+        assert_eq!(long.chars().count(), MAX_CHAT_CONTEXT_CHARACTERS);
+        assert!(long_was_clipped);
+    }
+}
+
 #[tauri::command]
 pub(crate) fn get_polish_status(manager: tauri::State<'_, Arc<PolishManager>>) -> PolishStatus {
     manager.status()
+}
+
+#[tauri::command]
+pub(crate) async fn chat_with_polish_model(
+    manager: tauri::State<'_, Arc<PolishManager>>,
+    system: String,
+    messages: Vec<BundledChatMessage>,
+) -> Result<String, String> {
+    manager
+        .chat(&system, &messages)
+        .await
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

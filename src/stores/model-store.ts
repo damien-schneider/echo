@@ -10,10 +10,10 @@ import {
 } from "@/features/model-download/download-state";
 import {
   type TranscriptionModelSize,
+  TranscriptionModelSizeSchema,
   type TranscriptionProfileStatus,
   TranscriptionProfileStatusSchema,
 } from "@/lib/types";
-
 export type ModelStatus =
   | "ready"
   | "loading"
@@ -28,7 +28,8 @@ const ModelStateEventSchema = z.object({
   model_id: z.string().optional(),
 });
 
-const transcriptionModelIds = new Set(["small", "medium", "large"]);
+const isTranscriptionModelId = (modelId: string) =>
+  TranscriptionModelSizeSchema.safeParse(modelId).success;
 
 interface ModelStore {
   deleteProfile: (size: TranscriptionModelSize) => Promise<void>;
@@ -162,7 +163,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
           return;
         }
         const progress = parsed.data;
-        if (!transcriptionModelIds.has(progress.model_id)) {
+        if (!isTranscriptionModelId(progress.model_id)) {
           return;
         }
         const now = Date.now();
@@ -205,7 +206,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
 
     listeners.push(
       await listen<string>("model-download-complete", async (event) => {
-        if (!transcriptionModelIds.has(event.payload)) {
+        if (!isTranscriptionModelId(event.payload)) {
           return;
         }
         set((state) => {
@@ -222,7 +223,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
     listeners.push(
       await listen<unknown>("model-download-failed", (event) => {
         const parsed = z.string().safeParse(event.payload);
-        if (!(parsed.success && transcriptionModelIds.has(parsed.data))) {
+        if (!(parsed.success && isTranscriptionModelId(parsed.data))) {
           return;
         }
         set((state) => {

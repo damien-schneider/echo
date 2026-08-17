@@ -33,8 +33,11 @@ describe("snap preview payloads", () => {
     ).toBe(false);
   });
 
+  // the placeholder stands in for a docked island, so it wears the same silhouette
   test("the frame travels through custom properties", () => {
     expect(previewFrameVars(RIGHT_DOCK)).toEqual({
+      "--preview-clip":
+        'path("M 32 0 C 32 5.523 27.523 10 22 10 L 10 10 C 4.477 10 0 14.477 0 20 L 0 84 C 0 89.523 4.477 94 10 94 L 22 94 C 27.523 94 32 98.477 32 104 Z")',
       "--preview-height": "104px",
       "--preview-width": "32px",
       "--preview-x": "1408px",

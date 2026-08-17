@@ -7,7 +7,7 @@ import {
   test,
   waitForTauriListener,
 } from "@e2e/fixtures";
-import { expect, type Locator } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 const overlayUrl =
   "/src/overlay/index.html?polish=ready&overlayPlacement=bottom";
@@ -48,6 +48,32 @@ const settledFrame = async (morph: Locator): Promise<Frame> => {
     throw new Error("Island frame never settled");
   }
   return previous;
+};
+
+const requiredBox = async (locator: Locator): Promise<Frame> => {
+  const box = await locator.boundingBox();
+  if (box === null) {
+    throw new Error("Element is not laid out");
+  }
+  return box;
+};
+
+// grip and toolbar share one centred row — uneven gutters mean the grip shoved the actions
+const residentGutterDrift = async (page: Page, isSide: boolean) => {
+  const resident = await requiredBox(page.locator(".echo-island-resident"));
+  const grip = await requiredBox(
+    page.getByRole("button", { name: "Move Echo control" })
+  );
+  const toolbar = await requiredBox(
+    page.getByRole("toolbar", { name: "Echo actions" })
+  );
+  if (isSide) {
+    const trailing =
+      resident.y + resident.height - (toolbar.y + toolbar.height);
+    return Math.abs(grip.y - resident.y - trailing);
+  }
+  const trailing = resident.x + resident.width - (toolbar.x + toolbar.width);
+  return Math.abs(grip.x - resident.x - trailing);
 };
 
 const maximumStep = (samples: Array<{ x: number; y: number }>) =>
@@ -192,7 +218,7 @@ test("gives every resident action clear hover feedback", async ({ page }) => {
       return {
         backgroundColor: style.backgroundColor,
         boxShadow: style.boxShadow,
-        transform: style.transform,
+        scale: style.scale,
       };
     });
 
@@ -203,7 +229,7 @@ test("gives every resident action clear hover feedback", async ({ page }) => {
       return {
         backgroundColor: style.backgroundColor,
         boxShadow: style.boxShadow,
-        transform: style.transform,
+        scale: style.scale,
       };
     });
 
@@ -211,7 +237,7 @@ test("gives every resident action clear hover feedback", async ({ page }) => {
       resting.backgroundColor
     );
     expect(hovered.boxShadow, `${name} shadow`).toBe("none");
-    expect(hovered.transform, `${name} transform`).not.toBe("none");
+    expect(hovered.scale, `${name} scale`).not.toBe(resting.scale);
     await expect(toolbar).toBeVisible();
   }
 });
@@ -337,7 +363,8 @@ test("hangs active work off the hardware notch with no daylight beside it", asyn
   await expect(morph).toHaveAttribute("data-notch-bridge", "true");
   await expect(morph).toHaveCSS("border-top-left-radius", "0px");
   await expect(morph).toHaveCSS("border-top-right-radius", "0px");
-  await expect(morph).toHaveCSS("border-bottom-left-radius", "10px");
+  // half the 52px band under the cut-out — the curve grows from the notch, not the panel default
+  await expect(morph).toHaveCSS("border-bottom-left-radius", "26px");
   await page.waitForTimeout(400);
 
   const bridged = await page.evaluate(() => {
@@ -364,6 +391,26 @@ test("hangs active work off the hardware notch with no daylight beside it", asyn
   expect(bridged.left).toBeLessThanOrEqual(notch.left);
   expect(bridged.right).toBeGreaterThanOrEqual(notch.right);
   expect(bridged.contentTop).toBeGreaterThanOrEqual(32);
+});
+
+test("grows a fresh recording straight out of the notch", async ({ page }) => {
+  await page.setViewportSize({ height: 620, width: 680 });
+  await page.goto(`${NOTIFICATION_URL}?polish=ready`);
+  await waitForTauriListener(page, "show-overlay");
+  await setOverlayNotch(page, { centerOffset: 0, topInset: 32, width: 196 });
+  await emitTauriEvent(page, "show-overlay", "recording");
+
+  const morph = page.locator('[data-component="echo-island-morph"]');
+  await expect(page.locator(".echo-island-activity")).toHaveAttribute(
+    "data-has-text",
+    "false"
+  );
+  await expect(morph).toHaveAttribute("data-notch-bridge", "true");
+  const settled = await settledFrame(morph);
+
+  expect(Math.round(settled.y)).toBe(0);
+  expect(settled.x).toBeLessThanOrEqual(680 / 2 - 98);
+  expect(settled.x + settled.width).toBeGreaterThanOrEqual(680 / 2 + 98);
 });
 
 test("leaves the resting handle floating below the notch", async ({ page }) => {
@@ -402,7 +449,7 @@ test("keeps every dock edge fixed with persistent actions on the sides", async (
       await expect(handle).toHaveCount(0);
       await expect(toolbar).toBeVisible();
       await expect(morph).toHaveCSS("width", "32px");
-      await expect(morph).toHaveCSS("height", "104px");
+      await expect(morph).toHaveCSS("height", "124px");
     } else {
       await expect(handle).toBeVisible();
       await expect(toolbar).toBeHidden();
@@ -411,7 +458,7 @@ test("keeps every dock edge fixed with persistent actions on the sides", async (
     }
     const compact = await settledFrame(morph);
     expect([Math.round(compact.width), Math.round(compact.height)]).toEqual(
-      isSide ? [32, 104] : [38, 5]
+      isSide ? [32, 124] : [38, 5]
     );
 
     await emitTauriEvent(page, "overlay-pointer-boundary", true);
@@ -420,13 +467,13 @@ test("keeps every dock edge fixed with persistent actions on the sides", async (
     }
     await expect(toolbar).toBeVisible();
     await expect(morph).toHaveCSS("width", isSide ? "32px" : "128px");
-    await expect(morph).toHaveCSS("height", isSide ? "104px" : "40px");
+    await expect(morph).toHaveCSS("height", isSide ? "124px" : "40px");
     const grip = page.getByRole("button", { name: "Move Echo control" });
     await expect(grip).toHaveCount(1);
     await expect(grip).toHaveCSS("width", "20px");
     await expect(grip).toHaveCSS("height", "20px");
-    await expect(grip).toHaveCSS("top", isSide ? "8px" : "10px");
-    await expect(grip).toHaveCSS("left", isSide ? "6px" : "19px");
+    await expect(grip).toHaveCSS("opacity", "0.5");
+    expect(await residentGutterDrift(page, isSide)).toBeLessThanOrEqual(1);
     await expect(grip.locator("svg")).toHaveCSS("width", "12px");
     await expect(grip.locator("svg")).toHaveCSS("height", "12px");
     await expect(grip.locator("svg")).toHaveCSS(

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   activityDecorationFor,
+  activityEdgeFor,
   activityVisualStateFor,
   hasHorizontalOverflow,
   hudModeFor,
@@ -94,6 +95,13 @@ describe("island presentation states", () => {
         showsDownload: false,
       })
     ).toBe("progress");
+  });
+
+  it("rings work in flight, breathes while listening, leaves a settled edge bare", () => {
+    expect(activityEdgeFor("orbit")).toBe("trace");
+    expect(activityEdgeFor("progress")).toBe("trace");
+    expect(activityEdgeFor("microphone")).toBe("ambience");
+    expect(activityEdgeFor("none")).toBeNull();
   });
 });
 

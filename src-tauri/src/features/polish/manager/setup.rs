@@ -56,12 +56,37 @@ pub(super) fn polish_runtime_config(
 }
 
 fn polish_runtime_directory(app: &AppHandle) -> Result<PathBuf> {
-    app.path()
+    let bundled = app
+        .path()
         .resolve(
             "resources/polish-runtime",
             tauri::path::BaseDirectory::Resource,
         )
-        .context("Failed to resolve Polish runtime directory")
+        .context("Failed to resolve Polish runtime directory")?;
+    Ok(select_runtime_directory(
+        bundled,
+        development_runtime_directory(),
+    ))
+}
+
+fn select_runtime_directory(bundled: PathBuf, development: Option<PathBuf>) -> PathBuf {
+    development
+        .filter(|directory| directory.join(polish_server_filename()).is_file())
+        .unwrap_or(bundled)
+}
+
+#[cfg(debug_assertions)]
+fn development_runtime_directory() -> Option<PathBuf> {
+    Some(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join("polish-runtime"),
+    )
+}
+
+#[cfg(not(debug_assertions))]
+fn development_runtime_directory() -> Option<PathBuf> {
+    None
 }
 
 #[cfg(target_os = "windows")]
@@ -94,5 +119,32 @@ mod tests {
         assert!(initialization.error.is_some());
         assert!(initialization.status.state == super::PolishState::Repair);
         assert!(initialization.config.server_path.as_os_str().is_empty());
+    }
+
+    #[test]
+    fn development_runtime_bypasses_copied_build_resources() {
+        let directory = tempfile::tempdir().unwrap();
+        let development = directory.path().join("source");
+        std::fs::create_dir(&development).unwrap();
+        std::fs::write(development.join(super::polish_server_filename()), []).unwrap();
+        let bundled = directory.path().join("copied");
+
+        assert_eq!(
+            super::select_runtime_directory(bundled, Some(development.clone())),
+            development
+        );
+    }
+
+    #[test]
+    fn packaged_runtime_remains_the_fallback() {
+        let bundled = std::path::PathBuf::from("/bundle/polish-runtime");
+
+        assert_eq!(
+            super::select_runtime_directory(
+                bundled.clone(),
+                Some(std::path::PathBuf::from("/missing/polish-runtime"))
+            ),
+            bundled
+        );
     }
 }

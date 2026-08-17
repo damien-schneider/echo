@@ -1,4 +1,8 @@
 import type { TargetAndTransition } from "motion/react";
+import {
+  DOCK_SHOULDER,
+  dockSilhouettePath,
+} from "@/features/overlay-controls/motion/dock-silhouette";
 import type { OverlaySurface } from "@/features/overlay-controls/runtime/overlay-surface";
 
 // no hardware notch — a short seam at the top edge reads the same once it grows
@@ -31,5 +35,12 @@ export const notchEntry = (surface: OverlaySurface): IslandEntry => {
     borderBottomRightRadius: radius,
     borderTopLeftRadius: 0,
     borderTopRightRadius: 0,
+    // the silhouette travels with the box, so the shoulders fold into the seam instead of freezing
+    clipPath: dockSilhouettePath({
+      anchor: "top",
+      height: box.height,
+      shoulder: DOCK_SHOULDER,
+      width: box.width,
+    }),
   };
 };

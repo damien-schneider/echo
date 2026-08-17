@@ -90,11 +90,14 @@ mod transcription_profile_tests {
         assert!(!statuses[0].is_active);
         assert!(statuses[0].is_downloaded);
         assert!(statuses[0].is_downloading);
+        assert!(!statuses[0].is_recommended);
         assert!(statuses[1].is_active);
         assert!(statuses[1].is_downloaded);
         assert!(!statuses[1].is_downloading);
+        assert!(statuses[1].is_recommended);
         assert!(!statuses[2].is_active);
         assert!(!statuses[2].is_downloaded);
+        assert!(!statuses[2].is_recommended);
     }
 
     #[test]
@@ -105,7 +108,7 @@ mod transcription_profile_tests {
         let json = serde_json::to_value(status).unwrap();
         let object = json.as_object().unwrap();
 
-        assert_eq!(object.len(), 7);
+        assert_eq!(object.len(), 8);
         assert!(object.contains_key("size"));
         assert!(object.contains_key("label"));
         assert!(object.contains_key("description"));
@@ -113,6 +116,7 @@ mod transcription_profile_tests {
         assert!(object.contains_key("is_downloaded"));
         assert!(object.contains_key("is_downloading"));
         assert!(object.contains_key("is_active"));
+        assert!(object.contains_key("is_recommended"));
         assert!(!object.contains_key("filename"));
         assert!(!object.contains_key("url"));
         assert!(!object.contains_key("engine_type"));
@@ -133,6 +137,20 @@ mod transcription_profile_tests {
         assert_eq!(
             model.url.as_deref(),
             Some("https://huggingface.co/lmstudio-community/Qwen3-4B-Instruct-2507-GGUF/resolve/4edb920b6f14e3b9284d4502a6485103d72cde05/Qwen3-4B-Instruct-2507-Q4_K_M.gguf")
+        );
+    }
+
+    #[test]
+    fn development_and_production_share_one_model_store() {
+        let data_root = std::path::Path::new("/data");
+        let production = shared_models_dir(&data_root.join(SHARED_MODELS_APP_ID));
+        let development =
+            shared_models_dir(&data_root.join("com.damien-schneider.echo-dev"));
+
+        assert_eq!(development, production);
+        assert_eq!(
+            production,
+            data_root.join(SHARED_MODELS_APP_ID).join("models")
         );
     }
 }

@@ -26,8 +26,8 @@
     "test:rust": "cd src-tauri && cargo test",
     "prepare:polish-runtime": "bun run scripts/prepare-polish-runtime.ts",
     "preview": "vite preview",
-    "tauri:dev": "bun run prepare:polish-runtime && tauri dev --config src-tauri/tauri.dev.conf.json",
-    "tauri:build": "bun run prepare:polish-runtime && tauri build",
+    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "tauri:build": "tauri build",
     "prepare": "husky",
     "version": "bun ./scripts/bump-version.ts",
     "clean": "rm -rf .turbo .cargo node_modules bun.lock dist src-tauri/target apps/web/node_modules && bun install"

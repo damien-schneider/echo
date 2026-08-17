@@ -1,4 +1,5 @@
 use super::*;
+use crate::features::polish::policy::MAX_POLISH_CHARACTERS;
 use std::sync::atomic::Ordering;
 use std::time::{Duration, Instant};
 
@@ -75,6 +76,38 @@ async fn captures_selection_identical_to_existing_clipboard() {
             .await
             .unwrap(),
         PolishOutcome::Replaced
+    );
+}
+
+#[tokio::test]
+async fn chat_capture_keeps_text_beyond_the_polish_limit() {
+    let selection = "x".repeat(MAX_POLISH_CHARACTERS + 1);
+    let fixture = fixture(&selection, "ignored");
+    let generation = fixture.cancellation.begin();
+
+    assert_eq!(
+        fixture
+            .transaction
+            .capture_text(SelectionMode::ReplaceSelection, generation)
+            .await
+            .unwrap(),
+        Some(selection)
+    );
+}
+
+#[tokio::test]
+async fn chat_capture_preserves_multiline_terminal_output() {
+    let selection = "$ bun test\n31 pass\n0 fail";
+    let fixture = fixture(selection, "ignored");
+    let generation = fixture.cancellation.begin();
+
+    assert_eq!(
+        fixture
+            .transaction
+            .capture_text(SelectionMode::ReplaceSelection, generation)
+            .await
+            .unwrap(),
+        Some(selection.to_string())
     );
 }
 

@@ -6,6 +6,7 @@ import {
   waitForTauriListener,
 } from "@e2e/fixtures";
 import { expect, type Page } from "@playwright/test";
+import { dockSilhouettePath } from "@/features/overlay-controls/motion/dock-silhouette";
 
 const defaultOverlayUrl = "/src/overlay/index.html";
 const overlayUrl = `${defaultOverlayUrl}?overlayPlacement=bottom`;
@@ -32,7 +33,7 @@ test("keeps side-docked actions visible in a compact vertical toolbar", async ({
   await expect(toolbar).toHaveAttribute("aria-orientation", "vertical");
   const resident = page.locator(".echo-island-resident");
   await expect(resident).toHaveCSS("width", "32px");
-  await expect(resident).toHaveCSS("height", "104px");
+  await expect(resident).toHaveCSS("height", "124px");
 
   const actions = [
     page.getByRole("button", { name: "Start recording" }),
@@ -56,7 +57,7 @@ test("keeps side-docked actions visible in a compact vertical toolbar", async ({
   expect((boxes[2]?.y ?? 0) - (boxes[1]?.y ?? 0)).toBeGreaterThan(20);
   const morph = page.locator(".echo-island-morph");
   await expect(morph).toHaveCSS("width", "32px");
-  await expect(morph).toHaveCSS("height", "104px");
+  await expect(morph).toHaveCSS("height", "124px");
   const clipPath = await morph.evaluate(
     (element) => getComputedStyle(element).clipPath
   );
@@ -95,9 +96,9 @@ test("keeps side-docked actions visible in a compact vertical toolbar", async ({
   await grip.hover();
   await page.waitForTimeout(260);
   await expect(resident).toHaveCSS("width", "32px");
-  await expect(resident).toHaveCSS("height", "104px");
+  await expect(resident).toHaveCSS("height", "124px");
   await expect(morph).toHaveCSS("width", "32px");
-  await expect(morph).toHaveCSS("height", "104px");
+  await expect(morph).toHaveCSS("height", "124px");
   await expect
     .poll(() => morph.evaluate((element) => getComputedStyle(element).clipPath))
     .toContain("C 32 5.523 27.523 10 22 10");
@@ -194,9 +195,17 @@ test("a lifted island drops its docked silhouette for a clean handle", async ({
   await grabTheGrip(page);
 
   await expect(root).toHaveAttribute("data-dragging", "true");
+  // shoulders melt away instead of being switched off — a silhouette swap mid-drag would snap
   await expect
     .poll(() => morph.evaluate((element) => getComputedStyle(element).clipPath))
-    .toBe("none");
+    .toBe(
+      dockSilhouettePath({
+        anchor: "right",
+        height: 124,
+        shoulder: 0,
+        width: 32,
+      })
+    );
   await expect(morph).toHaveCSS("border-top-right-radius", "10px");
   await expect(morph).toHaveCSS("border-bottom-right-radius", "10px");
   await expect(
@@ -684,7 +693,7 @@ test("morphs one shared island shell between the handle and its actions", async 
   );
 });
 
-test("shows a quiet interior orbit only while Polish is processing", async ({
+test("traces the whole outline only while Polish is processing", async ({
   page,
 }) => {
   await page.goto(`${NOTIFICATION_URL}?polish=ready`);
@@ -698,10 +707,10 @@ test("shows a quiet interior orbit only while Polish is processing", async ({
   const activity = page.getByRole("region", { name: "Echo activity" });
   await expect(activity).toHaveAttribute("aria-busy", "true");
   await expect(activity).toHaveText("Polishing…");
-  await expect(page.locator(".echo-island-processing-orbit")).toBeVisible();
+  await expect(page.locator(".echo-island-edge-trace")).toBeVisible();
 });
 
-test("stops the Polish orbit when reduced motion is requested", async ({
+test("stops the edge trace when reduced motion is requested", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -712,7 +721,7 @@ test("stops the Polish orbit when reduced motion is requested", async ({
     state: "processing",
   });
 
-  await expect(page.locator(".echo-island-processing-orbit")).toHaveCSS(
+  await expect(page.locator(".echo-island-edge-trace")).toHaveCSS(
     "animation-name",
     "none"
   );

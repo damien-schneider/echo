@@ -17,6 +17,7 @@ use tokio::sync::Mutex;
 
 use super::policy::build_polish_prompt;
 use super::selection::InferencePort;
+use super::BundledChatMessage;
 pub(in crate::features::polish) use idle::IDLE_CHECK_INTERVAL;
 use idle::{should_release_idle_runtime, ActivityTracker};
 use process_lifecycle::{
@@ -33,6 +34,22 @@ const RUNTIME_STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 const CHAT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const TOKENIZE_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLISH_SYSTEM_PROMPT: &str = "You are a conservative multilingual proofreader. Never translate or rewrite. Keep the input language, meaning, tone, line breaks, names, URLs, emails, identifiers, and code. Fix only clear spelling, grammar, punctuation, agreement, or idiom errors. If the text is already correct, return it byte-for-byte. Output only the final text.";
+
+fn bundled_chat_request_messages<'a>(
+    system: &'a str,
+    messages: &'a [BundledChatMessage],
+) -> Vec<ChatRequestMessage<'a>> {
+    let mut request_messages = Vec::with_capacity(messages.len() + 1);
+    request_messages.push(ChatRequestMessage {
+        role: "system",
+        content: system,
+    });
+    request_messages.extend(messages.iter().map(|message| ChatRequestMessage {
+        role: message.role.as_str(),
+        content: &message.content,
+    }));
+    request_messages
+}
 
 pub(super) struct PolishRuntimeConfig {
     pub(super) server_path: PathBuf,
@@ -186,18 +203,17 @@ impl PolishRuntime {
                 process.state = ServerState::Stopped;
                 bail!("Polish runtime is shutting down");
             }
-            let exited = process
+            let exit_status = process
                 .child
                 .as_mut()
                 .map(|child| child.try_wait())
                 .transpose()
                 .context("Failed to inspect local Polish runtime")?
-                .flatten()
-                .is_some();
-            if exited {
+                .flatten();
+            if let Some(exit_status) = exit_status {
                 process.child = None;
                 process.state = ServerState::Stopped;
-                bail!("Polish runtime exited during startup");
+                bail!("Polish runtime exited during startup with {exit_status}");
             }
             let request = self.client.get(&url).bearer_auth(&process.api_key);
             let ready = await_local_operation(
@@ -228,26 +244,47 @@ impl PolishRuntime {
 
     async fn request_polish(&self, text: &str) -> Result<String> {
         let prompt = build_polish_prompt(text);
-        self.run_with_restart(|| self.send_chat_request(&prompt))
-            .await
+        let messages = [
+            ChatRequestMessage {
+                role: "system",
+                content: POLISH_SYSTEM_PROMPT,
+            },
+            ChatRequestMessage {
+                role: "user",
+                content: &prompt,
+            },
+        ];
+        self.run_with_restart(|| {
+            self.send_chat_request(&messages, 0.0, "Polish correction request")
+        })
+        .await
     }
 
-    async fn send_chat_request(&self, prompt: &str) -> Result<String> {
+    pub(super) async fn chat(
+        &self,
+        system: &str,
+        messages: &[BundledChatMessage],
+    ) -> Result<String> {
+        let _request = self.activity.begin_request();
+        let request_messages = bundled_chat_request_messages(system, messages);
+        self.run_with_restart(|| {
+            self.send_chat_request(&request_messages, 0.2, "Echo chat request")
+        })
+        .await
+    }
+
+    async fn send_chat_request(
+        &self,
+        messages: &[ChatRequestMessage<'_>],
+        temperature: f32,
+        operation_name: &'static str,
+    ) -> Result<String> {
         let (url, api_key) = self.endpoint_auth("/v1/chat/completions").await?;
         let request = ChatRequest {
             model: "polish",
-            messages: [
-                ChatRequestMessage {
-                    role: "system",
-                    content: POLISH_SYSTEM_PROMPT,
-                },
-                ChatRequestMessage {
-                    role: "user",
-                    content: prompt,
-                },
-            ],
+            messages,
             stream: false,
-            temperature: 0.0,
+            temperature,
             seed: 0,
             max_tokens: 2_048,
         };
@@ -259,17 +296,16 @@ impl PolishRuntime {
                 .json(&request)
                 .send()
                 .await
-                .context("Polish server request failed")?;
+                .with_context(|| format!("{operation_name} failed"))?;
             let status = response.status();
             let body = response
                 .text()
                 .await
-                .context("Polish server response failed")?;
+                .with_context(|| format!("{operation_name} response failed"))?;
             Ok((status, body))
         };
         let (status, body) =
-            await_local_operation(operation, CHAT_REQUEST_TIMEOUT, "Polish correction request")
-                .await?;
+            await_local_operation(operation, CHAT_REQUEST_TIMEOUT, operation_name).await?;
         if !status.is_success() {
             bail!("Polish server returned HTTP {status}");
         }

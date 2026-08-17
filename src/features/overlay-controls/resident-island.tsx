@@ -135,8 +135,9 @@ export const ResidentIsland = ({
   const actionsAreInteractive =
     !drag.isDragging &&
     (isSideDocked || (isExpanded && motionPhase === "open"));
-  // The grip must survive its own drag: nothing may unmount under the pointer.
-  const showsDockGrip =
+  // The grip keeps its slot whenever the island can dock: appearing mid-morph would shove the toolbar.
+  const hasDockGrip = isSideDocked || presentation === "docked";
+  const gripIsLive =
     drag.isDragging ||
     isSideDocked ||
     (isExpanded && motionPhase === "open" && presentation === "docked");
@@ -170,10 +171,12 @@ export const ResidentIsland = ({
         ref={residentRef}
       >
         <span aria-hidden="true" className="echo-island-resident-shell" />
-        {showsDockGrip ? (
+        {hasDockGrip ? (
           <button
             aria-label="Move Echo control"
             className="echo-island-dock-grip"
+            data-live={gripIsLive}
+            inert={gripIsLive ? undefined : true}
             onKeyDown={drag.onGripKeyDown}
             onPointerDown={drag.onGripPointerDown}
             title="Move Echo control"

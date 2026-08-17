@@ -3,7 +3,6 @@ use std::sync::Arc;
 use super::manager::PolishManager;
 use super::runtime::IDLE_CHECK_INTERVAL;
 
-/// Boot prewarm buys an instant first correction; without this the model would sit resident all session.
 pub(crate) fn watch_idle_runtime(manager: &Arc<PolishManager>) {
     let manager = manager.clone();
     tauri::async_runtime::spawn(async move {

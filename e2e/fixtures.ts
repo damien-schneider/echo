@@ -1,12 +1,18 @@
 import { setupOverlaySurface } from "@e2e/overlay-surface-fixture";
 import { test as base, type Page } from "@playwright/test";
 
+interface EchoInvocation {
+  args: unknown;
+  command: string;
+}
+
 interface EchoTestApi {
   commands: string[];
   deferNextAccessibilityChecks: (count: number) => void;
   deferNextOverlayModePreflights: (count: number) => void;
   emit: (event: string, payload: unknown) => void;
   failNextAccessibilityChecks: (count: number) => void;
+  invocations: EchoInvocation[];
   listenerCount: (event: string) => number;
   pendingAccessibilityCheckCount: () => number;
   pendingOverlayModePreflightCount: () => number;
@@ -32,9 +38,11 @@ export interface EchoTestState {
   accessibilityPermission: unknown;
   buildOverlaySurface: (mode: string) => unknown;
   callbacks: Map<number, (payload: unknown) => void>;
+  chatContextResponse: unknown;
   commands: string[];
   emitOverlaySurface: (mode: string) => void;
   eventListeners: Map<string, Map<number, (payload: unknown) => void>>;
+  invocations: EchoInvocation[];
   invokeDefaults: Record<string, unknown>;
   nextCallbackId: number;
   nextEventId: number;
@@ -65,6 +73,9 @@ const setupEchoTestState = () => {
   const accessibility = new URLSearchParams(window.location.search).get(
     "accessibility"
   );
+  const selectedContext = new URLSearchParams(window.location.search).get(
+    "selectedContext"
+  );
   let accessibilityPermission: boolean | string = false;
   if (accessibility === "granted") {
     accessibilityPermission = true;
@@ -77,11 +88,24 @@ const setupEchoTestState = () => {
     accessibilityCheckResolvers: [],
     accessibilityChecksToDefer: 0,
     accessibilityPermission,
+    chatContextResponse: {
+      context:
+        selectedContext === null
+          ? null
+          : {
+              source: "selection",
+              text: selectedContext,
+              truncated: false,
+            },
+      generation: 1,
+      state: "ready",
+    },
     buildOverlaySurface: () => null,
     callbacks: new Map(),
     emitOverlaySurface: () => undefined,
     commands: [],
     eventListeners: new Map(),
+    invocations: [],
     invokeDefaults: {
       check_custom_sounds: { start: false, stop: false },
       get_available_microphones: [{ id: "default", name: "Default" }],
@@ -171,6 +195,11 @@ const setupEventCommands = () => {
 
 const setupCommandResponder = () => {
   const state = window.__ECHO_TEST_STATE__;
+  let notificationRequest: {
+    generation: number;
+    surface: string;
+  } | null = null;
+  let notificationRequestGeneration = 0;
   const requestedMode = (args: unknown) =>
     typeof args === "object" && args !== null && "mode" in args
       ? String(args.mode)
@@ -212,6 +241,9 @@ const setupCommandResponder = () => {
       "get_polish_status",
       () => ({ message: state.polishStatus, state: state.polishStatus }),
     ],
+    ["chat_with_polish_model", () => "Echo 4B reply"],
+    ["refresh_overlay_chat_context", () => state.chatContextResponse],
+    ["get_overlay_chat_context", () => state.chatContextResponse],
     ["download_polish_model", () => new Promise(() => undefined)],
     ["repair_polish_model", () => new Promise(() => undefined)],
     ["plugin:store|get_store", () => 1],
@@ -239,9 +271,29 @@ const setupCommandResponder = () => {
           ? null
           : state.buildOverlaySurface(state.overlayMode),
     ],
+    [
+      "get_overlay_notification_request",
+      () => {
+        if (notificationRequest !== null) {
+          return notificationRequest;
+        }
+        const surface = new URLSearchParams(window.location.search).get(
+          "notificationRequest"
+        );
+        return surface === "chat" || surface === "panel"
+          ? { generation: 1, surface }
+          : null;
+      },
+    ],
     ["set_overlay_notification_mode", prepareMode],
     ["settle_overlay_notification_mode", () => null],
-    ["hide_overlay_notification", () => null],
+    [
+      "hide_overlay_notification",
+      () => {
+        notificationRequest = null;
+        return null;
+      },
+    ],
     [
       "request_overlay_notification",
       (args) => {
@@ -249,13 +301,18 @@ const setupCommandResponder = () => {
           typeof args === "object" && args !== null && "surface" in args
             ? String(args.surface)
             : "chat";
+        notificationRequestGeneration += 1;
+        notificationRequest = {
+          generation: notificationRequestGeneration,
+          surface,
+        };
         for (const callback of state.eventListeners
           .get("overlay-notification-request")
           ?.values() ?? []) {
           callback({
             event: "overlay-notification-request",
             id: 0,
-            payload: surface,
+            payload: notificationRequest,
           });
         }
         return null;
@@ -265,6 +322,7 @@ const setupCommandResponder = () => {
   ]);
   state.respond = (command, args) => {
     state.commands.push(command);
+    state.invocations.push({ args, command });
     if (new URLSearchParams(window.location.search).get("reject") === command) {
       throw new Error(`Rejected ${command}`);
     }
@@ -282,6 +340,7 @@ const setupEchoTestApi = () => {
   const state = window.__ECHO_TEST_STATE__;
   window.__ECHO_TEST__ = {
     commands: state.commands,
+    invocations: state.invocations,
     deferNextAccessibilityChecks: (count) => {
       state.accessibilityChecksToDefer = count;
     },
@@ -289,6 +348,9 @@ const setupEchoTestApi = () => {
       state.overlayModePreflightsToDefer = count;
     },
     emit: (event, payload) => {
+      if (event === "overlay-chat-context") {
+        state.chatContextResponse = payload;
+      }
       for (const callback of state.eventListeners.get(event)?.values() ?? []) {
         callback({ event, id: 0, payload });
       }
@@ -413,14 +475,26 @@ export const emitTauriEvent = (page: Page, event: string, payload: unknown) =>
     { eventName: event, eventPayload: payload }
   );
 
-/// Stands in for the HUD asking Rust to open one of its two surfaces.
 export const requestNotificationSurface = (
   page: Page,
   surface: "chat" | "panel"
-) => emitTauriEvent(page, "overlay-notification-request", surface);
+) =>
+  emitTauriEvent(page, "overlay-notification-request", {
+    generation: 1,
+    surface,
+  });
 
 export const invokedCommands = (page: Page) =>
   page.evaluate(() => [...window.__ECHO_TEST__.commands]);
+
+export const invokedCommandPayloads = (page: Page, command: string) =>
+  page.evaluate(
+    (requestedCommand) =>
+      window.__ECHO_TEST__.invocations
+        .filter((invocation) => invocation.command === requestedCommand)
+        .map((invocation) => JSON.stringify(invocation.args) ?? ""),
+    command
+  );
 
 export const deferNextOverlayModePreflights = (page: Page, count: number) =>
   page.evaluate(

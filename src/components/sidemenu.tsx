@@ -101,6 +101,9 @@ export const SECTIONS_CONFIG = {
   },
 } as const satisfies Record<string, SectionConfig>;
 
+const isSidebarSection = (value: unknown): value is SidebarSection =>
+  typeof value === "string" && Object.hasOwn(SECTIONS_CONFIG, value);
+
 const DEFAULT_SIDEBAR_WIDTH = "220px";
 const MIN_SIDEBAR_WIDTH = "180px";
 const MAX_SIDEBAR_WIDTH = "320px";
@@ -112,9 +115,9 @@ function AppSidebar({
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
 }) {
-  const availableSections = Object.entries(SECTIONS_CONFIG).map(
-    ([id, config]) => ({ id: id as SidebarSection, ...config })
-  );
+  const availableSections = Object.keys(SECTIONS_CONFIG)
+    .filter(isSidebarSection)
+    .map((id) => ({ id, ...SECTIONS_CONFIG[id] }));
 
   return (
     <div

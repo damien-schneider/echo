@@ -1,17 +1,15 @@
 import { X } from "lucide-react";
 import { type ReactNode, type RefObject, useLayoutEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { PolishProcessingOrbit } from "@/features/overlay-controls/motion/island-morph";
+import { IslandHud } from "@/features/overlay-controls/island-hud";
 import {
   type ActivityDecoration,
   type ActivityVisualState,
   hasHorizontalOverflow,
 } from "@/features/overlay-controls/recording-overlay-state";
-import { cn } from "@/lib/utils";
 
 export interface ActivityIslandAction {
   icon: ReactNode;
-  label: string;
   onAction: () => void;
   title: string;
 }
@@ -20,7 +18,8 @@ interface ActivityIslandProps {
   action: ActivityIslandAction | null;
   decoration: ActivityDecoration;
   dismissLabel: string | null;
-  microphoneRef: RefObject<HTMLSpanElement | null>;
+  /// A cut-out to sit either side of — the controls leave the text row and take the flanks.
+  hasFlanks: boolean;
   onDismiss: () => void;
   text: string;
   textScrollRef: RefObject<HTMLOutputElement | null>;
@@ -57,16 +56,6 @@ const useActivityTextOverflow = ({
   }, [text, textScrollRef]);
 };
 
-const MicrophoneAmbience = ({
-  microphoneRef,
-}: Pick<ActivityIslandProps, "microphoneRef">) => (
-  <span
-    aria-hidden="true"
-    className="echo-island-microphone-ambience"
-    ref={microphoneRef}
-  />
-);
-
 interface ActivityDismissButtonProps {
   label: string;
   onDismiss: () => void;
@@ -78,7 +67,7 @@ const ActivityDismissButton = ({
 }: ActivityDismissButtonProps) => (
   <Button
     aria-label={label}
-    className="echo-island-activity-dismiss size-7 rounded-full text-white/50 hover:bg-white/10 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
+    className="echo-island-activity-dismiss size-6 rounded-full text-white/50 hover:bg-white/10 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
     onClick={onDismiss}
     size="icon-xs"
     title={label}
@@ -90,20 +79,18 @@ const ActivityDismissButton = ({
 
 const ActivityActionButton = ({
   icon,
-  label,
   onAction,
   title,
 }: ActivityIslandAction) => (
   <Button
     aria-label={title}
-    className="echo-island-activity-submit h-7 rounded-md bg-white/90 px-2.5 font-medium text-[11px] text-black shadow-none hover:bg-white focus-visible:ring-1 focus-visible:ring-white/60"
+    className="echo-island-activity-submit size-6 rounded-full bg-white/90 text-black shadow-none hover:bg-white focus-visible:ring-1 focus-visible:ring-white/60"
     onClick={onAction}
-    size="sm"
+    size="icon-xs"
     title={title}
     variant="secondary"
   >
     {icon}
-    {label}
   </Button>
 );
 
@@ -111,7 +98,7 @@ export const ActivityIsland = ({
   action,
   decoration,
   dismissLabel,
-  microphoneRef,
+  hasFlanks,
   onDismiss,
   text,
   textScrollRef,
@@ -120,39 +107,39 @@ export const ActivityIsland = ({
   const isError = visualState === "error";
   const isProcessing = visualState === "processing";
   useActivityTextOverflow({ text, textScrollRef });
+  const dismiss = dismissLabel ? (
+    <ActivityDismissButton label={dismissLabel} onDismiss={onDismiss} />
+  ) : null;
+  const submit = action ? <ActivityActionButton {...action} /> : null;
   return (
-    <section
-      aria-busy={isProcessing}
-      aria-label="Echo activity"
-      className="echo-island-activity"
-      data-decoration={decoration}
-      data-has-text={Boolean(text)}
-      data-state={visualState}
+    <IslandHud
+      hasFlanks={hasFlanks}
+      layout="activity"
+      leftFlank={hasFlanks ? dismiss : null}
+      rightFlank={hasFlanks ? submit : null}
     >
-      {decoration === "orbit" ? <PolishProcessingOrbit /> : null}
-      {decoration === "microphone" ? (
-        <MicrophoneAmbience microphoneRef={microphoneRef} />
-      ) : null}
-      {dismissLabel ? (
-        <ActivityDismissButton label={dismissLabel} onDismiss={onDismiss} />
-      ) : null}
-      {action ? <ActivityActionButton {...action} /> : null}
-      {text ? (
-        <output
-          aria-live={isError ? "assertive" : "polite"}
-          className={cn(
-            "scrollbar-hide relative z-1 overflow-x-auto whitespace-nowrap text-[12px] text-white/68",
-            !action && dismissLabel && "pr-7"
-          )}
-          ref={textScrollRef}
-          role={isError ? "alert" : undefined}
-        >
-          {text}
-        </output>
-      ) : null}
-      {isProcessing && decoration !== "orbit" ? (
-        <span className="notch-progress-line" />
-      ) : null}
-    </section>
+      <section
+        aria-busy={isProcessing}
+        aria-label="Echo activity"
+        className="echo-island-activity"
+        data-decoration={decoration}
+        data-flanked={hasFlanks}
+        data-has-text={Boolean(text)}
+        data-state={visualState}
+      >
+        {text ? (
+          <output
+            aria-live={isError ? "assertive" : "polite"}
+            className="scrollbar-hide relative z-1 overflow-x-auto whitespace-nowrap text-[12px] text-white/68"
+            ref={textScrollRef}
+            role={isError ? "alert" : undefined}
+          >
+            {text}
+          </output>
+        ) : null}
+        {hasFlanks ? null : submit}
+        {hasFlanks ? null : dismiss}
+      </section>
+    </IslandHud>
   );
 };

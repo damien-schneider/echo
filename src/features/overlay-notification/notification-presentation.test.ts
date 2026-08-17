@@ -1,5 +1,4 @@
 import { describe, expect, it } from "bun:test";
-import type { OverlayState } from "@/features/overlay-controls/recording-overlay-state";
 import type { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events";
 import { createNotificationPresentation } from "@/features/overlay-notification/notification-presentation";
 import type { UpdateNotice } from "@/features/overlay-notification/update-notice";
@@ -12,7 +11,7 @@ const events = (overrides: Partial<OverlayEvents> = {}): OverlayEvents => ({
   eventError: null,
   isSurfaceReady: true,
   isVisible: false,
-  state: "recording" as OverlayState,
+  state: "recording",
   streamingText: "",
   surface: null,
   warningMessage: "",
@@ -69,7 +68,6 @@ describe("notification presentation", () => {
     expect(recording.activityDecoration).toBe("microphone");
     expect(recording.activityAction).toEqual({
       intent: "finish_recording",
-      label: "Transcribe",
       title: "Finish recording and transcribe",
     });
   });
@@ -124,7 +122,6 @@ describe("update notices in the notch", () => {
     expect(offered.activityText).toBe("Update available — v0.5.0");
     expect(offered.activityAction).toEqual({
       intent: "install_update",
-      label: "Update",
       title: "Install the update and restart Echo",
     });
     expect(offered.activityDismissal).toEqual({

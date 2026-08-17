@@ -50,8 +50,7 @@ mod once_flag_tests {
         let flag = Arc::new(AtomicBool::new(false));
         let flag_for_thread = flag.clone();
         let result = thread::spawn(move || {
-            let _g = try_acquire_once_flag(&flag_for_thread)
-                .expect("first acquire should succeed");
+            let _g = try_acquire_once_flag(&flag_for_thread).expect("first acquire should succeed");
             panic!("simulated panic inside the guarded region");
         })
         .join();
@@ -85,12 +84,7 @@ mod once_flag_tests {
                         let mut prev = max_observed.load(Ordering::SeqCst);
                         while prev < now
                             && max_observed
-                                .compare_exchange(
-                                    prev,
-                                    now,
-                                    Ordering::SeqCst,
-                                    Ordering::SeqCst,
-                                )
+                                .compare_exchange(prev, now, Ordering::SeqCst, Ordering::SeqCst)
                                 .is_err()
                         {
                             prev = max_observed.load(Ordering::SeqCst);
@@ -207,4 +201,26 @@ fn resident_model_load_is_a_true_no_op() {
     assert!(!requires_model_load(Some("small"), "small"));
     assert!(requires_model_load(Some("small"), "medium"));
     assert!(requires_model_load(None, "small"));
+}
+
+#[test]
+fn transcription_language_settings_map_to_whisper_codes() {
+    assert_eq!(whisper_language("auto").unwrap(), None);
+    assert_eq!(whisper_language("zh-Hans").unwrap(), Some("zh".to_string()));
+    assert_eq!(whisper_language("zh-Hant").unwrap(), Some("zh".to_string()));
+    assert_eq!(whisper_language("en").unwrap(), Some("en".to_string()));
+    assert!(whisper_language("not-a-language").is_err());
+}
+
+#[test]
+fn streaming_language_probe_collects_only_bounded_speech() {
+    let mut state = StreamingLanguageState::default();
+    state.observe_audio(&vec![0.1; WHISPER_SAMPLE_RATE], false);
+    assert!(state.speech_probe.is_empty());
+
+    state.observe_audio(&vec![0.1; MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES * 2], true);
+    assert_eq!(
+        state.speech_probe.len(),
+        MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES
+    );
 }

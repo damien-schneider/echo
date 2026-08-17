@@ -59,7 +59,6 @@ export const activityDismissalFor = ({
 /// The one button the activity bar offers, whatever is speaking through it.
 export interface ActivityAction {
   intent: "finish_recording" | "install_update";
-  label: string;
   title: string;
 }
 
@@ -131,6 +130,18 @@ export const activityDecorationFor = ({
     return "progress";
   }
   return showsDownload ? "progress" : "none";
+};
+
+export type IslandEdge = "ambience" | "trace";
+
+/// Work in flight rings the whole island, listening breathes on it, a settled surface leaves it alone.
+export const activityEdgeFor = (
+  decoration: ActivityDecoration
+): IslandEdge | null => {
+  if (decoration === "orbit" || decoration === "progress") {
+    return "trace";
+  }
+  return decoration === "microphone" ? "ambience" : null;
 };
 
 export const hudModeFor = (isControlsOpen: boolean): HudMode =>

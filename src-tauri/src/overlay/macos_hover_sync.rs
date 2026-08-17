@@ -1,7 +1,7 @@
 use super::layout::OverlaySurfaceKind;
 use super::macos_hover::{
     decide_hover_key, hover_pointer_inside, overlay_hover_region_for_pointer, panel_hover_state,
-    HoverKeyAction, HoverKeySample, PanelHoverState, HOVER_PANELS, PASTE_KEY_SUPPRESSED,
+    HoverKeyAction, HoverKeySample, PanelHoverState, HOVER_PANELS, SYNTHETIC_KEY_SUPPRESSED,
 };
 use super::screen_follow::{self, FollowStep};
 use objc2::{msg_send, runtime::AnyObject};
@@ -128,7 +128,7 @@ unsafe fn sync_panel_hover_key(
     let action = decide_hover_key(HoverKeySample {
         keyboard_mode: panel.accepts_key(),
         panel_is_key,
-        paste_suppressed: PASTE_KEY_SUPPRESSED.load(Ordering::Acquire),
+        synthetic_key_suppressed: SYNTHETIC_KEY_SUPPRESSED.load(Ordering::Acquire),
         pointer_inside,
     });
     // publish pointer state first — AppKit reads ownership when hit testing turns on
@@ -138,6 +138,7 @@ unsafe fn sync_panel_hover_key(
     }
     match action {
         HoverKeyAction::TakeKey => {
+            crate::macos_accessibility::remember_selected_text_before_overlay_focus();
             log::info!("[Overlay] hover key: take ({})", panel.label());
             let _: () = msg_send![&*ns_window, makeKeyWindow];
         }

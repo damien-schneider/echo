@@ -113,6 +113,7 @@ wasapi = "0.23"
 block2 = "0.6"
 cocoa = "0.26"
 core-graphics = "0.24"
+core-foundation = "0.10"
 objc = "0.2"
 objc2 = "0.6.4"
 objc2-app-kit = { version = "0.3.2", features = ["NSScreen"] }

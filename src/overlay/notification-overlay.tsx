@@ -3,6 +3,7 @@ import { AnimatePresence } from "motion/react";
 import { useEffect, useEffectEvent } from "react";
 import { IslandMorph } from "@/features/overlay-controls/motion/island-morph";
 import { notchEntry } from "@/features/overlay-controls/motion/notch-entry";
+import { activityEdgeFor } from "@/features/overlay-controls/recording-overlay-state";
 import { NotificationSurface } from "@/features/overlay-notification/notification-surface";
 import {
   NOTIFICATION_RELEASE_DELAY_MS,
@@ -50,8 +51,14 @@ const NotificationOverlay = () => {
         {surface && mode ? (
           <IslandMorph
             contentKey={controller.contentKey}
+            edge={
+              mode === "recording"
+                ? activityEdgeFor(controller.presentation.activityDecoration)
+                : null
+            }
             entry={notchEntry(surface)}
             key="notification"
+            microphoneRef={controller.microphoneRef}
             mode={mode}
             onMorphComplete={controller.finishMorph}
             surface={surface}

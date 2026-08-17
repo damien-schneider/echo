@@ -1,7 +1,7 @@
 use super::layout::{overlay_mode_accepts_keyboard, OverlaySurfaceKind, RecordingOverlayMode};
 use super::macos_hover::{
     hud_panel_can_become_key_window, panel_hover_state_for_label, PanelHoverState, HOVER_PANELS,
-    PASTE_KEY_SUPPRESSED,
+    SYNTHETIC_KEY_SUPPRESSED,
 };
 use super::macos_hover_sync::{register_panel_window, sync_hover_key_possession};
 use super::surface::OverlayBoxPayload;
@@ -129,9 +129,8 @@ pub(super) fn configure_snap_preview(window: &WebviewWindow) -> Result<(), Strin
     snap_preview_panel::configure(window)
 }
 
-/// A panel holding key for hover would swallow paste keystrokes; chat mode is exempt, it owns key deliberately.
-pub(super) fn begin_paste_key_suppression(app_handle: &AppHandle) {
-    PASTE_KEY_SUPPRESSED.store(true, Ordering::Release);
+pub(super) fn begin_synthetic_key_suppression(app_handle: &AppHandle) {
+    SYNTHETIC_KEY_SUPPRESSED.store(true, Ordering::Release);
     for panel in HOVER_PANELS {
         if panel.accepts_key() {
             continue;
@@ -140,8 +139,8 @@ pub(super) fn begin_paste_key_suppression(app_handle: &AppHandle) {
     }
 }
 
-pub(super) fn end_paste_key_suppression() {
-    PASTE_KEY_SUPPRESSED.store(false, Ordering::Release);
+pub(super) fn end_synthetic_key_suppression() {
+    SYNTHETIC_KEY_SUPPRESSED.store(false, Ordering::Release);
 }
 
 pub(super) fn set_layout(
@@ -211,16 +210,21 @@ fn perform_panel_operation(
     Ok(())
 }
 
+fn overlay_panel_level(_: RecordingOverlayMode) -> PanelLevel {
+    PanelLevel::Status
+}
+
 fn apply_layout(panel: &OverlayPanelHandle, state: &PanelHoverState, mode: RecordingOverlayMode) {
     let accepts_keyboard = overlay_mode_accepts_keyboard(mode);
     state.set_key_policy(mode);
-    if accepts_keyboard {
-        panel.set_level(PanelLevel::ModalPanel.value());
-        panel.set_ignores_mouse_events(false);
-        panel.make_key_window();
+    panel.set_level(overlay_panel_level(mode).value());
+    if !accepts_keyboard {
         return;
     }
-    panel.set_level(PanelLevel::Status.value());
+    panel.set_ignores_mouse_events(false);
+    if !SYNTHETIC_KEY_SUPPRESSED.load(Ordering::Acquire) {
+        panel.make_key_window();
+    }
 }
 
 fn require_main_thread() -> Result<(), String> {

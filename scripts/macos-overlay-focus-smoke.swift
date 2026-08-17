@@ -180,6 +180,7 @@ func findAccessibleElement(
     return nil
 }
 
+
 func waitForAccessibleElement(
     root: AXUIElement,
     label: String,
@@ -349,7 +350,6 @@ do {
         throw SmokeFailure(description: "Could not resolve the resident overlay accessibility window")
     }
     CGAssociateMouseAndMouseCursorPosition(boolean_t(0))
-
 
     let actionLabels = ["Start recording", "Open Echo chat", "Polish selected text"]
     for label in actionLabels {

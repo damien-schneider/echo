@@ -40,7 +40,7 @@ export const TranscriptionProfileCard = ({
             <span className="text-muted-foreground text-xs tabular-nums">
               {formatModelSize(profile.download_size_mb)}
             </span>
-            {profile.size === "medium" ? (
+            {profile.is_recommended ? (
               <Badge variant="secondary">Recommended</Badge>
             ) : null}
             {profile.is_active ? (

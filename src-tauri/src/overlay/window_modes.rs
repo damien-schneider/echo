@@ -129,10 +129,6 @@ pub(crate) fn update_overlay_position(app_handle: &AppHandle) {
     }
 }
 
-pub(super) fn current_hud_render_mode() -> RecordingOverlayMode {
-    render_mode(current_state(&HUD_MODE)).unwrap_or(RecordingOverlayMode::Compact)
-}
-
 pub(super) fn set_hud_mode(app_handle: &AppHandle, mode: &str) -> Result<(), String> {
     let requested = parse_hud_mode(mode)?;
     let state = current_state(&HUD_MODE);
@@ -203,19 +199,12 @@ pub(super) fn hide_notification(app_handle: &AppHandle) -> Result<(), String> {
     render_hud(app_handle).and(result)
 }
 
-pub(super) fn hud_surface_payload(app_handle: &AppHandle) -> Option<OverlaySurfacePayload> {
-    overlay_surface_payload_for(
-        app_handle,
-        OverlaySurfaceKind::Hud,
-        current_hud_render_mode(),
-    )
+pub(super) fn hud_surface_payload() -> Option<OverlaySurfacePayload> {
+    overlay_surface_payload_for(OverlaySurfaceKind::Hud)
 }
 
-pub(super) fn notification_surface_payload(
-    app_handle: &AppHandle,
-) -> Option<OverlaySurfacePayload> {
-    let mode = render_mode(current_state(&NOTIFICATION_MODE))?;
-    overlay_surface_payload_for(app_handle, OverlaySurfaceKind::Notification, mode)
+pub(super) fn notification_surface_payload() -> Option<OverlaySurfacePayload> {
+    overlay_surface_payload_for(OverlaySurfaceKind::Notification)
 }
 
 #[cfg(test)]

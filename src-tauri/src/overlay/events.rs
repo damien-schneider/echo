@@ -5,15 +5,47 @@ use super::layout::update_wayland_anchors;
 use super::layout::OverlayPlacement;
 use super::window::OVERLAY_NOTIFICATION_LABEL;
 use super::window_modes::update_overlay_position;
+use crate::features::polish::manager::{ChatContextCapture, ChatTextContext};
 use crate::settings::{self, OverlayPosition};
 use log::{debug, info, warn};
+use serde::Serialize;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager};
 
 static OVERLAY_GENERATION: OverlayGeneration = OverlayGeneration::new();
+static NOTIFICATION_REQUEST_GENERATION: AtomicU64 = AtomicU64::new(0);
+static CHAT_CONTEXT_GENERATION: AtomicU64 = AtomicU64::new(0);
+static NOTIFICATION_REQUEST: Mutex<Option<NotificationRequestEvent>> = Mutex::new(None);
+static CHAT_CONTEXT: Mutex<Option<ChatContextEvent>> = Mutex::new(None);
 
 const OVERLAY_NOTIFICATION_REQUEST_EVENT: &str = "overlay-notification-request";
+const OVERLAY_CHAT_CONTEXT_EVENT: &str = "overlay-chat-context";
 
-fn parse_notification_request(surface: &str) -> Result<&'static str, String> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct NotificationRequestEvent {
+    generation: u64,
+    surface: &'static str,
+}
+
+#[derive(Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ChatContextState {
+    Loading,
+    PermissionRequired,
+    Ready,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ChatContextEvent {
+    context: Option<ChatTextContext>,
+    generation: u64,
+    state: ChatContextState,
+}
+
+pub(super) fn parse_notification_request(surface: &str) -> Result<&'static str, String> {
     match surface {
         "chat" => Ok("chat"),
         "panel" => Ok("panel"),
@@ -21,19 +53,158 @@ fn parse_notification_request(surface: &str) -> Result<&'static str, String> {
     }
 }
 
-/// Only the notification window hears it — the HUD asked, then went back to being a handle.
-pub(super) fn request_overlay_notification(
+pub(super) fn record_notification_request(surface: &'static str) -> NotificationRequestEvent {
+    let request = NotificationRequestEvent {
+        generation: NOTIFICATION_REQUEST_GENERATION
+            .fetch_add(1, Ordering::AcqRel)
+            .wrapping_add(1),
+        surface,
+    };
+    clear_chat_context_event();
+    match NOTIFICATION_REQUEST.lock() {
+        Ok(mut current) => *current = Some(request),
+        Err(poisoned) => *poisoned.into_inner() = Some(request),
+    }
+    request
+}
+
+pub(super) fn emit_notification_request(
     app_handle: &AppHandle,
-    surface: &str,
+    request: NotificationRequestEvent,
 ) -> Result<(), String> {
-    let requested = parse_notification_request(surface)?;
     app_handle
         .emit_to(
             OVERLAY_NOTIFICATION_LABEL,
             OVERLAY_NOTIFICATION_REQUEST_EVENT,
-            requested,
+            request,
         )
         .map_err(|error| format!("Failed to request the overlay notification: {error}"))
+}
+
+pub(super) fn current_notification_request() -> Option<NotificationRequestEvent> {
+    match NOTIFICATION_REQUEST.lock() {
+        Ok(current) => *current,
+        Err(poisoned) => **poisoned.get_ref(),
+    }
+}
+pub(super) fn notification_request_is_current(request: NotificationRequestEvent) -> bool {
+    current_notification_request() == Some(request)
+}
+
+pub(super) fn clear_notification_request() {
+    match NOTIFICATION_REQUEST.lock() {
+        Ok(mut current) => *current = None,
+        Err(poisoned) => *poisoned.into_inner() = None,
+    }
+    clear_chat_context_event();
+}
+
+fn emit_chat_context_event(
+    app_handle: &AppHandle,
+    event: ChatContextEvent,
+) -> Result<ChatContextEvent, String> {
+    match CHAT_CONTEXT.lock() {
+        Ok(mut current) => *current = Some(event.clone()),
+        Err(poisoned) => *poisoned.into_inner() = Some(event.clone()),
+    }
+    app_handle
+        .emit_to(
+            OVERLAY_NOTIFICATION_LABEL,
+            OVERLAY_CHAT_CONTEXT_EVENT,
+            event.clone(),
+        )
+        .map_err(|error| format!("Failed to update the chat context: {error}"))?;
+    Ok(event)
+}
+
+pub(super) fn current_chat_context_event() -> Option<ChatContextEvent> {
+    match CHAT_CONTEXT.lock() {
+        Ok(current) => current.clone(),
+        Err(poisoned) => poisoned.into_inner().clone(),
+    }
+}
+
+fn clear_chat_context_event() {
+    match CHAT_CONTEXT.lock() {
+        Ok(mut current) => *current = None,
+        Err(poisoned) => *poisoned.into_inner() = None,
+    }
+}
+
+pub(super) fn emit_chat_context_loading(
+    app_handle: &AppHandle,
+    generation: u64,
+) -> Result<ChatContextEvent, String> {
+    CHAT_CONTEXT_GENERATION.store(generation, Ordering::Release);
+    emit_chat_context_event(
+        app_handle,
+        ChatContextEvent {
+            context: None,
+            generation,
+            state: ChatContextState::Loading,
+        },
+    )
+}
+
+pub(super) fn begin_chat_context_refresh(
+    app_handle: &AppHandle,
+    generation: u64,
+) -> Result<(), String> {
+    CHAT_CONTEXT_GENERATION.store(generation, Ordering::Release);
+    let has_current = match CHAT_CONTEXT.lock() {
+        Ok(mut current) => current.as_mut().is_some_and(|event| {
+            event.generation = generation;
+            true
+        }),
+        Err(poisoned) => poisoned.into_inner().as_mut().is_some_and(|event| {
+            event.generation = generation;
+            true
+        }),
+    };
+    if has_current {
+        return Ok(());
+    }
+    emit_chat_context_loading(app_handle, generation).map(|_| ())
+}
+
+pub(super) fn current_chat_context_generation() -> u64 {
+    CHAT_CONTEXT_GENERATION.load(Ordering::Acquire)
+}
+
+pub(super) fn emit_chat_context_capture(
+    app_handle: &AppHandle,
+    generation: u64,
+    capture: &ChatContextCapture,
+) -> Result<Option<ChatContextEvent>, String> {
+    if generation != current_chat_context_generation() {
+        return Ok(None);
+    }
+    let is_current = match CHAT_CONTEXT.lock() {
+        Ok(current) => current
+            .as_ref()
+            .is_some_and(|event| event.generation == generation),
+        Err(poisoned) => poisoned
+            .into_inner()
+            .as_ref()
+            .is_some_and(|event| event.generation == generation),
+    };
+    if !is_current {
+        return Ok(None);
+    }
+    let event = match capture {
+        ChatContextCapture::PermissionRequired => ChatContextEvent {
+            context: None,
+            generation,
+            state: ChatContextState::PermissionRequired,
+        },
+        ChatContextCapture::Ready(context) => ChatContextEvent {
+            context: context.clone(),
+            generation,
+            state: ChatContextState::Ready,
+        },
+        ChatContextCapture::Unavailable => return Ok(None),
+    };
+    emit_chat_context_event(app_handle, event).map(Some)
 }
 
 struct OverlayPresentation<'a> {

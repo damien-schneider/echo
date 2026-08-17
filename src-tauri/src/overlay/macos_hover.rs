@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter};
 pub(super) const OVERLAY_POINTER_BOUNDARY_EVENT: &str = "overlay-pointer-boundary";
 const HOVER_EXIT_MARGIN: f64 = 2.0;
 
-pub(super) static PASTE_KEY_SUPPRESSED: AtomicBool = AtomicBool::new(false);
+pub(super) static SYNTHETIC_KEY_SUPPRESSED: AtomicBool = AtomicBool::new(false);
 
 /// Per-panel — the notification taking key for chat must not make the HUD think the pointer is on its handle.
 pub(super) struct PanelHoverState {
@@ -38,9 +38,9 @@ impl PanelHoverState {
     }
 
     pub(super) fn can_become_key_window(&self) -> bool {
-        self.accepts_key.load(Ordering::Acquire)
-            || (self.pointer_inside.load(Ordering::Acquire)
-                && !PASTE_KEY_SUPPRESSED.load(Ordering::Acquire))
+        !SYNTHETIC_KEY_SUPPRESSED.load(Ordering::Acquire)
+            && (self.accepts_key.load(Ordering::Acquire)
+                || self.pointer_inside.load(Ordering::Acquire))
     }
 
     pub(super) fn accepts_key(&self) -> bool {
@@ -144,7 +144,7 @@ pub(super) enum HoverKeyAction {
 pub(super) struct HoverKeySample {
     pub(super) keyboard_mode: bool,
     pub(super) panel_is_key: bool,
-    pub(super) paste_suppressed: bool,
+    pub(super) synthetic_key_suppressed: bool,
     pub(super) pointer_inside: bool,
 }
 
@@ -160,7 +160,7 @@ pub(super) fn decide_hover_key(sample: HoverKeySample) -> HoverKeyAction {
         }
         return HoverKeyAction::Stand;
     }
-    if sample.panel_is_key || sample.paste_suppressed {
+    if sample.panel_is_key || sample.synthetic_key_suppressed {
         return HoverKeyAction::Stand;
     }
     HoverKeyAction::TakeKey

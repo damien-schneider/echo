@@ -15,7 +15,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { SettingContainer } from "@/components/ui/setting-container";
-import { LANGUAGES } from "@/lib/constants/languages";
+import {
+  LANGUAGES,
+  type TranscriptionLanguage,
+} from "@/lib/constants/languages";
 import {
   useIsSettingUpdating,
   useSetting,
@@ -43,8 +46,8 @@ export const LanguageSelector = ({
   );
   const selectedLanguageName = selectedLanguageData?.label || "Auto";
 
-  const handleLanguageSelect = async (currentValue: string) => {
-    await updateSetting("selected_language", currentValue);
+  const handleLanguageSelect = async (language: TranscriptionLanguage) => {
+    await updateSetting("selected_language", language);
     setIsOpen(false);
   };
 
@@ -99,7 +102,7 @@ export const LanguageSelector = ({
                     <CommandItem
                       className="flex items-center justify-between"
                       key={language.value}
-                      onSelect={handleLanguageSelect}
+                      onSelect={() => handleLanguageSelect(language.value)}
                       value={language.value}
                     >
                       <div className="flex items-center gap-2">

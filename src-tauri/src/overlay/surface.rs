@@ -8,7 +8,7 @@ use crate::settings::{OverlayDockEdge, OverlayPosition};
 
 const SURFACE_INSET: f64 = 4.0;
 const COMPACT_BAR: (f64, f64) = (38.0, 5.0);
-const SIDE_DOCK_BAR: (f64, f64) = (32.0, 104.0);
+const SIDE_DOCK_BAR: (f64, f64) = (32.0, 124.0);
 const ACTIONS_ISLAND: (f64, f64) = (128.0, 40.0);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -124,14 +124,12 @@ fn clamped_origin(origin: f64, size: f64, bound_origin: f64, bound_size: f64) ->
 }
 
 fn window_frame(request: SurfaceRequest) -> OverlayFrame {
-    let (width, base_height) = overlay_window_dimensions(request.mode, request.placement);
-    let height = base_height + notch_top_inset(request.placement, request.notch);
-    let (x, y, width, height) = compute_overlay_geometry_for_size(
-        request.monitor,
-        request.placement,
-        width,
-        height.min(request.monitor.height),
-    );
+    let (base_width, base_height) = overlay_window_dimensions(request.mode, request.placement);
+    let width = base_width.min(request.monitor.width);
+    let height = (base_height + notch_top_inset(request.placement, request.notch))
+        .min(request.monitor.height);
+    let (x, y, width, height) =
+        compute_overlay_geometry_for_size(request.monitor, request.placement, width, height);
     OverlayFrame {
         height,
         width,
@@ -210,9 +208,7 @@ pub(super) fn transition_window(
     frames: impl IntoIterator<Item = OverlayFrame>,
     target: OverlayFrame,
 ) -> OverlayFrame {
-    let union = frames
-        .into_iter()
-        .fold(target, |merged, frame| union_frames(merged, frame));
+    let union = frames.into_iter().fold(target, union_frames);
     let width = union.width.min(monitor.width);
     let height = union.height.min(monitor.height);
     OverlayFrame {

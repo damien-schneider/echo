@@ -22,40 +22,20 @@
   pointer-events: auto;
   background: rgba(5, 5, 5, 0.97);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-  transform-origin: center;
-  scale: 1;
-  transition:
-    background-color 160ms ease-out,
-    box-shadow 160ms ease-out,
-    scale 180ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
+/* the silhouette clips the frame, so a lifted island can only ring itself from the inside */
 .echo-island[data-dragging="true"] {
   background: rgba(9, 9, 9, 0.94);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.24),
-    0 0 0 3px rgba(255, 255, 255, 0.07);
-  scale: 0.985;
-}
-
-.recording-overlay-root[data-anchor="top"] .echo-island-resident {
-  transform-origin: top center;
-}
-
-.recording-overlay-root[data-anchor="bottom"] .echo-island-resident {
-  transform-origin: bottom center;
-}
-
-.recording-overlay-root[data-anchor="left"] .echo-island-resident {
-  transform-origin: center left;
-}
-
-.recording-overlay-root[data-anchor="right"] .echo-island-resident {
-  transform-origin: center right;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
 }
 
 .echo-island-resident {
   position: relative;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
   width: 128px;
   height: 40px;
   contain: layout paint;
@@ -64,9 +44,11 @@
 }
 
 /* One size: a side dock already shows every action, so it never grows. */
+/* the concave shoulders eat ~11px of each end — the stack needs the bar to outrun them */
 .echo-island-resident[data-orientation="vertical"] {
+  flex-direction: column;
   width: 32px;
-  height: 104px;
+  height: 124px;
 }
 
 .echo-island-resident[data-expanded="false"] {
@@ -106,35 +88,21 @@
 }
 
 .echo-island-resident-actions {
-  position: absolute;
-  inset: 0;
   z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   opacity: 1;
   scale: 1;
-  translate: 0 0;
   transition:
     opacity 120ms ease-out,
-    scale 140ms cubic-bezier(0.25, 1, 0.5, 1),
-    translate 140ms cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-.echo-island-resident[data-orientation="horizontal"]
-  .echo-island-resident-actions {
-  translate: 11px 0;
-}
-
-.echo-island-resident[data-orientation="vertical"]
-  .echo-island-resident-actions {
-  translate: 0 11px;
+    scale 140ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
 .echo-island-dock-grip {
-  position: absolute;
   z-index: 2;
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   width: 20px;
@@ -146,21 +114,18 @@
   background: transparent;
   border: 0;
   border-radius: 6px;
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+}
+
+.echo-island-dock-grip[data-live="true"] {
   opacity: 0.5;
-  transition:
-    top 180ms cubic-bezier(0.25, 1, 0.5, 1),
-    left 180ms cubic-bezier(0.25, 1, 0.5, 1);
 }
 
-.echo-island-resident[data-orientation="vertical"] .echo-island-dock-grip {
-  top: 8px;
-  left: 6px;
+.echo-island-dock-grip[data-live="true"]:hover {
+  opacity: 0.9;
 }
 
-.echo-island-resident[data-orientation="horizontal"] .echo-island-dock-grip {
-  top: 10px;
-  left: 19px;
-}
 .echo-island-dock-grip-icon {
   width: 12px;
   height: 12px;
@@ -192,16 +157,17 @@
 
 .echo-island-action-toolbar {
   display: flex;
-  gap: 3px;
+  flex: none;
+  gap: 4px;
   align-items: center;
-  width: 66px;
+  width: 68px;
   height: 20px;
 }
 
 .echo-island-action-toolbar[data-orientation="vertical"] {
   flex-direction: column;
   width: 20px;
-  height: 66px;
+  height: 68px;
 }
 
 .echo-island-action-item {
@@ -213,81 +179,98 @@
 
 .echo-island .echo-island-action {
   border-radius: 6px;
+  scale: 1;
   transition:
-    transform 100ms cubic-bezier(0.25, 1, 0.5, 1),
-    color 100ms ease-out,
-    background-color 100ms ease-out;
+    scale 120ms cubic-bezier(0.25, 1, 0.5, 1),
+    color 120ms ease-out,
+    background-color 120ms ease-out;
 }
 
 .echo-island-action:hover {
   color: white;
   background-color: rgba(255, 255, 255, 0.12);
-  transform: scale(1.03);
+  scale: 1.06;
 }
 
 .echo-island-action:active {
-  transform: translateY(0) scale(0.92);
-  transition-duration: 70ms;
+  scale: 0.9;
+  transition-duration: 80ms;
+}
+
+.echo-island-hud {
+  position: relative;
+  border-radius: inherit;
+}
+
+.echo-island-hud-body {
+  border-radius: inherit;
+}
+
+.echo-island-hud-flank {
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  pointer-events: auto;
+}
+
+.echo-island-hud[data-flanked="true"] > .echo-island-hud-flank {
+  position: absolute;
+  top: calc(var(--echo-island-notch-strip, 0px) * -1);
+  justify-content: center;
+  height: var(--echo-island-notch-strip, 0px);
+}
+
+.echo-island-hud[data-flanked="true"]
+  > .echo-island-hud-flank[data-side="left"] {
+  right: calc(50% + var(--echo-island-notch-span, 0px) / 2);
+  left: 0;
+}
+
+.echo-island-hud[data-flanked="true"]
+  > .echo-island-hud-flank[data-side="right"] {
+  right: 0;
+  left: calc(50% + var(--echo-island-notch-span, 0px) / 2);
 }
 
 .echo-island-activity {
   position: relative;
+  display: flex;
+  gap: 8px;
+  align-items: center;
   width: 310px;
-  min-height: 76px;
-  padding: 10px 12px 12px;
+  min-height: 52px;
+  padding: 0 12px;
   overflow: hidden;
   border-radius: inherit;
 }
 
-.echo-island-activity[data-decoration="microphone"] {
-  width: 176px;
-  min-height: 48px;
-  padding: 0;
-}
-
-.echo-island-activity[data-decoration="microphone"][data-has-text="true"] {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  width: 310px;
-  min-height: 52px;
-  padding: 0;
-}
-
-.echo-island-activity[data-decoration="microphone"][data-has-text="true"]
-  output {
-  flex: 1;
-  order: -1;
+.echo-island-activity[data-has-text="false"] {
+  justify-content: center;
   width: auto;
-  min-width: 0;
+  min-width: 176px;
 }
 
-.echo-island-activity[data-decoration="microphone"][data-has-text="true"]
-  :is(.echo-island-activity-dismiss, .echo-island-activity-submit) {
-  position: static;
-  flex: none;
-}
-
-.echo-island-activity[data-decoration="microphone"][data-has-text="true"]
-  .echo-island-activity-dismiss {
-  order: 1;
-}
-
-.echo-island-activity[data-decoration="microphone"]
-  :is(.echo-island-activity-dismiss, .echo-island-activity-submit) {
-  top: 10px;
+.echo-island-activity[data-flanked="true"] {
+  width: max(310px, calc(var(--echo-island-notch-span, 0px) + 128px));
 }
 
 .echo-island-activity output {
-  display: block;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+.echo-island-activity
+  :is(.echo-island-activity-dismiss, .echo-island-activity-submit) {
+  z-index: 4;
+  flex: none;
+}
+
+/* optical padding for the inline row only: the glyph lines up with the edge, not its round hit area */
+.echo-island-activity .echo-island-activity-dismiss {
+  margin-right: -5px;
 }
 
 .echo-island-activity-dismiss {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 4;
   opacity: 0.78;
   transition:
     color 120ms ease-out,
@@ -299,75 +282,12 @@
   opacity: 1;
 }
 
-.echo-island-activity-submit {
-  position: absolute;
-  top: 12px;
-  right: 42px;
-  z-index: 4;
-}
-
-@property --echo-microphone-orbit-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 12deg;
-}
-
-@keyframes echo-microphone-orbit {
-  to {
-    --echo-microphone-orbit-angle: 372deg;
-  }
-}
-
-.echo-island-microphone-ambience {
-  --echo-mic-energy: 0;
-  --echo-mic-peak: 0;
-  position: absolute;
-  inset: 1px;
-  z-index: 0;
-  padding: 1px;
-  pointer-events: none;
-  background: conic-gradient(
-    from var(--echo-microphone-orbit-angle),
-    transparent 0deg 42deg,
-    rgba(101, 135, 213, 0.42) 68deg,
-    rgba(222, 232, 255, 0.9) 92deg,
-    transparent 132deg 224deg,
-    rgba(255, 190, 218, 0.34) 258deg,
-    rgba(216, 230, 255, 0.72) 288deg,
-    transparent 330deg 360deg
-  );
-  border-radius: inherit;
-  opacity: calc(0.22 + var(--echo-mic-energy) * 0.66);
-  filter: saturate(1.08);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  scale: calc(0.99 + var(--echo-mic-energy) * 0.02);
-  transition:
-    opacity 75ms linear,
-    scale 90ms cubic-bezier(0.25, 1, 0.5, 1);
-  animation: echo-microphone-orbit 7.2s linear infinite;
-  will-change: scale, opacity;
-}
-
 .echo-island-panel {
   position: relative;
   width: 360px;
   padding: 16px;
   color: white;
   background: transparent;
-  border-radius: inherit;
-}
-
-.echo-island-chat {
-  width: min(620px, calc(100vw - 16px));
-  max-height: calc(100vh - 8px);
-  overflow: hidden;
   border-radius: inherit;
 }
 
@@ -386,38 +306,6 @@
     black calc(100% - 10px),
     transparent
   );
-}
-
-@keyframes notch-progress-sweep {
-  from {
-    translate: -100% 0;
-  }
-  to {
-    translate: 100% 0;
-  }
-}
-
-.notch-progress-line {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 1px;
-  overflow: hidden;
-}
-
-.notch-progress-line::after {
-  display: block;
-  width: 60%;
-  height: 100%;
-  content: "";
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.72),
-    transparent
-  );
-  animation: notch-progress-sweep 1.4s ease-in-out infinite;
 }
 
 .echo-island-progress progress::-webkit-progress-bar {
@@ -442,15 +330,9 @@
   .echo-island-activity-dismiss,
   .echo-island-dock-grip,
   .echo-island-resident,
-  .echo-island-microphone-ambience,
-  .echo-island-resident-actions,
-  .notch-progress-line::after {
+  .echo-island-resident-actions {
     transition: none;
     animation: none;
-  }
-
-  .echo-island-microphone-ambience {
-    --echo-microphone-orbit-angle: 34deg;
   }
 
   .echo-island-action {

@@ -28,6 +28,28 @@ pub(crate) struct PolishStatus {
     message: String,
 }
 
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum BundledChatRole {
+    Assistant,
+    User,
+}
+
+impl BundledChatRole {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Assistant => "assistant",
+            Self::User => "user",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub(crate) struct BundledChatMessage {
+    pub(crate) content: String,
+    pub(crate) role: BundledChatRole,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PolishPreparationPlan {
     VerifyInstalled,
@@ -138,8 +160,8 @@ fn polish_joins_active_operation(state: PolishState) -> bool {
 fn polish_status_for_availability(is_downloaded: bool) -> PolishStatus {
     if is_downloaded {
         return PolishStatus {
-            state: PolishState::Preparing,
-            message: "Preparing Polish".to_string(),
+            state: PolishState::Ready,
+            message: "Polish is ready".to_string(),
         };
     }
     PolishStatus {
@@ -170,10 +192,10 @@ mod tests {
     }
 
     #[test]
-    fn installed_model_can_be_prepared_at_startup() {
+    fn installed_model_waits_ready_for_demand() {
         assert_eq!(
             polish_status_for_availability(true).state,
-            PolishState::Preparing
+            PolishState::Ready
         );
     }
 

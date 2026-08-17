@@ -56,6 +56,29 @@ fn transient_surface_keeps_the_notch_strip_and_starts_below_it() {
     assert_eq!(surface.island.width, width - 8.0);
 }
 
+#[test]
+fn chat_and_transcription_windows_start_at_the_same_notch_edge() {
+    let placement = placement(OverlayPosition::Top, OverlayDockEdge::Top);
+
+    for mode in [RecordingOverlayMode::Recording, RecordingOverlayMode::Chat] {
+        let request = request(mode, placement, Some(NOTCH));
+        let surface = overlay_surface(request);
+        let payload =
+            overlay_surface_payload(request, surface.window).expect("surface should be visible");
+        let notch = payload.notch.expect("notch geometry should be published");
+
+        assert_eq!(surface.window.y, NOTCHED_MONITOR.y, "{mode:?}");
+        assert_eq!(payload.window.y, NOTCHED_MONITOR.y, "{mode:?}");
+        assert_eq!(payload.island.y, NOTCH.top_inset + 4.0, "{mode:?}");
+        assert_eq!(notch.height, NOTCH.top_inset, "{mode:?}");
+        assert_eq!(
+            payload.window.x + notch.x + notch.width / 2.0,
+            NOTCHED_MONITOR.x + NOTCHED_MONITOR.width / 2.0,
+            "{mode:?}"
+        );
+    }
+}
+
 /// The notch strip is painted only when the island is wide enough to hide the cut-out.
 #[test]
 fn only_transient_top_surfaces_outgrow_the_notch_they_hang_from() {
@@ -122,7 +145,7 @@ fn side_docked_resident_hugs_the_screen_edge_at_one_fixed_size() {
     let actions = overlay_surface(request(RecordingOverlayMode::Actions, placement, None));
 
     let screen_right = NOTCHED_MONITOR.x + NOTCHED_MONITOR.width;
-    assert_eq!((compact.island.width, compact.island.height), (32.0, 104.0));
+    assert_eq!((compact.island.width, compact.island.height), (32.0, 124.0));
     assert_eq!(compact.island.x + compact.island.width, screen_right);
     assert_eq!(compact.island, actions.island);
 }
@@ -196,6 +219,29 @@ fn surfaces_never_leave_the_monitor() {
             }
         }
     }
+}
+
+#[test]
+fn chat_surface_shrinks_to_a_small_monitor() {
+    let monitor = MonitorBounds {
+        height: 480.0,
+        width: 500.0,
+        x: 80.0,
+        y: 40.0,
+    };
+    let surface = overlay_surface(SurfaceRequest {
+        mode: RecordingOverlayMode::Chat,
+        monitor,
+        notch: Some(NOTCH),
+        placement: placement(OverlayPosition::Top, OverlayDockEdge::Top),
+    });
+
+    assert_eq!(surface.window.width, monitor.width);
+    assert_eq!(surface.window.height, monitor.height);
+    assert_eq!(surface.window.x, monitor.x);
+    assert_eq!(surface.window.y, monitor.y);
+    assert!(surface.island.x >= monitor.x);
+    assert!(surface.island.x + surface.island.width <= monitor.x + monitor.width);
 }
 
 #[test]
@@ -300,7 +346,7 @@ fn hover_box_tracks_the_drawn_island_for_residents() {
 
     let hover = super::surface_hover_box(compact, surface.window);
 
-    assert_eq!((hover.width, hover.height), (32.0, 104.0));
+    assert_eq!((hover.width, hover.height), (32.0, 124.0));
     assert_eq!(hover.x + hover.width, surface.window.width);
 }
 

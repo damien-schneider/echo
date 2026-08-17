@@ -75,6 +75,7 @@ pub struct TranscriptionProfileStatus {
     pub is_active: bool,
     pub is_downloaded: bool,
     pub is_downloading: bool,
+    pub is_recommended: bool,
     pub label: &'static str,
     pub size: TranscriptionModelSize,
 }
@@ -96,6 +97,7 @@ where
                 is_active: profile.size == active_size,
                 is_downloaded,
                 is_downloading,
+                is_recommended: profile.size == TranscriptionModelSize::default(),
                 label: profile.label,
                 size: profile.size,
             }

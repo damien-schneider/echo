@@ -14,6 +14,9 @@ use std::time::Duration;
 
 /// 16 kHz mono f32 — whisper + parakeet input format.
 pub const WHISPER_SAMPLE_RATE: usize = 16_000;
+const MIN_STREAMING_LANGUAGE_SPEECH_SAMPLES: usize = WHISPER_SAMPLE_RATE * 2;
+const MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES: usize = WHISPER_SAMPLE_RATE * 5;
+const MIN_STREAMING_LANGUAGE_CONFIDENCE: f32 = 0.6;
 
 /// Prewarmed decode is ~1s, so this floor surfaces a hang fast; longer clips scale by the multiplier below.
 pub const MIN_TRANSCRIPTION_TIMEOUT_SECS: u64 = 8;
@@ -75,12 +78,96 @@ pub struct ModelStateEvent {
     pub error: Option<String>,
 }
 
+#[derive(Default)]
+struct StreamingLanguageState {
+    language: Option<String>,
+    speech_probe: Vec<f32>,
+}
+
+impl StreamingLanguageState {
+    fn observe_audio(&mut self, samples: &[f32], is_speech: bool) {
+        if !is_speech || self.language.is_some() {
+            return;
+        }
+        let remaining =
+            MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES.saturating_sub(self.speech_probe.len());
+        self.speech_probe
+            .extend_from_slice(&samples[..samples.len().min(remaining)]);
+    }
+}
+
+pub struct StreamingTranscriber {
+    manager: Arc<TranscriptionManager>,
+    state: Mutex<StreamingLanguageState>,
+}
+
+impl StreamingTranscriber {
+    pub fn new(manager: Arc<TranscriptionManager>, selected_language: &str) -> Result<Self> {
+        let language = whisper_language(selected_language)?;
+        Ok(Self {
+            manager,
+            state: Mutex::new(StreamingLanguageState {
+                language,
+                speech_probe: Vec::with_capacity(MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES),
+            }),
+        })
+    }
+
+    pub fn observe_audio(&self, samples: &[f32], is_speech: bool) {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .observe_audio(samples, is_speech);
+    }
+
+    pub fn language_is_pinned(&self) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .language
+            .is_some()
+    }
+
+    pub fn transcribe(&self, audio: Vec<f32>) -> Result<String> {
+        let language = {
+            let mut state = self
+                .state
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            match state.language.clone() {
+                Some(language) => Some(language),
+                None if state.speech_probe.len() < MIN_STREAMING_LANGUAGE_SPEECH_SAMPLES => None,
+                None => {
+                    let detection = self
+                        .manager
+                        .engine
+                        .detect_language(&state.speech_probe, preview_thread_count())?;
+                    let probe_is_full =
+                        state.speech_probe.len() == MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES;
+                    if detection.probability < MIN_STREAMING_LANGUAGE_CONFIDENCE && !probe_is_full {
+                        None
+                    } else {
+                        info!(
+                            "Streaming language pinned to {} ({:.0}% confidence)",
+                            detection.language,
+                            detection.probability * 100.0
+                        );
+                        state.language = Some(detection.language.clone());
+                        Some(detection.language)
+                    }
+                }
+            }
+        };
+        self.manager
+            .transcribe_inner(audio, preview_thread_count(), language.as_deref())
+    }
+}
+
 #[derive(Clone)]
 pub struct TranscriptionManager {
     engine: Arc<WhisperRuntime>,
     model_manager: Arc<ModelManager>,
     app_handle: AppHandle,
-    current_model_id: Arc<Mutex<Option<String>>>,
     is_loading: Arc<Mutex<bool>>,
     loading_condvar: Arc<Condvar>,
     /// Dedups concurrent prewarm calls racing on ONNX backend.
@@ -93,7 +180,6 @@ impl TranscriptionManager {
             engine: Arc::new(WhisperRuntime::new()),
             model_manager,
             app_handle: app_handle.clone(),
-            current_model_id: Arc::new(Mutex::new(None)),
             is_loading: Arc::new(Mutex::new(false)),
             loading_condvar: Arc::new(Condvar::new()),
             prewarm_in_progress: Arc::new(AtomicBool::new(false)),
@@ -187,11 +273,6 @@ impl TranscriptionManager {
             }
         };
 
-        {
-            let mut current_model = self.current_model_id.lock().unwrap();
-            *current_model = Some(model_id.to_string());
-        }
-
         let _ = self.app_handle.emit(
             "model-state-changed",
             ModelStateEvent {
@@ -279,16 +360,15 @@ impl TranscriptionManager {
     }
 
     pub fn get_current_model(&self) -> Option<String> {
-        let current_model = self.current_model_id.lock().unwrap();
-        current_model.clone()
+        self.engine.current_model_id()
     }
 
     pub fn transcribe_for_streaming(&self, audio: Vec<f32>) -> Result<String> {
-        self.transcribe_inner(audio, preview_thread_count())
+        self.transcribe_inner(audio, preview_thread_count(), None)
     }
 
     pub fn transcribe(&self, audio: Vec<f32>) -> Result<String> {
-        self.transcribe_inner(audio, available_thread_count())
+        self.transcribe_inner(audio, available_thread_count(), None)
     }
 
     /// Whisper FFI is non-cancellable: on timeout, worker keeps running until engine mutex released.
@@ -305,7 +385,12 @@ impl TranscriptionManager {
         }
     }
 
-    fn transcribe_inner(&self, audio: Vec<f32>, threads: i32) -> Result<String> {
+    fn transcribe_inner(
+        &self,
+        audio: Vec<f32>,
+        threads: i32,
+        language_override: Option<&str>,
+    ) -> Result<String> {
         let st = std::time::Instant::now();
 
         debug!("Audio vector length: {}", audio.len());
@@ -327,8 +412,12 @@ impl TranscriptionManager {
         }
 
         let settings = get_settings(&self.app_handle);
+        let language = match language_override {
+            Some(language) => Some(language.to_string()),
+            None => whisper_language(&settings.selected_language)?,
+        };
         let options = WhisperDecodeOptions {
-            language: whisper_language(&settings.selected_language),
+            language,
             translate: settings.translate_to_english,
             threads,
         };
@@ -374,18 +463,16 @@ fn requires_model_load(current_model_id: Option<&str>, target_model_id: &str) ->
     current_model_id != Some(target_model_id)
 }
 
-fn whisper_language(selected_language: &str) -> Option<String> {
-    match selected_language {
-        "auto" => None,
-        "zh-Hans" | "zh-Hant" => Some("zh".to_string()),
-        language => Some(language.to_string()),
+pub(crate) fn whisper_language(selected_language: &str) -> Result<Option<String>> {
+    let language = match selected_language {
+        "auto" => return Ok(None),
+        "zh-Hans" | "zh-Hant" => "zh",
+        language => language,
+    };
+    if whisper_rs::get_lang_id(language).is_none() {
+        anyhow::bail!("Unsupported transcription language: {selected_language}");
     }
-}
-
-impl crate::managers::dictation_streaming::DictationDecoder for TranscriptionManager {
-    fn transcribe_chunk(&self, audio: Vec<f32>) -> anyhow::Result<String> {
-        self.transcribe_for_streaming(audio)
-    }
+    Ok(Some(language.to_string()))
 }
 
 #[cfg(test)]

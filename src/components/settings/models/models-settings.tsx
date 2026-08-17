@@ -94,8 +94,7 @@ export const ModelsSettings = () => {
           <div>
             <p className="font-medium text-sm">{statusCopy[modelStatus]}</p>
             <p className="text-muted-foreground text-xs">
-              Audio is transcribed on this computer. Language detection is
-              automatic.
+              Audio is transcribed on this computer.
             </p>
           </div>
         </div>

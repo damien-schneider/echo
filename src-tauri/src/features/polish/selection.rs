@@ -103,6 +103,7 @@ impl CancellationClock {
 
 pub(super) struct PolishTransactionPorts {
     pub(super) clipboard: Arc<dyn ClipboardPort>,
+    pub(super) clipboard_access: Arc<tokio::sync::Mutex<()>>,
     pub(super) keyboard: Arc<dyn KeyboardPort>,
     pub(super) focus: Arc<dyn FocusPort>,
     pub(super) inference: Arc<dyn InferencePort>,
@@ -133,22 +134,37 @@ impl PolishTransaction {
     ) -> Result<Option<CapturedPolishInput>> {
         self.ensure_current(generation)?;
         let focused_application = self.ports.focus.focused_application();
-        let input = match mode {
-            SelectionMode::ReplaceSelection => match self.capture_selection(generation).await? {
-                Some(input) => input,
-                None => return Ok(None),
-            },
-            SelectionMode::ClipboardOnly => self.ports.clipboard.read_text()?,
-        };
-        if input.trim().is_empty() {
+        let Some(input) = self.capture_text(mode, generation).await? else {
             return Ok(None);
-        }
+        };
         validate_polish_input(&input)?;
         Ok(Some(CapturedPolishInput {
             text: input,
             focused_application,
             mode,
         }))
+    }
+
+    pub(super) async fn capture_text(
+        &self,
+        mode: SelectionMode,
+        generation: u64,
+    ) -> Result<Option<String>> {
+        self.ensure_current(generation)?;
+        let input = match mode {
+            SelectionMode::ReplaceSelection => match self.capture_selection(generation).await? {
+                Some(input) => input,
+                None => return Ok(None),
+            },
+            SelectionMode::ClipboardOnly => {
+                let _clipboard_guard = self.ports.clipboard_access.lock().await;
+                self.ports.clipboard.read_text()?
+            }
+        };
+        if input.trim().is_empty() {
+            return Ok(None);
+        }
+        Ok(Some(input))
     }
 
     pub(super) async fn complete(
@@ -170,6 +186,7 @@ impl PolishTransaction {
             return Ok(PolishOutcome::Unchanged);
         }
         if captured.mode == SelectionMode::ClipboardOnly {
+            let _clipboard_guard = self.ports.clipboard_access.lock().await;
             self.ports.clipboard.write_text(&output)?;
             return Ok(PolishOutcome::Copied);
         }
@@ -183,8 +200,9 @@ impl PolishTransaction {
     }
 
     async fn capture_selection(&self, generation: u64) -> Result<Option<String>> {
+        let _clipboard_guard = self.ports.clipboard_access.lock().await;
         let original = self.ports.clipboard.snapshot()?;
-        let marker = format!("echo-polish-selection-{generation}");
+        let marker = format!("echo-selection-{generation}");
         let started = self
             .ports
             .clipboard
@@ -216,12 +234,13 @@ impl PolishTransaction {
     /// Restore is cleanup — a refused pasteboard must not cost the polish nor mask the real error.
     fn restore_best_effort(&self, snapshot: &ClipboardSnapshot) {
         if let Err(error) = self.ports.clipboard.restore(snapshot) {
-            log::warn!("Could not put the clipboard back after Polish: {error:#}");
+            log::warn!("Could not restore the clipboard after selection capture: {error:#}");
         }
     }
 
     async fn paste_and_restore(&self, output: &str, generation: u64) -> Result<()> {
         self.ensure_current(generation)?;
+        let _clipboard_guard = self.ports.clipboard_access.lock().await;
         let latest = self.ports.clipboard.snapshot()?;
         self.ports.cancellation.commit_if_current(generation, || {
             self.ports.clipboard.write_text(output)?;

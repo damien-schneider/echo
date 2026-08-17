@@ -13,7 +13,7 @@ use tauri::{AppHandle, Emitter};
 const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 
 use super::streaming::{PipelineEvent, StreamingConfig, StreamingPipeline};
-use super::transcription::TranscriptionManager;
+use super::transcription::{StreamingTranscriber, TranscriptionManager};
 use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
 use crate::managers::cleanup_apply::cleanup_or_filter;
 use crate::managers::model::transcription_profile_id;
@@ -121,25 +121,27 @@ pub struct StreamingWorkerHandle {
 }
 
 impl StreamingWorker {
-    /// Loads `settings.realtime_model` before return so first decode skips load cost.
     pub fn spawn(
         app_handle: AppHandle,
         meeting_id: i64,
         transcription_manager: Arc<TranscriptionManager>,
     ) -> std::io::Result<(Arc<Self>, StreamingWorkerHandle)> {
-        let model_size = settings::get_settings(&app_handle).transcription_model_size;
-        let realtime_model = transcription_profile_id(model_size).to_string();
+        let settings_snapshot = settings::get_settings(&app_handle);
+        let realtime_model =
+            transcription_profile_id(settings_snapshot.transcription_model_size).to_string();
         if let Err(e) = transcription_manager.load_streaming_model(&realtime_model) {
-            // Falls back to main engine via keepalive (slower).
             warn!(
                 "Failed to load realtime model '{realtime_model}', falling back to main engine: {e:#}"
             );
         }
+        let transcriber =
+            StreamingTranscriber::new(transcription_manager, &settings_snapshot.selected_language)
+                .map_err(std::io::Error::other)?;
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
         let cfg = StreamingConfig::default();
         let shutdown_flag = Arc::new(AtomicBool::new(false));
-        let tm_for_thread = transcription_manager.clone();
+        let transcriber_for_thread = transcriber;
         let shutdown_flag_for_thread = shutdown_flag.clone();
         let join = thread::Builder::new()
             .name(format!("meeting-streaming-{meeting_id}"))
@@ -147,7 +149,7 @@ impl StreamingWorker {
                 run_worker(
                     app_handle,
                     meeting_id,
-                    tm_for_thread,
+                    transcriber_for_thread,
                     cmd_rx,
                     shutdown_flag_for_thread,
                     cfg,
@@ -257,13 +259,12 @@ fn classify_cmd(cmd: Cmd, mic: &mut Vec<f32>, sys: &mut Vec<f32>, shutdown: &mut
 fn run_worker(
     app_handle: AppHandle,
     meeting_id: i64,
-    transcription_manager: Arc<TranscriptionManager>,
+    transcriber: StreamingTranscriber,
     cmd_rx: mpsc::Receiver<Cmd>,
     shutdown_flag: Arc<AtomicBool>,
     cfg: StreamingConfig,
 ) {
     debug!("streaming worker for meeting {meeting_id} entering main loop");
-    transcription_manager.initiate_model_load();
 
     let mut mic_pipeline = StreamingPipeline::new(cfg);
     let mut sys_pipeline = StreamingPipeline::new(cfg);
@@ -278,7 +279,7 @@ fn run_worker(
         .map(|s| s.inner().clone());
     let app_handle_for_decode = app_handle.clone();
     let mut decode_for = |samples: &[f32]| -> String {
-        match transcription_manager.transcribe_for_streaming(samples.to_vec()) {
+        match transcriber.transcribe(samples.to_vec()) {
             Ok(text) => {
                 decode_oks += 1;
                 // Re-read so mid-meeting cleanup toggle takes effect.
@@ -320,12 +321,16 @@ fn run_worker(
         if !mic_buf.is_empty() {
             mic_chunks += 1;
             let is_speech = rms(&mic_buf) > SILENCE_RMS_THRESHOLD;
+            transcriber.observe_audio(&mic_buf, is_speech);
+            let is_speech = is_speech || !transcriber.language_is_pinned();
             let events = mic_pipeline.push(&mic_buf, is_speech, &mut decode_for);
             emit_events(&app_handle, meeting_id, StreamingSource::Mic, events);
         }
         if !sys_buf.is_empty() {
             sys_chunks += 1;
             let is_speech = rms(&sys_buf) > SILENCE_RMS_THRESHOLD;
+            transcriber.observe_audio(&sys_buf, is_speech);
+            let is_speech = is_speech || !transcriber.language_is_pinned();
             let events = sys_pipeline.push(&sys_buf, is_speech, &mut decode_for);
             emit_events(&app_handle, meeting_id, StreamingSource::System, events);
         }

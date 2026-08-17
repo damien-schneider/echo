@@ -210,6 +210,7 @@ pub(super) fn fixture_with_options(options: FixtureOptions<'_>) -> Fixture {
     };
     let ports = PolishTransactionPorts {
         clipboard: Arc::new(clipboard.clone()),
+        clipboard_access: Arc::new(tokio::sync::Mutex::new(())),
         keyboard: Arc::new(FakeKeyboard {
             clipboard: clipboard.clone(),
             selection: options.selection.to_string(),
@@ -248,4 +249,93 @@ fn snapshot(text: &str) -> ClipboardSnapshot {
             data: text.as_bytes().to_vec(),
         }],
     }
+}
+
+fn capture_transaction(
+    clipboard: &FakeClipboard,
+    clipboard_access: Arc<tokio::sync::Mutex<()>>,
+    selection: &str,
+    copy_delay: Duration,
+) -> (PolishTransaction, Arc<CancellationClock>) {
+    let cancellation = Arc::new(CancellationClock::default());
+    let transaction = PolishTransaction::new(PolishTransactionPorts {
+        clipboard: Arc::new(clipboard.clone()),
+        clipboard_access,
+        keyboard: Arc::new(FakeKeyboard {
+            clipboard: clipboard.clone(),
+            selection: selection.to_string(),
+            paste_count: Arc::new(AtomicU64::new(0)),
+            pasted_text: Arc::new(Mutex::new(None)),
+            copies_selection: true,
+            copy_delay,
+        }),
+        focus: Arc::new(FakeFocus {
+            application: Arc::new(Mutex::new(Some("com.example.Editor".to_string()))),
+        }),
+        inference: Arc::new(FakeInference {
+            output: String::new(),
+            token_count: 0,
+            during_inference: None,
+            token_count_calls: Arc::new(AtomicU64::new(0)),
+            polish_calls: Arc::new(AtomicU64::new(0)),
+        }),
+        cancellation: cancellation.clone(),
+    });
+    (transaction, cancellation)
+}
+
+#[tokio::test(start_paused = true)]
+async fn concurrent_selection_captures_share_one_clipboard_lease() {
+    let clipboard = FakeClipboard::with_text("original clipboard", ClipboardFaults::default());
+    let clipboard_access = Arc::new(tokio::sync::Mutex::new(()));
+    let (first, first_cancellation) = capture_transaction(
+        &clipboard,
+        clipboard_access.clone(),
+        "first selection",
+        Duration::from_millis(200),
+    );
+    let (second, second_cancellation) = capture_transaction(
+        &clipboard,
+        clipboard_access,
+        "second selection",
+        Duration::ZERO,
+    );
+    let first_generation = first_cancellation.begin();
+    second_cancellation.begin();
+    let second_generation = second_cancellation.begin();
+
+    let first_capture = tokio::spawn(async move {
+        first
+            .capture_text(SelectionMode::ReplaceSelection, first_generation)
+            .await
+            .unwrap()
+    });
+    tokio::task::yield_now().await;
+    assert_eq!(
+        clipboard.read_text().unwrap(),
+        format!("echo-selection-{first_generation}")
+    );
+
+    let second_capture = tokio::spawn(async move {
+        second
+            .capture_text(SelectionMode::ReplaceSelection, second_generation)
+            .await
+            .unwrap()
+    });
+    tokio::task::yield_now().await;
+    assert_eq!(
+        clipboard.read_text().unwrap(),
+        format!("echo-selection-{first_generation}")
+    );
+
+    tokio::time::advance(Duration::from_millis(250)).await;
+    assert_eq!(
+        first_capture.await.unwrap(),
+        Some("first selection".to_string())
+    );
+    assert_eq!(
+        second_capture.await.unwrap(),
+        Some("second selection".to_string())
+    );
+    assert_eq!(clipboard.read_text().unwrap(), "original clipboard");
 }

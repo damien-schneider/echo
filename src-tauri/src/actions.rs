@@ -167,6 +167,7 @@ pub fn audio_is_silent(samples: &[f32]) -> bool {
 
 pub fn transcribe_recording<F>(
     recording: &RecordedDictation,
+    language_is_automatic: bool,
     batch_decode: F,
 ) -> Result<String, TranscribeError>
 where
@@ -176,7 +177,7 @@ where
         .streaming_transcript
         .as_deref()
         .filter(|transcript| !transcript.trim().is_empty());
-    if !recording.had_long_pause {
+    if !language_is_automatic && !recording.had_long_pause {
         if let Some(transcript) = streaming_transcript {
             return Ok(transcript.to_owned());
         }
@@ -691,28 +692,22 @@ impl ShortcutAction for TranscribeAction {
                     chinese_variant: None,
                 })
             } else {
-                let used_streaming =
-                    recording.streaming_transcript.is_some() && !recording.had_long_pause;
-                let raw_result = transcribe_recording(&recording, |samples_for_decode| {
-                    let timeout = transcription_timeout(samples_for_decode.len());
-                    info!(
-                        "stop: quality batch decoding {} recorded samples",
-                        samples_for_decode.len()
-                    );
-                    tm.transcribe_with_timeout(samples_for_decode.to_vec(), timeout)
-                });
+                let settings = get_settings(&ah);
+                let raw_result = transcribe_recording(
+                    &recording,
+                    settings.selected_language == "auto",
+                    |samples_for_decode| {
+                        let timeout = transcription_timeout(samples_for_decode.len());
+                        info!(
+                            "stop: quality batch decoding {} recorded samples",
+                            samples_for_decode.len()
+                        );
+                        tm.transcribe_with_timeout(samples_for_decode.to_vec(), timeout)
+                    },
+                );
                 match raw_result {
                     Ok(text) => {
-                        info!(
-                            "stop: {} transcript ready ({} chars)",
-                            if used_streaming {
-                                "streaming"
-                            } else {
-                                "quality"
-                            },
-                            text.len()
-                        );
-                        let settings = get_settings(&ah);
+                        info!("stop: transcript ready ({} chars)", text.len());
                         let cleaned = apply_dictation_cleanup(&ah, &text, &settings);
                         let chinese_variant = if cleaned.is_empty() {
                             None
@@ -1018,7 +1013,7 @@ mod decision_tests {
             streaming_transcript: Some("live final transcript".to_string()),
         };
 
-        let result = transcribe_recording(&recording, |_| {
+        let result = transcribe_recording(&recording, false, |_| {
             batch_called.store(true, Ordering::SeqCst);
             Ok("batch transcript".to_string())
         });
@@ -1031,6 +1026,24 @@ mod decision_tests {
     }
 
     #[test]
+    fn automatic_language_detection_uses_full_audio_decode() {
+        let batch_called = AtomicBool::new(false);
+        let recording = RecordedDictation {
+            had_long_pause: false,
+            samples: vec![0.1; 16_000],
+            streaming_transcript: Some("mixed-language preview".to_string()),
+        };
+
+        let result = transcribe_recording(&recording, true, |_| {
+            batch_called.store(true, Ordering::SeqCst);
+            Ok("full-audio transcript".to_string())
+        });
+
+        assert_eq!(result.expect("batch transcript"), "full-audio transcript");
+        assert!(batch_called.load(Ordering::SeqCst));
+    }
+
+    #[test]
     fn missing_streaming_session_uses_batch_decode() {
         let recording = RecordedDictation {
             had_long_pause: false,
@@ -1038,7 +1051,7 @@ mod decision_tests {
             streaming_transcript: None,
         };
 
-        let result = transcribe_recording(&recording, |samples| {
+        let result = transcribe_recording(&recording, false, |samples| {
             Ok(format!("batch decoded {}", samples.len()))
         });
 
@@ -1053,7 +1066,7 @@ mod decision_tests {
             streaming_transcript: Some("quick fragmented preview".to_string()),
         };
 
-        let result = transcribe_recording(&recording, |samples| {
+        let result = transcribe_recording(&recording, false, |samples| {
             assert_eq!(samples.len(), 32_000);
             Ok("higher quality complete transcript".to_string())
         });
@@ -1072,8 +1085,7 @@ mod decision_tests {
             streaming_transcript: Some("recoverable streaming transcript".to_string()),
         };
 
-        let result = transcribe_recording(&recording, |_| Err(TranscribeError::TimedOut));
-
+        let result = transcribe_recording(&recording, false, |_| Err(TranscribeError::TimedOut));
         assert_eq!(
             result.expect("streaming fallback"),
             "recoverable streaming transcript"
@@ -1088,8 +1100,8 @@ mod decision_tests {
             streaming_transcript: Some(String::new()),
         };
 
-        let result = transcribe_recording(&recording, |_| Ok("batch transcript".to_string()));
-
+        let result =
+            transcribe_recording(&recording, false, |_| Ok("batch transcript".to_string()));
         assert_eq!(result.expect("batch transcript"), "batch transcript");
     }
 
@@ -1167,10 +1179,7 @@ mod tests {
             .post_process_prompts
             .iter()
             .find(|p| &p.id == prompt_id);
-        match prompt {
-            Some(p) if !p.prompt.trim().is_empty() => false,
-            _ => true,
-        }
+        !matches!(prompt, Some(p) if !p.prompt.trim().is_empty())
     }
 
     #[test]

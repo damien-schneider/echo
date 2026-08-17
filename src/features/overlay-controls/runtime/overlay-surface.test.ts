@@ -4,6 +4,7 @@ import {
   islandFrame,
   type OverlaySurface,
   OverlaySurfaceSchema,
+  spanTheNotch,
   toScreenBox,
 } from "@/features/overlay-controls/runtime/overlay-surface";
 
@@ -141,5 +142,50 @@ describe("notch bridge", () => {
 
     expect(bridged.frame.y + bridged.strip).toBe(wide.y);
     expect(bridged.frame.height - bridged.strip).toBe(wide.height);
+  });
+});
+
+describe("notch span", () => {
+  const box = { height: 88, width: 326, x: 593, y: 36 };
+
+  it("widens a narrow surface until the cut-out is covered", () => {
+    const badge = { height: 52, width: 176, x: 668, y: 36 };
+
+    expect(spanTheNotch(badge, box, surface)).toEqual({
+      height: 52,
+      width: 196,
+      x: 658,
+      y: 36,
+    });
+  });
+
+  it("leaves a surface that already reaches past the cut-out alone", () => {
+    const bar = { height: 52, width: 320, x: 596, y: 36 };
+
+    expect(spanTheNotch(bar, box, surface)).toEqual(bar);
+  });
+
+  // widening past the reserved box would draw outside the native window
+  it("never widens past the box the surface was given", () => {
+    const badge = { height: 52, width: 176, x: 668, y: 36 };
+    const wide = { ...surface, notch: { height: 32, width: 400, x: 69 } };
+
+    expect(spanTheNotch(badge, box, wide)).toEqual({
+      height: 52,
+      width: 326,
+      x: 593,
+      y: 36,
+    });
+  });
+
+  it("leaves a surface with no cut-out above it where it sits", () => {
+    const badge = { height: 52, width: 176, x: 668, y: 36 };
+
+    expect(spanTheNotch(badge, box, { ...surface, notch: null })).toEqual(
+      badge
+    );
+    expect(spanTheNotch(badge, box, { ...surface, anchor: "bottom" })).toEqual(
+      badge
+    );
   });
 });

@@ -27,6 +27,27 @@ fn platform_format_naming() -> FormatNaming {
 fn platform_format_naming() -> FormatNaming {
     FormatNaming::Opaque
 }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) enum DirectSelection {
+    Empty,
+    PermissionRequired,
+    Text(String),
+    Unavailable,
+}
+
+pub(super) fn read_selected_text() -> Result<DirectSelection> {
+    #[cfg(target_os = "macos")]
+    return Ok(match crate::macos_accessibility::selected_text()? {
+        crate::macos_accessibility::SelectedText::Empty => DirectSelection::Empty,
+        crate::macos_accessibility::SelectedText::PermissionRequired => {
+            DirectSelection::PermissionRequired
+        }
+        crate::macos_accessibility::SelectedText::Text(text) => DirectSelection::Text(text),
+        crate::macos_accessibility::SelectedText::Unavailable => DirectSelection::Unavailable,
+    });
+    #[cfg(not(target_os = "macos"))]
+    Ok(DirectSelection::Unavailable)
+}
 
 pub(super) struct PlatformClipboard {
     context: Mutex<ClipboardContext>,

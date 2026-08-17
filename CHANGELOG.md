@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+- Chat now prioritizes the bundled Echo 4B model, offers its 2.5 GB download inline, and keeps custom local and cloud providers available.
+
+### Fixed
+- Chat now opens before Echo 4B starts, recovers requests that predate its listeners, captures selected terminal and editor text before the overlay takes focus, preserves that reference through prompt refreshes, sends it with conversation history, shares transcription's notch-attached shell with controls in the flanks, keeps message selection on the text itself, and remains overflow-free on narrow screens.
+- Recording and transcription actions now share Chat's notch-attached shell, placing their icon-only finish and dismiss controls in the hardware flanks.
+- Echo 4B repair now starts visibly, reports the recovery reason, shares one verified model store between development and production, and validates the packaged runtime before launch.
+
 ## [0.5.0] - 2026-07-26
 
 ### Added

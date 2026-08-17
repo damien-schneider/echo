@@ -1,4 +1,8 @@
 import { z } from "zod";
+import {
+  dockShoulder,
+  dockSilhouettePath,
+} from "@/features/overlay-controls/motion/dock-silhouette";
 
 export const SnapPreviewPayloadSchema = z
   .object({
@@ -13,6 +17,17 @@ export const SnapPreviewPayloadSchema = z
 export type SnapPreviewPayload = z.infer<typeof SnapPreviewPayloadSchema>;
 
 export const previewFrameVars = (payload: SnapPreviewPayload) => ({
+  "--preview-clip": dockSilhouettePath({
+    anchor: payload.anchor,
+    height: payload.height,
+    shoulder: dockShoulder({
+      anchor: payload.anchor,
+      isDragging: false,
+      mode: "actions",
+      presentation: "docked",
+    }),
+    width: payload.width,
+  }),
   "--preview-height": `${payload.height}px`,
   "--preview-width": `${payload.width}px`,
   "--preview-x": `${payload.x}px`,

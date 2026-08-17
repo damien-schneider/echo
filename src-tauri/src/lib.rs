@@ -8,6 +8,8 @@ pub mod commands;
 mod features;
 mod helpers;
 mod logging;
+#[cfg(target_os = "macos")]
+mod macos_accessibility;
 pub mod managers;
 mod overlay;
 pub mod settings;
@@ -193,14 +195,6 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(meeting_manager.clone());
     app_handle.manage(diarization_manager.clone());
 
-    if polish_manager.is_downloaded() {
-        let manager = polish_manager.clone();
-        tauri::async_runtime::spawn(async move {
-            if let Err(error) = manager.prepare().await {
-                log::warn!("Polish prewarm unavailable: {error}");
-            }
-        });
-    }
     features::polish::idle_release::watch_idle_runtime(&polish_manager);
 
     app_handle.manage(commands::cleanup::new_state());
@@ -538,6 +532,7 @@ pub fn run() {
             let app_handle = app.handle().clone();
 
             startup::set_start_hidden(&app_handle, settings.start_hidden);
+            startup::arm_startup_watchdog(&app_handle);
 
             initialize_core_logic(&app_handle);
 
@@ -584,7 +579,8 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| match event {
-            tauri::WindowEvent::CloseRequested { api, .. } => {
+            // hide-to-tray is the main window only; splash/overlays must really close
+            tauri::WindowEvent::CloseRequested { api, .. } if window.label() == "main" => {
                 api.prevent_close();
                 let _res = window.hide();
                 #[cfg(target_os = "macos")]
@@ -693,8 +689,12 @@ pub fn run() {
             overlay::get_overlay_notification_surface,
             overlay::set_overlay_notification_mode,
             overlay::settle_overlay_notification_mode,
+            overlay::get_overlay_notification_request,
+            overlay::get_overlay_chat_context,
             overlay::hide_overlay_notification,
             overlay::request_overlay_notification,
+            overlay::refresh_overlay_chat_context,
+            overlay::open_chat_model_settings,
             overlay::warn_from_overlay,
             commands::cancel_operation,
             commands::get_app_dir_path,
@@ -708,6 +708,7 @@ pub fn run() {
             commands::models::has_any_models_or_downloads,
             commands::models::get_recommended_first_model,
             features::polish::manager::get_polish_status,
+            features::polish::manager::chat_with_polish_model,
             features::polish::manager::download_polish_model,
             features::polish::manager::repair_polish_model,
             commands::audio::update_microphone_mode,

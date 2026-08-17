@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TranscriptionLanguageSchema } from "@/lib/constants/languages";
 
 export const ShortcutBindingSchema = z.object({
   current_binding: z.string(),
@@ -41,6 +42,7 @@ export const TranscriptionProfileStatusSchema = z
     is_active: z.boolean(),
     is_downloaded: z.boolean(),
     is_downloading: z.boolean(),
+    is_recommended: z.boolean(),
     label: z.string(),
     size: TranscriptionModelSizeSchema,
   })
@@ -165,7 +167,7 @@ export const SettingsSchema = z.object({
   push_to_talk: z.boolean(),
   recording_retention_period:
     RecordingRetentionPeriodSchema.optional().default("preserve_limit"),
-  selected_language: z.string(),
+  selected_language: TranscriptionLanguageSchema,
   selected_microphone: z.string().nullable().optional(),
   selected_output_device: z.string().nullable().optional(),
   sound_theme: z

@@ -12,12 +12,56 @@ use super::surface::{
     OverlayBoxPayload, OverlaySurface, OverlaySurfacePayload, SurfaceRequest,
 };
 use crate::settings;
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 pub(super) const RECORDING_OVERLAY_LABEL: &str = "recording_overlay";
 pub(super) const OVERLAY_NOTIFICATION_LABEL: &str = "overlay_notification";
 const OVERLAY_SURFACE_EVENT: &str = "overlay-surface";
 const OVERLAY_NOTIFICATION_SURFACE_EVENT: &str = "overlay-notification-surface";
+
+struct SurfacePayloads {
+    hud: Option<OverlaySurfacePayload>,
+    notification: Option<OverlaySurfacePayload>,
+}
+
+impl SurfacePayloads {
+    fn current(&self, kind: OverlaySurfaceKind) -> Option<OverlaySurfacePayload> {
+        match kind {
+            OverlaySurfaceKind::Hud => self.hud,
+            OverlaySurfaceKind::Notification => self.notification,
+        }
+    }
+
+    fn replace(&mut self, kind: OverlaySurfaceKind, payload: Option<OverlaySurfacePayload>) {
+        match kind {
+            OverlaySurfaceKind::Hud => self.hud = payload,
+            OverlaySurfaceKind::Notification => self.notification = payload,
+        }
+    }
+}
+
+static SURFACE_PAYLOADS: Mutex<SurfacePayloads> = Mutex::new(SurfacePayloads {
+    hud: None,
+    notification: None,
+});
+
+fn replace_surface_payload(kind: OverlaySurfaceKind, payload: Option<OverlaySurfacePayload>) {
+    let mut surfaces = match SURFACE_PAYLOADS.lock() {
+        Ok(surfaces) => surfaces,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    surfaces.replace(kind, payload);
+}
+
+pub(super) fn overlay_surface_payload_for(
+    kind: OverlaySurfaceKind,
+) -> Option<OverlaySurfacePayload> {
+    match SURFACE_PAYLOADS.lock() {
+        Ok(surfaces) => surfaces.current(kind),
+        Err(poisoned) => poisoned.into_inner().current(kind),
+    }
+}
 
 pub(super) fn surface_window_label(kind: OverlaySurfaceKind) -> &'static str {
     match kind {
@@ -91,12 +135,12 @@ pub(super) fn render_overlay_surface(render: OverlayRender<'_>) -> Result<(), St
     super::layout::update_wayland_anchors(&window, request.placement);
     let surface = overlay_surface(request);
     let frame = transition_frame(screen, placement, render.covered, surface);
+    let payload = overlay_surface_payload(request, frame);
     let publish = || {
-        let _ = render.app_handle.emit_to(
-            label,
-            surface_event_name(render.kind),
-            overlay_surface_payload(request, frame),
-        );
+        replace_surface_payload(render.kind, payload);
+        let _ = render
+            .app_handle
+            .emit_to(label, surface_event_name(render.kind), payload);
     };
     // grow first to keep the island inside the canvas; shrinking, the webview needs the origin before the frame moves
     let grows = frame_grows(&window, frame);
@@ -122,6 +166,7 @@ fn withdraw_overlay_surface(
     kind: OverlaySurfaceKind,
 ) -> Result<(), String> {
     let label = surface_window_label(kind);
+    replace_surface_payload(kind, None);
     let _ = app_handle.emit_to(
         label,
         surface_event_name(kind),
@@ -133,20 +178,6 @@ fn withdraw_overlay_surface(
 fn frame_grows(window: &WebviewWindow, frame: OverlayFrame) -> bool {
     current_window_frame(window)
         .is_none_or(|current| frame.width > current.width || frame.height > current.height)
-}
-
-pub(super) fn overlay_surface_payload_for(
-    app_handle: &AppHandle,
-    kind: OverlaySurfaceKind,
-    mode: RecordingOverlayMode,
-) -> Option<OverlaySurfacePayload> {
-    let settings = settings::get_settings(app_handle);
-    let placement = OverlayPlacement::from_settings(&settings);
-    let screen = overlay_screen(app_handle)?;
-    let window = app_handle.get_webview_window(surface_window_label(kind))?;
-    let request = surface_request(screen, placement, mode);
-    let frame = current_window_frame(&window).unwrap_or(overlay_surface(request).window);
-    overlay_surface_payload(request, frame)
 }
 
 pub(super) fn release_recording_overlay_focus(app_handle: &AppHandle) -> Result<(), String> {

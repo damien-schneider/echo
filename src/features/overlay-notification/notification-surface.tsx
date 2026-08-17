@@ -11,12 +11,6 @@ import {
 } from "@/features/overlay-notification/activity-island";
 import type { NotificationController } from "@/features/overlay-notification/use-notification-controller";
 
-const ChatIsland = ({ onClose }: { onClose: () => void }) => (
-  <div className="echo-island-chat">
-    <ChatPanel isOpen={true} onClose={onClose} />
-  </div>
-);
-
 const actionIcon = (intent: ActivityAction["intent"]) =>
   intent === "finish_recording" ? (
     <Check aria-hidden="true" className="size-3.5" />
@@ -33,7 +27,6 @@ const islandAction = (
   }
   return {
     icon: actionIcon(action.intent),
-    label: action.label,
     onAction: () => controller.runActivityAction(action.intent),
     title: action.title,
   };
@@ -49,8 +42,27 @@ export const NotificationSurface = ({
   mode,
 }: NotificationSurfaceProps) => {
   const { polish, presentation } = controller;
+  const surface = controller.events.surface;
+  const hasFlanks =
+    surface !== null && surface.notch !== null && surface.anchor === "top";
   if (mode === "chat") {
-    return <ChatIsland onClose={controller.dismissSurface} />;
+    return (
+      <ChatPanel
+        bundledModel={polish}
+        context={
+          controller.chatContext?.state === "ready"
+            ? controller.chatContext.context
+            : null
+        }
+        contextState={controller.chatContext?.state ?? "loading"}
+        hasFlanks={hasFlanks}
+        isOpen={true}
+        onClose={controller.dismissSurface}
+        onManageModels={controller.openChatModelSettings}
+        onRefreshContext={controller.refreshChatContext}
+        onRequestAccessibility={controller.requestAccessibilityAccess}
+      />
+    );
   }
   if (mode === "panel") {
     return (
@@ -68,7 +80,7 @@ export const NotificationSurface = ({
       action={islandAction(controller)}
       decoration={presentation.activityDecoration}
       dismissLabel={presentation.activityDismissal?.label ?? null}
-      microphoneRef={controller.microphoneRef}
+      hasFlanks={hasFlanks}
       onDismiss={controller.dismissActivity}
       text={presentation.activityText}
       textScrollRef={controller.textScrollRef}

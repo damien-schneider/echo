@@ -24,7 +24,7 @@ pub(super) fn parse_chat_response(body: &str) -> Result<String> {
         .first()
         .map(|choice| choice.message.content.trim())
         .filter(|content| !content.is_empty())
-        .context("Polish server returned no corrected text")?;
+        .context("Polish server returned no text")?;
     Ok(content.to_string())
 }
 
@@ -42,7 +42,7 @@ pub(super) struct TokenizeRequest<'a> {
 #[derive(Serialize)]
 pub(super) struct ChatRequest<'a> {
     pub(super) model: &'static str,
-    pub(super) messages: [ChatRequestMessage<'a>; 2],
+    pub(super) messages: &'a [ChatRequestMessage<'a>],
     pub(super) stream: bool,
     pub(super) temperature: f32,
     pub(super) seed: u64,
@@ -51,6 +51,6 @@ pub(super) struct ChatRequest<'a> {
 
 #[derive(Serialize)]
 pub(super) struct ChatRequestMessage<'a> {
-    pub(super) role: &'static str,
+    pub(super) role: &'a str,
     pub(super) content: &'a str,
 }

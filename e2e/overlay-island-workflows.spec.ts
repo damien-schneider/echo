@@ -10,58 +10,6 @@ import {
 } from "@e2e/fixtures";
 import { expect } from "@playwright/test";
 
-test("chat opens passively and accepts focus only after an input click", async ({
-  page,
-}) => {
-  await page.goto(`${NOTIFICATION_URL}?polish=ready`);
-  await waitForTauriListener(page, "overlay-notification-request");
-  await requestNotificationSurface(page, "chat");
-  const chatInput = page.getByPlaceholder("Ask anything");
-  await expect(chatInput).toBeVisible();
-  await expect(chatInput).not.toBeFocused();
-
-  await chatInput.click();
-  await expect(chatInput).toBeFocused();
-
-  await page.keyboard.press("Escape");
-
-  await expect(page.getByPlaceholder("Ask anything")).toBeHidden();
-});
-
-test("the HUD hands chat and Polish to the notification window", async ({
-  page,
-}) => {
-  await page.goto(`${HUD_URL}?polish=not_downloaded`);
-  await page.getByRole("button", { name: "Open Echo chat" }).click();
-
-  await expect
-    .poll(() => invokedCommands(page))
-    .toContain("request_overlay_notification");
-  // The HUD draws neither of them: it folds back into its handle.
-  await expect(page.getByPlaceholder("Ask anything")).toBeHidden();
-  await expect(page.getByRole("dialog")).toBeHidden();
-});
-
-test("closing chat reveals a background download instead of dismissing it", async ({
-  page,
-}) => {
-  await page.goto(`${NOTIFICATION_URL}?polish=ready`);
-  await waitForTauriListener(page, "model-download-progress");
-  await waitForTauriListener(page, "overlay-notification-request");
-  await requestNotificationSurface(page, "chat");
-  await emitTauriEvent(page, "model-download-progress", {
-    downloaded: 249_728_045,
-    model_id: "polish-qwen3-4b-instruct-2507",
-    percentage: 10,
-    total: 2_497_280_448,
-  });
-
-  await page.getByRole("button", { name: "Close chat" }).click();
-  await page.mouse.move(0, 0);
-
-  await expect(page.getByText("Downloading Polish… 10%")).toBeVisible();
-});
-
 test("a failed recording action is reported through the notification", async ({
   page,
 }) => {

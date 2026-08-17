@@ -49,14 +49,12 @@ const activityActionFor = (
   if (isRecording) {
     return {
       intent: "finish_recording",
-      label: "Transcribe",
       title: "Finish recording and transcribe",
     };
   }
   if (notice?.actionLabel) {
     return {
       intent: "install_update",
-      label: notice.actionLabel,
       title: "Install the update and restart Echo",
     };
   }

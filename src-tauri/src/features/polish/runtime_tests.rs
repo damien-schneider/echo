@@ -19,6 +19,35 @@ fn validated_chat_response_rejects_malformed_or_empty_payloads() {
     assert!(parse_chat_response("not json").is_err());
 }
 
+#[test]
+fn bundled_chat_serializes_the_frontend_conversation() {
+    let messages: Vec<crate::features::polish::BundledChatMessage> =
+        serde_json::from_value(serde_json::json!([
+            { "content": "What does this mean?", "role": "user" },
+            { "content": "It means…", "role": "assistant" }
+        ]))
+        .unwrap();
+    let request_messages = bundled_chat_request_messages("Echo system", &messages);
+    let request = ChatRequest {
+        model: "polish",
+        messages: &request_messages,
+        stream: false,
+        temperature: 0.2,
+        seed: 0,
+        max_tokens: 2_048,
+    };
+    let serialized = serde_json::to_value(request).unwrap();
+
+    assert_eq!(
+        serialized["messages"],
+        serde_json::json!([
+            { "content": "Echo system", "role": "system" },
+            { "content": "What does this mean?", "role": "user" },
+            { "content": "It means…", "role": "assistant" }
+        ])
+    );
+}
+
 #[tokio::test]
 async fn reset_without_a_process_returns_success() {
     let runtime = PolishRuntime::new(PolishRuntimeConfig {

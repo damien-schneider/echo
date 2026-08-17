@@ -1,11 +1,11 @@
 use std::sync::Mutex;
-#[cfg(target_os = "macos")]
 use std::time::Duration;
-#[cfg(target_os = "macos")]
 use tokio::time;
 #[cfg(target_os = "macos")]
 // splash must finish closing before elevation drops
 const MACOS_WINDOW_FOREGROUND_DELAY_MS: u64 = 200;
+// a webview that never boots must not strand the splash on screen forever
+const STARTUP_WATCHDOG_MS: u64 = 15_000;
 use log::{error, warn};
 use tauri::{AppHandle, Manager, State};
 
@@ -74,13 +74,39 @@ fn finish_startup_if_ready(app: &AppHandle, state: &mut StartupState) {
         state.finished = true;
 
         if let Some(splash_window) = app.get_webview_window("startup-loading-screen") {
-            let _ = splash_window.close();
+            if let Err(e) = splash_window.close() {
+                error!("Failed to close splash window: {}", e);
+                let _ = splash_window.hide();
+            }
         }
 
         if !state.start_hidden {
             show_main_window(app);
         }
     }
+}
+
+pub fn arm_startup_watchdog(app: &AppHandle) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        time::sleep(Duration::from_millis(STARTUP_WATCHDOG_MS)).await;
+        let Some(startup_state) = app.try_state::<ManagedStartupState>() else {
+            return;
+        };
+        let Ok(mut guard) = startup_state.lock() else {
+            return;
+        };
+        if guard.finished {
+            return;
+        }
+        warn!(
+            "Startup watchdog fired after {}ms (frontend_ready={}, backend_ready={}) — tearing down the splash anyway",
+            STARTUP_WATCHDOG_MS, guard.frontend_ready, guard.backend_ready
+        );
+        guard.frontend_ready = true;
+        guard.backend_ready = true;
+        finish_startup_if_ready(&app, &mut guard);
+    });
 }
 
 pub fn mark_backend_ready(app: &AppHandle) {

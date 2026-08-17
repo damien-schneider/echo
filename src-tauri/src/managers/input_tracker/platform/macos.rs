@@ -81,87 +81,15 @@ fn extract_app_info(app: cocoa::base::id) -> ActiveAppInfo {
 /// Catches overlay apps like Raycast that never become frontmost.
 #[allow(deprecated)]
 fn get_focused_app_via_accessibility() -> Option<ActiveAppInfo> {
-    use std::ffi::c_void;
-    use std::ptr;
+    use cocoa::base::{id, nil};
+    use objc::{class, msg_send, sel, sel_impl};
 
-    type CFTypeRef = *const c_void;
-    type AXUIElementRef = CFTypeRef;
-    type CFStringRef = *const c_void;
-
-    #[allow(non_upper_case_globals)]
-    const kAXErrorSuccess: i32 = 0;
-
-    #[link(name = "ApplicationServices", kind = "framework")]
-    extern "C" {
-        fn AXUIElementCreateSystemWide() -> AXUIElementRef;
-        fn AXUIElementCopyAttributeValue(
-            element: AXUIElementRef,
-            attribute: CFStringRef,
-            value: *mut CFTypeRef,
-        ) -> i32;
-        fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> i32;
-        fn CFRelease(cf: CFTypeRef);
-    }
-
-    #[link(name = "CoreFoundation", kind = "framework")]
-    extern "C" {
-        fn CFStringCreateWithCString(
-            alloc: CFTypeRef,
-            c_str: *const i8,
-            encoding: u32,
-        ) -> CFStringRef;
-    }
-
-    #[allow(non_upper_case_globals)]
-    const kCFStringEncodingUTF8: u32 = 0x08000100;
-
+    let pid = crate::macos_accessibility::focused_application_pid()?;
     unsafe {
-        let system_wide = AXUIElementCreateSystemWide();
-        if system_wide.is_null() {
-            return None;
-        }
-
-        let focused_elem_attr = b"AXFocusedUIElement\0".as_ptr() as *const i8;
-        let focused_elem_attr_cf =
-            CFStringCreateWithCString(ptr::null(), focused_elem_attr, kCFStringEncodingUTF8);
-
-        if focused_elem_attr_cf.is_null() {
-            CFRelease(system_wide);
-            return None;
-        }
-
-        let mut focused_elem: CFTypeRef = ptr::null();
-        let result =
-            AXUIElementCopyAttributeValue(system_wide, focused_elem_attr_cf, &mut focused_elem);
-
-        CFRelease(focused_elem_attr_cf);
-        CFRelease(system_wide);
-
-        if result != kAXErrorSuccess || focused_elem.is_null() {
-            return None;
-        }
-
-        let mut pid: i32 = 0;
-        let pid_result = AXUIElementGetPid(focused_elem, &mut pid);
-
-        CFRelease(focused_elem);
-
-        if pid_result != kAXErrorSuccess || pid == 0 {
-            return None;
-        }
-
-        use cocoa::base::{id, nil};
-        use objc::{class, msg_send, sel, sel_impl};
-
         let running_app: id = msg_send![
             class!(NSRunningApplication),
             runningApplicationWithProcessIdentifier: pid
         ];
-
-        if running_app != nil {
-            return Some(extract_app_info(running_app));
-        }
-
-        None
+        (running_app != nil).then(|| extract_app_info(running_app))
     }
 }

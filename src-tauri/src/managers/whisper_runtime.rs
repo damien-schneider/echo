@@ -123,6 +123,12 @@ pub struct WhisperDecodeOptions {
     pub threads: i32,
 }
 
+#[derive(Clone, Debug)]
+pub struct LanguageDetection {
+    pub language: String,
+    pub probability: f32,
+}
+
 pub struct WhisperRuntime {
     load_lock: Mutex<()>,
     models: SharedModelSlot<WhisperContext>,
@@ -164,6 +170,44 @@ impl WhisperRuntime {
 
     pub fn is_loaded(&self) -> bool {
         self.models.current().is_some()
+    }
+
+    pub fn detect_language(&self, audio: &[f32], threads: i32) -> Result<LanguageDetection> {
+        if audio.is_empty() {
+            anyhow::bail!("Cannot detect a language from empty audio");
+        }
+        let lease = self
+            .models
+            .current()
+            .context("Whisper model is not loaded")?;
+        let mut state = match self.states.acquire(&lease.model_id) {
+            Some(state) => state,
+            None => lease
+                .model
+                .create_state()
+                .context("create Whisper language detection state")?,
+        };
+        let threads = threads.max(1) as usize;
+        state
+            .pcm_to_mel(audio, threads)
+            .context("prepare audio for Whisper language detection")?;
+        let (language_id, probabilities) = state
+            .lang_detect(0, threads)
+            .context("detect Whisper language")?;
+        let language = whisper_rs::get_lang_str(language_id)
+            .context("resolve detected Whisper language")?
+            .to_string();
+        let probability = probabilities
+            .get(language_id as usize)
+            .copied()
+            .context("read detected Whisper language probability")?;
+        if self.current_model_id().as_deref() == Some(lease.model_id.as_str()) {
+            self.states.release(&lease.model_id, state);
+        }
+        Ok(LanguageDetection {
+            language,
+            probability,
+        })
     }
 
     pub fn transcribe(&self, audio: &[f32], options: &WhisperDecodeOptions) -> Result<String> {

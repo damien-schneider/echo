@@ -278,7 +278,6 @@ const PostProcessingEnableToggle = () => {
 
 const PostProcessingSettingsApiComponent = () => {
   const state = usePostProcessProviderState();
-  const postProcessEnabled = useSetting("post_process_enabled") ?? false;
   const [localBaseUrl, setLocalBaseUrl] = useState(state.baseUrl);
 
   useEffect(() => {
@@ -302,18 +301,10 @@ const PostProcessingSettingsApiComponent = () => {
     }
   };
 
-  if (!postProcessEnabled) {
-    return (
-      <DisabledNotice>
-        Enable post-processing to configure API providers.
-      </DisabledNotice>
-    );
-  }
-
   return (
     <>
       <SettingContainer
-        description="Select an OpenAI-compatible provider."
+        description="Select the AI provider used by Chat and post-processing."
         descriptionMode="tooltip"
         grouped={true}
         layout="horizontal"
@@ -898,7 +889,7 @@ export const PostProcessingSettings = () => (
       <PostProcessingEnableToggle />
     </SettingsGroup>
 
-    <SettingsGroup title="API (OpenAI Compatible)">
+    <SettingsGroup title="AI Providers">
       <PostProcessingSettingsApi />
     </SettingsGroup>
 

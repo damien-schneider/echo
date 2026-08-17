@@ -5,6 +5,8 @@ import type {
 
 const PILL_RADIUS = 999;
 const SURFACE_RADIUS = 10;
+// Dynamic-Island proportion: the curve is half the band under the cut-out, capped for tall panels
+const BRIDGE_RADIUS_MAX = 28;
 
 export interface IslandCornerRadii {
   borderBottomLeftRadius: number;
@@ -15,16 +17,20 @@ export interface IslandCornerRadii {
 
 interface IslandCornerOptions {
   anchor: OverlayAnchor;
-  bridgesNotch: boolean;
+  /// Island height left under the notch strip — null when the island does not bridge it.
+  bridgeBand: number | null;
   isCompactHandle: boolean;
   isDragging?: boolean;
   presentation: OverlayPresentation;
 }
 
+const bridgedBottomRadius = (band: number) =>
+  Math.min(Math.max(band / 2, SURFACE_RADIUS), BRIDGE_RADIUS_MAX);
+
 // corners touching a screen edge stay square so the surface reads as attached, not floating
 export const islandCornerRadii = ({
   anchor,
-  bridgesNotch,
+  bridgeBand,
   isCompactHandle,
   isDragging,
   presentation,
@@ -39,8 +45,14 @@ export const islandCornerRadii = ({
   if (isDragging) {
     return radii;
   }
-  if (bridgesNotch) {
-    return { ...radii, borderTopLeftRadius: 0, borderTopRightRadius: 0 };
+  if (bridgeBand !== null) {
+    const bottom = bridgedBottomRadius(bridgeBand);
+    return {
+      borderBottomLeftRadius: bottom,
+      borderBottomRightRadius: bottom,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
+    };
   }
   if (presentation !== "docked") {
     return radii;

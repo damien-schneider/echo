@@ -24,6 +24,8 @@ pub enum EngineType {
 
 pub const POLISH_MODEL_ID: &str = "polish-qwen3-4b-instruct-2507";
 
+const SHARED_MODELS_APP_ID: &str = "com.damien-schneider.echo";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModelInfo {
     pub id: String,
@@ -57,11 +59,11 @@ pub struct ModelManager {
 
 impl ModelManager {
     pub fn new(app_handle: &AppHandle) -> Result<Self> {
-        let models_dir = app_handle
+        let app_data_dir = app_handle
             .path()
             .app_data_dir()
-            .map_err(|e| anyhow::anyhow!("Failed to get app data dir: {}", e))?
-            .join("models");
+            .map_err(|e| anyhow::anyhow!("Failed to get app data dir: {}", e))?;
+        let models_dir = shared_models_dir(&app_data_dir);
 
         if !models_dir.exists() {
             fs::create_dir_all(&models_dir)?;
@@ -271,6 +273,11 @@ impl ModelManager {
             .ok_or_else(|| anyhow::anyhow!("Model not found: {model_id}"))?;
         Ok(self.models_dir.join(model.filename))
     }
+}
+
+fn shared_models_dir(app_data_dir: &std::path::Path) -> PathBuf {
+    let data_root = app_data_dir.parent().unwrap_or(app_data_dir);
+    data_root.join(SHARED_MODELS_APP_ID).join("models")
 }
 
 #[cfg(test)]

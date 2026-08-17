@@ -187,9 +187,8 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
         }
     );
 
-    // overlay may hold key for hover — synthetic keystrokes would land in the HUD
     #[cfg(target_os = "macos")]
-    let _overlay_key_guard = crate::overlay::OverlayPasteKeyGuard::acquire(&app_handle);
+    let _overlay_key_guard = crate::overlay::OverlaySyntheticKeyGuard::acquire(&app_handle);
 
     match paste_method {
         PasteMethod::CtrlV => paste_via_clipboard_ctrl_v(&text, &app_handle)?,

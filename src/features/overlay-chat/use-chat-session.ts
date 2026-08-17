@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { streamText } from "ai";
 import {
   type Dispatch,
@@ -10,11 +11,13 @@ import {
 } from "react";
 import {
   buildChatModelOptions,
+  buildChatSystemPrompt,
+  CHAT_MODEL_KINDS,
   CHAT_ROLES,
-  type ChatLanguageModel,
   type ChatMessage,
   type ChatModelMode,
   type ChatModelOption,
+  type ChatModelTransport,
   chatModelModeForOption,
   chatModelOptionsForMode,
   makeMessageId,
@@ -23,50 +26,92 @@ import {
   selectedChatModelOption,
   updateAssistantMessage,
 } from "@/features/overlay-chat/chat";
+import type { ChatTextContext } from "@/features/overlay-controls/runtime/overlay-windows";
 import type { Settings } from "@/lib/types";
 import { useSettingsStore } from "@/stores/settings-store";
-
-const SYSTEM_PROMPT =
-  "You are Echo's compact desktop assistant. Answer directly, keep the thread context, and stay concise unless the user asks for detail.";
 
 interface ChatSelection {
   mode: ChatModelMode;
   modelId: string;
 }
 
-interface StreamAssistantOptions {
-  assistantId: string;
-  controller: AbortController;
+export interface ChatSession {
+  error: string;
+  input: string;
+  inputRef: RefObject<HTMLInputElement | null>;
+  isResponding: boolean;
   messages: ChatMessage[];
-  model: ChatLanguageModel;
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
+  mode: ChatModelMode;
+  modelOptions: ChatModelOption[];
+  reportError: (caught: unknown) => void;
+  selected: ChatModelOption | null;
+  selectMode: (mode: ChatModelMode) => void;
+  selectModel: (modelId: string) => void;
+  send: (context?: ChatTextContext | null) => Promise<void>;
+  setInput: Dispatch<SetStateAction<string>>;
+  viewportRef: RefObject<HTMLDivElement | null>;
 }
 
-const streamAssistantResponse = async ({
+interface RequestAssistantOptions {
+  assistantId: string;
+  context: ChatTextContext | null;
+  controller: AbortController;
+  messages: ChatMessage[];
+  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
+  transport: ChatModelTransport;
+}
+
+const requestAssistantResponse = async ({
   assistantId,
   controller,
+  context,
   messages,
-  model,
+  transport,
   setMessages,
-}: StreamAssistantOptions) => {
-  const result = streamText({
-    abortSignal: controller.signal,
-    messages: messages.map(modelMessage),
-    model,
-    system: SYSTEM_PROMPT,
-  });
-  let response = "";
-  for await (const delta of result.textStream) {
-    response += delta;
-    setMessages((current) =>
-      updateAssistantMessage(current, assistantId, response)
-    );
+}: RequestAssistantOptions) => {
+  if (transport.kind === CHAT_MODEL_KINDS.provider) {
+    const result = streamText({
+      abortSignal: controller.signal,
+      messages: messages.map(modelMessage),
+      model: transport.model,
+      system: buildChatSystemPrompt(context),
+    });
+    let response = "";
+    for await (const delta of result.textStream) {
+      response += delta;
+      setMessages((current) =>
+        updateAssistantMessage(current, assistantId, response)
+      );
+    }
+    return;
   }
+
+  const operation = invoke<string>("chat_with_polish_model", {
+    messages: messages.map(modelMessage),
+    system: buildChatSystemPrompt(context),
+  });
+  const response = await new Promise<string>((resolve, reject) => {
+    const handleAbort = () =>
+      reject(controller.signal.reason ?? new Error("Chat request cancelled"));
+    if (controller.signal.aborted) {
+      handleAbort();
+      return;
+    }
+    controller.signal.addEventListener("abort", handleAbort, { once: true });
+    operation.then(resolve, reject).finally(() => {
+      controller.signal.removeEventListener("abort", handleAbort);
+    });
+  });
+  setMessages((current) =>
+    updateAssistantMessage(current, assistantId, response)
+  );
 };
 
 interface SendMessageOptions {
   abortRef: RefObject<AbortController | null>;
+  context: ChatTextContext | null;
   input: string;
+  isBundledModelReady: boolean;
   isResponding: boolean;
   messages: ChatMessage[];
   selected: ChatModelOption | null;
@@ -82,7 +127,11 @@ const sendChatMessage = async (options: SendMessageOptions) => {
   if (!prompt || options.isResponding) {
     return;
   }
-  const resolution = resolveChatModel(options.settings, options.selected);
+  const resolution = resolveChatModel(
+    options.settings,
+    options.selected,
+    options.isBundledModelReady
+  );
   if (resolution.state === "error") {
     options.setError(resolution.message);
     return;
@@ -102,17 +151,23 @@ const sendChatMessage = async (options: SendMessageOptions) => {
     { content: "", id: assistantId, role: CHAT_ROLES.assistant },
   ]);
   try {
-    await streamAssistantResponse({
+    await requestAssistantResponse({
       assistantId,
+      context: options.context,
       controller,
       messages: nextMessages,
-      model: resolution.model,
+      transport: resolution.transport,
       setMessages: options.setMessages,
     });
   } catch (caught) {
     if (!controller.signal.aborted) {
       options.setError(
         caught instanceof Error ? caught.message : "Chat request failed."
+      );
+      options.setMessages((current) =>
+        current.filter(
+          (message) => message.id !== assistantId || message.content.length > 0
+        )
       );
     }
   } finally {
@@ -168,7 +223,11 @@ const chatModelState = (
   return { mode, modelOptions, options, selected };
 };
 
-export const useChatSession = (isOpen: boolean) => {
+export const useChatSession = (
+  isOpen: boolean,
+  context: ChatTextContext | null,
+  isBundledModelReady: boolean
+): ChatSession => {
   const settings = useSettingsStore((store) => store.settings);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -189,11 +248,13 @@ export const useChatSession = (isOpen: boolean) => {
       modelId: chatModelOptionsForMode(options, nextMode)[0]?.id ?? "",
     });
   const selectModel = (modelId: string) => setSelection({ mode, modelId });
-  const send = () =>
+  const send = (latestContext: ChatTextContext | null = context) =>
     sendChatMessage({
       abortRef,
+      context: latestContext,
       input,
       isResponding,
+      isBundledModelReady,
       messages,
       selected,
       setError,
@@ -210,7 +271,13 @@ export const useChatSession = (isOpen: boolean) => {
     messages,
     mode,
     modelOptions,
-    options,
+    reportError: (caught: unknown) => {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not refresh selected text."
+      );
+    },
     selected,
     selectMode,
     selectModel,

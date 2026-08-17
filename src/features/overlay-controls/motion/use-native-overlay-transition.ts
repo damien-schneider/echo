@@ -12,6 +12,12 @@ import type { OverlayWindowChannel } from "@/features/overlay-controls/runtime/o
 // backstop — a morph that never reports completion would strand the window at transition size
 const MORPH_SETTLE_TIMEOUT_MS = 900;
 
+// a freshly shown webview drops its first frames — two ticks prove the compositor is running again
+const compositedFrame = () =>
+  new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+
 interface NativeOverlayTransitionOptions<Mode extends OverlayMode> {
   channel: OverlayWindowChannel;
   initialMode: Mode;
@@ -41,6 +47,7 @@ export const useNativeOverlayTransition = <Mode extends OverlayMode>({
     const generation = generationRef.current;
     dispatch({ generation, type: "prepare_started" });
     invoke(channel.prepareCommand, { mode })
+      .then(() => compositedFrame())
       .then(() =>
         dispatch({ error: null, generation, mode, type: "prepare_finished" })
       )

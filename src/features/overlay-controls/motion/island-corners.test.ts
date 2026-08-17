@@ -6,7 +6,7 @@ describe("island corner radii", () => {
     expect(
       islandCornerRadii({
         anchor: "top",
-        bridgesNotch: false,
+        bridgeBand: null,
         isCompactHandle: true,
         presentation: "bar",
       })
@@ -22,7 +22,7 @@ describe("island corner radii", () => {
     expect(
       islandCornerRadii({
         anchor: "bottom",
-        bridgesNotch: false,
+        bridgeBand: null,
         isCompactHandle: false,
         presentation: "bar",
       })
@@ -38,7 +38,7 @@ describe("island corner radii", () => {
     expect(
       islandCornerRadii({
         anchor: "right",
-        bridgesNotch: false,
+        bridgeBand: null,
         isCompactHandle: false,
         presentation: "docked",
       })
@@ -51,7 +51,7 @@ describe("island corner radii", () => {
     expect(
       islandCornerRadii({
         anchor: "left",
-        bridgesNotch: false,
+        bridgeBand: null,
         isCompactHandle: false,
         presentation: "docked",
       })
@@ -64,6 +64,7 @@ describe("island corner radii", () => {
     expect(
       islandCornerRadii({
         anchor: "top",
+        bridgeBand: null,
         isCompactHandle: false,
         presentation: "docked",
       })
@@ -76,7 +77,7 @@ describe("island corner radii", () => {
     expect(
       islandCornerRadii({
         anchor: "bottom",
-        bridgesNotch: false,
+        bridgeBand: null,
         isCompactHandle: false,
         presentation: "docked",
       })
@@ -92,7 +93,7 @@ describe("island corner radii", () => {
     expect(
       islandCornerRadii({
         anchor: "bottom",
-        bridgesNotch: false,
+        bridgeBand: null,
         isCompactHandle: true,
         presentation: "docked",
       })
@@ -108,7 +109,7 @@ describe("island corner radii", () => {
     expect(
       islandCornerRadii({
         anchor: "right",
-        bridgesNotch: false,
+        bridgeBand: null,
         isCompactHandle: false,
         isDragging: true,
         presentation: "docked",
@@ -121,19 +122,31 @@ describe("island corner radii", () => {
     });
   });
 
-  test("a surface bridged to the notch squares the corners it hangs from", () => {
+  test("a bridged surface hangs square and curves with the band under the cut-out", () => {
     expect(
       islandCornerRadii({
         anchor: "top",
-        bridgesNotch: true,
+        bridgeBand: 56,
         isCompactHandle: false,
         presentation: "bar",
       })
     ).toEqual({
-      borderBottomLeftRadius: 10,
-      borderBottomRightRadius: 10,
+      borderBottomLeftRadius: 28,
+      borderBottomRightRadius: 28,
       borderTopLeftRadius: 0,
       borderTopRightRadius: 0,
     });
+  });
+
+  test("the bridged curve never outgrows tall panels nor undercuts shallow bands", () => {
+    const bottomFor = (bridgeBand: number) =>
+      islandCornerRadii({
+        anchor: "top",
+        bridgeBand,
+        isCompactHandle: false,
+        presentation: "bar",
+      }).borderBottomLeftRadius;
+    expect(bottomFor(700)).toBe(28);
+    expect(bottomFor(12)).toBe(10);
   });
 });

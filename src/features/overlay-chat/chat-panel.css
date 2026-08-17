@@ -1,0 +1,87 @@
+.echo-island-hud[data-layout="chat"] {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
+  row-gap: 12px;
+  column-gap: 8px;
+}
+
+.echo-island-hud[data-layout="chat"]
+  > .echo-island-hud-flank[data-side="left"] {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.echo-island-hud[data-layout="chat"]
+  > .echo-island-hud-flank[data-side="right"] {
+  grid-row: 1;
+  grid-column: 2;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.echo-island-hud[data-layout="chat"] > .echo-island-hud-body {
+  grid-row: 2;
+  grid-column: 1 / -1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.echo-island-chat {
+  width: min(672px, calc(100vw - 8px));
+  min-width: 0;
+  max-width: calc(100vw - 8px);
+  max-height: calc(100vh - 8px);
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+@media (min-width: 640px) {
+  .echo-island-morph[data-anchor="top"][data-mode="chat"][data-notch-bridge="true"]
+    .echo-island-hud[data-flanked="true"][data-layout="chat"] {
+    display: flex;
+    overflow: visible;
+  }
+
+  .echo-island-morph[data-anchor="top"][data-mode="chat"][data-notch-bridge="true"]
+    .echo-island-hud[data-flanked="true"][data-layout="chat"]
+    > .echo-island-hud-body {
+    flex: 1;
+  }
+
+  .echo-island-morph[data-anchor="top"][data-mode="chat"][data-notch-bridge="true"]
+    .echo-island-hud[data-flanked="true"][data-layout="chat"]
+    > .echo-island-hud-flank {
+    padding-inline: 12px;
+  }
+
+  .echo-island-morph[data-anchor="top"][data-mode="chat"][data-notch-bridge="true"]
+    .echo-island-hud[data-flanked="true"][data-layout="chat"]
+    > .echo-island-hud-flank[data-side="left"] {
+    justify-content: flex-start;
+  }
+
+  .echo-island-morph[data-anchor="top"][data-mode="chat"][data-notch-bridge="true"]
+    .echo-island-hud[data-flanked="true"][data-layout="chat"]
+    > .echo-island-hud-flank[data-side="right"] {
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 639.98px) {
+  .echo-island-hud[data-flanked="true"][data-layout="chat"]
+    > .echo-island-hud-flank {
+    position: static;
+    height: auto;
+  }
+
+  .echo-island-hud[data-flanked="true"][data-layout="chat"]
+    > .echo-island-hud-flank[data-side="left"] {
+    justify-content: flex-start;
+  }
+
+  .echo-island-hud[data-flanked="true"][data-layout="chat"]
+    > .echo-island-hud-flank[data-side="right"] {
+    justify-content: flex-end;
+  }
+}

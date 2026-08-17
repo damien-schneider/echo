@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { requestAccessibilityPermission } from "tauri-plugin-macos-permissions-api";
 import { useNativeOverlayTransition } from "@/features/overlay-controls/motion/use-native-overlay-transition";
 import {
   type ActivityAction,
@@ -14,11 +15,19 @@ import {
   overlayContentKey,
 } from "@/features/overlay-controls/recording-overlay-state";
 import {
+  CHAT_CONTEXT_EVENT,
+  CHAT_CONTEXT_REFRESH_COMMAND,
+  CHAT_CONTEXT_STATE_COMMAND,
+  CHAT_MODEL_SETTINGS_COMMAND,
+  type ChatContextEvent,
+  ChatContextEventSchema,
+  type ChatTextContext,
   NOTIFICATION_HIDE_COMMAND,
   NOTIFICATION_REQUEST_EVENT,
+  NOTIFICATION_REQUEST_STATE_COMMAND,
   NOTIFICATION_WINDOW,
-  type NotificationRequest,
-  NotificationRequestSchema,
+  type NotificationRequestEvent,
+  NotificationRequestEventSchema,
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events";
 import { createNotificationPresentation } from "@/features/overlay-notification/notification-presentation";
@@ -56,22 +65,118 @@ const useEscapeShortcut = (capturesEscape: boolean) => {
   }, [capturesEscape]);
 };
 
-/// Opened from the HUD one window away, dropped as soon as activity needs the surface.
+const nextChatContext = (
+  current: ChatContextEvent | null,
+  next: ChatContextEvent
+): ChatContextEvent => {
+  if (current === null || next.generation > current.generation) {
+    return next;
+  }
+  if (
+    next.generation < current.generation ||
+    (current.state !== "loading" && next.state === "loading")
+  ) {
+    return current;
+  }
+  return next;
+};
+
+const nextNotificationRequest = (
+  current: NotificationRequestEvent | null,
+  next: NotificationRequestEvent
+) =>
+  current === null || next.generation >= current.generation ? next : current;
+
+const parsedNotificationRequest = (
+  payload: unknown
+): NotificationRequestEvent | null => {
+  const parsed = NotificationRequestEventSchema.safeParse(payload);
+  return parsed.success ? parsed.data : null;
+};
+const parsedChatContext = (payload: unknown): ChatContextEvent | null => {
+  const parsed = ChatContextEventSchema.safeParse(payload);
+  return parsed.success ? parsed.data : null;
+};
+
 const useNotificationRequest = () => {
-  const [request, setRequest] = useState<NotificationRequest | null>(null);
+  const [requestEvent, setRequestEvent] =
+    useState<NotificationRequestEvent | null>(null);
+  const [chatContext, setChatContext] = useState<ChatContextEvent | null>(null);
   useEffect(
     () =>
       listenCancellable(() =>
         listen<unknown>(NOTIFICATION_REQUEST_EVENT, (event) => {
-          const parsed = NotificationRequestSchema.safeParse(event.payload);
-          if (parsed.success) {
-            setRequest(parsed.data);
+          const request = parsedNotificationRequest(event.payload);
+          if (request !== null) {
+            setRequestEvent((current) =>
+              nextNotificationRequest(current, request)
+            );
           }
         })
       ),
     []
   );
-  return { clearRequest: () => setRequest(null), request };
+  useEffect(() => {
+    let isStopped = false;
+    invoke<unknown>(NOTIFICATION_REQUEST_STATE_COMMAND)
+      .then((payload) => {
+        const request = parsedNotificationRequest(payload);
+        if (!(isStopped || request === null)) {
+          setRequestEvent((current) =>
+            nextNotificationRequest(current, request)
+          );
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      isStopped = true;
+    };
+  }, []);
+  useEffect(
+    () =>
+      listenCancellable(() =>
+        listen<unknown>(CHAT_CONTEXT_EVENT, (event) => {
+          const context = parsedChatContext(event.payload);
+          if (context !== null) {
+            setChatContext((current) => nextChatContext(current, context));
+          }
+        })
+      ),
+    []
+  );
+  useEffect(() => {
+    let isStopped = false;
+    invoke<unknown>(CHAT_CONTEXT_STATE_COMMAND)
+      .then((payload) => {
+        const context = parsedChatContext(payload);
+        if (!(isStopped || context === null)) {
+          setChatContext((current) => nextChatContext(current, context));
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      isStopped = true;
+    };
+  }, []);
+  const refreshChatContext = async (): Promise<ChatTextContext | null> => {
+    const context = parsedChatContext(
+      await invoke<unknown>(CHAT_CONTEXT_REFRESH_COMMAND)
+    );
+    if (context === null) {
+      throw new Error("Invalid selected text response");
+    }
+    setChatContext((current) => nextChatContext(current, context));
+    return context.context;
+  };
+  return {
+    chatContext,
+    clearRequest: () => {
+      setChatContext(null);
+      setRequestEvent(null);
+    },
+    refreshChatContext,
+    request: requestEvent?.surface ?? null,
+  };
 };
 
 const useClearRequestOnActiveOperation = (
@@ -154,7 +259,8 @@ export const useNotificationController = () => {
   const events = useOverlayEvents(microphoneRef);
   const polish = usePolishModel();
   const modelState = useModelState();
-  const { clearRequest, request } = useNotificationRequest();
+  const { chatContext, clearRequest, refreshChatContext, request } =
+    useNotificationRequest();
   const update = useUpdateNotice();
   const presentation = createNotificationPresentation({
     events,
@@ -187,6 +293,7 @@ export const useNotificationController = () => {
   };
 
   return {
+    chatContext,
     contentKey: overlayContentKey({
       mode: renderMode ?? "recording",
       overlayState: events.state,
@@ -210,6 +317,16 @@ export const useNotificationController = () => {
     handleKeyDown: (event: KeyboardEvent<HTMLDivElement>) =>
       dismissFromKeyboard(event, presentation.escapeIntent, dismissSurface),
     microphoneRef,
+    openChatModelSettings: () => {
+      invoke(CHAT_MODEL_SETTINGS_COMMAND)
+        .then(() => dismissSurface())
+        .catch(() => undefined);
+    },
+    refreshChatContext,
+    requestAccessibilityAccess: async () => {
+      await requestAccessibilityPermission();
+      await refreshChatContext();
+    },
     polish,
     presentation,
     releaseWindow: () => {
