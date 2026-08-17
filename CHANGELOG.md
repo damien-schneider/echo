@@ -1,14 +1,20 @@
 # Changelog
 
-## [Unreleased]
+## [0.6.0] - 2026-08-17
 
 ### Added
-- Chat now prioritizes the bundled Echo 4B model, offers its 2.5 GB download inline, and keeps custom local and cloud providers available.
+- Chat runs on the bundled Echo 4B model, offers its 2.5 GB download inline, and keeps custom local and cloud providers selectable.
+- Chat carries the text selected in the frontmost app as context and keeps that reference through prompt refreshes, sending it with the conversation history.
+
+### Changed
+- Recording, transcription and chat share one notch-attached shell, with icon-only finish and dismiss controls in the hardware flanks.
+- Parakeet is gone from the model catalogue, the site and the README: Echo ships Whisper Small, Medium and Large.
 
 ### Fixed
-- Chat now opens before Echo 4B starts, recovers requests that predate its listeners, captures selected terminal and editor text before the overlay takes focus, preserves that reference through prompt refreshes, sends it with conversation history, shares transcription's notch-attached shell with controls in the flanks, keeps message selection on the text itself, and remains overflow-free on narrow screens.
-- Recording and transcription actions now share Chat's notch-attached shell, placing their icon-only finish and dismiss controls in the hardware flanks.
-- Echo 4B repair now starts visibly, reports the recovery reason, shares one verified model store between development and production, and validates the packaged runtime before launch.
+- Text selected in a terminal or an editor is read before the overlay takes focus, instead of being lost to a copy shortcut answered too slowly.
+- Chat opens before Echo 4B has started and recovers the requests made while its listeners were still coming up.
+- Chat keeps message selection on the text itself and stays overflow-free on narrow screens.
+- Echo 4B repair starts visibly and reports the recovery reason; development and production share one verified model store, and the packaged runtime is validated before launch.
 
 ## [0.5.0] - 2026-07-26
 
