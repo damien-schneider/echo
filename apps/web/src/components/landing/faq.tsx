@@ -11,17 +11,17 @@ import {
 const faqs = [
   {
     answer:
-      "Yes. Echo runs entirely on your device using local AI models (Whisper and Parakeet). No audio data, transcription results, or metadata are ever sent to any server. The only network requests are optional: checking for app updates and downloading new models.",
+      "Yes. Echo runs entirely on your device using local Whisper models. No audio data, transcription results, or metadata are ever sent to any server. The only network requests are optional: checking for app updates and downloading new models.",
     question: "Is Echo really 100% offline?",
   },
   {
     answer:
-      "Whisper models support over 100 languages including English, Spanish, French, German, Chinese, Japanese, Korean, Arabic, and many more. Parakeet V3 supports automatic language detection for the most common languages, while Parakeet V2 is optimized specifically for English with the highest accuracy.",
+      "Every model available in Echo supports 100 languages, including English, Spanish, French, German, Chinese, Japanese, Korean, Arabic, and many more. Auto Detect identifies the spoken language from the recording; selecting a language explicitly gives the most predictable result for short clips.",
     question: "Which languages does Echo support?",
   },
   {
     answer:
-      "For most users, Parakeet V3 is the best starting point — it's fast, accurate, and works on CPU without GPU requirements. If you only transcribe English, Parakeet V2 offers the highest accuracy. For multi-language needs with a capable GPU, Whisper models provide excellent results across 100+ languages.",
+      "Medium is the recommended balance of multilingual accuracy and speed. Choose Small for lower memory use and faster transcription, or Large for the highest accuracy when your computer has enough memory. All three models support the same languages.",
     question: "Which model should I use?",
   },
   {
@@ -41,7 +41,7 @@ const faqs = [
   },
   {
     answer:
-      "Parakeet models are CPU-optimized and run well on most modern computers. Whisper models benefit from GPU acceleration but the smaller models (Small, Medium) work fine on CPU too. Echo is built with Rust for minimal resource usage.",
+      "Whisper benefits from GPU acceleration, but Small and Medium work well on many modern CPUs too. Start with Small on lower-memory computers; choose Medium or Large when accuracy matters more than speed.",
     question: "Do I need a powerful computer?",
   },
 ];

@@ -77,9 +77,9 @@ const COMPARISON_ROWS = [
   },
   {
     competitor: "Yes",
-    echo: "Yes — Whisper supports 100+",
+    echo: "Yes — Whisper supports 100",
     echoPositive: false,
-    feature: "100+ Languages",
+    feature: "100 Languages",
   },
   {
     competitor: "2,000 words/week limit on free plan",
@@ -263,7 +263,7 @@ function WisprFlowPage() {
             <p className="mb-8 max-w-2xl font-body text-base text-muted-foreground leading-relaxed">
               Wispr Flow's AI cleanup is impressive — but it requires your audio
               to travel to their servers every single time you speak. Echo runs
-              entirely on your device using Whisper and Parakeet models. Free,
+              entirely on your device using multilingual Whisper models. Free,
               open source, and truly private — your voice never leaves your
               machine.
             </p>

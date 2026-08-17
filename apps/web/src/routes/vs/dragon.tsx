@@ -66,7 +66,7 @@ const COMPARISON_ROWS = [
   },
   {
     competitor: "Nuance proprietary model (30+ years)",
-    echo: "OpenAI Whisper + Parakeet (modern AI)",
+    echo: "Multilingual OpenAI Whisper",
     echoPositive: true,
     feature: "Speech Model",
   },
@@ -102,9 +102,9 @@ const COMPARISON_ROWS = [
   },
   {
     competitor: "Limited language selection",
-    echo: "Yes — Whisper supports 100+",
+    echo: "Yes — Whisper supports 100",
     echoPositive: true,
-    feature: "100+ Languages",
+    feature: "100 Languages",
   },
 ];
 

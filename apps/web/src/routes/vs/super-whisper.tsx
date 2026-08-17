@@ -76,9 +76,9 @@ const COMPARISON_ROWS = [
   },
   {
     competitor: "Yes",
-    echo: "Yes — Whisper supports 100+",
+    echo: "Yes — Whisper supports 100",
     echoPositive: false,
-    feature: "100+ Languages",
+    feature: "100 Languages",
   },
   {
     competitor: "Yes",

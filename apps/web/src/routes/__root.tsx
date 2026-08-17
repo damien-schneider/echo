@@ -18,12 +18,12 @@ const schemaOrg = JSON.stringify({
       applicationCategory: "UtilitiesApplication",
       applicationSubCategory: "Speech Recognition",
       description:
-        "Echo is a free, private, offline speech-to-text application powered by OpenAI Whisper and Parakeet AI models. Transcribe your voice locally — no data ever leaves your device.",
+        "Echo is a free, private, offline speech-to-text application powered by multilingual OpenAI Whisper models. Transcribe your voice locally — no data ever leaves your device.",
       downloadUrl: "https://github.com/damien-schneider/Echo/releases/latest",
       featureList: [
         "100% offline processing — no cloud required",
-        "OpenAI Whisper model support (100+ languages)",
-        "Parakeet V2 and V3 model support",
+        "OpenAI Whisper model support (100 languages)",
+        "Three multilingual model sizes for different hardware",
         "Global keyboard shortcuts and push-to-talk",
         "Automatic text pasting into any application",
         "File transcription (audio and video)",
@@ -31,7 +31,7 @@ const schemaOrg = JSON.stringify({
         "Free and open source (MIT license)",
       ],
       keywords:
-        "speech to text, voice transcription, offline, private, whisper, parakeet, AI dictation, open source",
+        "speech to text, voice transcription, offline, private, whisper, multilingual dictation, AI dictation, open source",
       license: "https://opensource.org/licenses/MIT",
       name: "Echo",
       offers: {

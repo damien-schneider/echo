@@ -70,7 +70,7 @@ function FaqPage() {
     {
       category: "technical",
       content:
-        "Echo supports various Whisper models ranging from Tiny to Large. You can choose the model that best fits your hardware capabilities and accuracy needs.",
+        "Echo supports three multilingual Whisper profiles: Small, Medium, and Large. Choose Small for lower memory use and faster transcription, Medium for the recommended balance, or Large for the highest accuracy.",
       id: "tech-2",
       title: "Which Whisper models are supported?",
     },
@@ -105,7 +105,7 @@ function FaqPage() {
     {
       category: "troubleshooting",
       content:
-        "Transcription speed depends on your hardware and the selected model. Try switching to a smaller model (e.g., Tiny or Base) for faster performance.",
+        "Transcription speed depends on your hardware and selected model. Try switching to Small for faster performance and lower memory use.",
       id: "trouble-2",
       title: "Transcription is slow.",
     },

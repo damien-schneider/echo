@@ -84,7 +84,7 @@ const COMPARISON_ROWS = [
   },
   {
     competitor: "Whisper models, manual setup",
-    echo: "Whisper + Parakeet, in-app download",
+    echo: "Whisper Small, Medium, or Large with in-app downloads",
     echoPositive: true,
     feature: "Model Selection",
   },

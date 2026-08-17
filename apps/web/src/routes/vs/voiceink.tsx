@@ -75,10 +75,10 @@ const COMPARISON_ROWS = [
     feature: "LLM Post-Processing",
   },
   {
-    competitor: "Yes — 100+ languages",
-    echo: "Yes — Whisper supports 100+",
+    competitor: "Yes — 100 languages",
+    echo: "Yes — Whisper supports 100",
     echoPositive: false,
-    feature: "100+ Languages",
+    feature: "100 Languages",
   },
   {
     competitor: "Reads on-screen content for context",

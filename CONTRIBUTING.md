@@ -49,9 +49,7 @@ Before you begin, ensure you have the following installed:
 
 6. **Run in development mode**:
    ```bash
-   bun run tauri dev
-   # On macOS if you encounter cmake errors:
-   CMAKE_POLICY_VERSION_MINIMUM=3.5 bun run tauri dev
+   bun run tauri:dev
    ```
 
 For detailed platform-specific setup instructions, see [BUILD.md](BUILD.md).
@@ -210,7 +208,7 @@ We use GitHub Discussions for feature requests rather than issues. This keeps is
 ### Testing Your Changes
 
 **Manual Testing:**
-- Run the app in development mode: `bun run tauri dev`
+- Run the app in development mode: `bun run tauri:dev`
 - Test your changes with debug mode enabled
 - Verify on multiple platforms if possible
 - Test with different audio devices

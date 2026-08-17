@@ -12,9 +12,9 @@ const stats = [
     value: "100%",
   },
   {
-    detail: "Via Whisper & Parakeet models",
+    detail: "Via multilingual Whisper models",
     label: "Languages",
-    value: "100+",
+    value: "100",
   },
   {
     detail: "Fork it. Ship it. It's yours.",

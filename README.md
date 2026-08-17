@@ -33,9 +33,7 @@ Echo isn't trying to be the best speech-to-text app—it's trying to be the most
 
 The process is entirely local:
 - Silence is filtered using VAD (Voice Activity Detection) with Silero
-- Transcription uses your choice of models:
-  - **Whisper models** (Small/Medium/Turbo/Large) with GPU acceleration when available
-  - **Parakeet V3** - CPU-optimized model with excellent performance and automatic language detection
+- Transcription uses your choice of Whisper model size — Small, Medium, or Large. Every model is multilingual; use automatic language detection or pin a language for better accuracy.
 - Works on Windows, macOS, and Linux
 
 ## Quick Start
@@ -54,7 +52,7 @@ For detailed build instructions including platform-specific requirements, see [B
 
 ```bash
 bun install          # Install dependencies
-bun run tauri dev    # Run the full desktop app
+bun run tauri:dev    # Run the full desktop app with isolated development data
 bun run pipeline     # Turborepo check-types + Vite build (used for CI and releases)
 ```
 
@@ -68,7 +66,7 @@ Echo is built as a Tauri application combining:
 - **Backend**: Rust for system integration, audio processing, and ML inference
 - **Core Libraries**:
   - `whisper-rs`: Local speech recognition with Whisper models
-  - `transcription-rs`: CPU-optimized speech recognition with Parakeet models
+  - `parakeet-rs`: Local speaker diarization with NVIDIA Sortformer
   - `cpal`: Cross-platform audio I/O
   - `vad-rs`: Voice Activity Detection
   - `rdev`: Global keyboard shortcuts and system events
@@ -109,11 +107,6 @@ The following are recommendations for running Echo on your own machine. If you d
 - **Linux**: Intel, AMD, or NVIDIA GPU
   * Ubuntu 22.04, 24.04
 
-**For Parakeet V3 Model:**
-- **CPU-only operation** - runs on a wide variety of hardware
-- **Minimum**: Intel Skylake (6th gen) or equivalent AMD processors
-- **Performance**: ~5x real-time speed on mid-range hardware (tested on i5)
-- **Automatic language detection** - no manual language selection required
 
 ## Roadmap & Active Development
 
@@ -174,56 +167,24 @@ New-Item -ItemType Directory -Force -Path "$env:APPDATA\com.damien-schneider.ech
 
 #### Step 3: Download Model Files
 
-Download the models you want from below
+Download one or more of the exact model artifacts used by Echo:
 
-**Whisper Models (single .bin files):**
-- Small (487 MB): `https://blob.handy.computer/ggml-small.bin`
-- Medium (492 MB): `https://blob.handy.computer/whisper-medium-q4_1.bin`
-- Turbo (1600 MB): `https://blob.handy.computer/ggml-large-v3-turbo.bin`
-- Large (1100 MB): `https://blob.handy.computer/ggml-large-v3-q5_0.bin`
-
-**Parakeet Models (compressed archives):**
-- V2 (473 MB): `https://blob.handy.computer/parakeet-v2-int8.tar.gz`
-- V3 (478 MB): `https://blob.handy.computer/parakeet-v3-int8.tar.gz`
+- Small (190 MB): `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin`
+- Medium (574 MB): `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin`
+- Large (1080 MB): `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin`
 
 #### Step 4: Install Models
 
-**For Whisper Models (.bin files):**
-
-Simply place the `.bin` file directly into the `models` directory:
+Place each `.bin` file directly in the `models` directory without renaming it:
 
 ```
 {app_data_dir}/models/
-├── ggml-small.bin
-├── whisper-medium-q4_1.bin
-├── ggml-large-v3-turbo.bin
+├── ggml-small-q5_1.bin
+├── ggml-large-v3-turbo-q5_0.bin
 └── ggml-large-v3-q5_0.bin
 ```
 
-**For Parakeet Models (.tar.gz archives):**
-
-1. Extract the `.tar.gz` file
-2. Place the **extracted directory** into the `models` folder
-3. The directory must be named exactly as follows:
-   - **Parakeet V2**: `parakeet-tdt-0.6b-v2-int8`
-   - **Parakeet V3**: `parakeet-tdt-0.6b-v3-int8`
-
-Final structure should look like:
-
-```
-{app_data_dir}/models/
-├── parakeet-tdt-0.6b-v2-int8/     (directory with model files inside)
-│   ├── (model files)
-│   └── (config files)
-└── parakeet-tdt-0.6b-v3-int8/     (directory with model files inside)
-    ├── (model files)
-    └── (config files)
-```
-
-**Important Notes:**
-- For Parakeet models, the extracted directory name **must** match exactly as shown above
-- Do not rename the `.bin` files for Whisper models—use the exact filenames from the download URLs
-- After placing the files, restart Echo to detect the new models
+Restart Echo after placing the files.
 
 #### Step 5: Verify Installation
 

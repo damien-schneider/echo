@@ -326,9 +326,8 @@ const features = [
   },
   {
     className: "md:col-span-1",
-    description:
-      "Whisper supports 100+ languages. Parakeet auto-detects for you.",
-    name: "100+ Languages",
+    description: "Every model supports 100 languages with automatic detection.",
+    name: "100 Languages",
     visual: MiniLanguageSelector,
   },
   {

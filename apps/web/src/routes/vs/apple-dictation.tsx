@@ -78,15 +78,15 @@ const COMPARISON_ROWS = [
   },
   {
     competitor: "No model choice",
-    echo: "Whisper tiny→large + Parakeet",
+    echo: "Whisper Small, Medium, or Large",
     echoPositive: true,
     feature: "Model Selection",
   },
   {
     competitor: "Limited Apple-supported languages",
-    echo: "Whisper supports 100+ languages",
+    echo: "Whisper supports 100 languages",
     echoPositive: true,
-    feature: "100+ Language Support",
+    feature: "100 Language Support",
   },
   {
     competitor: "Tied to Apple ecosystem",
@@ -286,7 +286,7 @@ function AppleDictationPage() {
                 "Cross-Platform",
                 "File Transcription",
                 "Open Source",
-                "100+ Languages",
+                "100 Languages",
                 "LLM Refinement",
               ].map((badge) => (
                 <span

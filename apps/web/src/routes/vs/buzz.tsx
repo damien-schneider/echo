@@ -82,13 +82,13 @@ const COMPARISON_ROWS = [
   },
   {
     competitor: "Whisper, whisper.cpp, faster-whisper, HuggingFace, OpenAI API",
-    echo: "Whisper + Parakeet",
+    echo: "Local Whisper with three model sizes",
     echoPositive: false,
     feature: "Whisper Backends",
   },
   {
     competitor: "1000+ languages via Meta MMS models",
-    echo: "100+ languages via Whisper",
+    echo: "100 languages via Whisper",
     echoPositive: false,
     feature: "Language Support",
   },

@@ -24,13 +24,13 @@ const post1Content =
   "- Be transparent about its codebase and data handling (open-source is a strong plus)\n\n" +
   "With those criteria in mind, here are our top five picks.\n\n" +
   "## 1. Echo — Best Overall (Free, Open-Source, macOS/Windows/Linux)\n\n" +
-  "Echo is the standout choice in 2026 for anyone who wants powerful offline speech-to-text without spending a cent or compromising their privacy. Built on top of OpenAI's Whisper and the NVIDIA Parakeet model family, Echo runs completely locally, integrates as a system-wide overlay, and is available entirely free under the MIT license.\n\n" +
+  "Echo is the standout choice in 2026 for anyone who wants powerful offline speech-to-text without spending a cent or compromising their privacy. Built on OpenAI's multilingual Whisper models, Echo runs completely locally, integrates as a system-wide overlay, and is available entirely free under the MIT license.\n\n" +
   "What sets Echo apart:\n\n" +
   "Echo was designed from the ground up with privacy as its core value. There is no account to create, no telemetry, no cloud backend, and no subscription. The application runs as a global overlay that you can invoke with a keyboard shortcut from any application — your code editor, email client, notes app, or browser. You press a hotkey, speak, and your transcribed text is inserted wherever your cursor is.\n\n" +
-  "The model selection in Echo is genuinely impressive. You can choose from Whisper Tiny all the way to Whisper Large-v3 for multilingual accuracy, or switch to a Parakeet model for significantly faster transcription on CPU-only hardware. This flexibility means Echo works well on both older laptops and high-end machines with dedicated GPUs.\n\n" +
+  "Echo offers three multilingual Whisper profiles: Small for lower memory use and faster transcription, Medium for the recommended balance, and Large for the highest accuracy. This range covers older laptops through high-end machines with dedicated GPUs.\n\n" +
   "Because it is fully open-source, you can audit exactly what Echo does with your audio. The community actively contributes improvements, and the project has no financial incentive to monetize your data — it literally cannot, because the data never leaves your machine.\n\n" +
   "Accuracy: Excellent (on par with cloud services for English; very good for 90+ other languages with Whisper Large)\n" +
-  "Speed: Fast (near real-time on Apple Silicon and modern GPUs; acceptable on CPU with Parakeet)\n" +
+  "Speed: Fast (near real-time on Apple Silicon and modern GPUs; Small is suitable for many CPU-only computers)\n" +
   "Privacy: Perfect — 100% local, no network requests\n" +
   "Cost: Free forever (MIT license)\n" +
   "Platforms: macOS, Windows, Linux\n\n" +
@@ -78,14 +78,14 @@ const post1Content =
 const post2Content =
   "## Why Transcribe Audio Offline?\n\n" +
   "Most people reach for a cloud service the first time they need to convert audio to text — and it works, right up until it doesn't. Internet goes down. You're on a plane. You're working with confidential recordings that cannot leave your premises. Or you simply don't want a tech company storing a copy of your voice data on their servers.\n\n" +
-  "Local audio transcription solves all of these problems at once. Thanks to open-source AI models like OpenAI's Whisper and NVIDIA's Parakeet, the same quality of speech recognition that once required data center infrastructure now runs on a standard laptop. In this guide, we'll walk through exactly how to set up and use offline transcription using Echo — a free, open-source app built on these models.\n\n" +
+  "Local audio transcription solves all of these problems at once. Thanks to open-source AI models like OpenAI's Whisper, the same quality of speech recognition that once required data center infrastructure now runs on a standard laptop. In this guide, we'll walk through exactly how to set up and use offline transcription using Echo — a free, open-source app built on Whisper.\n\n" +
   "## How Local AI Transcription Works\n\n" +
   "Before the step-by-step instructions, it helps to understand what's happening under the hood. When you use a cloud service like Google's Speech-to-Text API or Apple's default dictation, your audio is sent over the internet to a server, processed by a large neural network, and the text result is sent back to you.\n\n" +
   "With a local AI model, that neural network lives on your computer. The model — which is just a large file of numerical weights — is downloaded once and stored locally. Every time you transcribe audio, the inference (the computation that turns audio into text) happens on your own CPU or GPU.\n\n" +
   "The two main model families used for this are:\n\n" +
   "- OpenAI Whisper: A transformer-based model trained on 680,000 hours of multilingual audio. Available in five sizes from Tiny (~39 MB) to Large (~1.5 GB). Excellent multilingual support — 99 languages.\n" +
   "- NVIDIA Parakeet: A family of CTC-based models optimized for fast inference on CPU hardware. English-only, but significantly faster than Whisper on machines without a GPU.\n\n" +
-  "Echo supports both model families and lets you switch between them depending on your hardware and use case.\n\n" +
+  "Echo offers Small, Medium, and Large Whisper profiles so you can choose the right balance of speed, memory use, and accuracy.\n\n" +
   "## Step 1: Download and Install Echo\n\n" +
   "Go to the Echo website and download the installer for your platform:\n\n" +
   "- macOS: Download the .dmg file (Apple Silicon or Intel, depending on your Mac)\n" +
@@ -95,9 +95,9 @@ const post2Content =
   "The installation itself takes under a minute. Echo's core application is small; the size is in the AI models, which are downloaded separately on first use.\n\n" +
   "## Step 2: Choose and Download Your Model\n\n" +
   "When you open Echo for the first time, you will be prompted to select a speech recognition model. Here's how to choose:\n\n" +
-  "For Apple Silicon Macs (M1/M2/M3/M4): Choose Whisper Large-v3. Apple's Neural Engine accelerates the computation dramatically, making even the largest model fast enough for comfortable real-time use. You'll get the best accuracy and full multilingual support.\n\n" +
-  "For Windows or Linux with a dedicated NVIDIA GPU: Choose Whisper Medium or Large. CUDA acceleration will make these models run in near-real-time. If you need GPU memory headroom for other tasks, Whisper Small is still highly accurate.\n\n" +
-  "For older hardware or CPU-only machines: Choose a Parakeet model if you primarily speak English, or Whisper Small/Base for multilingual use. Parakeet's architecture is specifically optimized for fast CPU inference and will give you noticeably snappier performance.\n\n" +
+  "For Apple Silicon Macs (M1/M2/M3/M4): Start with Whisper Medium for the recommended balance of speed and accuracy. Choose Large if your Mac has enough memory and you want the highest accuracy.\n\n" +
+  "For Windows or Linux with a dedicated GPU: Choose Whisper Medium or Large. GPU acceleration makes the larger models practical; Small leaves more memory available for other work.\n\n" +
+  "For older hardware or CPU-only machines: Choose Whisper Small. It has the lowest memory requirement and still supports the same languages as Medium and Large.\n\n" +
   "Echo will download the model file directly to your local machine. This is the only network request Echo ever makes — after the download, everything is offline.\n\n" +
   "## Step 3: Grant Microphone Permission\n\n" +
   "Echo needs access to your microphone to transcribe live speech. On macOS, you'll be prompted automatically the first time you try to use it. On Windows and Linux, microphone permissions are generally granted at the system level.\n\n" +
@@ -206,9 +206,9 @@ const post3Content =
   "- You want multilingual support but have limited CPU hardware\n" +
   "- You want a small model footprint\n" +
   "- You are experimenting and want a quick setup\n\n" +
-  "## Using Both Models in Echo\n\n" +
-  "One of the practical advantages of Echo is that you are not locked into a single model. Echo lets you download multiple models and switch between them based on your current task. You might use Parakeet for quick English dictation throughout your workday, and switch to Whisper Large-v3 when you sit down to transcribe a French interview or a multilingual meeting recording.\n\n" +
-  "All model switching in Echo is local — you are just telling the application which file to load into memory, not connecting to any external service. This flexibility makes it practical to keep both families installed and use whichever fits the job at hand.\n\n" +
+  "## Choosing a Model in Echo\n\n" +
+  "Echo lets you download multiple Whisper profiles and switch between them based on your current task. Small prioritizes speed and memory use, Medium is the recommended balance, and Large prioritizes multilingual accuracy.\n\n" +
+  "All model switching is local — you are telling Echo which model file to load into memory, not connecting to an external service. Every profile supports the same languages.\n\n" +
   "## The Underlying Technology Is Converging\n\n" +
   "It's worth noting that the gap between these model families is narrowing. NVIDIA has published research on extending Parakeet to more languages, and the Whisper team has worked on distilled variants (Whisper Distil-Large) that dramatically reduce inference time while maintaining accuracy close to the full model. In 2027 and beyond, it is likely that the fast CPU model and multilingual model distinction will blur.\n\n" +
   "For now, the choice between Whisper and Parakeet remains a meaningful one. Understanding what each model optimizes for helps you get the best transcription quality for your specific hardware and use case.";

@@ -78,7 +78,7 @@ const COMPARISON_ROWS = [
   },
   {
     competitor: "Proprietary cloud model",
-    echo: "Whisper + Parakeet (your choice, local)",
+    echo: "Whisper Small, Medium, or Large (local)",
     echoPositive: true,
     feature: "Speech Model",
   },
@@ -123,13 +123,13 @@ const WIN_CARDS = [
   },
   {
     description:
-      "Every word you speak stays on your machine. Echo processes audio entirely offline using Whisper and Parakeet models — no audio ever touches a server. Otter.ai sends your voice to their cloud every time you record, regardless of SOC 2 certification.",
+      "Every word you speak stays on your machine. Echo processes audio entirely offline using local Whisper models — no audio ever touches a server. Otter.ai sends your voice to their cloud every time you record, regardless of SOC 2 certification.",
     icon: "🔒",
     title: "Completely Private",
   },
   {
     description:
-      "Otter's free plan caps you at 300 minutes per month and limits you to three languages. Echo has no limits of any kind — use it all day, every day, for as long as you want, in any of 100+ languages.",
+      "Otter's free plan caps you at 300 minutes per month and limits you to three languages. Echo has no limits of any kind — use it all day, every day, for as long as you want, in any of 100 languages.",
     icon: "∞",
     title: "Free Forever, No Limits",
   },

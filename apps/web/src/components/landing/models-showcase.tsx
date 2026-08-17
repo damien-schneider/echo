@@ -22,50 +22,23 @@ interface ModelData {
 
 const models: ModelData[] = [
   {
-    accuracy: 80,
-    engine: "NVIDIA Parakeet",
-    id: "parakeet-v3",
-    name: "Parakeet V3",
-    recommended: true,
-    size: "478 MB",
-    speed: 85,
-    tagline: "Fast, accurate, auto-detects language",
-  },
-  {
-    accuracy: 85,
-    engine: "NVIDIA Parakeet",
-    id: "parakeet-v2",
-    name: "Parakeet V2",
-    size: "473 MB",
-    speed: 85,
-    tagline: "Highest accuracy for English",
-  },
-  {
     accuracy: 60,
     engine: "OpenAI Whisper",
     id: "whisper-small",
     name: "Whisper Small",
-    size: "487 MB",
+    size: "190 MB",
     speed: 85,
-    tagline: "Lightweight, 100+ languages",
+    tagline: "Fast multilingual transcription for lower-memory computers",
   },
   {
     accuracy: 75,
     engine: "OpenAI Whisper",
     id: "whisper-medium",
     name: "Whisper Medium",
-    size: "492 MB",
+    recommended: true,
+    size: "574 MB",
     speed: 60,
-    tagline: "Balanced accuracy and speed",
-  },
-  {
-    accuracy: 80,
-    engine: "OpenAI Whisper",
-    id: "whisper-turbo",
-    name: "Whisper Turbo",
-    size: "1.6 GB",
-    speed: 40,
-    tagline: "High quality, GPU accelerated",
+    tagline: "The best balance of multilingual accuracy and speed",
   },
   {
     accuracy: 85,
@@ -74,7 +47,7 @@ const models: ModelData[] = [
     name: "Whisper Large",
     size: "1.1 GB",
     speed: 30,
-    tagline: "Maximum accuracy across all languages",
+    tagline: "The highest multilingual accuracy",
   },
 ];
 
@@ -124,19 +97,18 @@ export default function ModelsShowcase() {
           style={{ opacity: titleOpacity, y: titleY }}
         >
           <h2 className="font-bold font-display text-[clamp(1.8rem,4vw,3.2rem)] leading-tight tracking-[-0.03em]">
-            Six engines,{" "}
+            Three sizes,{" "}
             <span className="font-display font-light text-muted-foreground italic">
               one shortcut
             </span>
           </h2>
           <p className="mx-auto mt-4 max-w-lg text-muted-foreground text-sm">
-            From lightning-fast CPU models to high-accuracy GPU options. All run
-            100% locally — pick one and forget about it.
+            Choose faster local transcription or higher multilingual accuracy.
+            Every model runs on this computer.
           </p>
         </motion.div>
 
         <div className="mx-auto max-w-3xl">
-          {/* Active model detail — large, minimal */}
           <AnimatePresence mode="wait">
             <motion.div
               animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
@@ -165,7 +137,6 @@ export default function ModelsShowcase() {
               </h3>
               <p className="text-muted-foreground">{model.tagline}</p>
 
-              {/* Accuracy / Speed bars */}
               <div className="mx-auto mt-10 grid max-w-sm grid-cols-2 gap-8">
                 <div>
                   <div className="mb-2 flex items-baseline justify-between">
@@ -199,7 +170,6 @@ export default function ModelsShowcase() {
             </motion.div>
           </AnimatePresence>
 
-          {/* Model selector — horizontal pills */}
           <motion.div
             animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 16 }}
             className="flex flex-wrap items-center justify-center gap-2"

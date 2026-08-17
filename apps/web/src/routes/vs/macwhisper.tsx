@@ -99,10 +99,10 @@ const COMPARISON_ROWS = [
     feature: "Speaker Diarization",
   },
   {
-    competitor: "Yes — 100+ languages",
-    echo: "Yes — Whisper supports 100+",
+    competitor: "Yes — 100 languages",
+    echo: "Yes — Whisper supports 100",
     echoPositive: false,
-    feature: "100+ Languages",
+    feature: "100 Languages",
   },
 ];
 

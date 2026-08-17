@@ -112,7 +112,7 @@ const COMPARISON_ROWS = [
   },
   {
     competitor: "Whisper + Parakeet + Breeze + SenseVoice",
-    echo: "Whisper + Parakeet",
+    echo: "Three multilingual Whisper sizes",
     echoPositive: false,
     feature: "ASR Models",
   },
