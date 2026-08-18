@@ -5,13 +5,14 @@ mod server_args;
 
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
+use futures_util::StreamExt;
 use reqwest::Client;
 use std::future::Future;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -24,14 +25,17 @@ use process_lifecycle::{
     await_local_operation, transition, RuntimeProcess, ServerEvent, ServerState,
 };
 use protocol::{
-    parse_chat_response, ChatRequest, ChatRequestMessage, TokenizeRequest, TokenizeResponse,
+    parse_chat_response, ChatRequest, ChatRequestMessage, ChatStreamDecoder, TokenizeRequest,
+    TokenizeResponse,
 };
 use server_args::{server_arguments, ServerBinding};
 
 const HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const HEALTH_REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 const RUNTIME_STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
-const CHAT_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const POLISH_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const CHAT_STREAM_TIMEOUT: Duration = Duration::from_secs(180);
+const CHAT_PUBLISH_INTERVAL: Duration = Duration::from_millis(50);
 const TOKENIZE_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 const POLISH_SYSTEM_PROMPT: &str = "You are a conservative multilingual proofreader. Never translate or rewrite. Keep the input language, meaning, tone, line breaks, names, URLs, emails, identifiers, and code. Fix only clear spelling, grammar, punctuation, agreement, or idiom errors. If the text is already correct, return it byte-for-byte. Output only the final text.";
 
@@ -254,9 +258,54 @@ impl PolishRuntime {
                 content: &prompt,
             },
         ];
-        self.run_with_restart(|| {
-            self.send_chat_request(&messages, 0.0, "Polish correction request")
-        })
+        self.run_with_restart(|| self.send_polish_request(&messages))
+            .await
+    }
+
+    async fn post_chat(
+        &self,
+        messages: &[ChatRequestMessage<'_>],
+        temperature: f32,
+        stream: bool,
+    ) -> Result<reqwest::Response> {
+        let (url, api_key) = self.endpoint_auth("/v1/chat/completions").await?;
+        let response = self
+            .client
+            .post(url)
+            .bearer_auth(api_key)
+            .json(&ChatRequest {
+                model: "polish",
+                messages,
+                stream,
+                temperature,
+                seed: 0,
+                max_tokens: 2_048,
+            })
+            .send()
+            .await?;
+        let status = response.status();
+        if !status.is_success() {
+            bail!("Polish server returned HTTP {status}");
+        }
+        Ok(response)
+    }
+
+    async fn send_polish_request(&self, messages: &[ChatRequestMessage<'_>]) -> Result<String> {
+        let operation = async {
+            let body = self
+                .post_chat(messages, 0.0, false)
+                .await
+                .context("Polish correction request failed")?
+                .text()
+                .await
+                .context("Polish correction response failed")?;
+            parse_chat_response(&body)
+        };
+        await_local_operation(
+            operation,
+            POLISH_REQUEST_TIMEOUT,
+            "Polish correction request",
+        )
         .await
     }
 
@@ -264,52 +313,45 @@ impl PolishRuntime {
         &self,
         system: &str,
         messages: &[BundledChatMessage],
+        publish: &(dyn Fn(&str) + Send + Sync),
     ) -> Result<String> {
         let _request = self.activity.begin_request();
         let request_messages = bundled_chat_request_messages(system, messages);
-        self.run_with_restart(|| {
-            self.send_chat_request(&request_messages, 0.2, "Echo chat request")
-        })
-        .await
+        self.run_with_restart(|| self.stream_chat_request(&request_messages, publish))
+            .await
     }
 
-    async fn send_chat_request(
+    /// Publishes the answer so far, so a restarted attempt overwrites what the first one showed.
+    async fn stream_chat_request(
         &self,
         messages: &[ChatRequestMessage<'_>],
-        temperature: f32,
-        operation_name: &'static str,
+        publish: &(dyn Fn(&str) + Send + Sync),
     ) -> Result<String> {
-        let (url, api_key) = self.endpoint_auth("/v1/chat/completions").await?;
-        let request = ChatRequest {
-            model: "polish",
-            messages,
-            stream: false,
-            temperature,
-            seed: 0,
-            max_tokens: 2_048,
-        };
         let operation = async {
             let response = self
-                .client
-                .post(url)
-                .bearer_auth(api_key)
-                .json(&request)
-                .send()
+                .post_chat(messages, 0.2, true)
                 .await
-                .with_context(|| format!("{operation_name} failed"))?;
-            let status = response.status();
-            let body = response
-                .text()
-                .await
-                .with_context(|| format!("{operation_name} response failed"))?;
-            Ok((status, body))
+                .context("Echo chat request failed")?;
+            publish("");
+            let mut chunks = response.bytes_stream();
+            let mut decoder = ChatStreamDecoder::default();
+            let mut answer = String::new();
+            let mut published = Instant::now();
+            while let Some(chunk) = chunks.next().await {
+                let chunk = chunk.context("Echo chat stream failed")?;
+                answer.push_str(&decoder.push(&chunk)?);
+                if published.elapsed() >= CHAT_PUBLISH_INTERVAL {
+                    published = Instant::now();
+                    publish(answer.trim());
+                }
+            }
+            let answer = answer.trim();
+            if answer.is_empty() {
+                bail!("Polish server returned no text");
+            }
+            Ok(answer.to_owned())
         };
-        let (status, body) =
-            await_local_operation(operation, CHAT_REQUEST_TIMEOUT, operation_name).await?;
-        if !status.is_success() {
-            bail!("Polish server returned HTTP {status}");
-        }
-        parse_chat_response(&body)
+        await_local_operation(operation, CHAT_STREAM_TIMEOUT, "Echo chat request").await
     }
 
     async fn mark_crashed(&self) -> Result<()> {

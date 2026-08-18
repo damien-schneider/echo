@@ -709,6 +709,7 @@ pub fn run() {
             commands::models::get_recommended_first_model,
             features::polish::manager::get_polish_status,
             features::polish::manager::chat_with_polish_model,
+            features::polish::manager::stop_polish_chat,
             features::polish::manager::download_polish_model,
             features::polish::manager::repair_polish_model,
             commands::audio::update_microphone_mode,

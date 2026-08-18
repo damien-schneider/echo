@@ -11,13 +11,11 @@ import {
   ChatReference,
 } from "@/features/overlay-chat/chat-context";
 import {
-  ChatComposer,
-  MessageList,
-} from "@/features/overlay-chat/chat-conversation";
-import {
   ChatModelPicker,
   ChatModePicker,
 } from "@/features/overlay-chat/chat-model-picker";
+import { ChatComposer } from "@/features/overlay-chat/conversation/chat-composer";
+import { MessageList } from "@/features/overlay-chat/conversation/message-list";
 import {
   type ChatSession,
   useChatSession,
@@ -125,6 +123,7 @@ interface ChatPanelContentProps {
   chat: ChatSession;
   context: ChatTextContext | null;
   contextState: ChatContextEvent["state"];
+  hasConversation: boolean;
   isSelectedModelReady: boolean;
   onRefreshContext: () => Promise<ChatTextContext | null>;
   onRequestAccessibility: () => Promise<void>;
@@ -135,18 +134,14 @@ const ChatPanelContent = ({
   chat,
   context,
   contextState,
+  hasConversation,
   isSelectedModelReady,
   onRefreshContext,
   onRequestAccessibility,
 }: ChatPanelContentProps) => {
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    try {
-      const refreshedContext = await onRefreshContext();
-      await chat.send(refreshedContext ?? context);
-    } catch (error) {
-      chat.reportError(error);
-    }
+    chat.send(async () => (await onRefreshContext()) ?? context);
   };
   return (
     <>
@@ -156,12 +151,13 @@ const ChatPanelContent = ({
         state={contextState}
       />
       <BundledModelSetup model={bundledModel} selected={chat.selected} />
-      <MessageList
-        error={chat.error}
-        isResponding={chat.isResponding}
-        messages={chat.messages}
-        viewportRef={chat.viewportRef}
-      />
+      {hasConversation ? (
+        <MessageList
+          error={chat.error}
+          isResponding={chat.isResponding}
+          messages={chat.messages}
+        />
+      ) : null}
       <form className="mt-auto w-full min-w-0 shrink-0" onSubmit={handleSubmit}>
         <ChatComposer
           input={chat.input}
@@ -170,6 +166,7 @@ const ChatPanelContent = ({
           isModelReady={isSelectedModelReady}
           isResponding={chat.isResponding}
           onInput={chat.setInput}
+          onStop={chat.stop}
           placeholder={context ? "Ask about this text" : "Ask anything"}
         />
       </form>
@@ -189,7 +186,7 @@ export const ChatPanel = ({
   onRequestAccessibility,
 }: ChatPanelProps) => {
   const isBundledModelReady = bundledModel.status.state === "ready";
-  const chat = useChatSession(isOpen, context, isBundledModelReady);
+  const chat = useChatSession(isOpen, isBundledModelReady);
   const hasConversation =
     chat.messages.length > 0 || chat.isResponding || chat.error.length > 0;
   const isSelectedModelReady =
@@ -211,6 +208,7 @@ export const ChatPanel = ({
         chat={chat}
         context={context}
         contextState={contextState}
+        hasConversation={hasConversation}
         isSelectedModelReady={isSelectedModelReady}
         onRefreshContext={onRefreshContext}
         onRequestAccessibility={onRequestAccessibility}

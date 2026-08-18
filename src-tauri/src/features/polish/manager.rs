@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
+use tokio::sync::watch;
 
 mod setup;
 
@@ -26,6 +27,13 @@ use super::{
 use setup::{polish_initialization, polish_runtime_config, selection_mode};
 
 const MAX_CHAT_CONTEXT_CHARACTERS: usize = 20_000;
+const CHAT_ANSWER_EVENT: &str = "polish-chat-answer";
+
+#[derive(Clone, Debug, Serialize)]
+struct ChatAnswerEvent {
+    answer: String,
+    stream_id: String,
+}
 
 fn chat_text_context(text: String, source: ChatContextSource) -> ChatTextContext {
     let (text, truncated) = clipped_chat_text(text);
@@ -73,6 +81,7 @@ pub(crate) struct PolishManager {
     cancellation: Arc<CancellationClock>,
     clipboard_access: Arc<tokio::sync::Mutex<()>>,
     chat_cancellation: Arc<CancellationClock>,
+    chat_stop: watch::Sender<String>,
     status: Mutex<PolishStatus>,
     preparation: tokio::sync::Mutex<()>,
 }
@@ -95,6 +104,7 @@ impl PolishManager {
             clipboard_access: Arc::new(tokio::sync::Mutex::new(())),
             cancellation: Arc::new(CancellationClock::default()),
             chat_cancellation: Arc::new(CancellationClock::default()),
+            chat_stop: watch::channel(String::new()).0,
             status: Mutex::new(initialization.status),
             preparation: tokio::sync::Mutex::new(()),
         }
@@ -147,6 +157,7 @@ impl PolishManager {
 
     pub(crate) async fn chat(
         &self,
+        stream_id: &str,
         system: &str,
         messages: &[BundledChatMessage],
     ) -> Result<String> {
@@ -156,7 +167,35 @@ impl PolishManager {
         self.prepare()
             .await
             .context("Failed to prepare Echo 4B for chat")?;
-        self.runtime.chat(system, messages).await
+        let app = self.app.clone();
+        let publish = move |answer: &str| {
+            let _ = app.emit(
+                CHAT_ANSWER_EVENT,
+                ChatAnswerEvent {
+                    answer: answer.to_owned(),
+                    stream_id: stream_id.to_owned(),
+                },
+            );
+        };
+        // dropping the request closes the stream, which is how llama-server learns to stop
+        tokio::select! {
+            answer = self.runtime.chat(system, messages, &publish) => answer,
+            () = self.await_chat_stop(stream_id) => anyhow::bail!("Echo chat was stopped"),
+        }
+    }
+
+    pub(crate) fn stop_chat(&self, stream_id: &str) {
+        let _ = self.chat_stop.send(stream_id.to_owned());
+    }
+
+    async fn await_chat_stop(&self, stream_id: &str) {
+        let mut stops = self.chat_stop.subscribe();
+        while *stops.borrow_and_update() != stream_id {
+            stops
+                .changed()
+                .await
+                .expect("the chat stop sender outlives every chat request");
+        }
     }
 
     pub(crate) async fn shutdown(&self) -> Result<()> {
@@ -446,13 +485,19 @@ pub(crate) fn get_polish_status(manager: tauri::State<'_, Arc<PolishManager>>) -
 #[tauri::command]
 pub(crate) async fn chat_with_polish_model(
     manager: tauri::State<'_, Arc<PolishManager>>,
+    stream_id: String,
     system: String,
     messages: Vec<BundledChatMessage>,
 ) -> Result<String, String> {
     manager
-        .chat(&system, &messages)
+        .chat(&stream_id, &system, &messages)
         .await
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub(crate) fn stop_polish_chat(manager: tauri::State<'_, Arc<PolishManager>>, stream_id: String) {
+    manager.stop_chat(&stream_id);
 }
 
 #[tauri::command]

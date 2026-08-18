@@ -85,3 +85,43 @@
     justify-content: flex-end;
   }
 }
+
+.echo-chat-markdown {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.echo-chat-markdown :is(p, ul, ol, blockquote, pre, table, hr) {
+  margin-block: 8px;
+}
+
+.echo-chat-markdown :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 14px 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.echo-chat-markdown :is(ul, ol) {
+  padding-inline-start: 20px;
+}
+
+.echo-chat-markdown li {
+  margin-block: 2px;
+}
+
+.echo-chat-markdown :is(pre, code) {
+  font-size: 12px;
+}
+
+.echo-chat-markdown > :first-child {
+  margin-block-start: 0;
+}
+
+.echo-chat-markdown > :last-child {
+  margin-block-end: 0;
+}
+
+/* Streamdown drops the line layout together with line numbers. */
+.echo-chat-markdown pre code > span {
+  display: block;
+}

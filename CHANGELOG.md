@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.7.0] - 2026-08-18
+
+### Added
+- Answers from the bundled Echo 4B model stream in as they are written, instead of appearing all at once when generation ends.
+- Chat answers render as formatted markdown: headings, lists, tables, links, and syntax-highlighted code blocks with a copy button.
+- A pending answer can be stopped, which also stops the local model instead of leaving it generating in the background.
+
+### Changed
+- A sent message and its thinking state appear immediately, without waiting for the selected-text lookup that travels with it.
+- The composer stays typable while an answer streams in, and the conversation follows that answer only while the reader is at the bottom.
+
 ## [0.6.0] - 2026-08-17
 
 ### Added

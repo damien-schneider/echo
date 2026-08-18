@@ -1,7 +1,16 @@
+import { z } from "zod";
 import type { ChatTextContext } from "@/features/overlay-controls/runtime/overlay-windows";
 import { polishModelId } from "@/features/polish/polish-model-state";
 import { createLlmModel } from "@/lib/llm/providers";
 import type { Settings } from "@/lib/types";
+
+export const CHAT_ANSWER_EVENT = "polish-chat-answer";
+
+/// Echo 4B republishes the whole answer, so a restarted attempt overwrites the first one.
+export const ChatAnswerEventSchema = z.object({
+  answer: z.string(),
+  stream_id: z.string(),
+});
 
 export const CHAT_ROLES = {
   assistant: "assistant",
@@ -192,10 +201,20 @@ export const chatModelModeForOption = (
 
 export const makeMessageId = (): string => crypto.randomUUID();
 
-export const modelMessage = (message: ChatMessage) => ({
-  content: message.content,
-  role: message.role,
-});
+export const withPendingTurn = (
+  messages: ChatMessage[],
+  prompt: string,
+  assistantId: string
+): ChatMessage[] => [
+  ...messages,
+  { content: prompt, id: makeMessageId(), role: CHAT_ROLES.user },
+  { content: "", id: assistantId, role: CHAT_ROLES.assistant },
+];
+
+export const promptMessages = (messages: ChatMessage[]) =>
+  messages
+    .filter((message) => message.content.length > 0)
+    .map((message) => ({ content: message.content, role: message.role }));
 
 export const updateAssistantMessage = (
   messages: ChatMessage[],
@@ -205,6 +224,12 @@ export const updateAssistantMessage = (
   messages.map((message) =>
     message.id === id ? { ...message, content } : message
   );
+
+export const dropEmptyAssistantTurn = (
+  messages: ChatMessage[],
+  id: string
+): ChatMessage[] =>
+  messages.filter((message) => message.id !== id || message.content.length > 0);
 
 export const resolveChatModel = (
   settings: Settings | null,

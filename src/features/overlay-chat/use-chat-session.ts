@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { streamText } from "ai";
 import {
   type Dispatch,
@@ -12,23 +13,43 @@ import {
 import {
   buildChatModelOptions,
   buildChatSystemPrompt,
+  CHAT_ANSWER_EVENT,
   CHAT_MODEL_KINDS,
-  CHAT_ROLES,
+  ChatAnswerEventSchema,
+  type ChatLanguageModel,
   type ChatMessage,
   type ChatModelMode,
   type ChatModelOption,
   type ChatModelTransport,
   chatModelModeForOption,
   chatModelOptionsForMode,
+  dropEmptyAssistantTurn,
   makeMessageId,
-  modelMessage,
+  promptMessages,
   resolveChatModel,
   selectedChatModelOption,
   updateAssistantMessage,
+  withPendingTurn,
 } from "@/features/overlay-chat/chat";
 import type { ChatTextContext } from "@/features/overlay-controls/runtime/overlay-windows";
 import type { Settings } from "@/lib/types";
 import { useSettingsStore } from "@/stores/settings-store";
+
+type ResolveChatContext = () => Promise<ChatTextContext | null>;
+
+const abortable = <T>(operation: Promise<T>, signal: AbortSignal): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const handleAbort = () =>
+      reject(signal.reason ?? new Error("Chat request cancelled"));
+    if (signal.aborted) {
+      handleAbort();
+      return;
+    }
+    signal.addEventListener("abort", handleAbort, { once: true });
+    operation.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", handleAbort);
+    });
+  });
 
 interface ChatSelection {
   mode: ChatModelMode;
@@ -43,77 +64,99 @@ export interface ChatSession {
   messages: ChatMessage[];
   mode: ChatModelMode;
   modelOptions: ChatModelOption[];
-  reportError: (caught: unknown) => void;
   selected: ChatModelOption | null;
   selectMode: (mode: ChatModelMode) => void;
   selectModel: (modelId: string) => void;
-  send: (context?: ChatTextContext | null) => Promise<void>;
+  send: (resolveContext: ResolveChatContext) => void;
   setInput: Dispatch<SetStateAction<string>>;
-  viewportRef: RefObject<HTMLDivElement | null>;
+  stop: () => void;
 }
 
-interface RequestAssistantOptions {
+interface AssistantStreamOptions {
   assistantId: string;
   context: ChatTextContext | null;
   controller: AbortController;
   messages: ChatMessage[];
   setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
-  transport: ChatModelTransport;
 }
 
-const requestAssistantResponse = async ({
-  assistantId,
-  controller,
-  context,
-  messages,
-  transport,
-  setMessages,
-}: RequestAssistantOptions) => {
-  if (transport.kind === CHAT_MODEL_KINDS.provider) {
-    const result = streamText({
-      abortSignal: controller.signal,
-      messages: messages.map(modelMessage),
-      model: transport.model,
-      system: buildChatSystemPrompt(context),
-    });
-    let response = "";
-    for await (const delta of result.textStream) {
-      response += delta;
-      setMessages((current) =>
-        updateAssistantMessage(current, assistantId, response)
+/// One repaint per displayed frame, however fast the model emits tokens.
+const streamProviderResponse = async (
+  options: AssistantStreamOptions & { model: ChatLanguageModel }
+) => {
+  const stream = streamText({
+    abortSignal: options.controller.signal,
+    messages: promptMessages(options.messages),
+    model: options.model,
+    system: buildChatSystemPrompt(options.context),
+  });
+  let answer = "";
+  let frame = 0;
+  const paint = () => {
+    frame = 0;
+    options.setMessages((current) =>
+      updateAssistantMessage(current, options.assistantId, answer)
+    );
+  };
+  try {
+    for await (const delta of stream.textStream) {
+      answer += delta;
+      if (frame === 0) {
+        frame = requestAnimationFrame(paint);
+      }
+    }
+  } finally {
+    cancelAnimationFrame(frame);
+    paint();
+  }
+};
+
+const requestBundledResponse = async (options: AssistantStreamOptions) => {
+  const publishAnswer = (payload: unknown) => {
+    const event = ChatAnswerEventSchema.safeParse(payload);
+    if (event.success && event.data.stream_id === options.assistantId) {
+      options.setMessages((current) =>
+        updateAssistantMessage(current, options.assistantId, event.data.answer)
       );
     }
-    return;
-  }
-
-  const operation = invoke<string>("chat_with_polish_model", {
-    messages: messages.map(modelMessage),
-    system: buildChatSystemPrompt(context),
-  });
-  const response = await new Promise<string>((resolve, reject) => {
-    const handleAbort = () =>
-      reject(controller.signal.reason ?? new Error("Chat request cancelled"));
-    if (controller.signal.aborted) {
-      handleAbort();
-      return;
-    }
-    controller.signal.addEventListener("abort", handleAbort, { once: true });
-    operation.then(resolve, reject).finally(() => {
-      controller.signal.removeEventListener("abort", handleAbort);
-    });
-  });
-  setMessages((current) =>
-    updateAssistantMessage(current, assistantId, response)
+  };
+  const stopListening = await listen<unknown>(CHAT_ANSWER_EVENT, (event) =>
+    publishAnswer(event.payload)
   );
+  try {
+    const answer = await abortable(
+      invoke<string>("chat_with_polish_model", {
+        messages: promptMessages(options.messages),
+        streamId: options.assistantId,
+        system: buildChatSystemPrompt(options.context),
+      }),
+      options.controller.signal
+    );
+    options.setMessages((current) =>
+      updateAssistantMessage(current, options.assistantId, answer)
+    );
+  } finally {
+    stopListening();
+    if (options.controller.signal.aborted) {
+      await invoke("stop_polish_chat", { streamId: options.assistantId });
+    }
+  }
 };
+
+const requestAssistantResponse = (
+  options: AssistantStreamOptions & { transport: ChatModelTransport }
+) =>
+  options.transport.kind === CHAT_MODEL_KINDS.provider
+    ? streamProviderResponse({ ...options, model: options.transport.model })
+    : requestBundledResponse(options);
 
 interface SendMessageOptions {
   abortRef: RefObject<AbortController | null>;
-  context: ChatTextContext | null;
   input: string;
   isBundledModelReady: boolean;
   isResponding: boolean;
   messages: ChatMessage[];
+  resolveContext: ResolveChatContext;
   selected: ChatModelOption | null;
   setError: Dispatch<SetStateAction<string>>;
   setInput: Dispatch<SetStateAction<string>>;
@@ -122,6 +165,7 @@ interface SendMessageOptions {
   settings: Settings | null;
 }
 
+/// Prompt and pending answer land before any await, so the panel never waits on IPC.
 const sendChatMessage = async (options: SendMessageOptions) => {
   const prompt = options.input.trim();
   if (!prompt || options.isResponding) {
@@ -136,38 +180,30 @@ const sendChatMessage = async (options: SendMessageOptions) => {
     options.setError(resolution.message);
     return;
   }
-  const nextMessages = [
-    ...options.messages,
-    { content: prompt, id: makeMessageId(), role: CHAT_ROLES.user },
-  ];
   const assistantId = makeMessageId();
+  const turn = withPendingTurn(options.messages, prompt, assistantId);
   const controller = new AbortController();
   options.abortRef.current = controller;
   options.setInput("");
   options.setError("");
   options.setIsResponding(true);
-  options.setMessages([
-    ...nextMessages,
-    { content: "", id: assistantId, role: CHAT_ROLES.assistant },
-  ]);
+  options.setMessages(turn);
   try {
     await requestAssistantResponse({
       assistantId,
-      context: options.context,
+      context: await abortable(options.resolveContext(), controller.signal),
       controller,
-      messages: nextMessages,
-      transport: resolution.transport,
+      messages: turn,
       setMessages: options.setMessages,
+      transport: resolution.transport,
     });
   } catch (caught) {
+    options.setMessages((current) =>
+      dropEmptyAssistantTurn(current, assistantId)
+    );
     if (!controller.signal.aborted) {
       options.setError(
         caught instanceof Error ? caught.message : "Chat request failed."
-      );
-      options.setMessages((current) =>
-        current.filter(
-          (message) => message.id !== assistantId || message.content.length > 0
-        )
       );
     }
   } finally {
@@ -178,15 +214,10 @@ const sendChatMessage = async (options: SendMessageOptions) => {
   }
 };
 
-const useChatLifecycle = ({
-  abortRef,
-  isOpen,
-  viewportRef,
-}: {
-  abortRef: RefObject<AbortController | null>;
-  isOpen: boolean;
-  viewportRef: RefObject<HTMLDivElement | null>;
-}) => {
+const useChatLifecycle = (
+  abortRef: RefObject<AbortController | null>,
+  isOpen: boolean
+) => {
   const initializeSettings = useSettingsStore((store) => store.initialize);
   const abortCurrentRequest = useEffectEvent(() => {
     abortRef.current?.abort();
@@ -201,12 +232,6 @@ const useChatLifecycle = ({
     }
     return abortCurrentRequest;
   }, [isOpen]);
-  useEffect(() => {
-    viewportRef.current?.scrollTo({
-      behavior: "smooth",
-      top: viewportRef.current.scrollHeight,
-    });
-  });
 };
 
 const chatModelState = (
@@ -225,7 +250,6 @@ const chatModelState = (
 
 export const useChatSession = (
   isOpen: boolean,
-  context: ChatTextContext | null,
   isBundledModelReady: boolean
 ): ChatSession => {
   const settings = useSettingsStore((store) => store.settings);
@@ -236,33 +260,11 @@ export const useChatSession = (
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const viewportRef = useRef<HTMLDivElement>(null);
   const { mode, modelOptions, options, selected } = chatModelState(
     settings,
     selection
   );
-  useChatLifecycle({ abortRef, isOpen, viewportRef });
-  const selectMode = (nextMode: ChatModelMode) =>
-    setSelection({
-      mode: nextMode,
-      modelId: chatModelOptionsForMode(options, nextMode)[0]?.id ?? "",
-    });
-  const selectModel = (modelId: string) => setSelection({ mode, modelId });
-  const send = (latestContext: ChatTextContext | null = context) =>
-    sendChatMessage({
-      abortRef,
-      context: latestContext,
-      input,
-      isResponding,
-      isBundledModelReady,
-      messages,
-      selected,
-      setError,
-      setInput,
-      setIsResponding,
-      setMessages,
-      settings,
-    });
+  useChatLifecycle(abortRef, isOpen);
   return {
     error,
     input,
@@ -271,18 +273,30 @@ export const useChatSession = (
     messages,
     mode,
     modelOptions,
-    reportError: (caught: unknown) => {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not refresh selected text."
-      );
-    },
     selected,
-    selectMode,
-    selectModel,
-    send,
+    selectMode: (nextMode: ChatModelMode) =>
+      setSelection({
+        mode: nextMode,
+        modelId: chatModelOptionsForMode(options, nextMode)[0]?.id ?? "",
+      }),
+    selectModel: (modelId: string) => setSelection({ mode, modelId }),
+    send: (resolveContext: ResolveChatContext) => {
+      sendChatMessage({
+        abortRef,
+        input,
+        isBundledModelReady,
+        isResponding,
+        messages,
+        resolveContext,
+        selected,
+        setError,
+        setInput,
+        setIsResponding,
+        setMessages,
+        settings,
+      });
+    },
     setInput,
-    viewportRef,
+    stop: () => abortRef.current?.abort(),
   };
 };

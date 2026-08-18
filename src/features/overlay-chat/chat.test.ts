@@ -6,8 +6,11 @@ import {
   chatModelModeForOption,
   chatModelOptionId,
   chatModelOptionsForMode,
+  dropEmptyAssistantTurn,
+  promptMessages,
   resolveChatModel,
   selectedChatModelOption,
+  withPendingTurn,
 } from "@/features/overlay-chat/chat";
 
 const settings = {
@@ -141,5 +144,46 @@ describe("resolveChatModel", () => {
       state: "ready",
       transport: { kind: "bundled" },
     });
+  });
+});
+
+describe("withPendingTurn", () => {
+  it("shows the prompt and a pending answer before the model is reached", () => {
+    const turn = withPendingTurn([], "Summarise this", "assistant-1");
+
+    expect(turn.map((message) => [message.role, message.content])).toEqual([
+      ["user", "Summarise this"],
+      ["assistant", ""],
+    ]);
+  });
+
+  it("keeps the pending answer out of the model request", () => {
+    const turn = withPendingTurn(
+      [{ content: "Earlier answer", id: "a0", role: "assistant" }],
+      "And now?",
+      "assistant-1"
+    );
+
+    expect(promptMessages(turn)).toEqual([
+      { content: "Earlier answer", role: "assistant" },
+      { content: "And now?", role: "user" },
+    ]);
+  });
+});
+
+describe("dropEmptyAssistantTurn", () => {
+  it("removes an answer that never started", () => {
+    const turn = withPendingTurn([], "Hi", "assistant-1");
+
+    expect(dropEmptyAssistantTurn(turn, "assistant-1")).toHaveLength(1);
+  });
+
+  it("keeps a partial answer so the user does not lose it", () => {
+    const turn = [
+      { content: "Hi", id: "u1", role: "user" },
+      { content: "Half an ans", id: "assistant-1", role: "assistant" },
+    ] as const;
+
+    expect(dropEmptyAssistantTurn([...turn], "assistant-1")).toHaveLength(2);
   });
 });

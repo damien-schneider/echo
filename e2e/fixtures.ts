@@ -12,10 +12,12 @@ interface EchoTestApi {
   deferNextOverlayModePreflights: (count: number) => void;
   emit: (event: string, payload: unknown) => void;
   failNextAccessibilityChecks: (count: number) => void;
+  holdChatContextRefresh: () => void;
   invocations: EchoInvocation[];
   listenerCount: (event: string) => number;
   pendingAccessibilityCheckCount: () => number;
   pendingOverlayModePreflightCount: () => number;
+  releaseChatContextRefresh: () => void;
   resolveAccessibilityCheck: (index: number, granted: boolean) => void;
   resolveOverlayModePreflight: (index: number) => void;
   resolveOverlaySurface: () => void;
@@ -38,10 +40,13 @@ export interface EchoTestState {
   accessibilityPermission: unknown;
   buildOverlaySurface: (mode: string) => unknown;
   callbacks: Map<number, (payload: unknown) => void>;
+  chatContextRefreshResolvers: Array<() => void>;
   chatContextResponse: unknown;
+  chatReply: string;
   commands: string[];
   emitOverlaySurface: (mode: string) => void;
   eventListeners: Map<string, Map<number, (payload: unknown) => void>>;
+  holdsChatContextRefresh: boolean;
   invocations: EchoInvocation[];
   invokeDefaults: Record<string, unknown>;
   nextCallbackId: number;
@@ -85,6 +90,13 @@ const setupEchoTestState = () => {
   }
   window.__ECHO_TEST_STATE__ = {
     accessibilityCheckFailuresRemaining: 0,
+    chatContextRefreshResolvers: [],
+    chatReply:
+      new URLSearchParams(window.location.search).get("chatReply") ??
+      "Echo 4B reply",
+    chatReplyResolvers: [],
+    holdsChatContextRefresh: false,
+    holdsChatReply: false,
     accessibilityCheckResolvers: [],
     accessibilityChecksToDefer: 0,
     accessibilityPermission,
@@ -241,8 +253,30 @@ const setupCommandResponder = () => {
       "get_polish_status",
       () => ({ message: state.polishStatus, state: state.polishStatus }),
     ],
-    ["chat_with_polish_model", () => "Echo 4B reply"],
-    ["refresh_overlay_chat_context", () => state.chatContextResponse],
+    [
+      "chat_with_polish_model",
+      () => {
+        if (!state.holdsChatReply) {
+          return state.chatReply;
+        }
+        return new Promise<unknown>((resolve) => {
+          state.chatReplyResolvers.push(() => resolve(state.chatReply));
+        });
+      },
+    ],
+    [
+      "refresh_overlay_chat_context",
+      () => {
+        if (!state.holdsChatContextRefresh) {
+          return state.chatContextResponse;
+        }
+        return new Promise<unknown>((resolve) => {
+          state.chatContextRefreshResolvers.push(() =>
+            resolve(state.chatContextResponse)
+          );
+        });
+      },
+    ],
     ["get_overlay_chat_context", () => state.chatContextResponse],
     ["download_polish_model", () => new Promise(() => undefined)],
     ["repair_polish_model", () => new Promise(() => undefined)],
@@ -357,6 +391,24 @@ const setupEchoTestApi = () => {
     },
     failNextAccessibilityChecks: (count) => {
       state.accessibilityCheckFailuresRemaining = count;
+    },
+    holdChatContextRefresh: () => {
+      state.holdsChatContextRefresh = true;
+    },
+    holdChatReply: () => {
+      state.holdsChatReply = true;
+    },
+    releaseChatReply: () => {
+      state.holdsChatReply = false;
+      for (const resolve of state.chatReplyResolvers.splice(0)) {
+        resolve();
+      }
+    },
+    releaseChatContextRefresh: () => {
+      state.holdsChatContextRefresh = false;
+      for (const resolve of state.chatContextRefreshResolvers.splice(0)) {
+        resolve();
+      }
     },
     listenerCount: (event) => state.eventListeners.get(event)?.size ?? 0,
     pendingAccessibilityCheckCount: () =>
@@ -483,6 +535,18 @@ export const requestNotificationSurface = (
     generation: 1,
     surface,
   });
+
+export const holdChatContextRefresh = (page: Page) =>
+  page.evaluate(() => window.__ECHO_TEST__.holdChatContextRefresh());
+
+export const releaseChatContextRefresh = (page: Page) =>
+  page.evaluate(() => window.__ECHO_TEST__.releaseChatContextRefresh());
+
+export const holdChatReply = (page: Page) =>
+  page.evaluate(() => window.__ECHO_TEST__.holdChatReply());
+
+export const releaseChatReply = (page: Page) =>
+  page.evaluate(() => window.__ECHO_TEST__.releaseChatReply());
 
 export const invokedCommands = (page: Page) =>
   page.evaluate(() => [...window.__ECHO_TEST__.commands]);
