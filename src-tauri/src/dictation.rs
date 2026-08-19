@@ -16,6 +16,8 @@ pub(crate) const CHAT_BINDING_ID: &str = "chat_dictation";
 
 static ROUTES_TO_CHAT: AtomicBool = AtomicBool::new(false);
 static HELD_TRANSCRIPT: Mutex<Option<HeldTranscript>> = Mutex::new(None);
+#[cfg(target_os = "macos")]
+static SPOKEN_INTO_A_CARET: AtomicBool = AtomicBool::new(false);
 
 /// What the chat composer does with a transcript handed to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -62,7 +64,19 @@ pub(crate) fn landing_for(
 
 pub(crate) fn begin(binding_id: &str) {
     ROUTES_TO_CHAT.store(binding_id == CHAT_BINDING_ID, Ordering::Release);
+    note_caret_before_recording();
 }
+
+#[cfg(target_os = "macos")]
+fn note_caret_before_recording() {
+    SPOKEN_INTO_A_CARET.store(
+        crate::macos_accessibility::caret_is_reachable(),
+        Ordering::Release,
+    );
+}
+
+#[cfg(not(target_os = "macos"))]
+fn note_caret_before_recording() {}
 
 pub(crate) fn routes_to_chat() -> bool {
     ROUTES_TO_CHAT.load(Ordering::Acquire)
@@ -92,9 +106,12 @@ pub(crate) fn hand_over_as_question() {
     }
 }
 
+/// The caret Echo was spoken into decides, not the one left at delivery: by then Echo's own surface may
+/// hold the focus, and an app that only builds its accessibility tree once asked answers on the second read.
 #[cfg(target_os = "macos")]
 fn caret_is_reachable(app_handle: &AppHandle) -> bool {
     !crate::clipboard::paste_needs_a_caret(app_handle)
+        || SPOKEN_INTO_A_CARET.load(Ordering::Acquire)
         || crate::macos_accessibility::caret_is_reachable()
 }
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.7.2] - 2026-08-19
+
+### Fixed
+- A dictation spoken into a text field is pasted into it even when the recording is finished from the overlay's button: the caret is read when the dictation starts, not after a click has moved the focus around.
+
 ## [0.7.1] - 2026-08-19
 
 ### Added
