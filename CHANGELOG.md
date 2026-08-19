@@ -2,6 +2,12 @@
 
 ## [0.7.2] - 2026-08-19
 
+### Added
+- Enter finishes a recording and pastes it, next to the shortcut set up for it and the overlay's own button.
+
+### Changed
+- The panel holding a transcript with nowhere to land counts itself out instead of waiting to be closed: a few seconds to read it, two once it has been copied.
+
 ### Fixed
 - A dictation spoken into a text field is pasted into it even when the recording is finished from the overlay's button: the caret is read when the dictation starts, not after a click has moved the focus around.
 

@@ -20,7 +20,7 @@ test("a failed recording action is reported through the notification", async ({
 
   await expect.poll(() => invokedCommands(page)).toContain("warn_from_overlay");
   const commands = await invokedCommands(page);
-  expect(commands).not.toContain("register_escape_shortcut");
+  expect(commands).not.toContain("hold_overlay_key");
 });
 
 test("a broken event bridge shows a persistent recovery message", async ({
@@ -73,7 +73,7 @@ test("a transient warning dismisses locally without cancelling work", async ({
   await expect(page.getByText("No selected text was copied")).toBeHidden();
   const commands = await invokedCommands(page);
   expect(commands).not.toContain("cancel_operation");
-  expect(commands).not.toContain("register_escape_shortcut");
+  expect(commands).not.toContain("hold_overlay_key");
 });
 
 test("missing Polish opens download progress, failure, and retry states", async ({
@@ -192,5 +192,24 @@ test("model panel close works without capturing idle Escape", async ({
 
   await expect(page.getByRole("dialog")).toBeHidden();
   const commands = await invokedCommands(page);
-  expect(commands).not.toContain("register_escape_shortcut");
+  expect(commands).not.toContain("hold_overlay_key");
+});
+
+test("a held transcript steps aside on its own, sooner once it is copied", async ({
+  page,
+}) => {
+  await page.goto(`${NOTIFICATION_URL}?polish=ready`);
+  await waitForTauriListener(page, "overlay-notification-request");
+  await requestNotificationSurface(page, "transcript");
+
+  const panel = page.getByRole("dialog", {
+    name: "Dictated text Echo could not place",
+  });
+  await expect(panel).toBeVisible();
+  await page.waitForTimeout(2500);
+  await expect(panel).toBeVisible();
+
+  await page.getByRole("button", { name: "Copy" }).click();
+  await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
+  await expect(panel).toBeHidden({ timeout: 3500 });
 });

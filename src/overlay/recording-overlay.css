@@ -311,6 +311,26 @@
   );
 }
 
+.echo-island-countdown {
+  position: absolute;
+  inset-inline: 16px;
+  bottom: 7px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  transform-origin: left center;
+  animation: echo-island-countdown linear forwards;
+}
+
+@keyframes echo-island-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
 .echo-island-progress progress::-webkit-progress-bar {
   background: rgba(255, 255, 255, 0.12);
 }

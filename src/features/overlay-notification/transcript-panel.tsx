@@ -1,5 +1,5 @@
 import { AudioLines, Check, Copy, MessageSquareText, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface TranscriptPanelProps {
@@ -10,6 +10,19 @@ interface TranscriptPanelProps {
 }
 
 const TRANSCRIPT_HEADLINE = "Select a textbox first, then dictate";
+const READING_LINGER_MS = 6000;
+const COPIED_LINGER_MS = 2000;
+
+/// The text is safe once copied, so the panel stops waiting and steps aside.
+const useDismissCountdown = (isCopied: boolean, onClose: () => void) => {
+  const close = useEffectEvent(onClose);
+  const lingerMs = isCopied ? COPIED_LINGER_MS : READING_LINGER_MS;
+  useEffect(() => {
+    const timer = setTimeout(close, lingerMs);
+    return () => clearTimeout(timer);
+  }, [lingerMs]);
+  return lingerMs;
+};
 
 export const TranscriptPanel = ({
   onClose,
@@ -18,6 +31,7 @@ export const TranscriptPanel = ({
   text,
 }: TranscriptPanelProps) => {
   const [isCopied, setIsCopied] = useState(false);
+  const lingerMs = useDismissCountdown(isCopied, onClose);
   const copy = async () => {
     await onCopy();
     setIsCopied(true);
@@ -72,6 +86,12 @@ export const TranscriptPanel = ({
           {isCopied ? "Copied" : "Copy"}
         </Button>
       </div>
+      <span
+        aria-hidden="true"
+        className="echo-island-countdown"
+        key={lingerMs}
+        style={{ animationDuration: `${lingerMs}ms` }}
+      />
     </dialog>
   );
 };

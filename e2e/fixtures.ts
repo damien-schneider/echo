@@ -123,6 +123,7 @@ const setupEchoTestState = () => {
       get_available_microphones: [{ id: "default", name: "Default" }],
       get_available_output_devices: [{ id: "default", name: "Default" }],
       get_clamshell_microphone: "Default",
+      get_held_transcript: "Ok, let's rerun alors.",
       get_microphone_mode: false,
       get_selected_microphone: "Default",
       get_selected_output_device: "Default",
@@ -529,7 +530,7 @@ export const emitTauriEvent = (page: Page, event: string, payload: unknown) =>
 
 export const requestNotificationSurface = (
   page: Page,
-  surface: "chat" | "panel"
+  surface: "chat" | "panel" | "transcript"
 ) =>
   emitTauriEvent(page, "overlay-notification-request", {
     generation: 1,

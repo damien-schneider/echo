@@ -42,10 +42,12 @@ import {
 import { listenCancellable } from "@/lib/tauri-listener";
 import { overlayControlCommand } from "@/overlay/overlay-controls";
 
-const ESCAPE_SHORTCUT_COMMAND = {
-  register: "register_escape_shortcut",
-  unregister: "unregister_escape_shortcut",
+const OVERLAY_KEY_COMMAND = {
+  hold: "hold_overlay_key",
+  release: "release_overlay_key",
 } as const;
+
+type OverlayKey = "cancel" | "finish";
 
 /// Rust holds the text until the surface is dismissed, so the panel can always re-read what it is showing.
 const useHeldTranscript = (isShown: boolean) => {
@@ -76,16 +78,17 @@ const useModelState = (): ModelState => {
   return state;
 };
 
-const useEscapeShortcut = (capturesEscape: boolean) => {
+/// Borrowed from the focused app only while the overlay can act on the key, and handed straight back after.
+const useOverlayKey = (key: OverlayKey, isHeld: boolean) => {
   useEffect(() => {
-    const command = capturesEscape
-      ? ESCAPE_SHORTCUT_COMMAND.register
-      : ESCAPE_SHORTCUT_COMMAND.unregister;
-    invoke(command).catch(() => undefined);
+    const command = isHeld
+      ? OVERLAY_KEY_COMMAND.hold
+      : OVERLAY_KEY_COMMAND.release;
+    invoke(command, { key }).catch(() => undefined);
     return () => {
-      invoke(ESCAPE_SHORTCUT_COMMAND.unregister).catch(() => undefined);
+      invoke(OVERLAY_KEY_COMMAND.release, { key }).catch(() => undefined);
     };
-  }, [capturesEscape]);
+  }, [isHeld, key]);
 };
 
 const nextChatContext = (
@@ -291,7 +294,11 @@ export const useNotificationController = () => {
     presentation.hasActiveOperation,
     clearRequest
   );
-  useEscapeShortcut(presentation.escapeIntent === "cancel_operation");
+  useOverlayKey("cancel", presentation.escapeIntent === "cancel_operation");
+  useOverlayKey(
+    "finish",
+    presentation.activityAction?.intent === "finish_recording"
+  );
   useFollowStreamingText(events.streamingText, textScrollRef);
 
   /// Takes back only what the HUD asked for — passive activity behind it resurfaces.
