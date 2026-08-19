@@ -36,7 +36,6 @@ interface ChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onManageModels: () => void;
-  onRefreshContext: () => Promise<ChatTextContext | null>;
   onRequestAccessibility: () => Promise<void>;
 }
 
@@ -125,10 +124,10 @@ interface ChatPanelContentProps {
   contextState: ChatContextEvent["state"];
   hasConversation: boolean;
   isSelectedModelReady: boolean;
-  onRefreshContext: () => Promise<ChatTextContext | null>;
   onRequestAccessibility: () => Promise<void>;
 }
 
+/// The reference the panel shows is the one that goes out — no re-read behind the user's back.
 const ChatPanelContent = ({
   bundledModel,
   chat,
@@ -136,12 +135,11 @@ const ChatPanelContent = ({
   contextState,
   hasConversation,
   isSelectedModelReady,
-  onRefreshContext,
   onRequestAccessibility,
 }: ChatPanelContentProps) => {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    chat.send(async () => (await onRefreshContext()) ?? context);
+    chat.send();
   };
   return (
     <>
@@ -160,6 +158,7 @@ const ChatPanelContent = ({
       ) : null}
       <form className="mt-auto w-full min-w-0 shrink-0" onSubmit={handleSubmit}>
         <ChatComposer
+          dictation={chat.dictation}
           input={chat.input}
           inputRef={chat.inputRef}
           isContextLoading={contextState === "loading"}
@@ -182,11 +181,15 @@ export const ChatPanel = ({
   isOpen,
   onClose,
   onManageModels,
-  onRefreshContext,
   onRequestAccessibility,
 }: ChatPanelProps) => {
   const isBundledModelReady = bundledModel.status.state === "ready";
-  const chat = useChatSession(isOpen, isBundledModelReady);
+  const chat = useChatSession({
+    context,
+    contextState,
+    isBundledModelReady,
+    isOpen,
+  });
   const hasConversation =
     chat.messages.length > 0 || chat.isResponding || chat.error.length > 0;
   const isSelectedModelReady =
@@ -210,7 +213,6 @@ export const ChatPanel = ({
         contextState={contextState}
         hasConversation={hasConversation}
         isSelectedModelReady={isSelectedModelReady}
-        onRefreshContext={onRefreshContext}
         onRequestAccessibility={onRequestAccessibility}
       />
     </ChatPanelShell>

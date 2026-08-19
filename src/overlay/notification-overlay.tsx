@@ -4,6 +4,7 @@ import { useEffect, useEffectEvent } from "react";
 import { IslandMorph } from "@/features/overlay-controls/motion/island-morph";
 import { notchEntry } from "@/features/overlay-controls/motion/notch-entry";
 import { activityEdgeFor } from "@/features/overlay-controls/recording-overlay-state";
+import { useNativeHover } from "@/features/overlay-controls/runtime/use-native-hover";
 import { NotificationSurface } from "@/features/overlay-notification/notification-surface";
 import {
   NOTIFICATION_RELEASE_DELAY_MS,
@@ -25,6 +26,7 @@ const useReleaseEmptyWindow = (isEmpty: boolean, release: () => void) => {
 /// Knows nothing about where the HUD sits — it only grows out of the notch and folds back in.
 const NotificationOverlay = () => {
   const controller = useNotificationController();
+  useNativeHover();
   const surface = controller.events.surface;
   const mode = controller.renderMode;
   useReleaseEmptyWindow(

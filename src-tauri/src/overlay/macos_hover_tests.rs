@@ -1,20 +1,11 @@
 use super::{
-    decide_hover_key, hover_pointer_inside, hover_region_in_screen,
-    overlay_hover_region_for_pointer, HoverKeyAction, HoverKeySample,
+    hover_pointer_inside, hover_region_in_screen, overlay_hover_region_for_pointer,
+    window_local_pointer,
 };
 use crate::overlay::layout::{OverlaySurfaceKind, RecordingOverlayMode};
 use crate::overlay::surface::OverlayBoxPayload;
 
 const FRAME: (f64, f64, f64, f64) = (100.0, 200.0, 136.0, 48.0);
-
-fn sample() -> HoverKeySample {
-    HoverKeySample {
-        pointer_inside: false,
-        panel_is_key: false,
-        keyboard_mode: false,
-        synthetic_key_suppressed: false,
-    }
-}
 
 fn island(x: f64, y: f64, width: f64, height: f64) -> OverlayBoxPayload {
     OverlayBoxPayload {
@@ -89,90 +80,9 @@ fn hover_entry_requires_the_pointer_strictly_inside_the_frame() {
     assert!(!hover_pointer_inside(frame, (97.9, 100.0), true));
 }
 
+/// Hovering never earns the keyboard — only a surface the user types into does.
 #[test]
-fn pointer_entry_takes_key_for_hover() {
-    let action = decide_hover_key(HoverKeySample {
-        pointer_inside: true,
-        ..sample()
-    });
-
-    assert_eq!(action, HoverKeyAction::TakeKey);
-}
-
-#[test]
-fn hover_possession_is_stable_while_the_pointer_stays_inside() {
-    let action = decide_hover_key(HoverKeySample {
-        pointer_inside: true,
-        panel_is_key: true,
-        ..sample()
-    });
-
-    assert_eq!(action, HoverKeyAction::Stand);
-}
-
-#[test]
-fn transient_key_loss_inside_is_retaken_immediately() {
-    let action = decide_hover_key(HoverKeySample {
-        pointer_inside: true,
-        panel_is_key: false,
-        ..sample()
-    });
-
-    assert_eq!(action, HoverKeyAction::TakeKey);
-}
-
-#[test]
-fn pointer_exit_releases_key_even_when_a_click_took_it() {
-    let action = decide_hover_key(HoverKeySample {
-        panel_is_key: true,
-        ..sample()
-    });
-
-    assert_eq!(action, HoverKeyAction::ReleaseKey);
-}
-
-#[test]
-fn pointer_exit_without_key_stands_down() {
-    assert_eq!(decide_hover_key(sample()), HoverKeyAction::Stand);
-}
-
-#[test]
-fn synthetic_key_suppression_blocks_key_taking_until_it_ends() {
-    let suppressed = decide_hover_key(HoverKeySample {
-        pointer_inside: true,
-        synthetic_key_suppressed: true,
-        ..sample()
-    });
-    assert_eq!(suppressed, HoverKeyAction::Stand);
-
-    let recovered = decide_hover_key(HoverKeySample {
-        pointer_inside: true,
-        ..sample()
-    });
-    assert_eq!(recovered, HoverKeyAction::TakeKey);
-}
-
-#[test]
-fn chat_mode_disables_hover_key_management() {
-    let outside_during_chat = decide_hover_key(HoverKeySample {
-        panel_is_key: true,
-        keyboard_mode: true,
-        ..sample()
-    });
-    assert_eq!(outside_during_chat, HoverKeyAction::Stand);
-
-    let inside_during_chat = decide_hover_key(HoverKeySample {
-        pointer_inside: true,
-        panel_is_key: true,
-        keyboard_mode: true,
-        ..sample()
-    });
-    assert_eq!(inside_during_chat, HoverKeyAction::Stand);
-}
-
-/// Shared pointer, never shared possession — neither panel may wake the other.
-#[test]
-fn panel_key_policy_follows_chat_hover_and_synthetic_key_state() {
+fn only_a_typing_surface_may_take_the_keyboard() {
     use std::sync::atomic::Ordering;
 
     let hud = super::panel_hover_state(OverlaySurfaceKind::Hud);
@@ -182,21 +92,20 @@ fn panel_key_policy_follows_chat_hover_and_synthetic_key_state() {
     notification.set_key_policy(RecordingOverlayMode::Chat);
     assert!(notification.can_become_key_window());
     assert!(!hud.can_become_key_window());
-    notification.set_key_policy(RecordingOverlayMode::Recording);
-    assert!(!notification.can_become_key_window());
 
-    hud.store_pointer_inside(true);
-    assert!(hud.can_become_key_window());
-    assert!(!notification.can_become_key_window());
     super::SYNTHETIC_KEY_SUPPRESSED.store(true, Ordering::Release);
-    assert!(!hud.can_become_key_window());
-    notification.set_key_policy(RecordingOverlayMode::Chat);
     assert!(!notification.can_become_key_window());
-
     super::SYNTHETIC_KEY_SUPPRESSED.store(false, Ordering::Release);
     assert!(notification.can_become_key_window());
+
     notification.set_key_policy(RecordingOverlayMode::Recording);
-    hud.store_pointer_inside(false);
+    assert!(!notification.can_become_key_window());
+}
+
+#[test]
+fn window_local_pointer_flips_onto_the_webview_axis() {
+    assert_eq!(window_local_pointer(FRAME, (149.0, 239.0)), (49.0, 9.0));
+    assert_eq!(window_local_pointer(FRAME, (100.0, 248.0)), (0.0, 0.0));
 }
 
 #[test]

@@ -28,7 +28,7 @@ fn platform_format_naming() -> FormatNaming {
     FormatNaming::Opaque
 }
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum DirectSelection {
+pub(crate) enum DirectSelection {
     Empty,
     PermissionRequired,
     Text(String),

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, test } from "bun:test";
 import {
   BUNDLED_CHAT_MODEL_OPTION_ID,
   buildChatModelOptions,
@@ -10,6 +10,7 @@ import {
   promptMessages,
   resolveChatModel,
   selectedChatModelOption,
+  withDictatedText,
   withPendingTurn,
 } from "@/features/overlay-chat/chat";
 
@@ -185,5 +186,18 @@ describe("dropEmptyAssistantTurn", () => {
     ] as const;
 
     expect(dropEmptyAssistantTurn([...turn], "assistant-1")).toHaveLength(2);
+  });
+});
+
+describe("dictated text", () => {
+  test("extends what is already typed instead of replacing it", () => {
+    expect(withDictatedText("Translate this:", "bonjour le monde")).toBe(
+      "Translate this: bonjour le monde"
+    );
+  });
+
+  test("an untouched composer takes the dictation as it is", () => {
+    expect(withDictatedText("", "bonjour")).toBe("bonjour");
+    expect(withDictatedText("   ", "bonjour")).toBe("bonjour");
   });
 });

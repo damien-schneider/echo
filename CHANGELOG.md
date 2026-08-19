@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.7.1] - 2026-08-19
+
+### Added
+- Chat has a microphone: what is dictated there lands in the composer, appended to what is already typed, instead of being pasted into the app behind.
+- A transcript with nowhere to land — nothing focused to paste into — is held out in a panel with copy and send-to-chat instead of disappearing. Sent to chat, it is asked as it stands, once the selected text it may be about has been read.
+
+### Changed
+- Overlay hover no longer needs a panel to take the keyboard: the native pointer paints the whole element chain, so the notch controls react without pulling focus out of the app being worked in.
+- Chat sends the reference it is showing, instead of re-reading the selection behind the user at send time.
+
 ## [0.7.0] - 2026-08-18
 
 ### Added

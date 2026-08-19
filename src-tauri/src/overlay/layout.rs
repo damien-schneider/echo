@@ -20,6 +20,8 @@ pub(super) enum RecordingOverlayMode {
     Actions,
     Recording,
     Panel,
+    /// A transcript Echo could not place, held out with a copy and a send-to-chat.
+    Transcript,
     Chat,
 }
 
@@ -109,7 +111,9 @@ pub(super) fn overlay_interaction_dimensions(mode: RecordingOverlayMode) -> (f64
         RecordingOverlayMode::Compact => (COMPACT_OVERLAY_WIDTH, COMPACT_OVERLAY_HEIGHT),
         RecordingOverlayMode::Actions => (ACTIONS_OVERLAY_WIDTH, ACTIONS_OVERLAY_HEIGHT),
         RecordingOverlayMode::Recording => (RECORDING_OVERLAY_WIDTH, RECORDING_OVERLAY_HEIGHT),
-        RecordingOverlayMode::Panel => (PANEL_OVERLAY_WIDTH, PANEL_OVERLAY_HEIGHT),
+        RecordingOverlayMode::Panel | RecordingOverlayMode::Transcript => {
+            (PANEL_OVERLAY_WIDTH, PANEL_OVERLAY_HEIGHT)
+        }
         RecordingOverlayMode::Chat => (CHAT_OVERLAY_WIDTH, CHAT_OVERLAY_HEIGHT),
     }
 }
@@ -157,6 +161,7 @@ fn parse_overlay_mode(mode: &str) -> Result<RecordingOverlayMode, String> {
         "actions" => Ok(RecordingOverlayMode::Actions),
         "recording" => Ok(RecordingOverlayMode::Recording),
         "panel" => Ok(RecordingOverlayMode::Panel),
+        "transcript" => Ok(RecordingOverlayMode::Transcript),
         "chat" => Ok(RecordingOverlayMode::Chat),
         _ => Err(format!("Unknown overlay mode: {mode}")),
     }

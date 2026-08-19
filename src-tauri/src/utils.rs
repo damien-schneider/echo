@@ -7,7 +7,6 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-pub use crate::clipboard::*;
 pub(crate) use crate::overlay::*;
 pub use crate::tray::*;
 
@@ -50,6 +49,7 @@ pub fn cancel_current_operation(app: &AppHandle) {
         warn!("Warning: Failed to lock toggle state manager during cancellation");
     }
 
+    crate::dictation::abandon(app);
     hide_recording_overlay(app);
     change_tray_icon(app, crate::tray::TrayIconState::Idle);
 

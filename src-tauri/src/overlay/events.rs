@@ -5,7 +5,7 @@ use super::layout::update_wayland_anchors;
 use super::layout::OverlayPlacement;
 use super::window::OVERLAY_NOTIFICATION_LABEL;
 use super::window_modes::update_overlay_position;
-use crate::features::polish::manager::{ChatContextCapture, ChatTextContext};
+use crate::features::polish::chat_context::{ChatContextCapture, ChatTextContext};
 use crate::settings::{self, OverlayPosition};
 use log::{debug, info, warn};
 use serde::Serialize;
@@ -21,6 +21,7 @@ static CHAT_CONTEXT: Mutex<Option<ChatContextEvent>> = Mutex::new(None);
 
 const OVERLAY_NOTIFICATION_REQUEST_EVENT: &str = "overlay-notification-request";
 const OVERLAY_CHAT_CONTEXT_EVENT: &str = "overlay-chat-context";
+const OVERLAY_CHAT_DICTATION_EVENT: &str = "overlay-chat-dictation";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -87,6 +88,19 @@ pub(super) fn current_notification_request() -> Option<NotificationRequestEvent>
         Err(poisoned) => **poisoned.get_ref(),
     }
 }
+pub(super) fn requested_surface() -> Option<&'static str> {
+    current_notification_request().map(|request| request.surface)
+}
+
+/// The composer pulls the text itself — the event only tells it there is some.
+pub(super) fn emit_chat_dictation(app_handle: &AppHandle) {
+    if let Err(error) =
+        app_handle.emit_to(OVERLAY_NOTIFICATION_LABEL, OVERLAY_CHAT_DICTATION_EVENT, ())
+    {
+        warn!("Failed to hand the dictated text to chat: {error}");
+    }
+}
+
 pub(super) fn notification_request_is_current(request: NotificationRequestEvent) -> bool {
     current_notification_request() == Some(request)
 }
@@ -146,27 +160,6 @@ pub(super) fn emit_chat_context_loading(
     )
 }
 
-pub(super) fn begin_chat_context_refresh(
-    app_handle: &AppHandle,
-    generation: u64,
-) -> Result<(), String> {
-    CHAT_CONTEXT_GENERATION.store(generation, Ordering::Release);
-    let has_current = match CHAT_CONTEXT.lock() {
-        Ok(mut current) => current.as_mut().is_some_and(|event| {
-            event.generation = generation;
-            true
-        }),
-        Err(poisoned) => poisoned.into_inner().as_mut().is_some_and(|event| {
-            event.generation = generation;
-            true
-        }),
-    };
-    if has_current {
-        return Ok(());
-    }
-    emit_chat_context_loading(app_handle, generation).map(|_| ())
-}
-
 pub(super) fn current_chat_context_generation() -> u64 {
     CHAT_CONTEXT_GENERATION.load(Ordering::Acquire)
 }
@@ -202,7 +195,6 @@ pub(super) fn emit_chat_context_capture(
             generation,
             state: ChatContextState::Ready,
         },
-        ChatContextCapture::Unavailable => return Ok(None),
     };
     emit_chat_context_event(app_handle, event).map(Some)
 }
@@ -431,6 +423,10 @@ mod tests {
         assert_eq!(
             super::parse_notification_request("recording"),
             Err("Unknown overlay notification surface: recording".to_string())
+        );
+        assert_eq!(
+            super::parse_notification_request("transcript"),
+            Err("Unknown overlay notification surface: transcript".to_string())
         );
     }
 

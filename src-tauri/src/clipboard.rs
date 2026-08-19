@@ -152,29 +152,33 @@ fn paste_via_clipboard_shift_insert(text: &str, app_handle: &AppHandle) -> Resul
     Ok(())
 }
 
-fn copy_to_clipboard(text: &str, app_handle: &AppHandle) -> Result<(), String> {
+pub fn copy_to_clipboard(text: &str, app_handle: &AppHandle) -> Result<(), String> {
     let clipboard = app_handle.clipboard();
     clipboard
         .write_text(text)
         .map_err(|e| format!("Failed to write to clipboard: {}", e))?;
-    log::info!("Text copied to clipboard (clipboard-only mode)");
+    log::info!("Text copied to clipboard");
     Ok(())
 }
 
-pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
-    let settings = get_settings(&app_handle);
-    #[allow(unused_mut)]
-    let mut paste_method = settings.paste_method;
-
-    // Wayland: auto-paste unsupported (see top-of-file).
+/// Wayland auto-paste is unsupported (see top-of-file), whatever the setting says.
+fn resolved_paste_method(app_handle: &AppHandle) -> PasteMethod {
+    let method = get_settings(app_handle).paste_method;
     #[cfg(target_os = "linux")]
-    if crate::wayland::is_wayland() && paste_method != PasteMethod::ClipboardOnly {
-        log::info!(
-            "Wayland session detected: overriding paste method {:?} → ClipboardOnly",
-            paste_method
-        );
-        paste_method = PasteMethod::ClipboardOnly;
+    if crate::wayland::is_wayland() && method != PasteMethod::ClipboardOnly {
+        log::info!("Wayland session detected: overriding paste method {method:?} → ClipboardOnly");
+        return PasteMethod::ClipboardOnly;
     }
+    method
+}
+
+/// Clipboard-only asks for nothing but the clipboard — every other method types into a caret.
+pub fn paste_needs_a_caret(app_handle: &AppHandle) -> bool {
+    resolved_paste_method(app_handle) != PasteMethod::ClipboardOnly
+}
+
+pub fn paste(text: &str, app_handle: &AppHandle) -> Result<(), String> {
+    let paste_method = resolved_paste_method(app_handle);
 
     log::info!(
         "paste(): method={:?}, text_len={}, text='{}'",
@@ -183,28 +187,28 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
         if text.len() > 200 {
             format!("{}...", &text[..200])
         } else {
-            text.clone()
+            text.to_string()
         }
     );
 
     #[cfg(target_os = "macos")]
-    let _overlay_key_guard = crate::overlay::OverlaySyntheticKeyGuard::acquire(&app_handle);
+    let _overlay_key_guard = crate::overlay::OverlaySyntheticKeyGuard::acquire(app_handle);
 
     match paste_method {
-        PasteMethod::CtrlV => paste_via_clipboard_ctrl_v(&text, &app_handle)?,
+        PasteMethod::CtrlV => paste_via_clipboard_ctrl_v(text, app_handle)?,
         #[cfg(target_os = "linux")]
-        PasteMethod::Direct => paste_via_direct_input(&text)?,
+        PasteMethod::Direct => paste_via_direct_input(text)?,
         #[cfg(not(target_os = "macos"))]
-        PasteMethod::ShiftInsert => paste_via_clipboard_shift_insert(&text, &app_handle)?,
+        PasteMethod::ShiftInsert => paste_via_clipboard_shift_insert(text, app_handle)?,
         PasteMethod::ClipboardOnly => {
-            return copy_to_clipboard(&text, &app_handle);
+            return copy_to_clipboard(text, app_handle);
         }
     }
 
-    if settings.clipboard_handling == ClipboardHandling::CopyToClipboard {
+    if get_settings(app_handle).clipboard_handling == ClipboardHandling::CopyToClipboard {
         let clipboard = app_handle.clipboard();
         clipboard
-            .write_text(&text)
+            .write_text(text)
             .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
     }
 

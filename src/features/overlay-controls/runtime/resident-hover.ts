@@ -25,9 +25,6 @@ export const initialResidentHoverSources: ResidentHoverSources = {
   nativePointer: null,
 };
 
-// from the Rust hover monitors — fires even while WebKit delivers no pointer events at all
-export const OVERLAY_POINTER_BOUNDARY_EVENT = "overlay-pointer-boundary";
-
 export const boundaryToHoverEvent = (inside: boolean): ResidentHoverEvent => ({
   inside,
   type: "native-pointer-boundary",

@@ -29,13 +29,19 @@ import {
   resolveChatModel,
   selectedChatModelOption,
   updateAssistantMessage,
+  withDictatedText,
   withPendingTurn,
 } from "@/features/overlay-chat/chat";
-import type { ChatTextContext } from "@/features/overlay-controls/runtime/overlay-windows";
+import {
+  type ChatDictation,
+  useChatDictation,
+} from "@/features/overlay-chat/use-chat-dictation";
+import type {
+  ChatContextEvent,
+  ChatTextContext,
+} from "@/features/overlay-controls/runtime/overlay-windows";
 import type { Settings } from "@/lib/types";
 import { useSettingsStore } from "@/stores/settings-store";
-
-type ResolveChatContext = () => Promise<ChatTextContext | null>;
 
 const abortable = <T>(operation: Promise<T>, signal: AbortSignal): Promise<T> =>
   new Promise<T>((resolve, reject) => {
@@ -56,7 +62,15 @@ interface ChatSelection {
   modelId: string;
 }
 
+interface ChatSessionOptions {
+  context: ChatTextContext | null;
+  contextState: ChatContextEvent["state"];
+  isBundledModelReady: boolean;
+  isOpen: boolean;
+}
+
 export interface ChatSession {
+  dictation: ChatDictation;
   error: string;
   input: string;
   inputRef: RefObject<HTMLInputElement | null>;
@@ -67,7 +81,7 @@ export interface ChatSession {
   selected: ChatModelOption | null;
   selectMode: (mode: ChatModelMode) => void;
   selectModel: (modelId: string) => void;
-  send: (resolveContext: ResolveChatContext) => void;
+  send: () => void;
   setInput: Dispatch<SetStateAction<string>>;
   stop: () => void;
 }
@@ -152,11 +166,11 @@ const requestAssistantResponse = (
 
 interface SendMessageOptions {
   abortRef: RefObject<AbortController | null>;
+  context: ChatTextContext | null;
   input: string;
   isBundledModelReady: boolean;
   isResponding: boolean;
   messages: ChatMessage[];
-  resolveContext: ResolveChatContext;
   selected: ChatModelOption | null;
   setError: Dispatch<SetStateAction<string>>;
   setInput: Dispatch<SetStateAction<string>>;
@@ -191,7 +205,7 @@ const sendChatMessage = async (options: SendMessageOptions) => {
   try {
     await requestAssistantResponse({
       assistantId,
-      context: await abortable(options.resolveContext(), controller.signal),
+      context: options.context,
       controller,
       messages: turn,
       setMessages: options.setMessages,
@@ -248,15 +262,18 @@ const chatModelState = (
   return { mode, modelOptions, options, selected };
 };
 
-export const useChatSession = (
-  isOpen: boolean,
-  isBundledModelReady: boolean
-): ChatSession => {
+export const useChatSession = ({
+  context,
+  contextState,
+  isBundledModelReady,
+  isOpen,
+}: ChatSessionOptions): ChatSession => {
   const settings = useSettingsStore((store) => store.settings);
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [selection, setSelection] = useState<ChatSelection | null>(null);
   const [isResponding, setIsResponding] = useState(false);
+  const [isQuestionPending, setIsQuestionPending] = useState(false);
   const [error, setError] = useState("");
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -264,8 +281,40 @@ export const useChatSession = (
     settings,
     selection
   );
+  const dictation = useChatDictation({
+    onDictated: (dictated) => {
+      setInput((current) => withDictatedText(current, dictated.text));
+      setIsQuestionPending(dictated.handover === "ask");
+    },
+    onError: setError,
+  });
+  const submit = (prompt: string) =>
+    sendChatMessage({
+      abortRef,
+      context,
+      input: prompt,
+      isBundledModelReady,
+      isResponding,
+      messages,
+      selected,
+      setError,
+      setInput,
+      setIsResponding,
+      setMessages,
+      settings,
+    });
   useChatLifecycle(abortRef, isOpen);
+  const askPendingQuestion = useEffectEvent(() => submit(input));
+  /// A transcript handed over whole waits for the reference it may be about before going out.
+  useEffect(() => {
+    if (!isQuestionPending || contextState === "loading") {
+      return;
+    }
+    setIsQuestionPending(false);
+    askPendingQuestion();
+  }, [contextState, isQuestionPending]);
   return {
+    dictation,
     error,
     input,
     inputRef,
@@ -280,21 +329,8 @@ export const useChatSession = (
         modelId: chatModelOptionsForMode(options, nextMode)[0]?.id ?? "",
       }),
     selectModel: (modelId: string) => setSelection({ mode, modelId }),
-    send: (resolveContext: ResolveChatContext) => {
-      sendChatMessage({
-        abortRef,
-        input,
-        isBundledModelReady,
-        isResponding,
-        messages,
-        resolveContext,
-        selected,
-        setError,
-        setInput,
-        setIsResponding,
-        setMessages,
-        settings,
-      });
+    send: () => {
+      submit(input);
     },
     setInput,
     stop: () => abortRef.current?.abort(),

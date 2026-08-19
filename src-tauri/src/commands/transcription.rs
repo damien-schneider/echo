@@ -1,4 +1,5 @@
-use crate::actions::ACTION_MAP;
+use crate::actions::{check_model_readiness, ModelReadiness, ACTION_MAP};
+use crate::dictation::CHAT_BINDING_ID;
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::transcription::TranscriptionManager;
 use std::sync::Arc;
@@ -6,21 +7,35 @@ use tauri::{AppHandle, Manager};
 
 const OVERLAY_BINDING_ID: &str = "overlay_control";
 
+fn begin_dictation(app: &AppHandle, binding_id: &'static str) -> Result<(), String> {
+    let recording = app.state::<Arc<AudioRecordingManager>>();
+    if recording.active_binding_id().is_some() {
+        return Err("A recording is already active".to_string());
+    }
+    let action = ACTION_MAP
+        .get("transcribe")
+        .ok_or_else(|| "Transcription action is unavailable".to_string())?;
+    action.start(app, binding_id, binding_id);
+    Ok(())
+}
+
+fn end_dictation(app: &AppHandle, binding_id: &'static str) -> Result<(), String> {
+    let recording = app.state::<Arc<AudioRecordingManager>>();
+    let active = recording
+        .active_binding_id()
+        .ok_or_else(|| "No recording is active".to_string())?;
+    let action = ACTION_MAP
+        .get("transcribe")
+        .ok_or_else(|| "Transcription action is unavailable".to_string())?;
+    action.stop(app, &active, binding_id);
+    Ok(())
+}
+
 #[tauri::command]
 pub(crate) fn start_transcription_from_overlay(app: AppHandle) -> Result<(), String> {
     run_after_focus_release(
         || crate::overlay::release_recording_overlay_focus(&app),
-        || {
-            let recording = app.state::<Arc<AudioRecordingManager>>();
-            if recording.active_binding_id().is_some() {
-                return Err("A recording is already active".to_string());
-            }
-            let action = ACTION_MAP
-                .get("transcribe")
-                .ok_or_else(|| "Transcription action is unavailable".to_string())?;
-            action.start(&app, OVERLAY_BINDING_ID, OVERLAY_BINDING_ID);
-            Ok(())
-        },
+        || begin_dictation(&app, OVERLAY_BINDING_ID),
     )
 }
 
@@ -28,18 +43,25 @@ pub(crate) fn start_transcription_from_overlay(app: AppHandle) -> Result<(), Str
 pub(crate) fn stop_transcription_from_overlay(app: AppHandle) -> Result<(), String> {
     run_after_focus_release(
         || crate::overlay::release_recording_overlay_focus(&app),
-        || {
-            let recording = app.state::<Arc<AudioRecordingManager>>();
-            let binding_id = recording
-                .active_binding_id()
-                .ok_or_else(|| "No recording is active".to_string())?;
-            let action = ACTION_MAP
-                .get("transcribe")
-                .ok_or_else(|| "Transcription action is unavailable".to_string())?;
-            action.stop(&app, &binding_id, OVERLAY_BINDING_ID);
-            Ok(())
-        },
+        || end_dictation(&app, OVERLAY_BINDING_ID),
     )
+}
+
+/// Chat keeps the keyboard and the notch: this dictation is composing a message, not filling a caret.
+#[tauri::command]
+pub(crate) fn start_chat_dictation(app: AppHandle) -> Result<(), String> {
+    match check_model_readiness(&app) {
+        ModelReadiness::Ready => {}
+        ModelReadiness::Blocked(message) | ModelReadiness::Downloading(message) => {
+            return Err(message)
+        }
+    }
+    begin_dictation(&app, CHAT_BINDING_ID)
+}
+
+#[tauri::command]
+pub(crate) fn stop_chat_dictation(app: AppHandle) -> Result<(), String> {
+    end_dictation(&app, CHAT_BINDING_ID)
 }
 
 #[tauri::command]

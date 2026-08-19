@@ -3,7 +3,6 @@ use core_foundation::base::{CFType, CFTypeRef, TCFType};
 use core_foundation::string::{CFString, CFStringRef};
 use std::ffi::c_void;
 use std::ptr;
-use std::sync::Mutex;
 
 const AX_ERROR_ATTRIBUTE_UNSUPPORTED: i32 = -25_205;
 const AX_ERROR_API_DISABLED: i32 = -25_211;
@@ -11,15 +10,17 @@ const AX_ERROR_NO_VALUE: i32 = -25_212;
 const AX_ERROR_SUCCESS: i32 = 0;
 const AX_FOCUSED_UI_ELEMENT_ATTRIBUTE: &str = "AXFocusedUIElement";
 const AX_SELECTED_TEXT_ATTRIBUTE: &str = "AXSelectedText";
-static LAST_EXTERNAL_SELECTION: Mutex<Option<SelectedText>> = Mutex::new(None);
+const AX_SELECTED_TEXT_RANGE_ATTRIBUTE: &str = "AXSelectedTextRange";
 
 type AXUIElementRef = *const c_void;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SelectedText {
+    /// The focused element's own answer — says nothing about a selection elsewhere in the window.
     Empty,
     PermissionRequired,
     Text(String),
+    /// Nothing to ask: no focused element, no text support, or Echo itself holds the focus.
     Unavailable,
 }
 
@@ -46,27 +47,41 @@ pub(crate) fn selected_text() -> Result<SelectedText> {
     if unsafe { AXIsProcessTrusted() } == 0 {
         return Ok(SelectedText::PermissionRequired);
     }
-    let focused = match focused_element()? {
-        AttributeRead::Value(value) => value,
-        AttributeRead::Missing => return Ok(SelectedText::Empty),
-        AttributeRead::Unsupported => return Ok(SelectedText::Unavailable),
+    let AttributeRead::Value(focused) = focused_element()? else {
+        return Ok(SelectedText::Unavailable);
     };
-    if let Some(selection) = selection_during_overlay_focus(
-        element_pid(&focused),
-        i32::try_from(std::process::id()).ok(),
-        cached_external_selection(),
-    ) {
-        return Ok(selection);
+    if element_belongs_to_echo(&focused) {
+        return Ok(SelectedText::Unavailable);
     }
-    let selection = selected_text_from_element(&focused)?;
-    remember_external_selection(&selection);
-    Ok(selection)
+    selected_text_from_element(&focused)
 }
-pub(crate) fn remember_selected_text_before_overlay_focus() {
-    match selected_text() {
-        Ok(selection) => remember_external_selection(&selection),
-        Err(_) => replace_external_selection(None),
+
+fn element_belongs_to_echo(element: &CFType) -> bool {
+    let echo_pid = i32::try_from(std::process::id()).ok();
+    element_pid(element).is_some_and(|pid| Some(pid) == echo_pid)
+}
+
+/// A synthetic Cmd+V needs somewhere to land: an insertion point outside Echo. Without Accessibility
+/// permission nothing can be known, so the paste goes out blind exactly as it always did.
+pub(crate) fn caret_is_reachable() -> bool {
+    if unsafe { AXIsProcessTrusted() } == 0 {
+        return true;
     }
+    match focused_element() {
+        Ok(AttributeRead::Value(focused)) => element_holds_a_caret(&focused),
+        Ok(AttributeRead::Missing) => false,
+        Ok(AttributeRead::Unsupported) | Err(_) => true,
+    }
+}
+
+fn element_holds_a_caret(focused: &CFType) -> bool {
+    if element_belongs_to_echo(focused) {
+        return false;
+    }
+    matches!(
+        copy_attribute(focused.as_CFTypeRef(), AX_SELECTED_TEXT_RANGE_ATTRIBUTE),
+        Ok(AttributeRead::Value(_))
+    )
 }
 
 fn selected_text_from_element(focused: &CFType) -> Result<SelectedText> {
@@ -83,38 +98,6 @@ fn selected_text_from_element(focused: &CFType) -> Result<SelectedText> {
         return Ok(SelectedText::Empty);
     }
     Ok(SelectedText::Text(text))
-}
-
-fn remember_external_selection(selection: &SelectedText) {
-    let remembered = match selection {
-        SelectedText::Empty | SelectedText::Text(_) => Some(selection.clone()),
-        SelectedText::PermissionRequired | SelectedText::Unavailable => None,
-    };
-    replace_external_selection(remembered);
-}
-
-fn replace_external_selection(selection: Option<SelectedText>) {
-    match LAST_EXTERNAL_SELECTION.lock() {
-        Ok(mut current) => *current = selection,
-        Err(poisoned) => *poisoned.into_inner() = selection,
-    }
-}
-
-fn cached_external_selection() -> Option<SelectedText> {
-    match LAST_EXTERNAL_SELECTION.lock() {
-        Ok(current) => current.clone(),
-        Err(poisoned) => poisoned.into_inner().clone(),
-    }
-}
-
-fn selection_during_overlay_focus(
-    focused_pid: Option<libc::pid_t>,
-    echo_pid: Option<libc::pid_t>,
-    cached: Option<SelectedText>,
-) -> Option<SelectedText> {
-    echo_pid
-        .filter(|pid| focused_pid == Some(*pid))
-        .map(|_| cached.unwrap_or(SelectedText::Unavailable))
 }
 
 pub(crate) fn focused_application_pid() -> Option<libc::pid_t> {
@@ -156,32 +139,5 @@ fn copy_attribute(element: AXUIElementRef, attribute: &'static str) -> Result<At
         _ => Err(anyhow::anyhow!(
             "Accessibility selection read failed with code {status}"
         )),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{selection_during_overlay_focus, SelectedText};
-
-    #[test]
-    fn selected_text_survives_the_overlay_taking_focus() {
-        let selected = SelectedText::Text("Damn, how despicable".to_string());
-
-        assert_eq!(
-            selection_during_overlay_focus(Some(42), Some(42), Some(selected.clone())),
-            Some(selected)
-        );
-        assert_eq!(
-            selection_during_overlay_focus(Some(7), Some(42), None),
-            None
-        );
-    }
-
-    #[test]
-    fn missing_cached_text_stays_unavailable_while_echo_has_focus() {
-        assert_eq!(
-            selection_during_overlay_focus(Some(42), Some(42), None),
-            Some(SelectedText::Unavailable)
-        );
     }
 }

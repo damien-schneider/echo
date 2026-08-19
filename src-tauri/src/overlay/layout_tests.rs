@@ -394,3 +394,17 @@ fn panel_and_chat_dimensions_remain_available() {
     );
     assert_eq!((width, height), (CHAT_OVERLAY_WIDTH, CHAT_OVERLAY_HEIGHT));
 }
+
+/// Only Rust opens it, and it never types — so it must not take the keyboard out from under the caret.
+#[test]
+fn the_transcript_surface_belongs_to_the_notification_and_stays_keyboard_free() {
+    assert_eq!(
+        parse_notification_mode("transcript"),
+        Ok(RecordingOverlayMode::Transcript)
+    );
+    assert!(parse_hud_mode("transcript").is_err());
+    assert!(!overlay_mode_accepts_keyboard(
+        RecordingOverlayMode::Transcript
+    ));
+    assert!(!overlay_mode_is_resident(RecordingOverlayMode::Transcript));
+}

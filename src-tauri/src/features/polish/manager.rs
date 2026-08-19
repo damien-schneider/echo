@@ -11,6 +11,10 @@ mod setup;
 use crate::managers::model::{ModelManager, POLISH_MODEL_ID};
 use crate::overlay::{show_processing_overlay, show_tool_overlay, show_warning_overlay};
 
+use super::chat_context::{
+    capture_settled_by_accessibility, chat_text_context, ChatContextCapture, ChatContextSource,
+    ShownChatContext,
+};
 use super::platform::{
     read_selected_text, DirectSelection, PlatformClipboard, PlatformFocus, PlatformKeyboard,
 };
@@ -26,50 +30,12 @@ use super::{
 };
 use setup::{polish_initialization, polish_runtime_config, selection_mode};
 
-const MAX_CHAT_CONTEXT_CHARACTERS: usize = 20_000;
 const CHAT_ANSWER_EVENT: &str = "polish-chat-answer";
 
 #[derive(Clone, Debug, Serialize)]
 struct ChatAnswerEvent {
     answer: String,
     stream_id: String,
-}
-
-fn chat_text_context(text: String, source: ChatContextSource) -> ChatTextContext {
-    let (text, truncated) = clipped_chat_text(text);
-    ChatTextContext {
-        source,
-        text,
-        truncated,
-    }
-}
-
-fn clipped_chat_text(text: String) -> (String, bool) {
-    let Some((byte_index, _)) = text.char_indices().nth(MAX_CHAT_CONTEXT_CHARACTERS) else {
-        return (text, false);
-    };
-    (text[..byte_index].to_owned(), true)
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub(crate) enum ChatContextSource {
-    Clipboard,
-    Selection,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-pub(crate) struct ChatTextContext {
-    pub(crate) source: ChatContextSource,
-    pub(crate) truncated: bool,
-    pub(crate) text: String,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum ChatContextCapture {
-    PermissionRequired,
-    Ready(Option<ChatTextContext>),
-    Unavailable,
 }
 
 pub(crate) struct PolishManager {
@@ -123,10 +89,14 @@ impl PolishManager {
         self.chat_cancellation.begin()
     }
 
-    pub(crate) async fn capture_chat_context(&self, generation: u64) -> Result<ChatContextCapture> {
-        let observed = self.observe_chat_context()?;
-        if observed != ChatContextCapture::Unavailable {
-            return Ok(observed);
+    /// Accessibility answers instantly when it can; otherwise the copy shortcut asks the app itself.
+    pub(crate) async fn capture_chat_context(&self, generation: u64) -> Result<ShownChatContext> {
+        let observed = read_selected_text().unwrap_or_else(|error| {
+            log::debug!("Accessibility could not read the selection: {error:#}");
+            DirectSelection::Unavailable
+        });
+        if let Some(capture) = capture_settled_by_accessibility(observed) {
+            return Ok(ShownChatContext::read_by_accessibility(capture));
         }
         let mode = selection_mode();
         let transaction = self.transaction_with_cancellation(self.chat_cancellation.clone())?;
@@ -140,19 +110,13 @@ impl PolishManager {
                 };
                 chat_text_context(text, source)
             });
-        Ok(ChatContextCapture::Ready(context))
+        Ok(ShownChatContext::read_by_copy(ChatContextCapture::Ready(
+            context,
+        )))
     }
 
-    pub(crate) fn observe_chat_context(&self) -> Result<ChatContextCapture> {
-        Ok(match read_selected_text()? {
-            DirectSelection::Empty => ChatContextCapture::Ready(None),
-            DirectSelection::PermissionRequired => ChatContextCapture::PermissionRequired,
-            DirectSelection::Text(text) => ChatContextCapture::Ready(Some(chat_text_context(
-                text,
-                ChatContextSource::Selection,
-            ))),
-            DirectSelection::Unavailable => ChatContextCapture::Unavailable,
-        })
+    pub(crate) fn observe_selected_text(&self) -> Result<DirectSelection> {
+        read_selected_text()
     }
 
     pub(crate) async fn chat(
@@ -457,23 +421,6 @@ impl PolishManager {
             *current = status.clone();
         }
         let _ = self.app.emit("polish-status-changed", status);
-    }
-}
-
-#[cfg(test)]
-mod chat_context_tests {
-    use super::{clipped_chat_text, MAX_CHAT_CONTEXT_CHARACTERS};
-
-    #[test]
-    fn clips_chat_context_on_character_boundaries() {
-        let (short, short_was_clipped) = clipped_chat_text("short".to_string());
-        assert_eq!(short, "short");
-        assert!(!short_was_clipped);
-
-        let (long, long_was_clipped) =
-            clipped_chat_text("é".repeat(MAX_CHAT_CONTEXT_CHARACTERS + 1));
-        assert_eq!(long.chars().count(), MAX_CHAT_CONTEXT_CHARACTERS);
-        assert!(long_was_clipped);
     }
 }
 

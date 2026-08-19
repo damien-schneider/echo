@@ -8,9 +8,12 @@ import {
   useState,
 } from "react";
 import {
+  OVERLAY_POINTER_EVENT,
+  type OverlayPointer,
+} from "@/features/overlay-controls/runtime/native-pointer";
+import {
   boundaryToHoverEvent,
   initialResidentHoverSources,
-  OVERLAY_POINTER_BOUNDARY_EVENT,
   type ResidentHoverEvent,
   reduceResidentHover,
 } from "@/features/overlay-controls/runtime/resident-hover";
@@ -52,18 +55,23 @@ const useResidentPointerExit = ({
   }, [isExpanded]);
 };
 
-// authoritative on macOS — the DOM sees no pointer until the panel is key, and only while it moves
+// authoritative on macOS — the DOM never sees the pointer, so only the crossings this reports move the island
 const useNativePointerBoundary = (
   dispatch: (event: ResidentHoverEvent) => void
 ) => {
+  const wasInside = useRef<boolean | null>(null);
   const onBoundary = useEffectEvent((inside: boolean) => {
+    if (wasInside.current === inside) {
+      return;
+    }
+    wasInside.current = inside;
     dispatch(boundaryToHoverEvent(inside));
   });
   useEffect(
     () =>
       listenCancellable(() =>
-        listen<boolean>(OVERLAY_POINTER_BOUNDARY_EVENT, (event) =>
-          onBoundary(event.payload)
+        listen<OverlayPointer>(OVERLAY_POINTER_EVENT, (event) =>
+          onBoundary(event.payload.inside)
         )
       ),
     []

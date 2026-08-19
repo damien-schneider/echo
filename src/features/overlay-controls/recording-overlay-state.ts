@@ -10,7 +10,7 @@ export type OverlayState =
   | "warning";
 /// Handle or action row — everything else is a notification, drawn by the other window.
 export type HudMode = "compact" | "actions";
-export type NotificationMode = "recording" | "panel" | "chat";
+export type NotificationMode = "recording" | "panel" | "transcript" | "chat";
 export type OverlayMode = HudMode | NotificationMode;
 
 export type OverlayEscapeIntent =
@@ -195,7 +195,7 @@ export const overlayEscapeIntent = ({
   if (hasActiveOperation) {
     return "cancel_operation";
   }
-  if (mode === "chat" || mode === "panel") {
+  if (mode === "chat" || mode === "panel" || mode === "transcript") {
     return "dismiss_surface";
   }
   return "none";

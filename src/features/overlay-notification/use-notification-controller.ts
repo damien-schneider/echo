@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { requestAccessibilityPermission } from "tauri-plugin-macos-permissions-api";
+import { z } from "zod";
 import { useNativeOverlayTransition } from "@/features/overlay-controls/motion/use-native-overlay-transition";
 import {
   type ActivityAction,
@@ -16,12 +17,11 @@ import {
 } from "@/features/overlay-controls/recording-overlay-state";
 import {
   CHAT_CONTEXT_EVENT,
-  CHAT_CONTEXT_REFRESH_COMMAND,
   CHAT_CONTEXT_STATE_COMMAND,
   CHAT_MODEL_SETTINGS_COMMAND,
   type ChatContextEvent,
   ChatContextEventSchema,
-  type ChatTextContext,
+  HELD_TRANSCRIPT_COMMAND,
   NOTIFICATION_HIDE_COMMAND,
   NOTIFICATION_REQUEST_EVENT,
   NOTIFICATION_REQUEST_STATE_COMMAND,
@@ -46,6 +46,29 @@ const ESCAPE_SHORTCUT_COMMAND = {
   register: "register_escape_shortcut",
   unregister: "unregister_escape_shortcut",
 } as const;
+
+/// Rust holds the text until the surface is dismissed, so the panel can always re-read what it is showing.
+const useHeldTranscript = (isShown: boolean) => {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    if (!isShown) {
+      return;
+    }
+    let isStopped = false;
+    invoke<unknown>(HELD_TRANSCRIPT_COMMAND.read)
+      .then((payload) => {
+        const held = z.string().safeParse(payload);
+        if (!isStopped && held.success) {
+          setText(held.data);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      isStopped = true;
+    };
+  }, [isShown]);
+  return text;
+};
 
 const useModelState = (): ModelState => {
   const [state, setState] = useState<ModelState>(initialModelState);
@@ -158,23 +181,12 @@ const useNotificationRequest = () => {
       isStopped = true;
     };
   }, []);
-  const refreshChatContext = async (): Promise<ChatTextContext | null> => {
-    const context = parsedChatContext(
-      await invoke<unknown>(CHAT_CONTEXT_REFRESH_COMMAND)
-    );
-    if (context === null) {
-      throw new Error("Invalid selected text response");
-    }
-    setChatContext((current) => nextChatContext(current, context));
-    return context.context;
-  };
   return {
     chatContext,
     clearRequest: () => {
       setChatContext(null);
       setRequestEvent(null);
     },
-    refreshChatContext,
     request: requestEvent?.surface ?? null,
   };
 };
@@ -259,9 +271,9 @@ export const useNotificationController = () => {
   const events = useOverlayEvents(microphoneRef);
   const polish = usePolishModel();
   const modelState = useModelState();
-  const { chatContext, clearRequest, refreshChatContext, request } =
-    useNotificationRequest();
+  const { chatContext, clearRequest, request } = useNotificationRequest();
   const update = useUpdateNotice();
+  const heldTranscript = useHeldTranscript(request === "transcript");
   const presentation = createNotificationPresentation({
     events,
     modelState,
@@ -311,9 +323,13 @@ export const useNotificationController = () => {
       }
       dismissSurface();
     },
+    copyHeldTranscript: async () => {
+      await invoke(HELD_TRANSCRIPT_COMMAND.copy);
+    },
     dismissSurface,
     events,
     finishMorph: () => transition.settle(transition.staged.generation),
+    heldTranscript,
     handleKeyDown: (event: KeyboardEvent<HTMLDivElement>) =>
       dismissFromKeyboard(event, presentation.escapeIntent, dismissSurface),
     microphoneRef,
@@ -322,15 +338,17 @@ export const useNotificationController = () => {
         .then(() => dismissSurface())
         .catch(() => undefined);
     },
-    refreshChatContext,
+    /// The prompt returns at once; the context watch notices the grant and reads the selection then.
     requestAccessibilityAccess: async () => {
       await requestAccessibilityPermission();
-      await refreshChatContext();
     },
     polish,
     presentation,
     releaseWindow: () => {
       invoke(NOTIFICATION_HIDE_COMMAND).catch(() => undefined);
+    },
+    sendHeldTranscriptToChat: () => {
+      invoke(HELD_TRANSCRIPT_COMMAND.send).catch(() => undefined);
     },
     renderMode,
     /// Stop-recording and install-update share the activity bar's single button.

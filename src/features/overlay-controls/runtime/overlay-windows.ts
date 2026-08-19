@@ -29,12 +29,34 @@ export const NOTIFICATION_REQUEST_STATE_COMMAND =
   "get_overlay_notification_request";
 export const CHAT_CONTEXT_EVENT = "overlay-chat-context";
 export const CHAT_CONTEXT_STATE_COMMAND = "get_overlay_chat_context";
-export const CHAT_CONTEXT_REFRESH_COMMAND = "refresh_overlay_chat_context";
 export const CHAT_MODEL_SETTINGS_COMMAND = "open_chat_model_settings";
 export const OVERLAY_WARNING_COMMAND = "warn_from_overlay";
+export const CHAT_DICTATION_EVENT = "overlay-chat-dictation";
+export const CHAT_DICTATION_COMMAND = {
+  start: "start_chat_dictation",
+  stop: "stop_chat_dictation",
+  take: "take_transcript_for_chat",
+} as const;
+export const HELD_TRANSCRIPT_COMMAND = {
+  copy: "copy_held_transcript",
+  read: "get_held_transcript",
+  send: "send_held_transcript_to_chat",
+} as const;
 
-/// The HUD may only ask for surfaces it has buttons for; activity opens the notification itself.
-export const NotificationRequestSchema = z.enum(["chat", "panel"]);
+/// Chat keeps writing with a dictated text, or asks a handed-over one as it stands.
+export const DictatedTranscriptSchema = z.object({
+  handover: z.enum(["ask", "compose"]),
+  text: z.string(),
+});
+
+export type DictatedTranscript = z.infer<typeof DictatedTranscriptSchema>;
+
+/// The HUD asks for chat and the model panel; Rust alone opens the transcript it could not place.
+export const NotificationRequestSchema = z.enum([
+  "chat",
+  "panel",
+  "transcript",
+]);
 
 export type NotificationRequest = z.infer<typeof NotificationRequestSchema>;
 export const NotificationRequestEventSchema = z.object({

@@ -9,6 +9,7 @@ import {
   ActivityIsland,
   type ActivityIslandAction,
 } from "@/features/overlay-notification/activity-island";
+import { TranscriptPanel } from "@/features/overlay-notification/transcript-panel";
 import type { NotificationController } from "@/features/overlay-notification/use-notification-controller";
 
 const actionIcon = (intent: ActivityAction["intent"]) =>
@@ -59,8 +60,17 @@ export const NotificationSurface = ({
         isOpen={true}
         onClose={controller.dismissSurface}
         onManageModels={controller.openChatModelSettings}
-        onRefreshContext={controller.refreshChatContext}
         onRequestAccessibility={controller.requestAccessibilityAccess}
+      />
+    );
+  }
+  if (mode === "transcript") {
+    return (
+      <TranscriptPanel
+        onClose={controller.dismissSurface}
+        onCopy={controller.copyHeldTranscript}
+        onSendToChat={controller.sendHeldTranscriptToChat}
+        text={controller.heldTranscript}
       />
     );
   }

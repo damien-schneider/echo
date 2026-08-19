@@ -90,6 +90,8 @@ mod snap_preview_panel {
     }
 }
 
+/// Hit testing is the window frame, never a sampled pointer: a click that arrives before the next mouse-moved
+/// sample would otherwise fall through to the app underneath and be spent making the panel reachable.
 fn apply_shared_panel_configuration(panel: &OverlayPanelHandle) {
     panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
     panel.set_collection_behavior(overlay_collection_behavior().into());
@@ -99,6 +101,7 @@ fn apply_shared_panel_configuration(panel: &OverlayPanelHandle) {
     panel.set_works_when_modal(true);
     panel.set_released_when_closed(false);
     panel.set_accepts_mouse_moved_events(true);
+    panel.set_ignores_mouse_events(false);
 }
 
 pub(super) fn configure(
@@ -129,12 +132,10 @@ pub(super) fn configure_snap_preview(window: &WebviewWindow) -> Result<(), Strin
     snap_preview_panel::configure(window)
 }
 
+/// The copy shortcut must reach the user's app: every panel lets go of the keyboard; the surface shown next takes it back through its layout.
 pub(super) fn begin_synthetic_key_suppression(app_handle: &AppHandle) {
     SYNTHETIC_KEY_SUPPRESSED.store(true, Ordering::Release);
     for panel in HOVER_PANELS {
-        if panel.accepts_key() {
-            continue;
-        }
         let _ = run_panel_operation(app_handle, panel.label(), PanelOperation::ReleaseKey);
     }
 }
@@ -195,7 +196,6 @@ fn perform_panel_operation(
     match operation {
         PanelOperation::Hide => {
             panel.resign_key_window();
-            panel.set_ignores_mouse_events(true);
             state.pointer_left(app_handle);
             panel.hide();
         }
@@ -214,17 +214,15 @@ fn overlay_panel_level(_: RecordingOverlayMode) -> PanelLevel {
     PanelLevel::Status
 }
 
+/// Only a surface the user types into asks for the keyboard.
 fn apply_layout(panel: &OverlayPanelHandle, state: &PanelHoverState, mode: RecordingOverlayMode) {
     let accepts_keyboard = overlay_mode_accepts_keyboard(mode);
     state.set_key_policy(mode);
     panel.set_level(overlay_panel_level(mode).value());
-    if !accepts_keyboard {
+    if !accepts_keyboard || SYNTHETIC_KEY_SUPPRESSED.load(Ordering::Acquire) {
         return;
     }
-    panel.set_ignores_mouse_events(false);
-    if !SYNTHETIC_KEY_SUPPRESSED.load(Ordering::Acquire) {
-        panel.make_key_window();
-    }
+    panel.make_key_window();
 }
 
 fn require_main_thread() -> Result<(), String> {

@@ -11,7 +11,6 @@ use crate::managers::tts::TtsManager;
 use crate::overlay::show_tool_overlay;
 use crate::settings::{self, SoundTheme};
 use crate::tray::{change_tray_icon, TrayIconState};
-use crate::utils;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolResult {
@@ -290,23 +289,7 @@ pub async fn finalize_transcription(
                 return Ok(());
             }
 
-            let ah_clone = app.clone();
-            let final_text = text;
-            app.run_on_main_thread(move || {
-                match utils::paste(final_text, ah_clone.clone()) {
-                    Ok(()) => debug!("Text pasted successfully"),
-                    Err(e) => error!("Failed to paste transcription: {}", e),
-                }
-                utils::hide_recording_overlay(&ah_clone);
-                change_tray_icon(&ah_clone, TrayIconState::Idle);
-            })
-            .unwrap_or_else(|e| {
-                error!("Failed to run paste on main thread: {:?}", e);
-                if OPERATION_GENERATION.load(Ordering::SeqCst) == op_generation {
-                    utils::hide_recording_overlay(&app);
-                    change_tray_icon(&app, TrayIconState::Idle);
-                }
-            });
+            crate::actions::deliver_transcript(&app, text, op_generation);
         }
         PostProcessKind::Empty => {
             let settings = settings::get_settings(&app);
@@ -338,23 +321,7 @@ pub async fn finalize_transcription(
                 });
             }
 
-            let ah_clone = app.clone();
-            let final_text = text;
-            app.run_on_main_thread(move || {
-                match utils::paste(final_text, ah_clone.clone()) {
-                    Ok(()) => debug!("Text pasted successfully"),
-                    Err(e) => error!("Failed to paste transcription: {}", e),
-                }
-                utils::hide_recording_overlay(&ah_clone);
-                change_tray_icon(&ah_clone, TrayIconState::Idle);
-            })
-            .unwrap_or_else(|e| {
-                error!("Failed to run paste on main thread: {:?}", e);
-                if OPERATION_GENERATION.load(Ordering::SeqCst) == op_generation {
-                    utils::hide_recording_overlay(&app);
-                    change_tray_icon(&app, TrayIconState::Idle);
-                }
-            });
+            crate::actions::deliver_transcript(&app, text, op_generation);
         }
     }
 

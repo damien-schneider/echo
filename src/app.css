@@ -7,6 +7,9 @@
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
+/* The overlay panels never own the keyboard, so WebKit never fires :hover on them — Rust paints data-hovered instead. */
+@custom-variant hover (&:hover,
+&[data-hovered]);
 
 :root {
   --radius: 0.625rem;

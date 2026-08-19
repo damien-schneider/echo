@@ -17,7 +17,8 @@ mod window;
 mod window_modes;
 mod window_setup;
 
-use crate::features::polish::manager::{ChatContextCapture, PolishManager};
+use crate::features::polish::chat_context::{ChatContextCapture, ShownChatContext};
+use crate::features::polish::manager::PolishManager;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
@@ -29,8 +30,42 @@ pub(crate) use events::{
 pub(crate) use window_modes::update_overlay_position;
 pub(crate) use window_setup::create_recording_overlay;
 
+const TRANSCRIPT_SURFACE: &str = "transcript";
+const CHAT_SURFACE: &str = "chat";
+
 pub(crate) fn release_recording_overlay_focus(app_handle: &AppHandle) -> Result<(), String> {
     window::release_recording_overlay_focus(app_handle)
+}
+
+/// A transcript with nowhere to land is held out to the user instead of vanishing.
+pub(crate) fn show_held_transcript(app_handle: &AppHandle) -> Result<(), String> {
+    let request = events::record_notification_request(TRANSCRIPT_SURFACE);
+    show_notification_surface(app_handle, request, TRANSCRIPT_SURFACE)
+}
+
+pub(crate) fn chat_surface_is_open() -> bool {
+    events::requested_surface() == Some(CHAT_SURFACE)
+}
+
+pub(crate) fn hand_transcript_to_chat(app_handle: &AppHandle) {
+    events::emit_chat_dictation(app_handle);
+}
+
+fn show_notification_surface(
+    app_handle: &AppHandle,
+    request: events::NotificationRequestEvent,
+    surface: &str,
+) -> Result<(), String> {
+    if let Err(error) = window_modes::set_notification_mode(app_handle, surface) {
+        events::clear_notification_request();
+        return Err(error);
+    }
+    if let Err(error) = events::emit_notification_request(app_handle, request) {
+        events::clear_notification_request();
+        let _ = window_modes::hide_notification(app_handle);
+        return Err(error);
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -63,15 +98,15 @@ fn log_chat_context_capture(capture: &ChatContextCapture) {
         ChatContextCapture::Ready(None) => {
             log::info!("Chat found no selected text");
         }
-        ChatContextCapture::Unavailable => {}
     }
 }
 
+/// Follows the selection while the user's app owns the keyboard; while chat owns it, nothing can change.
 async fn watch_chat_context(
     app_handle: AppHandle,
     manager: Arc<PolishManager>,
     request: events::NotificationRequestEvent,
-    mut previous: ChatContextCapture,
+    mut shown: ShownChatContext,
 ) {
     let mut interval = tokio::time::interval(CHAT_CONTEXT_WATCH_INTERVAL);
     interval.tick().await;
@@ -80,20 +115,21 @@ async fn watch_chat_context(
         if !events::notification_request_is_current(request) {
             return;
         }
-        let capture = match manager.observe_chat_context() {
-            Ok(capture) => capture,
+        let observed = match manager.observe_selected_text() {
+            Ok(observed) => observed,
             Err(error) => {
                 log::debug!("Could not refresh selected Chat text: {error:#}");
                 continue;
             }
         };
-        if capture == ChatContextCapture::Unavailable || capture == previous {
+        if !shown.absorb(observed) {
             continue;
         }
-        previous = capture.clone();
-        log_chat_context_capture(&capture);
+        log_chat_context_capture(&shown.capture);
         let generation = events::current_chat_context_generation();
-        if let Err(error) = events::emit_chat_context_capture(&app_handle, generation, &capture) {
+        if let Err(error) =
+            events::emit_chat_context_capture(&app_handle, generation, &shown.capture)
+        {
             log::warn!("{error}");
         }
     }
@@ -182,8 +218,21 @@ pub(crate) fn get_overlay_chat_context() -> Option<events::ChatContextEvent> {
 
 #[tauri::command]
 pub(crate) fn hide_overlay_notification(app_handle: AppHandle) -> Result<(), String> {
+    if events::requested_surface() == Some(TRANSCRIPT_SURFACE) {
+        crate::dictation::drop_held_transcript();
+    }
     events::clear_notification_request();
     window_modes::hide_notification(&app_handle)
+}
+
+/// The held transcript goes to chat as a finished question, not as a draft to keep typing.
+#[tauri::command]
+pub(crate) async fn send_held_transcript_to_chat(
+    app_handle: AppHandle,
+    manager: State<'_, Arc<PolishManager>>,
+) -> Result<(), String> {
+    crate::dictation::hand_over_as_question();
+    request_overlay_notification(app_handle, manager, CHAT_SURFACE.to_string()).await
 }
 
 /// Chat and the model panel live in the notification window — the request crosses through Rust.
@@ -204,11 +253,11 @@ pub(crate) async fn request_overlay_notification(
         #[cfg(target_os = "macos")]
         let selection_key_guard = OverlaySyntheticKeyGuard::acquire(&app_handle);
         let context_manager = Arc::clone(manager.inner());
-        let capture = match context_manager.capture_chat_context(generation).await {
-            Ok(capture) => capture,
+        let shown = match context_manager.capture_chat_context(generation).await {
+            Ok(shown) => shown,
             Err(error) => {
                 log::warn!("Could not capture text for chat: {error:#}");
-                ChatContextCapture::Ready(None)
+                ShownChatContext::read_by_copy(ChatContextCapture::Ready(None))
             }
         };
         #[cfg(target_os = "macos")]
@@ -216,28 +265,20 @@ pub(crate) async fn request_overlay_notification(
         if !events::notification_request_is_current(request) {
             return Ok(());
         }
-        Some((generation, context_manager, capture))
+        Some((generation, context_manager, shown))
     } else {
         None
     };
-    if let Err(error) = window_modes::set_notification_mode(&app_handle, requested) {
-        events::clear_notification_request();
-        return Err(error);
-    }
-    if let Err(error) = events::emit_notification_request(&app_handle, request) {
-        events::clear_notification_request();
-        let _ = window_modes::hide_notification(&app_handle);
-        return Err(error);
-    }
-    let Some((generation, context_manager, capture)) = chat_capture else {
+    show_notification_surface(&app_handle, request, requested)?;
+    let Some((generation, context_manager, shown)) = chat_capture else {
         return Ok(());
     };
-    log_chat_context_capture(&capture);
-    events::emit_chat_context_capture(&app_handle, generation, &capture)?;
+    log_chat_context_capture(&shown.capture);
+    events::emit_chat_context_capture(&app_handle, generation, &shown.capture)?;
     let watch_manager = Arc::clone(&context_manager);
     let watch_handle = app_handle.clone();
     tauri::async_runtime::spawn(async move {
-        watch_chat_context(watch_handle, watch_manager, request, capture).await;
+        watch_chat_context(watch_handle, watch_manager, request, shown).await;
     });
     if manager.is_downloaded() {
         tauri::async_runtime::spawn(async move {
@@ -248,27 +289,6 @@ pub(crate) async fn request_overlay_notification(
     }
     Ok(())
 }
-#[tauri::command]
-pub(crate) async fn refresh_overlay_chat_context(
-    app_handle: AppHandle,
-    manager: State<'_, Arc<PolishManager>>,
-) -> Result<events::ChatContextEvent, String> {
-    let generation = manager.begin_chat_context_capture();
-    events::begin_chat_context_refresh(&app_handle, generation)?;
-    #[cfg(target_os = "macos")]
-    let selection_key_guard = OverlaySyntheticKeyGuard::acquire(&app_handle);
-    let context_manager = Arc::clone(manager.inner());
-    let capture = context_manager
-        .capture_chat_context(generation)
-        .await
-        .map_err(|error| format!("Could not refresh selected Chat text: {error:#}"))?;
-    #[cfg(target_os = "macos")]
-    drop(selection_key_guard);
-    log_chat_context_capture(&capture);
-    events::emit_chat_context_capture(&app_handle, generation, &capture)?
-        .ok_or_else(|| "Selected Chat text is unavailable".to_string())
-}
-
 #[tauri::command]
 pub(crate) fn open_chat_model_settings(app_handle: AppHandle) -> Result<(), String> {
     crate::startup::show_main_window(&app_handle);

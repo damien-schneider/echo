@@ -199,6 +199,12 @@ export const chatModelModeForOption = (
 ): ChatModelMode =>
   !option || option.isLocal ? CHAT_MODEL_MODES.local : CHAT_MODEL_MODES.cloud;
 
+/// Dictation extends what is already typed rather than replacing it.
+export const withDictatedText = (input: string, dictated: string) => {
+  const typed = input.trimEnd();
+  return typed ? `${typed} ${dictated}` : dictated;
+};
+
 export const makeMessageId = (): string => crypto.randomUUID();
 
 export const withPendingTurn = (

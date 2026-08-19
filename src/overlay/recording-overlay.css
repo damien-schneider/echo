@@ -122,7 +122,8 @@
   opacity: 0.5;
 }
 
-.echo-island-dock-grip[data-live="true"]:hover {
+.echo-island-dock-grip[data-live="true"]:hover,
+.echo-island-dock-grip[data-live="true"][data-hovered] {
   opacity: 0.9;
 }
 
@@ -186,7 +187,8 @@
     background-color 120ms ease-out;
 }
 
-.echo-island-action:hover {
+.echo-island-action:hover,
+.echo-island-action[data-hovered] {
   color: white;
   background-color: rgba(255, 255, 255, 0.12);
   scale: 1.06;
@@ -278,7 +280,8 @@
     opacity 120ms ease-out;
 }
 
-.echo-island-activity-dismiss:hover {
+.echo-island-activity-dismiss:hover,
+.echo-island-activity-dismiss[data-hovered] {
   opacity: 1;
 }
 

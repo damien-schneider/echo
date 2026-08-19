@@ -54,6 +54,7 @@ async fn apply_end_of_recording_action(
 ) {
     match action {
         EndOfRecordingAction::NothingToPaste => {
+            crate::dictation::abandon(&ah);
             if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
                 utils::hide_recording_overlay(&ah);
                 change_tray_icon(&ah, TrayIconState::Idle);
@@ -61,6 +62,7 @@ async fn apply_end_of_recording_action(
         }
         EndOfRecordingAction::ShowError(message) => {
             error!("Transcription stop ended with error: {message}");
+            crate::dictation::abandon(&ah);
             // Never leave UI stuck on "transcribing".
             if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
                 show_warning_overlay(&ah, &message);
@@ -100,7 +102,7 @@ async fn apply_end_of_recording_action(
                 debug!("Operation became stale before paste, skipping");
                 return;
             }
-            paste_and_reset(&ah, pasted, gen);
+            deliver_transcript(&ah, pasted, gen);
         }
         EndOfRecordingAction::PostProcess(transcription) => {
             // Watchdog guards against frontend hang/throw skipping finalize.
@@ -117,7 +119,7 @@ async fn apply_end_of_recording_action(
                     // No listener: paste raw, no finalize coming.
                     error!("Failed to emit transcription-ready: {}", e);
                     if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
-                        paste_and_reset(&ah, transcription, gen);
+                        deliver_transcript(&ah, transcription, gen);
                     }
                 }
             }
@@ -125,19 +127,24 @@ async fn apply_end_of_recording_action(
     }
 }
 
-/// Staleness-checked against `gen`.
-fn paste_and_reset(ah: &AppHandle, text: String, gen: u64) {
+/// The one exit every dictation takes, wherever the text came from — staleness-checked against `gen`.
+pub(crate) fn deliver_transcript(ah: &AppHandle, text: String, gen: u64) {
     let ah_clone = ah.clone();
-    let _ = ah.run_on_main_thread(move || {
+    let scheduled = ah.run_on_main_thread(move || {
         if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
             return;
         }
-        if let Err(e) = utils::paste(text, ah_clone.clone()) {
-            error!("Failed to paste transcription: {}", e);
-        }
         utils::hide_recording_overlay(&ah_clone);
+        crate::dictation::deliver(&ah_clone, text);
         change_tray_icon(&ah_clone, TrayIconState::Idle);
     });
+    if let Err(error) = scheduled {
+        error!("Failed to deliver the transcription: {error:?}");
+        if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
+            utils::hide_recording_overlay(ah);
+            change_tray_icon(ah, TrayIconState::Idle);
+        }
+    }
 }
 
 /// Recovers overlay if frontend never calls finalize_transcription.
@@ -155,7 +162,7 @@ fn arm_finalize_watchdog(ah: AppHandle, gen: u64, raw: String) {
              for generation {gen} within {:?}. Falling back to raw paste.",
             POST_PROCESS_WATCHDOG
         );
-        paste_and_reset(&ah, raw, gen);
+        deliver_transcript(&ah, raw, gen);
     });
 }
 
@@ -432,7 +439,7 @@ fn apply_dictation_cleanup(app: &AppHandle, raw: &str, settings: &AppSettings) -
 }
 
 /// Outcome of the pre-flight model check run before a dictation starts.
-enum ModelReadiness {
+pub(crate) enum ModelReadiness {
     /// Downloaded; the decode path loads it if needed.
     Ready,
     /// Cannot record right now; show `String` and abort the press.
@@ -457,7 +464,7 @@ fn model_readiness_for_status(
     ))
 }
 
-fn check_model_readiness(app: &AppHandle) -> ModelReadiness {
+pub(crate) fn check_model_readiness(app: &AppHandle) -> ModelReadiness {
     use crate::managers::model::{transcription_profile_id, ModelManager};
 
     let settings = get_settings(app);
@@ -478,6 +485,7 @@ impl ShortcutAction for TranscribeAction {
     fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
         let start_time = Instant::now();
         debug!("TranscribeAction::start called for binding: {}", binding_id);
+        crate::dictation::begin(binding_id);
 
         if crate::is_file_transcription_active() {
             debug!("File transcription in progress - showing warning overlay");
@@ -523,7 +531,9 @@ impl ShortcutAction for TranscribeAction {
         };
         let generation = attempt.operation_generation();
         change_tray_icon(app, TrayIconState::Recording);
-        show_recording_overlay(app);
+        if !crate::dictation::routes_to_chat() {
+            show_recording_overlay(app);
+        }
         info!(
             "start: overlay show requested at +{:?} (on shortcut callback thread)",
             start_time.elapsed()
@@ -599,7 +609,9 @@ impl ShortcutAction for TranscribeAction {
             .wrapping_add(1);
 
         change_tray_icon(app, TrayIconState::Transcribing);
-        show_transcribing_overlay(app);
+        if !crate::dictation::routes_to_chat() {
+            show_transcribing_overlay(app);
+        }
 
         // Unmute first so stop sound is audible.
         rm.remove_mute();

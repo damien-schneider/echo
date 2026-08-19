@@ -1,7 +1,4 @@
-use super::layout::{
-    overlay_mode_accepts_keyboard, overlay_mode_is_resident, OverlaySurfaceKind,
-    RecordingOverlayMode,
-};
+use super::layout::{overlay_mode_accepts_keyboard, OverlaySurfaceKind, RecordingOverlayMode};
 use super::surface::OverlayBoxPayload;
 use super::window::{OVERLAY_NOTIFICATION_LABEL, RECORDING_OVERLAY_LABEL};
 use std::sync::{
@@ -10,37 +7,44 @@ use std::sync::{
 };
 use tauri::{AppHandle, Emitter};
 
-pub(super) const OVERLAY_POINTER_BOUNDARY_EVENT: &str = "overlay-pointer-boundary";
+pub(super) const OVERLAY_POINTER_EVENT: &str = "overlay-pointer";
 const HOVER_EXIT_MARGIN: f64 = 2.0;
 
 pub(super) static SYNTHETIC_KEY_SUPPRESSED: AtomicBool = AtomicBool::new(false);
 
-/// Per-panel — the notification taking key for chat must not make the HUD think the pointer is on its handle.
+/// Window-local, top-left origin — the webview reads it as CSS pixels.
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct OverlayPointerEvent {
+    pub(super) inside: bool,
+    pub(super) x: f64,
+    pub(super) y: f64,
+}
+
+/// Per-panel — the notification owning chat's keyboard must not make the HUD think the pointer is on its handle.
 pub(super) struct PanelHoverState {
     accepts_key: AtomicBool,
     hover_box: Mutex<Option<OverlayBoxPayload>>,
-    is_resident: AtomicBool,
     label: &'static str,
     ns_window: AtomicUsize,
     pointer_inside: AtomicBool,
 }
 
 impl PanelHoverState {
-    const fn new(label: &'static str, is_resident: bool) -> Self {
+    const fn new(label: &'static str) -> Self {
         Self {
             accepts_key: AtomicBool::new(false),
             hover_box: Mutex::new(None),
-            is_resident: AtomicBool::new(is_resident),
             label,
             ns_window: AtomicUsize::new(0),
             pointer_inside: AtomicBool::new(false),
         }
     }
 
+    /// Hover never asks for the keyboard: taking key activates Echo and strands the user's caret.
     pub(super) fn can_become_key_window(&self) -> bool {
         !SYNTHETIC_KEY_SUPPRESSED.load(Ordering::Acquire)
-            && (self.accepts_key.load(Ordering::Acquire)
-                || self.pointer_inside.load(Ordering::Acquire))
+            && self.accepts_key.load(Ordering::Acquire)
     }
 
     pub(super) fn accepts_key(&self) -> bool {
@@ -50,8 +54,6 @@ impl PanelHoverState {
     pub(super) fn set_key_policy(&self, mode: RecordingOverlayMode) {
         self.accepts_key
             .store(overlay_mode_accepts_keyboard(mode), Ordering::Release);
-        self.is_resident
-            .store(overlay_mode_is_resident(mode), Ordering::Release);
     }
 
     pub(super) fn replace_hover_box(&self, island: OverlayBoxPayload) {
@@ -85,29 +87,30 @@ impl PanelHoverState {
         self.pointer_inside.load(Ordering::Acquire)
     }
 
-    pub(super) fn store_pointer_inside(&self, inside: bool) {
-        self.pointer_inside.store(inside, Ordering::Release);
-    }
-
-    /// WebKit only reports moves once the pointer travels again, so the island rides this native boundary instead.
-    pub(super) fn publish_pointer_boundary(&self, app_handle: &AppHandle, inside: bool) {
-        if !self.is_resident.load(Ordering::Acquire) {
-            return;
+    /// WebKit delivers no pointer moves to a window it does not own the keyboard for — this is the webview's only pointer.
+    pub(super) fn publish_pointer(&self, app_handle: &AppHandle, event: OverlayPointerEvent) {
+        if self.pointer_inside.swap(event.inside, Ordering::AcqRel) != event.inside {
+            log::info!("[Overlay] pointer {}: inside={}", self.label, event.inside);
         }
-        log::info!("[Overlay] pointer boundary: inside={inside}");
-        let _ = app_handle.emit_to(self.label, OVERLAY_POINTER_BOUNDARY_EVENT, inside);
+        let _ = app_handle.emit_to(self.label, OVERLAY_POINTER_EVENT, event);
     }
 
     pub(super) fn pointer_left(&self, app_handle: &AppHandle) {
-        if self.pointer_inside.swap(false, Ordering::AcqRel) {
-            self.publish_pointer_boundary(app_handle, false);
+        if self.pointer_inside.load(Ordering::Acquire) {
+            self.publish_pointer(
+                app_handle,
+                OverlayPointerEvent {
+                    inside: false,
+                    x: 0.0,
+                    y: 0.0,
+                },
+            );
         }
     }
 }
 
-static HUD_PANEL: PanelHoverState = PanelHoverState::new(RECORDING_OVERLAY_LABEL, true);
-static NOTIFICATION_PANEL: PanelHoverState =
-    PanelHoverState::new(OVERLAY_NOTIFICATION_LABEL, false);
+static HUD_PANEL: PanelHoverState = PanelHoverState::new(RECORDING_OVERLAY_LABEL);
+static NOTIFICATION_PANEL: PanelHoverState = PanelHoverState::new(OVERLAY_NOTIFICATION_LABEL);
 
 pub(super) const HOVER_PANELS: [&PanelHoverState; 2] = [&HUD_PANEL, &NOTIFICATION_PANEL];
 
@@ -133,39 +136,6 @@ pub(super) fn notification_panel_can_become_key_window() -> bool {
     NOTIFICATION_PANEL.can_become_key_window()
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum HoverKeyAction {
-    TakeKey,
-    ReleaseKey,
-    Stand,
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct HoverKeySample {
-    pub(super) keyboard_mode: bool,
-    pub(super) panel_is_key: bool,
-    pub(super) synthetic_key_suppressed: bool,
-    pub(super) pointer_inside: bool,
-}
-
-/// Stateless — a mode change drops key transiently, so possession is just re-taken while the pointer is inside.
-pub(super) fn decide_hover_key(sample: HoverKeySample) -> HoverKeyAction {
-    if sample.keyboard_mode {
-        // Chat owns key deliberately, wherever the pointer goes.
-        return HoverKeyAction::Stand;
-    }
-    if !sample.pointer_inside {
-        if sample.panel_is_key {
-            return HoverKeyAction::ReleaseKey;
-        }
-        return HoverKeyAction::Stand;
-    }
-    if sample.panel_is_key || sample.synthetic_key_suppressed {
-        return HoverKeyAction::Stand;
-    }
-    HoverKeyAction::TakeKey
-}
-
 /// AppKit origin is bottom-left, the island box top-left — the vertical axis flips here.
 fn hover_region_in_screen(
     frame: (f64, f64, f64, f64),
@@ -178,6 +148,12 @@ fn hover_region_in_screen(
         island.width,
         island.height,
     )
+}
+
+/// Same axis flip, for the point the webview hit-tests with.
+pub(super) fn window_local_pointer(frame: (f64, f64, f64, f64), pointer: (f64, f64)) -> (f64, f64) {
+    let (frame_x, frame_y, _, frame_height) = frame;
+    (pointer.0 - frame_x, frame_y + frame_height - pointer.1)
 }
 
 pub(super) fn overlay_hover_region_for_pointer(

@@ -5,10 +5,12 @@ import {
   SCREEN_HANDOFF_STYLE,
   screenHandoffFreezesLayout,
 } from "@/features/overlay-controls/runtime/screen-handoff";
+import { useNativeHover } from "@/features/overlay-controls/runtime/use-native-hover";
 import { useRecordingOverlayController } from "@/features/overlay-controls/use-recording-overlay-controller";
 
 const RecordingOverlay = () => {
   const controller = useRecordingOverlayController();
+  useNativeHover();
   const surface = controller.events.surface;
   if (!(controller.events.isSurfaceReady && surface)) {
     return null;

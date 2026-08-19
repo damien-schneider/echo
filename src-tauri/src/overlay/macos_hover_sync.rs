@@ -1,19 +1,22 @@
 use super::layout::OverlaySurfaceKind;
 use super::macos_hover::{
-    decide_hover_key, hover_pointer_inside, overlay_hover_region_for_pointer, panel_hover_state,
-    HoverKeyAction, HoverKeySample, PanelHoverState, HOVER_PANELS, SYNTHETIC_KEY_SUPPRESSED,
+    hover_pointer_inside, overlay_hover_region_for_pointer, panel_hover_state,
+    window_local_pointer, OverlayPointerEvent, PanelHoverState, HOVER_PANELS,
 };
 use super::screen_follow::{self, FollowStep};
 use objc2::{msg_send, runtime::AnyObject};
 use std::{
     ptr::NonNull,
     sync::atomic::{AtomicBool, Ordering},
+    time::Duration,
 };
 use tauri::{AppHandle, Manager, WebviewWindow};
 use tauri_nspanel::objc2_app_kit::{NSEvent, NSEventMask, NSEventType};
 use tauri_nspanel::objc2_foundation::{NSPoint, NSRect};
 
 static HOVER_KEY_MONITORS_INSTALLED: AtomicBool = AtomicBool::new(false);
+static HOVER_RESAMPLE_ARMED: AtomicBool = AtomicBool::new(false);
+const HOVER_RESAMPLE_INTERVAL: Duration = Duration::from_millis(80);
 
 pub(super) fn register_panel_window(
     kind: OverlaySurfaceKind,
@@ -27,8 +30,8 @@ pub(super) fn register_panel_window(
     install_hover_key_monitors(window.app_handle().clone())
 }
 
-/// CSS `:hover` in a WKWebView only updates while the host window is key, and `mouseMoved:` is unimplemented (rdar://88025610).
-/// Spotlight's workaround: take key on this non-activating panel while the pointer is inside, resign the moment it leaves.
+/// A WKWebView sees no pointer move unless its window owns the keyboard (rdar://88025610), and taking the keyboard
+/// activates Echo under the user's caret — so the panel stays keyboard-free and the webview hovers off these samples.
 fn install_hover_key_monitors(app_handle: AppHandle) -> Result<(), String> {
     if HOVER_KEY_MONITORS_INSTALLED.swap(true, Ordering::AcqRel) {
         return Ok(());
@@ -37,8 +40,11 @@ fn install_hover_key_monitors(app_handle: AppHandle) -> Result<(), String> {
     let global_handler = block2::RcBlock::new(move |event: NonNull<NSEvent>| unsafe {
         handle_overlay_pointer_event(&global_app_handle, event);
     });
-    let pointer_motion_mask =
-        NSEventMask::MouseMoved | NSEventMask::LeftMouseDragged | NSEventMask::LeftMouseUp;
+    // mouse-down too: a pointer parked where the island appears sends no move, and the island must still wake
+    let pointer_motion_mask = NSEventMask::MouseMoved
+        | NSEventMask::LeftMouseDragged
+        | NSEventMask::LeftMouseDown
+        | NSEventMask::LeftMouseUp;
     let Some(global_monitor) = NSEvent::addGlobalMonitorForEventsMatchingMask_handler(
         pointer_motion_mask,
         &global_handler,
@@ -83,7 +89,7 @@ fn drive_active_drag(app_handle: &AppHandle, event_type: NSEventType) {
     sync_hover_key_possession(app_handle);
 }
 
-/// Panels are independent — the one under the pointer takes key, the others let it go.
+/// Panels are independent — each reports its own pointer, and only chat's keyboard holds the island in place.
 pub(super) fn sync_hover_key_possession(app_handle: &AppHandle) {
     let mut pointer_captured = false;
     let mut keyboard_mode = false;
@@ -93,8 +99,11 @@ pub(super) fn sync_hover_key_possession(app_handle: &AppHandle) {
         };
         keyboard_mode = keyboard_mode || panel.accepts_key();
         pointer_captured =
-            unsafe { sync_panel_hover_key(panel, address as *mut AnyObject, app_handle) }
+            unsafe { sync_panel_pointer(panel, address as *mut AnyObject, app_handle) }
                 || pointer_captured;
+    }
+    if pointer_captured {
+        resample_while_hovered(app_handle);
     }
     if pointer_captured || keyboard_mode {
         screen_follow::disarm();
@@ -106,7 +115,7 @@ pub(super) fn sync_hover_key_possession(app_handle: &AppHandle) {
     }
 }
 
-unsafe fn sync_panel_hover_key(
+unsafe fn sync_panel_pointer(
     panel: &PanelHoverState,
     ns_window: *mut AnyObject,
     app_handle: &AppHandle,
@@ -124,41 +133,39 @@ unsafe fn sync_panel_hover_key(
     let pointer_inside =
         overlay_hover_region_for_pointer(frame_tuple, is_visible, panel.hover_box())
             .is_some_and(|region| hover_pointer_inside(region, (pointer.x, pointer.y), was_inside));
-    let panel_is_key: bool = msg_send![&*ns_window, isKeyWindow];
-    let action = decide_hover_key(HoverKeySample {
-        keyboard_mode: panel.accepts_key(),
-        panel_is_key,
-        synthetic_key_suppressed: SYNTHETIC_KEY_SUPPRESSED.load(Ordering::Acquire),
-        pointer_inside,
-    });
-    // publish pointer state first — AppKit reads ownership when hit testing turns on
-    panel.store_pointer_inside(pointer_inside);
-    if pointer_inside && !was_inside {
-        set_ignores_mouse_events(ns_window, false);
+    if !(pointer_inside || was_inside) {
+        return false;
     }
-    match action {
-        HoverKeyAction::TakeKey => {
-            crate::macos_accessibility::remember_selected_text_before_overlay_focus();
-            log::info!("[Overlay] hover key: take ({})", panel.label());
-            let _: () = msg_send![&*ns_window, makeKeyWindow];
-        }
-        HoverKeyAction::ReleaseKey => {
-            log::info!("[Overlay] hover key: release ({})", panel.label());
-            let _: () = msg_send![&*ns_window, resignKeyWindow];
-        }
-        HoverKeyAction::Stand => {}
-    }
-    if !pointer_inside && was_inside {
-        set_ignores_mouse_events(ns_window, true);
-    }
-    if pointer_inside != was_inside {
-        panel.publish_pointer_boundary(app_handle, pointer_inside);
-    }
+    let (x, y) = window_local_pointer(frame_tuple, (pointer.x, pointer.y));
+    panel.publish_pointer(
+        app_handle,
+        OverlayPointerEvent {
+            inside: pointer_inside,
+            x,
+            y,
+        },
+    );
     pointer_inside
 }
 
-unsafe fn set_ignores_mouse_events(ns_window: *mut AnyObject, ignores: bool) {
-    let _: () = msg_send![&*ns_window, setIgnoresMouseEvents: ignores];
+/// Pointer samples dry up while Echo is the front app without a key window taking mouse moves: the global monitor
+/// skips our own events and there is nothing to dequeue locally. Hover leaves are read from the pointer, not from
+/// the last sample that happened to arrive.
+fn resample_while_hovered(app_handle: &AppHandle) {
+    if HOVER_RESAMPLE_ARMED.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let waiting = app_handle.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(HOVER_RESAMPLE_INTERVAL);
+        let syncing = waiting.clone();
+        let _ = waiting.run_on_main_thread(move || {
+            HOVER_RESAMPLE_ARMED.store(false, Ordering::Release);
+            if !super::snap::drag_is_active() {
+                sync_hover_key_possession(&syncing);
+            }
+        });
+    });
 }
 
 /// Pointer settling on another display hands the island over to it.

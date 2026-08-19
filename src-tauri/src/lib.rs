@@ -5,6 +5,7 @@ mod audio_feedback;
 pub mod audio_toolkit;
 mod clipboard;
 pub mod commands;
+mod dictation;
 mod features;
 mod helpers;
 mod logging;
@@ -693,7 +694,7 @@ pub fn run() {
             overlay::get_overlay_chat_context,
             overlay::hide_overlay_notification,
             overlay::request_overlay_notification,
-            overlay::refresh_overlay_chat_context,
+            overlay::send_held_transcript_to_chat,
             overlay::open_chat_model_settings,
             overlay::warn_from_overlay,
             commands::cancel_operation,
@@ -730,6 +731,11 @@ pub fn run() {
             commands::transcription::start_transcription_from_overlay,
             commands::transcription::stop_transcription_from_overlay,
             commands::transcription::run_polish_from_overlay,
+            commands::transcription::start_chat_dictation,
+            commands::transcription::stop_chat_dictation,
+            dictation::get_held_transcript,
+            dictation::take_transcript_for_chat,
+            dictation::copy_held_transcript,
             commands::history::get_history_entries,
             commands::history::toggle_history_entry_saved,
             commands::history::get_audio_file_path,

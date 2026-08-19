@@ -1,12 +1,40 @@
-import { ArrowUp, Square } from "lucide-react";
+import { ArrowUp, Mic, Square } from "lucide-react";
 import type { RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import type { ChatDictation } from "@/features/overlay-chat/use-chat-dictation";
+import { cn } from "@/lib/utils";
 
 const ACTION_BUTTON_CLASS =
   "size-8 rounded-full bg-white text-black hover:bg-white/88 focus-visible:ring-1 focus-visible:ring-white/60";
 
+const DICTATION_LABEL = {
+  idle: "Dictate a message",
+  recording: "Stop dictating",
+  transcribing: "Transcribing…",
+} as const;
+
+const DictateButton = ({ state, toggle }: ChatDictation) => (
+  <Button
+    aria-label={DICTATION_LABEL[state]}
+    aria-pressed={state === "recording"}
+    className={cn(
+      "size-8 rounded-full text-white/68 hover:bg-white/10 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45",
+      state === "recording" && "bg-white text-black hover:bg-white/88"
+    )}
+    disabled={state === "transcribing"}
+    onClick={toggle}
+    size="icon-sm"
+    title={DICTATION_LABEL[state]}
+    type="button"
+    variant="ghost"
+  >
+    <Mic className="size-4" />
+  </Button>
+);
+
 interface ChatComposerProps {
+  dictation: ChatDictation;
   input: string;
   inputRef: RefObject<HTMLInputElement | null>;
   isContextLoading: boolean;
@@ -18,6 +46,7 @@ interface ChatComposerProps {
 }
 
 export const ChatComposer = ({
+  dictation,
   input,
   isContextLoading,
   inputRef,
@@ -36,6 +65,7 @@ export const ChatComposer = ({
       value={input}
       variant="default"
     />
+    <DictateButton {...dictation} />
     {isResponding ? (
       <Button
         aria-label="Stop"

@@ -108,17 +108,11 @@ fn build_overlay_notification(
 }
 
 fn configure_notification_window(window: &WebviewWindow) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        window
-            .set_ignore_cursor_events(true)
-            .map_err(|error| format!("Failed to disable notification cursor events: {error}"))?;
-        macos_panel::configure_notification(window)?;
-    }
-    #[cfg(not(target_os = "macos"))]
     window
         .set_ignore_cursor_events(false)
         .map_err(|error| format!("Failed to enable notification cursor events: {error}"))?;
+    #[cfg(target_os = "macos")]
+    macos_panel::configure_notification(window)?;
     Ok(())
 }
 
@@ -197,7 +191,7 @@ fn configure_created_window(
     let _ = (placement, is_wayland_session);
 
     let native_setup = configure_or_destroy_overlay(
-        || configure_macos_window(&window, placement),
+        || configure_overlay_window(&window, placement),
         || {
             window
                 .destroy()
@@ -207,10 +201,6 @@ fn configure_created_window(
     if let Err(error) = native_setup {
         warn!("[Overlay] Native HUD disabled for this session: {error}");
         return;
-    }
-    #[cfg(not(target_os = "macos"))]
-    if let Err(error) = window.set_ignore_cursor_events(false) {
-        warn!("[Overlay] Failed to set ignore_cursor_events: {error}");
     }
     update_overlay_position(window.app_handle());
     info!("[Overlay] Recording overlay window created successfully");
@@ -231,15 +221,15 @@ fn configure_or_destroy_overlay(
     }
 }
 
-fn configure_macos_window(
+fn configure_overlay_window(
     window: &WebviewWindow,
     placement: OverlayPlacement,
 ) -> Result<(), String> {
+    window
+        .set_ignore_cursor_events(false)
+        .map_err(|error| format!("Failed to enable overlay cursor events: {error}"))?;
     #[cfg(target_os = "macos")]
     {
-        window
-            .set_ignore_cursor_events(true)
-            .map_err(|error| format!("Failed to disable overlay cursor events: {error}"))?;
         macos_panel::configure(
             window,
             overlay_initially_visible(placement.position),
@@ -249,7 +239,7 @@ fn configure_macos_window(
     }
 
     #[cfg(not(target_os = "macos"))]
-    let _ = (window, placement);
+    let _ = placement;
     Ok(())
 }
 
