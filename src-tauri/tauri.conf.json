@@ -6,7 +6,7 @@
   "identifier": "com.damien-schneider.echo",
   "build": {
     "beforeDevCommand": "bun run prepare:polish-runtime && bun run dev",
-    "devUrl": "http://localhost:1420",
+    "devUrl": "http://localhost:1425",
     "beforeBuildCommand": "bun run prepare:polish-runtime && bun run pipeline",
     "frontendDist": "../dist"
   },
