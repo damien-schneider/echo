@@ -481,6 +481,65 @@ pub(crate) fn check_model_readiness(app: &AppHandle) -> ModelReadiness {
     }
 }
 
+impl TranscribeAction {
+    /// A dictation without microphone access only records silence — resolve access before capture.
+    fn ensure_microphone_access(&self, app: &AppHandle, binding_id: &str) -> bool {
+        use tauri_plugin_macos_permissions as macos_permissions;
+
+        let status = crate::commands::audio::microphone_permission_status();
+        if status == "authorized" {
+            return true;
+        }
+        warn!("Dictation blocked: microphone access is {status}");
+        show_warning_overlay(app, "Allow microphone access in the dialog to dictate");
+
+        let app_handle = app.clone();
+        let binding = binding_id.to_string();
+        std::thread::spawn(move || {
+            if status == "denied" {
+                use tauri_plugin_opener::OpenerExt;
+                let _ = app_handle.opener().open_url(
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+                    None::<String>,
+                );
+                show_warning_overlay(
+                    &app_handle,
+                    "Microphone is off — enable it in System Settings",
+                );
+                return;
+            }
+            let _ =
+                tauri::async_runtime::block_on(macos_permissions::request_microphone_permission());
+            let mut granted =
+                tauri::async_runtime::block_on(macos_permissions::check_microphone_permission());
+            for _ in 0..59 {
+                if granted {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                granted = tauri::async_runtime::block_on(
+                    macos_permissions::check_microphone_permission(),
+                );
+            }
+            if granted {
+                info!("Microphone access granted — restarting dictation");
+                TranscribeAction.start(&app_handle, &binding, "");
+            } else {
+                use tauri_plugin_opener::OpenerExt;
+                let _ = app_handle.opener().open_url(
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+                    None::<String>,
+                );
+                show_warning_overlay(
+                    &app_handle,
+                    "Microphone is off for Echo — enable it in System Settings",
+                );
+            }
+        });
+        false
+    }
+}
+
 impl ShortcutAction for TranscribeAction {
     fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
         let start_time = Instant::now();
@@ -510,6 +569,15 @@ impl ShortcutAction for TranscribeAction {
                 }
                 return;
             }
+        }
+
+        // Recording without microphone access only captures silence.
+        if !self.ensure_microphone_access(app, binding_id) {
+            let toggle_state_manager = app.state::<ManagedToggleState>();
+            if let Ok(mut states) = toggle_state_manager.lock() {
+                states.active_toggles.insert(binding_id.to_string(), false);
+            }
+            return;
         }
 
         let tm = app.state::<Arc<TranscriptionManager>>();

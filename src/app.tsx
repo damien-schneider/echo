@@ -10,6 +10,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useShortcutFailureToasts } from "@/features/shortcuts/use-shortcut-failure-toasts";
 import { AccessibilityPermissions } from "./components/accessibility-permissions";
 import { ErrorDialog } from "./components/error-dialog";
+import { MicrophonePermissions } from "./components/microphone-permissions";
 import Onboarding from "./components/onboarding/onboarding";
 import {
   SECTIONS_CONFIG,
@@ -206,6 +207,7 @@ function App() {
       >
         <div className="mx-auto max-w-xl">
           <AccessibilityPermissions />
+          <MicrophonePermissions />
           {renderSettingsContent(currentSection)}
         </div>
       </SidebarLayout>

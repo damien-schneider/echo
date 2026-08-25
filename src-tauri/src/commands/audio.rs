@@ -179,3 +179,42 @@ pub fn play_test_sound(app: AppHandle, sound_type: String) {
     };
     audio_feedback::play_test_sound(&app, sound);
 }
+
+/// macOS mic TCC state: only `not_determined` can still show a system prompt.
+#[cfg(target_os = "macos")]
+pub(crate) fn microphone_permission_status() -> &'static str {
+    use objc2::msg_send;
+    use objc2_foundation::NSString;
+    unsafe {
+        let cls = objc2::class!(AVCaptureDevice);
+        let av_media_type = NSString::from_str("soun");
+        let status: i32 =
+            unsafe { msg_send![cls, authorizationStatusForMediaType: &*av_media_type] };
+        match status {
+            3 => "authorized",
+            2 => "denied",
+            _ => "not_determined",
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn microphone_permission_status() -> &'static str {
+    "authorized"
+}
+
+#[tauri::command]
+pub fn get_microphone_permission_status() -> &'static str {
+    microphone_permission_status()
+}
+
+#[tauri::command]
+pub fn open_microphone_settings(app: AppHandle) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_url(
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+            None::<String>,
+        )
+        .map_err(|e| format!("Failed to open Microphone settings: {e}"))
+}

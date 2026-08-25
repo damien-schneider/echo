@@ -161,3 +161,35 @@ fn taking_a_recording_resets_pause_metadata_and_pending_silence() {
     assert_eq!(recorded.pending_silence_samples, 0);
     assert!(recorded.samples.is_empty());
 }
+
+#[test]
+fn silence_watchdog_fires_once_after_enough_digital_silence() {
+    let mut watchdog = SilenceWatchdog::new(100);
+
+    assert!(!watchdog.observe(&[0.0; 60]));
+    assert!(!watchdog.observe(&[0.0; 39]));
+    assert!(watchdog.observe(&[0.0; 1]));
+    assert!(!watchdog.observe(&[0.0; 500]), "must fire only once");
+}
+
+#[test]
+fn silence_watchdog_stays_quiet_when_the_recording_heard_sound() {
+    let mut watchdog = SilenceWatchdog::new(100);
+
+    for _ in 0..10 {
+        assert!(!watchdog.observe(&[0.0; 90]));
+        assert!(!watchdog.observe(&[0.001]));
+    }
+}
+
+#[test]
+fn silence_watchdog_rearms_for_the_next_recording() {
+    let mut watchdog = SilenceWatchdog::new(10);
+
+    assert!(watchdog.observe(&[0.0; 10]));
+
+    watchdog.reset();
+
+    assert!(!watchdog.observe(&[0.0; 9]));
+    assert!(watchdog.observe(&[0.0; 1]));
+}

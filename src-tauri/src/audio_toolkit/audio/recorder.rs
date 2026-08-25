@@ -41,6 +41,7 @@ pub struct AudioRecorder {
     worker_handle: Option<std::thread::JoinHandle<()>>,
     vad: Option<Arc<Mutex<Box<dyn vad::VoiceActivityDetector>>>>,
     level_cb: Option<Arc<dyn Fn(Vec<f32>) + Send + Sync + 'static>>,
+    silence_cb: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 }
 
 impl AudioRecorder {
@@ -51,6 +52,7 @@ impl AudioRecorder {
             worker_handle: None,
             vad: None,
             level_cb: None,
+            silence_cb: None,
         })
     }
 
@@ -64,6 +66,15 @@ impl AudioRecorder {
         F: Fn(Vec<f32>) + Send + Sync + 'static,
     {
         self.level_cb = Some(Arc::new(cb));
+        self
+    }
+
+    /// Fires at most once per recording when the input stayed digitally silent throughout.
+    pub fn with_silence_callback<F>(mut self, cb: F) -> Self
+    where
+        F: Fn() + Send + Sync + 'static,
+    {
+        self.silence_cb = Some(Arc::new(cb));
         self
     }
 
@@ -86,6 +97,7 @@ impl AudioRecorder {
         let thread_device = device.clone();
         let vad = self.vad.clone();
         let level_cb = self.level_cb.clone();
+        let silence_cb = self.silence_cb.clone();
 
         let worker = std::thread::spawn(move || {
             let config = AudioRecorder::get_preferred_config(&thread_device)
@@ -128,7 +140,7 @@ impl AudioRecorder {
 
             stream.play().expect("failed to start stream");
 
-            run_consumer(sample_rate, vad, sample_rx, cmd_rx, level_cb);
+            run_consumer(sample_rate, vad, sample_rx, cmd_rx, level_cb, silence_cb);
         });
 
         self.device = Some(device);
@@ -247,6 +259,53 @@ impl AudioRecorder {
 const LONG_PAUSE_MIN_SAMPLES: usize = constants::WHISPER_SAMPLE_RATE as usize / 2;
 pub(crate) const PAUSE_SEPARATOR_SAMPLES: usize = constants::WHISPER_SAMPLE_RATE as usize * 3 / 10;
 
+/// Below this a sample is not quiet but absent — the pipe delivers digital zeros when macOS denies
+/// the microphone or the device is muted at the source.
+const DIGITAL_SILENCE_AMPLITUDE: f32 = 1e-4;
+
+/// Flags a recording that never heard anything: real microphones idle above the noise floor, so only
+/// a blocked or muted input stays digitally silent from the first sample on.
+struct SilenceWatchdog {
+    threshold_samples: usize,
+    silent_samples: usize,
+    reported: bool,
+}
+
+impl SilenceWatchdog {
+    fn new(threshold_samples: usize) -> Self {
+        Self {
+            threshold_samples,
+            silent_samples: 0,
+            reported: false,
+        }
+    }
+
+    fn observe(&mut self, samples: &[f32]) -> bool {
+        if self.reported {
+            return false;
+        }
+        if samples
+            .iter()
+            .any(|sample| sample.abs() >= DIGITAL_SILENCE_AMPLITUDE)
+        {
+            self.silent_samples = 0;
+            return false;
+        }
+        self.silent_samples += samples.len();
+        if self.silent_samples >= self.threshold_samples {
+            self.reported = true;
+            true
+        } else {
+            false
+        }
+    }
+
+    fn reset(&mut self) {
+        self.silent_samples = 0;
+        self.reported = false;
+    }
+}
+
 #[derive(Default)]
 struct RecordedAudioBuffer {
     pending_silence_samples: usize,
@@ -306,6 +365,7 @@ fn run_consumer(
     sample_rx: mpsc::Receiver<Vec<f32>>,
     cmd_rx: mpsc::Receiver<Cmd>,
     level_cb: Option<Arc<dyn Fn(Vec<f32>) + Send + Sync + 'static>>,
+    silence_cb: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
 ) {
     let mut frame_resampler = FrameResampler::new(
         in_sample_rate as usize,
@@ -316,6 +376,7 @@ fn run_consumer(
     let mut recorded_audio = RecordedAudioBuffer::default();
     let mut recording = false;
     let mut chunk_tx: Option<mpsc::Sender<CapturedAudioFrame>> = None;
+    let mut silence_watchdog = SilenceWatchdog::new(in_sample_rate as usize * 2);
 
     let mut visualizer = AudioVisualiser::new(in_sample_rate);
 
@@ -372,6 +433,7 @@ fn run_consumer(
                     recording = true;
                     chunk_tx = tx;
                     visualizer.reset();
+                    silence_watchdog.reset();
                     if let Some(v) = &vad {
                         v.lock().unwrap().reset();
                     }
@@ -414,6 +476,13 @@ fn run_consumer(
         if let Some(callback) = &level_cb {
             if let Some(level) = visualizer.recording_level(&raw, recording) {
                 callback(level);
+            }
+        }
+
+        if recording && silence_watchdog.observe(&raw) {
+            debug!("Recording received only digital silence so far");
+            if let Some(callback) = &silence_cb {
+                callback();
             }
         }
 

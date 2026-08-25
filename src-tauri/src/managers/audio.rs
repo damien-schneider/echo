@@ -9,7 +9,7 @@ use crate::managers::transcription::TranscriptionManager;
 use crate::settings::{get_settings, AppSettings};
 use crate::utils;
 use anyhow::Context;
-use log::{debug, info};
+use log::{debug, info, warn};
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tauri::Manager;
@@ -337,6 +337,16 @@ fn create_audio_recorder(
             let app_handle = app_handle.clone();
             move |levels| {
                 utils::emit_levels(&app_handle, &levels);
+            }
+        })
+        .with_silence_callback({
+            let app_handle = app_handle.clone();
+            move || {
+                warn!("Dictation heard only digital silence — microphone blocked or muted");
+                crate::overlay::show_warning_overlay(
+                    &app_handle,
+                    "No sound detected — check mic access",
+                );
             }
         });
 

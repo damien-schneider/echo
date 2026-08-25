@@ -725,6 +725,8 @@ pub fn run() {
             commands::audio::get_selected_output_device,
             commands::audio::play_test_sound,
             commands::audio::check_custom_sounds,
+            commands::audio::get_microphone_permission_status,
+            commands::audio::open_microphone_settings,
             helpers::clamshell::is_clamshell,
             helpers::clamshell::is_laptop,
             commands::transcription::prewarm_models,
