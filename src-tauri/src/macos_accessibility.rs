@@ -9,8 +9,32 @@ const AX_ERROR_API_DISABLED: i32 = -25_211;
 const AX_ERROR_NO_VALUE: i32 = -25_212;
 const AX_ERROR_SUCCESS: i32 = 0;
 const AX_FOCUSED_UI_ELEMENT_ATTRIBUTE: &str = "AXFocusedUIElement";
+const AX_ROLE_ATTRIBUTE: &str = "AXRole";
 const AX_SELECTED_TEXT_ATTRIBUTE: &str = "AXSelectedText";
-const AX_SELECTED_TEXT_RANGE_ATTRIBUTE: &str = "AXSelectedTextRange";
+
+const TEXT_INPUT_ROLES: &[&str] = &["AXTextArea", "AXTextField", "AXComboBox", "AXSearchField"];
+/// Roles that demonstrably hold the focus yet cannot take a text paste. AXWebArea sits here on
+/// purpose: Chromium's web area answers AXSelectedTextRange even on a page with nothing editable,
+/// while a real web input gets its own AXTextField/AXTextArea element.
+const PASTE_DEAF_ROLES: &[&str] = &[
+    "AXWebArea",
+    "AXScrollArea",
+    "AXButton",
+    "AXImage",
+    "AXStaticText",
+    "AXTable",
+    "AXOutline",
+    "AXList",
+    "AXMenu",
+    "AXMenuItem",
+    "AXToolbar",
+    "AXRadioButton",
+    "AXCheckBox",
+    "AXLink",
+    "AXTabGroup",
+];
+/// Electron builds its accessibility tree only when asked to — this attribute is the ask.
+const AX_MANUAL_ACCESSIBILITY_ATTRIBUTE: &str = "AXManualAccessibility";
 
 type AXUIElementRef = *const c_void;
 
@@ -39,8 +63,14 @@ unsafe extern "C" {
         attribute: CFStringRef,
         value: *mut CFTypeRef,
     ) -> i32;
+    fn AXUIElementCreateApplication(pid: libc::pid_t) -> AXUIElementRef;
     fn AXUIElementCreateSystemWide() -> AXUIElementRef;
     fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut libc::pid_t) -> i32;
+    fn AXUIElementSetAttributeValue(
+        element: AXUIElementRef,
+        attribute: CFStringRef,
+        value: CFTypeRef,
+    ) -> i32;
 }
 
 pub(crate) fn selected_text() -> Result<SelectedText> {
@@ -61,27 +91,94 @@ fn element_belongs_to_echo(element: &CFType) -> bool {
     element_pid(element).is_some_and(|pid| Some(pid) == echo_pid)
 }
 
-/// A synthetic Cmd+V needs somewhere to land: an insertion point outside Echo. Without Accessibility
-/// permission nothing can be known, so the paste goes out blind exactly as it always did.
-pub(crate) fn caret_is_reachable() -> bool {
+/// What the focus probe could establish about a caret — never a gate on the paste, only the weight
+/// its receipt gets and whether the held-out card shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum CaretSight {
+    /// Nothing usable: no permission, no focused element, or a role that says nothing either way.
+    Blind,
+    /// The focused element answered clearly, and what it is cannot take a text paste.
+    DeniedByRole,
+    /// A text element demonstrably holds the focus.
+    Affirmed,
+}
+
+/// Electron apps grow an accessibility tree only once asked — asked here, at dictation start, so
+/// the tree exists by the time the delivery probe looks. Best effort: silence on every failure.
+pub(crate) fn coax_frontmost_into_answering() {
     if unsafe { AXIsProcessTrusted() } == 0 {
-        return true;
+        return;
     }
-    match focused_element() {
-        Ok(AttributeRead::Value(focused)) => element_holds_a_caret(&focused),
-        Ok(AttributeRead::Missing) => false,
-        Ok(AttributeRead::Unsupported) | Err(_) => true,
+    let Some(pid) = frontmost_application_pid() else {
+        return;
+    };
+    let app_ref = unsafe { AXUIElementCreateApplication(pid) };
+    if app_ref.is_null() {
+        return;
+    }
+    let app = unsafe { CFType::wrap_under_create_rule(app_ref) };
+    let attribute = CFString::from_static_string(AX_MANUAL_ACCESSIBILITY_ATTRIBUTE);
+    let manual_on = core_foundation::boolean::CFBoolean::true_value();
+    unsafe {
+        AXUIElementSetAttributeValue(
+            app.as_CFTypeRef(),
+            attribute.as_concrete_TypeRef(),
+            manual_on.as_CFTypeRef(),
+        );
     }
 }
 
-fn element_holds_a_caret(focused: &CFType) -> bool {
-    if element_belongs_to_echo(focused) {
-        return false;
+fn frontmost_application_pid() -> Option<libc::pid_t> {
+    use objc2::msg_send;
+    use objc2::runtime::AnyObject;
+    objc2::rc::autoreleasepool(|_| unsafe {
+        let workspace: *mut AnyObject = msg_send![objc2::class!(NSWorkspace), sharedWorkspace];
+        if workspace.is_null() {
+            return None;
+        }
+        let app: *mut AnyObject = msg_send![workspace, frontmostApplication];
+        if app.is_null() {
+            return None;
+        }
+        let pid: i32 = msg_send![app, processIdentifier];
+        (pid > 0).then_some(pid)
+    })
+}
+
+pub(crate) fn sight_focused_caret() -> CaretSight {
+    if unsafe { AXIsProcessTrusted() } == 0 {
+        return CaretSight::Blind;
     }
-    matches!(
-        copy_attribute(focused.as_CFTypeRef(), AX_SELECTED_TEXT_RANGE_ATTRIBUTE),
-        Ok(AttributeRead::Value(_))
-    )
+    let Ok(AttributeRead::Value(focused)) = focused_element() else {
+        return CaretSight::Blind;
+    };
+    if element_belongs_to_echo(&focused) {
+        return CaretSight::Blind;
+    }
+    // Only the role affirms — Finder's desktop answers AXSelectedTextRange on a plain AXGroup, so
+    // a selection range proves nothing about a caret.
+    match focused_role(&focused).as_deref() {
+        Some(role) if role_is_text_input(role) => CaretSight::Affirmed,
+        Some(role) if role_is_paste_deaf(role) => CaretSight::DeniedByRole,
+        _ => CaretSight::Blind,
+    }
+}
+
+fn focused_role(focused: &CFType) -> Option<String> {
+    match copy_attribute(focused.as_CFTypeRef(), AX_ROLE_ATTRIBUTE) {
+        Ok(AttributeRead::Value(role)) => role
+            .downcast_into::<CFString>()
+            .map(|name| name.to_string()),
+        _ => None,
+    }
+}
+
+fn role_is_text_input(role: &str) -> bool {
+    TEXT_INPUT_ROLES.contains(&role)
+}
+
+fn role_is_paste_deaf(role: &str) -> bool {
+    PASTE_DEAF_ROLES.contains(&role)
 }
 
 fn selected_text_from_element(focused: &CFType) -> Result<SelectedText> {
@@ -139,5 +236,43 @@ fn copy_attribute(element: AXUIElementRef, attribute: &'static str) -> Result<At
         _ => Err(anyhow::anyhow!(
             "Accessibility selection read failed with code {status}"
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{role_is_paste_deaf, role_is_text_input, CaretSight};
+
+    #[test]
+    fn text_input_roles_affirm_a_caret() {
+        for role in ["AXTextArea", "AXTextField", "AXComboBox", "AXSearchField"] {
+            assert!(role_is_text_input(role));
+            assert!(!role_is_paste_deaf(role));
+        }
+    }
+
+    /// A web area with nothing editable, a button, the desktop — clear focus, no possible caret.
+    #[test]
+    fn roles_that_cannot_take_a_paste_deny_the_caret() {
+        for role in ["AXWebArea", "AXScrollArea", "AXButton", "AXStaticText"] {
+            assert!(role_is_paste_deaf(role));
+            assert!(!role_is_text_input(role));
+        }
+    }
+
+    /// A bare window or group says nothing — AX-poor apps (terminals, Zed) look like this while
+    /// taking pastes perfectly well, so they must stay blind, never denied.
+    #[test]
+    fn uninformative_roles_stay_blind() {
+        for role in ["AXWindow", "AXGroup", "AXSplitGroup", "AXUnknown"] {
+            assert!(!role_is_paste_deaf(role));
+            assert!(!role_is_text_input(role));
+        }
+    }
+
+    #[test]
+    fn sight_orders_by_how_much_the_probe_established() {
+        assert!(CaretSight::Affirmed > CaretSight::DeniedByRole);
+        assert!(CaretSight::DeniedByRole > CaretSight::Blind);
     }
 }

@@ -17,7 +17,7 @@ pub(crate) const CHAT_BINDING_ID: &str = "chat_dictation";
 static ROUTES_TO_CHAT: AtomicBool = AtomicBool::new(false);
 static HELD_TRANSCRIPT: Mutex<Option<HeldTranscript>> = Mutex::new(None);
 #[cfg(target_os = "macos")]
-static SPOKEN_INTO_A_CARET: AtomicBool = AtomicBool::new(false);
+static SPOKEN_CARET_SIGHT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
 
 /// What the chat composer does with a transcript handed to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -49,34 +49,47 @@ pub(crate) enum Landing {
     Held,
 }
 
-/// A transcript is never dropped: whatever cannot reach its destination is held out to the user instead.
-pub(crate) fn landing_for(
-    destination: Destination,
-    chat_is_open: bool,
-    caret_is_reachable: bool,
-) -> Landing {
+/// A caret dictation always pastes — predicting the caret proved unreliable, so the clipboard is
+/// the net instead. Only a chat transcript that lost its composer is held out to the user.
+pub(crate) fn landing_for(destination: Destination, chat_is_open: bool) -> Landing {
     match destination {
         Destination::Chat if chat_is_open => Landing::ChatComposer,
-        Destination::Caret if caret_is_reachable => Landing::Caret,
-        _ => Landing::Held,
+        Destination::Chat => Landing::Held,
+        Destination::Caret => Landing::Caret,
     }
 }
 
 pub(crate) fn begin(binding_id: &str) {
     ROUTES_TO_CHAT.store(binding_id == CHAT_BINDING_ID, Ordering::Release);
-    note_caret_before_recording();
+    #[cfg(target_os = "macos")]
+    {
+        crate::macos_accessibility::coax_frontmost_into_answering();
+        SPOKEN_CARET_SIGHT.store(
+            sight_rank(crate::macos_accessibility::sight_focused_caret()),
+            Ordering::Release,
+        );
+    }
 }
 
 #[cfg(target_os = "macos")]
-fn note_caret_before_recording() {
-    SPOKEN_INTO_A_CARET.store(
-        crate::macos_accessibility::caret_is_reachable(),
-        Ordering::Release,
-    );
+fn sight_rank(sight: crate::macos_accessibility::CaretSight) -> u8 {
+    use crate::macos_accessibility::CaretSight;
+    match sight {
+        CaretSight::Blind => 0,
+        CaretSight::DeniedByRole => 1,
+        CaretSight::Affirmed => 2,
+    }
 }
 
-#[cfg(not(target_os = "macos"))]
-fn note_caret_before_recording() {}
+#[cfg(target_os = "macos")]
+fn sight_from_rank(rank: u8) -> crate::macos_accessibility::CaretSight {
+    use crate::macos_accessibility::CaretSight;
+    match rank {
+        2 => CaretSight::Affirmed,
+        1 => CaretSight::DeniedByRole,
+        _ => CaretSight::Blind,
+    }
+}
 
 pub(crate) fn routes_to_chat() -> bool {
     ROUTES_TO_CHAT.load(Ordering::Acquire)
@@ -106,18 +119,82 @@ pub(crate) fn hand_over_as_question() {
     }
 }
 
-/// The caret Echo was spoken into decides, not the one left at delivery: by then Echo's own surface may
-/// hold the focus, and an app that only builds its accessibility tree once asked answers on the second read.
+/// The caret Echo was spoken into counts as much as the one at delivery: by then Echo's own surface
+/// may hold the focus, and an app that only builds its accessibility tree once asked answers on the
+/// second read. The two probes combine by the most they could establish.
 #[cfg(target_os = "macos")]
-fn caret_is_reachable(app_handle: &AppHandle) -> bool {
-    !crate::clipboard::paste_needs_a_caret(app_handle)
-        || SPOKEN_INTO_A_CARET.load(Ordering::Acquire)
-        || crate::macos_accessibility::caret_is_reachable()
+fn combined_caret_sight() -> crate::macos_accessibility::CaretSight {
+    let spoken = sight_from_rank(SPOKEN_CARET_SIGHT.load(Ordering::Acquire));
+    spoken.max(crate::macos_accessibility::sight_focused_caret())
 }
 
-#[cfg(not(target_os = "macos"))]
-fn caret_is_reachable(_app_handle: &AppHandle) -> bool {
-    true
+/// Frontmost surfaces a text Cmd+V cannot land in — yet Finder still reads the pasteboard on the
+/// keystroke, faking the paste receipt. With no text field affirmed either, pasting is pointless:
+/// the transcript goes straight to the held-out card instead.
+#[cfg(target_os = "macos")]
+const PASTE_DEAF_BUNDLE_IDS: &[&str] = &["com.apple.finder", "com.apple.dock"];
+
+/// Blind to accessibility yet demonstrably paste-fluent: these render their own text and expose no
+/// caret, but their Cmd+V inserts every paste — so their pasteboard read is a real receipt. Any
+/// blind app not on this list gets the paste and the card both, since a read alone proves nothing.
+#[cfg(target_os = "macos")]
+const PASTE_FLUENT_BUNDLE_IDS: &[&str] = &[
+    "com.apple.Terminal",
+    "com.googlecode.iterm2",
+    "com.mitchellh.ghostty",
+    "net.kovidgoyal.kitty",
+    "org.alacritty",
+    "dev.warp.Warp-Stable",
+    "com.github.wez.wezterm",
+    "dev.zed.Zed",
+    "dev.zed.Zed-Preview",
+    "dev.zed.Zed-Dev",
+    "com.sublimetext.4",
+];
+
+#[cfg(target_os = "macos")]
+fn placement_confidence(
+    sight: crate::macos_accessibility::CaretSight,
+    frontmost: Option<&str>,
+) -> crate::clipboard::PasteConfidence {
+    use crate::clipboard::PasteConfidence;
+    use crate::macos_accessibility::CaretSight;
+    match sight {
+        CaretSight::Affirmed => PasteConfidence::AffirmedCaret,
+        CaretSight::Blind
+            if frontmost.is_some_and(|bundle_id| PASTE_FLUENT_BUNDLE_IDS.contains(&bundle_id)) =>
+        {
+            PasteConfidence::FluentApp
+        }
+        CaretSight::Blind | CaretSight::DeniedByRole => PasteConfidence::Unvouched,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn frontmost_is_paste_deaf(
+    frontmost: Option<&str>,
+    echo_identifier: &str,
+    caret_was_affirmed: bool,
+) -> bool {
+    if caret_was_affirmed {
+        return false;
+    }
+    frontmost.is_some_and(|bundle_id| {
+        PASTE_DEAF_BUNDLE_IDS.contains(&bundle_id) || bundle_id == echo_identifier
+    })
+}
+
+/// Fires from the paste settlement task when no app took the paste, so the hop back to the main
+/// thread and the held-out card happen only on a confirmed miss.
+fn offer_when_unplaced(app_handle: &AppHandle) -> Box<dyn FnOnce(String) + Send + 'static> {
+    let app_handle = app_handle.clone();
+    Box::new(move |text| {
+        let on_main = app_handle.clone();
+        let scheduled = app_handle.run_on_main_thread(move || hold_out(&on_main, text));
+        if let Err(error) = scheduled {
+            error!("Failed to offer the transcript nothing pasted: {error:?}");
+        }
+    })
 }
 
 /// The single exit of every dictation — both the direct and the post-processed one end here.
@@ -131,22 +208,65 @@ pub(crate) fn deliver(app_handle: &AppHandle, text: String) {
     } else {
         Destination::Caret
     };
-    match landing_for(
-        destination,
-        overlay::chat_surface_is_open(),
-        caret_is_reachable(app_handle),
-    ) {
-        Landing::Caret => {
-            if let Err(error) = crate::clipboard::paste(&text, app_handle) {
-                error!("Failed to paste transcription: {error}");
-                hold_out(app_handle, text);
-            }
-        }
+    match landing_for(destination, overlay::chat_surface_is_open()) {
+        Landing::Caret => deliver_to_caret(app_handle, text),
         Landing::ChatComposer => {
             hold(text);
             overlay::hand_transcript_to_chat(app_handle);
         }
         Landing::Held => hold_out(app_handle, text),
+    }
+}
+
+/// The probe's verdict routes the delivery: an affirmed caret pastes silently; a focus that cannot
+/// take text still gets the paste (a free shot) but the card comes up at once, since such apps read
+/// the pasteboard on Cmd+V and fake the receipt; a blind probe pastes and lets the receipt decide.
+#[cfg(target_os = "macos")]
+fn deliver_to_caret(app_handle: &AppHandle, text: String) {
+    use crate::macos_accessibility::CaretSight;
+    use crate::managers::app_context::{FocusedAppProvider, PlatformFocusedAppProvider};
+
+    let sight = combined_caret_sight();
+    let frontmost = PlatformFocusedAppProvider
+        .current()
+        .and_then(|app| app.bundle_id);
+    log::info!("deliver: caret sight {sight:?}, frontmost {frontmost:?}");
+    let affirmed = sight == CaretSight::Affirmed;
+    if frontmost_is_paste_deaf(
+        frontmost.as_deref(),
+        &tauri::Manager::config(app_handle).identifier,
+        affirmed,
+    ) {
+        hold_out(app_handle, text);
+        return;
+    }
+    let confidence = placement_confidence(sight, frontmost.as_deref());
+    let on_unplaced = match sight {
+        CaretSight::DeniedByRole => no_offer_the_card_is_already_up(),
+        CaretSight::Affirmed | CaretSight::Blind => offer_when_unplaced(app_handle),
+    };
+    if let Err(error) = crate::clipboard::paste(&text, app_handle, confidence, on_unplaced) {
+        error!("Failed to paste transcription: {error}");
+        hold_out(app_handle, text);
+        return;
+    }
+    if sight == CaretSight::DeniedByRole {
+        hold_out(app_handle, text);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn no_offer_the_card_is_already_up() -> Box<dyn FnOnce(String) + Send + 'static> {
+    Box::new(|_| {})
+}
+
+#[cfg(not(target_os = "macos"))]
+fn deliver_to_caret(app_handle: &AppHandle, text: String) {
+    let offer = offer_when_unplaced(app_handle);
+    let confidence = crate::clipboard::PasteConfidence::AffirmedCaret;
+    if let Err(error) = crate::clipboard::paste(&text, app_handle, confidence, offer) {
+        error!("Failed to paste transcription: {error}");
+        hold_out(app_handle, text);
     }
 }
 
@@ -195,28 +315,108 @@ mod tests {
         Destination, Landing,
     };
 
-    #[test]
-    fn a_dictation_reaches_the_caret_it_was_spoken_into() {
-        assert_eq!(landing_for(Destination::Caret, false, true), Landing::Caret);
+    #[cfg(target_os = "macos")]
+    mod paste_deafness {
+        use super::super::frontmost_is_paste_deaf;
+
+        const ECHO: &str = "com.damien-schneider.echo";
+
+        /// The desktop reads the pasteboard on Cmd+V yet inserts nothing — the transcript must go
+        /// to the card, not into a fake-consumed paste.
+        #[test]
+        fn the_desktop_takes_no_paste_when_no_text_field_is_affirmed() {
+            assert!(frontmost_is_paste_deaf(
+                Some("com.apple.finder"),
+                ECHO,
+                false
+            ));
+            assert!(frontmost_is_paste_deaf(Some(ECHO), ECHO, false));
+        }
+
+        /// A Finder rename or search field is a real text field — the paste goes through.
+        #[test]
+        fn an_affirmed_text_field_wins_over_the_deaf_list() {
+            assert!(!frontmost_is_paste_deaf(
+                Some("com.apple.finder"),
+                ECHO,
+                true
+            ));
+        }
+
+        #[test]
+        fn ordinary_apps_are_never_presumed_deaf() {
+            assert!(!frontmost_is_paste_deaf(Some("dev.zed.Zed"), ECHO, false));
+            assert!(!frontmost_is_paste_deaf(None, ECHO, false));
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    mod placement_confidence {
+        use super::super::placement_confidence;
+        use crate::clipboard::PasteConfidence;
+        use crate::macos_accessibility::CaretSight;
+
+        #[test]
+        fn an_affirmed_caret_vouches_by_itself() {
+            for frontmost in [Some("com.unknown.app"), None] {
+                assert_eq!(
+                    placement_confidence(CaretSight::Affirmed, frontmost),
+                    PasteConfidence::AffirmedCaret
+                );
+            }
+        }
+
+        /// Terminals and Zed hide their caret from accessibility yet insert every paste — their
+        /// pasteboard read is a real receipt.
+        #[test]
+        fn a_blind_probe_in_a_terminal_class_app_trusts_the_read() {
+            for app in ["com.mitchellh.ghostty", "dev.zed.Zed", "com.apple.Terminal"] {
+                assert_eq!(
+                    placement_confidence(CaretSight::Blind, Some(app)),
+                    PasteConfidence::FluentApp
+                );
+            }
+        }
+
+        /// An unknown app can read the pasteboard on Cmd+V while inserting nothing — its read must
+        /// not silence the card.
+        #[test]
+        fn a_blind_probe_anywhere_else_stays_unvouched() {
+            assert_eq!(
+                placement_confidence(CaretSight::Blind, Some("company.thebrowser.dia")),
+                PasteConfidence::Unvouched
+            );
+            assert_eq!(
+                placement_confidence(CaretSight::Blind, None),
+                PasteConfidence::Unvouched
+            );
+        }
+
+        /// A denial outranks the app's reputation — even a terminal shows a menu sometimes.
+        #[test]
+        fn a_denied_focus_stays_unvouched_even_in_a_fluent_app() {
+            assert_eq!(
+                placement_confidence(CaretSight::DeniedByRole, Some("com.mitchellh.ghostty")),
+                PasteConfidence::Unvouched
+            );
+        }
     }
 
     #[test]
-    fn a_transcript_with_no_caret_is_held_out_instead_of_dropped() {
-        assert_eq!(landing_for(Destination::Caret, false, false), Landing::Held);
+    fn a_dictation_always_reaches_the_caret_it_was_spoken_into() {
+        assert_eq!(landing_for(Destination::Caret, false), Landing::Caret);
+        assert_eq!(landing_for(Destination::Caret, true), Landing::Caret);
     }
 
     /// Chat asked for it, so the caret it would have displaced is none of its business.
     #[test]
     fn chat_dictation_lands_in_the_composer_that_started_it() {
-        assert_eq!(
-            landing_for(Destination::Chat, true, false),
-            Landing::ChatComposer
-        );
+        assert_eq!(landing_for(Destination::Chat, true), Landing::ChatComposer);
     }
 
     #[test]
     fn a_chat_closed_mid_dictation_leaves_the_transcript_in_hand() {
-        assert_eq!(landing_for(Destination::Chat, false, true), Landing::Held);
+        assert_eq!(landing_for(Destination::Chat, false), Landing::Held);
     }
 
     /// One test for the whole hand-over: the held slot is global, so two would race.

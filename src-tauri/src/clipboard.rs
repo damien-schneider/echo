@@ -89,6 +89,7 @@ fn paste_via_direct_input(text: &str) -> Result<(), String> {
 }
 
 /// Saves clipboard, writes text, pastes, restores.
+#[cfg(not(target_os = "macos"))]
 fn paste_via_clipboard_ctrl_v(text: &str, app_handle: &AppHandle) -> Result<(), String> {
     let clipboard = app_handle.clipboard();
 
@@ -152,6 +153,156 @@ fn paste_via_clipboard_shift_insert(text: &str, app_handle: &AppHandle) -> Resul
     Ok(())
 }
 
+/// The paste is settled once — a newer dictation takes the clipboard story over from a stale task.
+#[cfg(target_os = "macos")]
+static PASTE_ATTEMPT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+#[cfg(target_os = "macos")]
+const CONSUMPTION_WINDOW: std::time::Duration = std::time::Duration::from_millis(800);
+/// Apps may read the pasteboard more than once while pasting; the transcript stays put meanwhile.
+#[cfg(target_os = "macos")]
+const REREAD_GRACE: std::time::Duration = std::time::Duration::from_millis(200);
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum PasteOutcome {
+    /// The data was requested after the synthetic Cmd+V — the only receipt a paste gets.
+    Consumed,
+    /// The single read a promise gets came before the keystroke: a clipboard watcher took it,
+    /// leaving the real paste unobservable.
+    EatenByWatcher,
+    /// Nobody asked within the window.
+    Unconsumed,
+    /// Something else took the pasteboard over before anyone pasted.
+    ClipboardReplaced,
+}
+
+/// How strongly the delivery vouches for the frontmost app inserting what it reads — the weight a
+/// pasteboard read carries as a receipt. Carried but unused off macOS.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PasteConfidence {
+    /// A text element demonstrably holds the focus.
+    AffirmedCaret,
+    /// No caret in sight, but the frontmost app is known to insert every paste (terminal class).
+    FluentApp,
+    /// Nothing vouches for the paste — a read may be a read-and-drop (Finder, focusless Electron).
+    Unvouched,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Settlement {
+    RestoreOriginal,
+    KeepTranscript,
+    KeepTranscriptAndOffer,
+    OfferOnly,
+    LeaveUntouched,
+}
+
+/// An affirmed caret means the dictation demonstrably had somewhere to land, so a mute receipt is
+/// read as a slow or unobservable paste, never as a miss: the transcript stays within a Cmd+V's
+/// reach and the card stays away. An unvouched read is the mirror trap — apps with nothing focused
+/// still read the pasteboard on Cmd+V while inserting nothing — so it never counts as a paste.
+#[cfg(target_os = "macos")]
+fn settle(
+    outcome: PasteOutcome,
+    confidence: PasteConfidence,
+    handling: ClipboardHandling,
+    clipboard_is_still_ours: bool,
+) -> Settlement {
+    match outcome {
+        PasteOutcome::Consumed if confidence == PasteConfidence::Unvouched => {
+            if clipboard_is_still_ours {
+                Settlement::KeepTranscriptAndOffer
+            } else {
+                Settlement::OfferOnly
+            }
+        }
+        PasteOutcome::Consumed if !clipboard_is_still_ours => Settlement::LeaveUntouched,
+        PasteOutcome::Consumed if handling == ClipboardHandling::CopyToClipboard => {
+            Settlement::KeepTranscript
+        }
+        PasteOutcome::Consumed => Settlement::RestoreOriginal,
+        PasteOutcome::EatenByWatcher | PasteOutcome::Unconsumed
+            if confidence == PasteConfidence::AffirmedCaret =>
+        {
+            if clipboard_is_still_ours {
+                Settlement::KeepTranscript
+            } else {
+                Settlement::LeaveUntouched
+            }
+        }
+        PasteOutcome::EatenByWatcher | PasteOutcome::Unconsumed if clipboard_is_still_ours => {
+            Settlement::KeepTranscriptAndOffer
+        }
+        PasteOutcome::EatenByWatcher | PasteOutcome::Unconsumed => Settlement::OfferOnly,
+        PasteOutcome::ClipboardReplaced if confidence == PasteConfidence::AffirmedCaret => {
+            Settlement::LeaveUntouched
+        }
+        PasteOutcome::ClipboardReplaced => Settlement::OfferOnly,
+    }
+}
+
+/// The transcript goes out as a pasteboard promise: the target app's own data request confirms the
+/// paste, a silent window means nothing took it — the transcript then stays on the clipboard and
+/// `on_unplaced` offers it back to the user.
+#[cfg(target_os = "macos")]
+fn paste_via_promised_clipboard(
+    text: &str,
+    app_handle: &AppHandle,
+    confidence: PasteConfidence,
+    on_unplaced: impl FnOnce(String) + Send + 'static,
+) -> Result<(), String> {
+    use std::sync::atomic::Ordering;
+
+    let original = app_handle.clipboard().read_text().unwrap_or_default();
+    let promise = crate::macos_pasteboard::write_promised_transcript(text)?;
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    let cmd_v_sent = std::time::Instant::now();
+    send_paste_ctrl_v()?;
+
+    let attempt = PASTE_ATTEMPT.fetch_add(1, Ordering::SeqCst) + 1;
+    let app_handle = app_handle.clone();
+    let text = text.to_string();
+    tauri::async_runtime::spawn(async move {
+        let outcome = match tokio::time::timeout(CONSUMPTION_WINDOW, promise.consumed).await {
+            Ok(Ok(read_at)) if read_at >= cmd_v_sent => PasteOutcome::Consumed,
+            Ok(Ok(_)) => PasteOutcome::EatenByWatcher,
+            Ok(Err(_)) => PasteOutcome::ClipboardReplaced,
+            Err(_) => PasteOutcome::Unconsumed,
+        };
+        if outcome == PasteOutcome::Consumed {
+            tokio::time::sleep(REREAD_GRACE).await;
+        }
+        if PASTE_ATTEMPT.load(Ordering::SeqCst) != attempt {
+            return;
+        }
+        let clipboard_is_still_ours =
+            crate::macos_pasteboard::change_count() == promise.change_count;
+        let handling = get_settings(&app_handle).clipboard_handling;
+        log::info!(
+            "paste settled: {outcome:?} (confidence: {confidence:?}, clipboard still ours: {clipboard_is_still_ours})"
+        );
+        match settle(outcome, confidence, handling, clipboard_is_still_ours) {
+            Settlement::RestoreOriginal => write_or_log(&app_handle, &original),
+            Settlement::KeepTranscript => write_or_log(&app_handle, &text),
+            Settlement::KeepTranscriptAndOffer => {
+                write_or_log(&app_handle, &text);
+                on_unplaced(text);
+            }
+            Settlement::OfferOnly => on_unplaced(text),
+            Settlement::LeaveUntouched => {}
+        }
+    });
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn write_or_log(app_handle: &AppHandle, text: &str) {
+    if let Err(error) = app_handle.clipboard().write_text(text) {
+        log::error!("Failed to settle the clipboard after a paste: {error}");
+    }
+}
+
 pub fn copy_to_clipboard(text: &str, app_handle: &AppHandle) -> Result<(), String> {
     let clipboard = app_handle.clipboard();
     clipboard
@@ -172,12 +323,14 @@ fn resolved_paste_method(app_handle: &AppHandle) -> PasteMethod {
     method
 }
 
-/// Clipboard-only asks for nothing but the clipboard — every other method types into a caret.
-pub fn paste_needs_a_caret(app_handle: &AppHandle) -> bool {
-    resolved_paste_method(app_handle) != PasteMethod::ClipboardOnly
-}
-
-pub fn paste(text: &str, app_handle: &AppHandle) -> Result<(), String> {
+/// `on_unplaced` fires with the transcript when no app takes the paste — macOS only; elsewhere a
+/// synthetic paste gives no receipt at all and the closure never runs.
+pub fn paste(
+    text: &str,
+    app_handle: &AppHandle,
+    confidence: PasteConfidence,
+    on_unplaced: impl FnOnce(String) + Send + 'static,
+) -> Result<(), String> {
     let paste_method = resolved_paste_method(app_handle);
 
     log::info!(
@@ -192,32 +345,186 @@ pub fn paste(text: &str, app_handle: &AppHandle) -> Result<(), String> {
     );
 
     #[cfg(target_os = "macos")]
-    let _overlay_key_guard = crate::overlay::OverlaySyntheticKeyGuard::acquire(app_handle);
-
-    match paste_method {
-        PasteMethod::CtrlV => paste_via_clipboard_ctrl_v(text, app_handle)?,
-        #[cfg(target_os = "linux")]
-        PasteMethod::Direct => paste_via_direct_input(text)?,
-        #[cfg(not(target_os = "macos"))]
-        PasteMethod::ShiftInsert => paste_via_clipboard_shift_insert(text, app_handle)?,
-        PasteMethod::ClipboardOnly => {
-            return copy_to_clipboard(text, app_handle);
+    {
+        let _overlay_key_guard = crate::overlay::OverlaySyntheticKeyGuard::acquire(app_handle);
+        match paste_method {
+            PasteMethod::CtrlV => {
+                paste_via_promised_clipboard(text, app_handle, confidence, on_unplaced)
+            }
+            PasteMethod::ClipboardOnly => copy_to_clipboard(text, app_handle),
         }
     }
 
-    if get_settings(app_handle).clipboard_handling == ClipboardHandling::CopyToClipboard {
-        let clipboard = app_handle.clipboard();
-        clipboard
-            .write_text(text)
-            .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = (confidence, on_unplaced);
+        match paste_method {
+            PasteMethod::CtrlV => paste_via_clipboard_ctrl_v(text, app_handle)?,
+            #[cfg(target_os = "linux")]
+            PasteMethod::Direct => paste_via_direct_input(text)?,
+            PasteMethod::ShiftInsert => paste_via_clipboard_shift_insert(text, app_handle)?,
+            PasteMethod::ClipboardOnly => {
+                return copy_to_clipboard(text, app_handle);
+            }
+        }
+        if get_settings(app_handle).clipboard_handling == ClipboardHandling::CopyToClipboard {
+            let clipboard = app_handle.clipboard();
+            clipboard
+                .write_text(text)
+                .map_err(|e| format!("Failed to copy to clipboard: {}", e))?;
+        }
+        Ok(())
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use crate::settings::PasteMethod;
+
+    #[cfg(target_os = "macos")]
+    mod settlement {
+        use super::super::{settle, PasteConfidence, PasteOutcome, Settlement};
+        use crate::settings::ClipboardHandling;
+
+        const AFFIRMED: PasteConfidence = PasteConfidence::AffirmedCaret;
+        const FLUENT: PasteConfidence = PasteConfidence::FluentApp;
+        const UNVOUCHED: PasteConfidence = PasteConfidence::Unvouched;
+
+        #[test]
+        fn a_consumed_paste_in_a_fluent_app_gives_the_clipboard_back() {
+            assert_eq!(
+                settle(
+                    PasteOutcome::Consumed,
+                    FLUENT,
+                    ClipboardHandling::DontModify,
+                    true
+                ),
+                Settlement::RestoreOriginal
+            );
+        }
+
+        #[test]
+        fn a_consumed_paste_keeps_the_transcript_when_the_user_asked_for_it() {
+            assert_eq!(
+                settle(
+                    PasteOutcome::Consumed,
+                    FLUENT,
+                    ClipboardHandling::CopyToClipboard,
+                    true
+                ),
+                Settlement::KeepTranscript
+            );
+        }
+
+        /// Finder and focusless Electron windows read the pasteboard on Cmd+V while inserting
+        /// nothing — an unvouched read is no receipt, so the transcript stays in hand and on offer.
+        #[test]
+        fn an_unvouched_read_never_counts_as_a_paste() {
+            assert_eq!(
+                settle(
+                    PasteOutcome::Consumed,
+                    UNVOUCHED,
+                    ClipboardHandling::DontModify,
+                    true
+                ),
+                Settlement::KeepTranscriptAndOffer
+            );
+        }
+
+        #[test]
+        fn a_paste_nobody_took_leaves_the_transcript_in_reach_and_offers_it() {
+            for confidence in [FLUENT, UNVOUCHED] {
+                assert_eq!(
+                    settle(
+                        PasteOutcome::Unconsumed,
+                        confidence,
+                        ClipboardHandling::DontModify,
+                        true
+                    ),
+                    Settlement::KeepTranscriptAndOffer
+                );
+            }
+        }
+
+        /// A watcher that stole the promise before the keystroke proves nothing about the paste —
+        /// without a caret in sight the transcript is offered, never assumed delivered.
+        #[test]
+        fn a_receipt_eaten_by_a_watcher_never_counts_as_a_paste() {
+            for confidence in [FLUENT, UNVOUCHED] {
+                assert_eq!(
+                    settle(
+                        PasteOutcome::EatenByWatcher,
+                        confidence,
+                        ClipboardHandling::DontModify,
+                        true
+                    ),
+                    Settlement::KeepTranscriptAndOffer
+                );
+            }
+        }
+
+        /// An affirmed caret reads a mute receipt as a slow or unobservable paste: no card, and the
+        /// transcript stays on the clipboard so even a late paste still lands it.
+        #[test]
+        fn an_affirmed_caret_holds_the_card_back_and_keeps_the_transcript_in_reach() {
+            for outcome in [PasteOutcome::Unconsumed, PasteOutcome::EatenByWatcher] {
+                assert_eq!(
+                    settle(outcome, AFFIRMED, ClipboardHandling::DontModify, true),
+                    Settlement::KeepTranscript
+                );
+            }
+            assert_eq!(
+                settle(
+                    PasteOutcome::ClipboardReplaced,
+                    AFFIRMED,
+                    ClipboardHandling::DontModify,
+                    true
+                ),
+                Settlement::LeaveUntouched
+            );
+        }
+
+        /// The user copied something themselves — their clipboard is not Echo's to touch any more.
+        #[test]
+        fn a_clipboard_the_user_took_back_is_never_overwritten() {
+            assert_eq!(
+                settle(
+                    PasteOutcome::Consumed,
+                    FLUENT,
+                    ClipboardHandling::DontModify,
+                    false
+                ),
+                Settlement::LeaveUntouched
+            );
+            assert_eq!(
+                settle(
+                    PasteOutcome::Consumed,
+                    UNVOUCHED,
+                    ClipboardHandling::DontModify,
+                    false
+                ),
+                Settlement::OfferOnly
+            );
+            assert_eq!(
+                settle(
+                    PasteOutcome::Unconsumed,
+                    UNVOUCHED,
+                    ClipboardHandling::DontModify,
+                    false
+                ),
+                Settlement::OfferOnly
+            );
+            assert_eq!(
+                settle(
+                    PasteOutcome::ClipboardReplaced,
+                    UNVOUCHED,
+                    ClipboardHandling::DontModify,
+                    true
+                ),
+                Settlement::OfferOnly
+            );
+        }
+    }
 
     fn has_duplicate_consecutive_words(text: &str) -> bool {
         let words: Vec<&str> = text.split_whitespace().collect();

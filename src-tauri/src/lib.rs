@@ -11,6 +11,8 @@ mod helpers;
 mod logging;
 #[cfg(target_os = "macos")]
 mod macos_accessibility;
+#[cfg(target_os = "macos")]
+mod macos_pasteboard;
 pub mod managers;
 mod overlay;
 pub mod settings;

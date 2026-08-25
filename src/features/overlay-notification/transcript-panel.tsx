@@ -9,7 +9,7 @@ interface TranscriptPanelProps {
   text: string;
 }
 
-const TRANSCRIPT_HEADLINE = "Select a textbox first, then dictate";
+const TRANSCRIPT_HEADLINE = "Echo could not place this dictation";
 const READING_LINGER_MS = 6000;
 const COPIED_LINGER_MS = 2000;
 
