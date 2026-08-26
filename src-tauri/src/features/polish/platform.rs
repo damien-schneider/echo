@@ -6,7 +6,6 @@ use anyhow::Result;
 #[cfg(target_os = "windows")]
 use clipboard_rs::{common::RustImage, ContentFormat};
 use clipboard_rs::{Clipboard, ClipboardContent, ClipboardContext};
-use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 use std::sync::Mutex;
 
 #[cfg(not(target_os = "linux"))]
@@ -277,56 +276,14 @@ pub(super) struct PlatformKeyboard;
 
 impl KeyboardPort for PlatformKeyboard {
     fn copy(&self) -> Result<()> {
-        send_shortcut(copy_key())
+        crate::keystroke::send(crate::keystroke::Shortcut::Copy)
+            .map_err(|error| anyhow::anyhow!(error))
     }
 
     fn paste(&self) -> Result<()> {
-        send_shortcut(paste_key())
+        crate::keystroke::send(crate::keystroke::Shortcut::Paste)
+            .map_err(|error| anyhow::anyhow!(error))
     }
-}
-
-fn send_shortcut(key: Key) -> Result<()> {
-    let mut enigo = Enigo::new(&Settings::default())?;
-    #[cfg(target_os = "macos")]
-    let modifier = Key::Meta;
-    #[cfg(not(target_os = "macos"))]
-    let modifier = Key::Control;
-    enigo.key(modifier, Direction::Press)?;
-    let click_result = enigo.key(key, Direction::Click);
-    let release_result = enigo.key(modifier, Direction::Release);
-    click_result?;
-    release_result?;
-    Ok(())
-}
-
-#[cfg(target_os = "macos")]
-fn copy_key() -> Key {
-    Key::Other(8)
-}
-
-#[cfg(target_os = "windows")]
-fn copy_key() -> Key {
-    Key::Other(0x43)
-}
-
-#[cfg(target_os = "linux")]
-fn copy_key() -> Key {
-    Key::Unicode('c')
-}
-
-#[cfg(target_os = "macos")]
-fn paste_key() -> Key {
-    Key::Other(9)
-}
-
-#[cfg(target_os = "windows")]
-fn paste_key() -> Key {
-    Key::Other(0x56)
-}
-
-#[cfg(target_os = "linux")]
-fn paste_key() -> Key {
-    Key::Unicode('v')
 }
 
 pub(super) struct PlatformFocus;

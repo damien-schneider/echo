@@ -1,44 +1,18 @@
 use crate::settings::{get_settings, ClipboardHandling, PasteMethod};
-use enigo::Enigo;
-use enigo::Key;
-use enigo::Keyboard;
-use enigo::Settings;
 use tauri::AppHandle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 // Wayland auto-paste unsupported: wtype/wl-copy hit focus issues, enigo is X11-only. Forced ClipboardOnly.
 
-/// Uses raw VK codes so it survives Russian/AZERTY/DVORAK layouts.
 fn send_paste_ctrl_v() -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    let (modifier_key, v_key_code) = (Key::Meta, Key::Other(9));
-    #[cfg(target_os = "windows")]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Other(0x56)); // VK_V
-    #[cfg(target_os = "linux")]
-    let (modifier_key, v_key_code) = (Key::Control, Key::Unicode('v'));
-
-    let mut enigo = Enigo::new(&Settings::default())
-        .map_err(|e| format!("Failed to initialize Enigo: {}", e))?;
-
-    enigo
-        .key(modifier_key, enigo::Direction::Press)
-        .map_err(|e| format!("Failed to press modifier key: {}", e))?;
-    enigo
-        .key(v_key_code, enigo::Direction::Click)
-        .map_err(|e| format!("Failed to click V key: {}", e))?;
-
-    std::thread::sleep(std::time::Duration::from_millis(100));
-
-    enigo
-        .key(modifier_key, enigo::Direction::Release)
-        .map_err(|e| format!("Failed to release modifier key: {}", e))?;
-
-    Ok(())
+    crate::keystroke::send(crate::keystroke::Shortcut::Paste)
 }
 
 /// More universal for terminals + legacy software.
 #[cfg(not(target_os = "macos"))]
 fn send_paste_shift_insert() -> Result<(), String> {
+    use enigo::{Enigo, Key, Keyboard, Settings};
+
     #[cfg(target_os = "windows")]
     let insert_key_code = Key::Other(0x2D);
     #[cfg(target_os = "linux")]
@@ -66,6 +40,8 @@ fn send_paste_shift_insert() -> Result<(), String> {
 /// Linux/X11 only — macOS causes cascading suffix dup in terminals (CGEvent bug); Wayland unsupported.
 #[cfg(target_os = "linux")]
 fn paste_via_direct_input(text: &str) -> Result<(), String> {
+    use enigo::{Enigo, Keyboard, Settings};
+
     log::debug!(
         "paste_via_direct_input: Starting direct input, text length: {}, text: '{}'",
         text.len(),

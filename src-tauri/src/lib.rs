@@ -9,6 +9,7 @@ pub mod commands;
 mod dictation;
 mod features;
 mod helpers;
+mod keystroke;
 mod logging;
 #[cfg(target_os = "macos")]
 mod macos_accessibility;
