@@ -27,6 +27,7 @@ mod wayland;
 use features::shortcut;
 
 use env_filter::Builder as EnvFilterBuilder;
+use features::capture::CaptureStore;
 use features::polish::manager::PolishManager;
 use managers::audio::AudioRecordingManager;
 use managers::diarization::DiarizationManager;
@@ -84,6 +85,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     let history_manager =
         Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
+
+    let capture_store =
+        Arc::new(CaptureStore::new(app_handle).expect("Failed to initialize the capture store"));
 
     let input_tracker_manager = Arc::new(Mutex::new(
         InputTrackerManager::new(app_handle).expect("Failed to initialize input tracker manager"),
@@ -193,6 +197,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     app_handle.manage(polish_manager.clone());
     app_handle.manage(transcription_manager.clone());
     app_handle.manage(history_manager.clone());
+    app_handle.manage(capture_store);
     app_handle.manage(input_tracker_manager.clone());
     app_handle.manage(tts_manager.clone());
     app_handle.manage(meeting_manager.clone());
@@ -221,6 +226,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     }
 
     shortcut::init_shortcuts(app_handle);
+    features::capture::start(app_handle);
 
     #[cfg(unix)]
     {
@@ -677,6 +683,9 @@ pub fn run() {
             shortcut::settings::input_tracking::change_input_tracking_setting,
             shortcut::settings::input_tracking::change_input_tracking_excluded_apps,
             shortcut::settings::input_tracking::change_input_tracking_idle_timeout,
+            features::capture::get_captures,
+            features::capture::delete_capture,
+            features::capture::change_double_shift_capture_setting,
             updates::get_update_status,
             updates::check_for_updates,
             updates::install_update,

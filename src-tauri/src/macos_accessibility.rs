@@ -73,8 +73,12 @@ unsafe extern "C" {
     ) -> i32;
 }
 
+pub(crate) fn is_trusted() -> bool {
+    unsafe { AXIsProcessTrusted() != 0 }
+}
+
 pub(crate) fn selected_text() -> Result<SelectedText> {
-    if unsafe { AXIsProcessTrusted() } == 0 {
+    if !is_trusted() {
         return Ok(SelectedText::PermissionRequired);
     }
     let AttributeRead::Value(focused) = focused_element()? else {
@@ -106,7 +110,7 @@ pub(crate) enum CaretSight {
 /// Electron apps grow an accessibility tree only once asked — asked here, at dictation start, so
 /// the tree exists by the time the delivery probe looks. Best effort: silence on every failure.
 pub(crate) fn coax_frontmost_into_answering() {
-    if unsafe { AXIsProcessTrusted() } == 0 {
+    if !is_trusted() {
         return;
     }
     let Some(pid) = frontmost_application_pid() else {
@@ -146,7 +150,7 @@ fn frontmost_application_pid() -> Option<libc::pid_t> {
 }
 
 pub(crate) fn sight_focused_caret() -> CaretSight {
-    if unsafe { AXIsProcessTrusted() } == 0 {
+    if !is_trusted() {
         return CaretSight::Blind;
     }
     let Ok(AttributeRead::Value(focused)) = focused_element() else {

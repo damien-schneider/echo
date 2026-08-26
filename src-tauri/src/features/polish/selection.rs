@@ -45,7 +45,7 @@ pub(super) trait InferencePort: Send + Sync {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum SelectionMode {
+pub(crate) enum SelectionMode {
     ReplaceSelection,
     ClipboardOnly,
 }

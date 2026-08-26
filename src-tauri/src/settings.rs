@@ -57,6 +57,7 @@ pub fn get_default_settings() -> AppSettings {
         log_level: default_log_level(),
         custom_words: Vec::new(),
         word_correction_threshold: default_word_correction_threshold(),
+        double_shift_capture_enabled: default_double_shift_capture_enabled(),
         history_limit: default_history_limit(),
         recording_retention_period: default_recording_retention_period(),
         paste_method: PasteMethod::default(),

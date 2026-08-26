@@ -8,6 +8,7 @@ pub mod diarization;
 pub mod dictation_streaming;
 pub mod export;
 pub mod history;
+pub mod input_events;
 pub mod input_tracker;
 pub mod meeting;
 pub mod meeting_streaming;

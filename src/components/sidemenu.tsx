@@ -2,6 +2,7 @@ import {
   AudioLines,
   BookText,
   Box,
+  ClipboardList,
   History,
   Keyboard,
   PanelLeft,
@@ -33,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { MeetingPage } from "./meeting/meeting-page";
 import { AboutDialog } from "./settings/about/about-dialog";
 import { AppSettings } from "./settings/app/app-settings";
+import { CapturesSettings } from "./settings/captures/captures-settings";
 import { CleanupSettings } from "./settings/cleanup/cleanup-settings";
 import { HistorySettings } from "./settings/history/history-settings";
 import { KeyboardTrackingSettings } from "./settings/keyboard-tracking/keyboard-tracking-settings";
@@ -58,6 +60,11 @@ export const SECTIONS_CONFIG = {
     component: AppSettings,
     icon: Settings2,
     label: "App Settings",
+  },
+  captures: {
+    component: CapturesSettings,
+    icon: ClipboardList,
+    label: "Captures",
   },
   cleanup: {
     component: CleanupSettings,

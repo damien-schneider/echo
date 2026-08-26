@@ -41,6 +41,7 @@ const DEFAULT_SETTINGS: Partial<Settings> = {
   custom_words: [],
   debug_logging_enabled: false,
   debug_mode: false,
+  double_shift_capture_enabled: true,
   history_limit: 5,
   log_level: 2,
   mute_while_recording: false,
@@ -100,6 +101,8 @@ const settingUpdaters: {
     invoke("change_debug_logging_setting", { enabled: value }),
   debug_mode: (value) =>
     invoke("change_debug_mode_setting", { enabled: value }),
+  double_shift_capture_enabled: (value) =>
+    invoke("change_double_shift_capture_setting", { enabled: value }),
   history_limit: (value) => invoke("update_history_limit", { limit: value }),
   input_tracking_enabled: (value) =>
     invoke("change_input_tracking_setting", { enabled: value }),

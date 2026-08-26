@@ -245,7 +245,7 @@ pub(crate) async fn request_overlay_notification(
     let requested = events::parse_notification_request(&surface)?;
     let request = events::record_notification_request(requested);
     let chat_capture = if requested == "chat" {
-        let generation = manager.begin_chat_context_capture();
+        let generation = manager.begin_selection_read();
         if let Err(error) = events::emit_chat_context_loading(&app_handle, generation) {
             events::clear_notification_request();
             return Err(error);

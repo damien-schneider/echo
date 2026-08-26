@@ -40,20 +40,6 @@ fn clipped_chat_text(text: String) -> (String, bool) {
     (text[..byte_index].to_owned(), true)
 }
 
-/// Accessibility proves a selection but never its absence: a focused composer answers "nothing" while the page around it is highlighted.
-pub(super) fn capture_settled_by_accessibility(
-    observed: DirectSelection,
-) -> Option<ChatContextCapture> {
-    match observed {
-        DirectSelection::PermissionRequired => Some(ChatContextCapture::PermissionRequired),
-        DirectSelection::Text(text) => Some(ChatContextCapture::Ready(Some(chat_text_context(
-            text,
-            ChatContextSource::Selection,
-        )))),
-        DirectSelection::Empty | DirectSelection::Unavailable => None,
-    }
-}
-
 /// What the chat panel shows, and whether accessibility is the source it can trust to update it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ShownChatContext {
@@ -118,18 +104,6 @@ mod tests {
             clipped_chat_text("é".repeat(MAX_CHAT_CONTEXT_CHARACTERS + 1));
         assert_eq!(long.chars().count(), MAX_CHAT_CONTEXT_CHARACTERS);
         assert!(long_was_clipped);
-    }
-
-    #[test]
-    fn an_empty_accessibility_read_leaves_the_capture_to_the_copy_shortcut() {
-        assert_eq!(
-            capture_settled_by_accessibility(DirectSelection::Empty),
-            None
-        );
-        assert_eq!(
-            capture_settled_by_accessibility(DirectSelection::Text("thread".to_owned())),
-            Some(selected("thread"))
-        );
     }
 
     #[test]

@@ -6,7 +6,7 @@ mod state;
 mod types;
 
 use anyhow::Result;
-use rdev::{listen, Event, EventType, Key};
+use rdev::{Event, EventType, Key};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{mpsc, Arc, RwLock};
@@ -32,6 +32,8 @@ pub struct InputTrackerManager {
     idle_timeout_secs: Arc<AtomicU64>,
     event_sender: Option<mpsc::Sender<InputTrackerEvent>>,
     app_handle: Option<AppHandle>,
+    /// Retires the reader of a previous start so a restart never doubles every keystroke.
+    listener_generation: Arc<AtomicU64>,
 }
 
 impl InputTrackerManager {
@@ -57,6 +59,7 @@ impl InputTrackerManager {
             idle_timeout_secs: Arc::new(AtomicU64::new(idle_timeout)),
             event_sender: None,
             app_handle: Some(app_handle.clone()),
+            listener_generation: Arc::new(AtomicU64::new(0)),
         };
 
         Ok(manager)
@@ -352,6 +355,8 @@ impl InputTrackerManager {
 
         let keyboard_tx = tx.clone();
         let keyboard_enabled = self.enabled.clone();
+        let listener_generation = self.listener_generation.clone();
+        let generation = listener_generation.fetch_add(1, Ordering::SeqCst) + 1;
         thread::spawn(move || {
             log::info!("[InputTracker] Keyboard listener thread starting...");
 
@@ -392,11 +397,13 @@ impl InputTrackerManager {
                 }
             };
 
-            log::info!("[InputTracker] Starting rdev::listen...");
-            if let Err(e) = listen(callback) {
-                log::error!("[InputTracker] rdev::listen failed: {:?}", e);
+            for event in crate::managers::input_events::subscribe() {
+                if listener_generation.load(Ordering::SeqCst) != generation {
+                    break;
+                }
+                callback(event);
             }
-            log::info!("[InputTracker] rdev::listen exited");
+            log::info!("[InputTracker] Keyboard listener thread stopped");
         });
 
         let idle_tx = tx.clone();

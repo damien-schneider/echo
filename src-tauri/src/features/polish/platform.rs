@@ -35,6 +35,21 @@ pub(crate) enum DirectSelection {
     Unavailable,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SettledSelection {
+    PermissionRequired,
+    Text(String),
+}
+
+/// Accessibility proves a selection but never its absence: a focused composer answers "nothing" while the page around it is highlighted.
+pub(crate) fn settled_selection(observed: DirectSelection) -> Option<SettledSelection> {
+    match observed {
+        DirectSelection::PermissionRequired => Some(SettledSelection::PermissionRequired),
+        DirectSelection::Text(text) => Some(SettledSelection::Text(text)),
+        DirectSelection::Empty | DirectSelection::Unavailable => None,
+    }
+}
+
 pub(super) fn read_selected_text() -> Result<DirectSelection> {
     #[cfg(target_os = "macos")]
     return Ok(match crate::macos_accessibility::selected_text()? {
@@ -352,4 +367,23 @@ fn active_x11_window() -> Option<String> {
         .value32()?
         .next()?;
     Some(format!("x11:{window}"))
+}
+
+#[cfg(test)]
+mod settled_selection_tests {
+    use super::*;
+
+    #[test]
+    fn an_empty_accessibility_read_leaves_the_capture_to_the_copy_shortcut() {
+        assert_eq!(settled_selection(DirectSelection::Empty), None);
+        assert_eq!(settled_selection(DirectSelection::Unavailable), None);
+        assert_eq!(
+            settled_selection(DirectSelection::Text("thread".to_owned())),
+            Some(SettledSelection::Text("thread".to_owned()))
+        );
+        assert_eq!(
+            settled_selection(DirectSelection::PermissionRequired),
+            Some(SettledSelection::PermissionRequired)
+        );
+    }
 }

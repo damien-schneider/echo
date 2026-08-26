@@ -122,6 +122,17 @@ export const DictionaryEntrySchema = z.object({
 
 export type DictionaryEntry = z.infer<typeof DictionaryEntrySchema>;
 
+export const CaptureSchema = z.object({
+  app_name: z.string().nullable(),
+  content: z.string(),
+  id: z.number(),
+  timestamp: z.number(),
+});
+
+export type Capture = z.infer<typeof CaptureSchema>;
+
+export const CapturesSchema = z.array(CaptureSchema);
+
 export const SettingsSchema = z.object({
   always_on_microphone: z.boolean(),
   audio_feedback: z.boolean(),
@@ -136,6 +147,7 @@ export const SettingsSchema = z.object({
   custom_words: z.array(z.string()).optional().default([]),
   debug_logging_enabled: z.boolean().optional().default(false),
   debug_mode: z.boolean(),
+  double_shift_capture_enabled: z.boolean().optional().default(true),
   history_limit: z.number().optional().default(5),
   input_tracking_enabled: z.boolean().optional().default(false),
   input_tracking_excluded_apps: z.array(z.string()).optional().default([]),

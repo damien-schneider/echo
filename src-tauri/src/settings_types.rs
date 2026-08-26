@@ -213,6 +213,8 @@ pub struct AppSettings {
     pub custom_words: Vec<String>,
     #[serde(default = "default_word_correction_threshold")]
     pub word_correction_threshold: f64,
+    #[serde(default = "default_double_shift_capture_enabled")]
+    pub double_shift_capture_enabled: bool,
     #[serde(default = "default_history_limit")]
     pub history_limit: usize,
     #[serde(default = "default_recording_retention_period")]

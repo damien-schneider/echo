@@ -48,6 +48,10 @@ pub(super) fn default_debug_mode() -> bool {
     false
 }
 
+pub(super) fn default_double_shift_capture_enabled() -> bool {
+    true
+}
+
 pub(super) fn default_word_correction_threshold() -> f64 {
     0.18
 }

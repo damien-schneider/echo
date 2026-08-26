@@ -12,11 +12,11 @@ use crate::managers::model::{ModelManager, POLISH_MODEL_ID};
 use crate::overlay::{show_processing_overlay, show_tool_overlay, show_warning_overlay};
 
 use super::chat_context::{
-    capture_settled_by_accessibility, chat_text_context, ChatContextCapture, ChatContextSource,
-    ShownChatContext,
+    chat_text_context, ChatContextCapture, ChatContextSource, ShownChatContext,
 };
 use super::platform::{
-    read_selected_text, DirectSelection, PlatformClipboard, PlatformFocus, PlatformKeyboard,
+    read_selected_text, settled_selection, DirectSelection, PlatformClipboard, PlatformFocus,
+    PlatformKeyboard, SettledSelection,
 };
 use super::runtime::PolishRuntime;
 use super::selection::{
@@ -36,6 +36,16 @@ const CHAT_ANSWER_EVENT: &str = "polish-chat-answer";
 struct ChatAnswerEvent {
     answer: String,
     stream_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum SelectionRead {
+    PermissionRequired,
+    Selected(String),
+    Copied {
+        mode: SelectionMode,
+        text: Option<String>,
+    },
 }
 
 pub(crate) struct PolishManager {
@@ -85,34 +95,51 @@ impl PolishManager {
         self.chat_cancellation.cancel();
     }
 
-    pub(crate) fn begin_chat_context_capture(&self) -> u64 {
+    pub(crate) fn begin_selection_read(&self) -> u64 {
         self.chat_cancellation.begin()
     }
 
     /// Accessibility answers instantly when it can; otherwise the copy shortcut asks the app itself.
-    pub(crate) async fn capture_chat_context(&self, generation: u64) -> Result<ShownChatContext> {
+    pub(crate) async fn read_selection(&self, generation: u64) -> Result<SelectionRead> {
         let observed = read_selected_text().unwrap_or_else(|error| {
             log::debug!("Accessibility could not read the selection: {error:#}");
             DirectSelection::Unavailable
         });
-        if let Some(capture) = capture_settled_by_accessibility(observed) {
-            return Ok(ShownChatContext::read_by_accessibility(capture));
+        match settled_selection(observed) {
+            Some(SettledSelection::PermissionRequired) => {
+                return Ok(SelectionRead::PermissionRequired)
+            }
+            Some(SettledSelection::Text(text)) => return Ok(SelectionRead::Selected(text)),
+            None => {}
         }
         let mode = selection_mode();
         let transaction = self.transaction_with_cancellation(self.chat_cancellation.clone())?;
-        let context = transaction
-            .capture_text(mode, generation)
-            .await?
-            .map(|text| {
+        Ok(SelectionRead::Copied {
+            mode,
+            text: transaction.capture_text(mode, generation).await?,
+        })
+    }
+
+    pub(crate) async fn capture_chat_context(&self, generation: u64) -> Result<ShownChatContext> {
+        Ok(match self.read_selection(generation).await? {
+            SelectionRead::PermissionRequired => {
+                ShownChatContext::read_by_accessibility(ChatContextCapture::PermissionRequired)
+            }
+            SelectionRead::Selected(text) => {
+                ShownChatContext::read_by_accessibility(ChatContextCapture::Ready(Some(
+                    chat_text_context(text, ChatContextSource::Selection),
+                )))
+            }
+            SelectionRead::Copied { mode, text } => {
                 let source = match mode {
                     SelectionMode::ReplaceSelection => ChatContextSource::Selection,
                     SelectionMode::ClipboardOnly => ChatContextSource::Clipboard,
                 };
-                chat_text_context(text, source)
-            });
-        Ok(ShownChatContext::read_by_copy(ChatContextCapture::Ready(
-            context,
-        )))
+                ShownChatContext::read_by_copy(ChatContextCapture::Ready(
+                    text.map(|text| chat_text_context(text, source)),
+                ))
+            }
+        })
     }
 
     pub(crate) fn observe_selected_text(&self) -> Result<DirectSelection> {
