@@ -100,7 +100,11 @@ x11rb = "0.13"
 [target.'cfg(windows)'.dependencies]
 whisper-rs = { version = "=0.16.0", default-features = false, features = ["vulkan"] }
 windows = { version = "0.61.3", features = [
+    "Win32_Graphics_Gdi",
     "Win32_Media_Audio_Endpoints",
+    "Win32_System_DataExchange",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
     "Win32_System_Com_StructuredStorage",
     "Win32_System_Variant",
     "Win32_UI_WindowsAndMessaging",

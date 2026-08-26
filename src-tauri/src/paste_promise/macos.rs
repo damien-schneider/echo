@@ -1,5 +1,5 @@
-//! A transcript goes onto the pasteboard as a promise: macOS asks Echo for the data the moment an
-//! app actually pastes, and that request is the only true receipt a synthetic Cmd+V ever gets.
+//! macOS serves the promise through `NSPasteboardItemDataProvider`: the pasteboard asks Echo for
+//! the data the moment an app actually pastes. It never says which app asked.
 
 use objc2::rc::Retained;
 use objc2::runtime::{NSObject, NSObjectProtocol, ProtocolObject};
@@ -13,19 +13,14 @@ use std::sync::Mutex;
 use std::time::Instant;
 use tokio::sync::oneshot;
 
+use super::{Fetcher, Generation, PromisedTranscript, Receipt};
+
 /// Asks conforming clipboard managers to skip this change, so their polling cannot fake a paste.
 const TRANSIENT_TYPE: &str = "org.nspasteboard.TransientType";
 
-pub(crate) struct PromisedTranscript {
-    /// Resolves with the moment of the first read — before the synthetic Cmd+V it can only be a
-    /// clipboard watcher, after it the paste itself.
-    pub(crate) consumed: oneshot::Receiver<Instant>,
-    pub(crate) change_count: isize,
-}
-
 struct PromiseState {
     text: String,
-    consumed_tx: Mutex<Option<oneshot::Sender<Instant>>>,
+    consumed_tx: Mutex<Option<oneshot::Sender<Receipt>>>,
 }
 
 define_class!(
@@ -52,14 +47,17 @@ define_class!(
                 .ok()
                 .and_then(|mut tx| tx.take());
             if let Some(tx) = taken {
-                let _ = tx.send(Instant::now());
+                let _ = tx.send(Receipt {
+                    at: Instant::now(),
+                    by: Fetcher::Unknown,
+                });
             }
         }
     }
 );
 
 impl TranscriptPromise {
-    fn new(text: String, consumed_tx: oneshot::Sender<Instant>) -> Retained<Self> {
+    fn new(text: String, consumed_tx: oneshot::Sender<Receipt>) -> Retained<Self> {
         let this = Self::alloc().set_ivars(PromiseState {
             text,
             consumed_tx: Mutex::new(Some(consumed_tx)),
@@ -68,7 +66,11 @@ impl TranscriptPromise {
     }
 }
 
-pub(crate) fn write_promised_transcript(text: &str) -> Result<PromisedTranscript, String> {
+pub(super) fn is_available() -> bool {
+    true
+}
+
+pub(super) fn write_promised_transcript(text: &str) -> Result<PromisedTranscript, String> {
     write_promised_to(&NSPasteboard::generalPasteboard(), text)
 }
 
@@ -87,12 +89,16 @@ fn write_promised_to(pasteboard: &NSPasteboard, text: &str) -> Result<PromisedTr
     }
     Ok(PromisedTranscript {
         consumed,
-        change_count: pasteboard.changeCount(),
+        generation: revision_of(pasteboard),
     })
 }
 
-pub(crate) fn change_count() -> isize {
-    NSPasteboard::generalPasteboard().changeCount()
+pub(super) fn generation() -> Generation {
+    revision_of(&NSPasteboard::generalPasteboard())
+}
+
+fn revision_of(pasteboard: &NSPasteboard) -> Generation {
+    Generation(u64::try_from(pasteboard.changeCount()).unwrap_or_default())
 }
 
 #[cfg(test)]

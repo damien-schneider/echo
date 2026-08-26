@@ -188,8 +188,7 @@ pub(crate) fn microphone_permission_status() -> &'static str {
     unsafe {
         let cls = objc2::class!(AVCaptureDevice);
         let av_media_type = NSString::from_str("soun");
-        let status: i32 =
-            unsafe { msg_send![cls, authorizationStatusForMediaType: &*av_media_type] };
+        let status: i32 = msg_send![cls, authorizationStatusForMediaType: &*av_media_type];
         match status {
             3 => "authorized",
             2 => "denied",

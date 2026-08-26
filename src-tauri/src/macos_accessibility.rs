@@ -1,3 +1,4 @@
+use crate::caret::CaretSight;
 use anyhow::Result;
 use core_foundation::base::{CFType, CFTypeRef, TCFType};
 use core_foundation::string::{CFString, CFStringRef};
@@ -93,18 +94,6 @@ pub(crate) fn selected_text() -> Result<SelectedText> {
 fn element_belongs_to_echo(element: &CFType) -> bool {
     let echo_pid = i32::try_from(std::process::id()).ok();
     element_pid(element).is_some_and(|pid| Some(pid) == echo_pid)
-}
-
-/// What the focus probe could establish about a caret — never a gate on the paste, only the weight
-/// its receipt gets and whether the held-out card shows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum CaretSight {
-    /// Nothing usable: no permission, no focused element, or a role that says nothing either way.
-    Blind,
-    /// The focused element answered clearly, and what it is cannot take a text paste.
-    DeniedByRole,
-    /// A text element demonstrably holds the focus.
-    Affirmed,
 }
 
 /// Electron apps grow an accessibility tree only once asked — asked here, at dictation start, so
@@ -245,7 +234,8 @@ fn copy_attribute(element: AXUIElementRef, attribute: &'static str) -> Result<At
 
 #[cfg(test)]
 mod tests {
-    use super::{role_is_paste_deaf, role_is_text_input, CaretSight};
+    use super::{role_is_paste_deaf, role_is_text_input};
+    use crate::caret::CaretSight;
 
     #[test]
     fn text_input_roles_affirm_a_caret() {

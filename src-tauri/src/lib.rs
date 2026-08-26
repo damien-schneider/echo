@@ -3,6 +3,7 @@
 pub mod actions;
 mod audio_feedback;
 pub mod audio_toolkit;
+mod caret;
 mod clipboard;
 pub mod commands;
 mod dictation;
@@ -11,10 +12,9 @@ mod helpers;
 mod logging;
 #[cfg(target_os = "macos")]
 mod macos_accessibility;
-#[cfg(target_os = "macos")]
-mod macos_pasteboard;
 pub mod managers;
 mod overlay;
+mod paste_promise;
 pub mod settings;
 #[cfg(unix)]
 mod signal_handle;
