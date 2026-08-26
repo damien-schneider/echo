@@ -10,6 +10,12 @@ name: "Release Dry Run"
 on: workflow_dispatch
 
 jobs:
+  # The dry run signs nothing, so this is the only place a stale certificate or
+  # app-specific password can surface before a real release burns the matrix.
+  preflight-signing:
+    uses: ./.github/workflows/preflight-signing.yml
+    secrets: inherit
+
   dryrun:
     permissions:
       # Match the called build.yml which declares `contents: write` for the

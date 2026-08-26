@@ -3,7 +3,15 @@ name: "Release"
 on: workflow_dispatch
 
 jobs:
+  # An expired certificate or a stale app-specific password only shows up at
+  # notarization, 30 minutes in, after the draft and tag already exist. This
+  # asks Apple the same questions in half a minute, before anything is created.
+  preflight-signing:
+    uses: ./.github/workflows/preflight-signing.yml
+    secrets: inherit
+
   create-release:
+    needs: preflight-signing
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -195,12 +203,48 @@ jobs:
       release-id: ${{ needs.create-release.outputs.release-id }}
     secrets: inherit
 
+  # tauri-action merges each platform into the same latest.json by reading it,
+  # rewriting it and racing its siblings, so a lost update drops a platform
+  # from the manifest without failing a single job. Those users would simply
+  # stop being offered updates, silently, until someone noticed.
+  verify-updater-manifest:
+    needs: [create-release, publish-tauri]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check every platform survived the manifest merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release-id }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          set -euo pipefail
+          ASSETS=$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets" --paginate)
+          ASSET_ID=$(printf '%s' "$ASSETS" | jq -r '.[] | select(.name == "latest.json") | .id')
+          if [ -z "$ASSET_ID" ]; then
+            echo "::error::The release has no latest.json, so no client would ever see this version."
+            exit 1
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/releases/assets/$ASSET_ID" \
+            -H "Accept: application/octet-stream" > latest.json
+          jq -e --arg v "$VERSION" '.version == $v' latest.json > /dev/null \
+            || { echo "::error::latest.json announces $(jq -r .version latest.json), not $VERSION."; exit 1; }
+          for KEY in darwin-aarch64 darwin-x86_64 linux-x86_64 windows-x86_64 windows-aarch64; do
+            jq -e --arg k "$KEY" '.platforms[$k].signature | length > 0' latest.json > /dev/null \
+              || { echo "::error::latest.json lost $KEY — a matrix job overwrote another's entry."; exit 1; }
+            NAME=$(jq -r --arg k "$KEY" '.platforms[$k].url | split("/") | last' latest.json)
+            printf '%s' "$ASSETS" | jq -e --arg n "$NAME" 'any(.[]; .name == $n)' > /dev/null \
+              || { echo "::error::latest.json points $KEY at $NAME, which is not on the release."; exit 1; }
+            echo "$KEY -> $NAME"
+          done
+
   cleanup-on-failure:
     # Runs only when create-release succeeded but a downstream job failed or
     # was cancelled. Deletes the orphan draft + tag so the next attempt can
     # reuse the same version cleanly.
-    needs: [create-release, publish-tauri]
-    if: always() && needs.create-release.result == 'success' && needs.publish-tauri.result != 'success'
+    needs: [create-release, publish-tauri, verify-updater-manifest]
+    if: always() && needs.create-release.result == 'success' && (needs.publish-tauri.result != 'success' || needs.verify-updater-manifest.result != 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -1,0 +1,40 @@
+name: "Preflight Signing"
+
+on:
+  workflow_call:
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    steps:
+      - name: Verify Apple signing credentials
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" preflight.keychain
+          security default-keychain -s preflight.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" preflight.keychain
+          security import certificate.p12 -k preflight.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" preflight.keychain
+          security find-identity -v -p codesigning preflight.keychain | grep "Developer ID Application"
+          CERT=$(security find-certificate -c "Developer ID Application" -p preflight.keychain)
+          printf '%s' "$CERT" | openssl x509 -noout -enddate
+          printf '%s' "$CERT" | openssl x509 -checkend 0 -noout \
+            || { echo "::error::The Developer ID Application certificate has expired."; exit 1; }
+          printf '%s' "$CERT" | openssl x509 -checkend 1209600 -noout \
+            || echo "::warning::The Developer ID Application certificate expires within two weeks."
+          # Captured before it is trimmed: `| head` closes the pipe early, and
+          # notarytool dies of SIGPIPE, which pipefail reports as bad credentials.
+          HISTORY=$(xcrun notarytool history \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "${APPLE_ID_PASSWORD:-${APPLE_PASSWORD:-}}")
+          printf '%s\n' "$HISTORY" | head -20

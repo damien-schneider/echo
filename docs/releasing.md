@@ -54,9 +54,11 @@ Builds the full 6-platform matrix (macOS arm64/x64, Linux deb/appimage+rpm, Wind
    Or via GitHub UI: Actions → Release → Run workflow.
 
 4. The workflow:
+   - Asks Apple whether the certificate and the app-specific password still work, before creating anything (`preflight-signing`, also run by the dry run).
    - Verifies `v<version>` tag is free.
    - Creates the tag, pushes it, drafts a release with autogen notes.
    - Builds + signs the 6-platform matrix and uploads bundles + updater `.sig` files to the draft.
+   - Checks `latest.json` still carries all five platforms — the matrix jobs merge into it concurrently, and a lost update would drop one silently.
    - On any failure, `cleanup-on-failure` deletes the draft and the tag — re-run after fixing.
 
 5. Open the draft on GitHub, review the assets and notes, hit **Publish**. The Tauri updater reads the published release's `latest.json`.
@@ -89,6 +91,7 @@ event.
 | `Tag vX.Y.Z already exists` | Bump again — version was not incremented. |
 | One platform fails mid-release | Cleanup ran — the draft and tag were deleted. Fix the failing platform, re-run `release:start`. |
 | Updater clients don't see the new version | Draft was never published — open the release on GitHub and click Publish. |
+| `latest.json lost <platform>` | Two matrix jobs raced the manifest merge. Nothing to fix in the code — re-run `release:start`. |
 | Downloaded `.dmg` refused by Gatekeeper | Only affects v0.8.0 and earlier — the image is notarized and stapled from v0.8.1 on. |
 | Local `tauri build` cmake error on macOS | `CMAKE_POLICY_VERSION_MINIMUM=3.5 bun run tauri:build`. |
 
