@@ -169,6 +169,11 @@ jobs:
       # Cancel sibling builds on first failure so the partial draft can be
       # cleaned up immediately instead of burning compute on doomed jobs.
       fail-fast: true
+      # One job at a time: every platform rewrites the same release, and
+      # tauri-action deletes an asset by an id it read moments earlier, so
+      # siblings racing on latest.json make an upload fail with "Not Found".
+      # The repo is public, so the extra wall clock costs nothing.
+      max-parallel: 1
       matrix:
         include:
           - platform: "macos-latest" # for Arm based macs (M1 and above).
