@@ -216,7 +216,9 @@ jobs:
     needs: [create-release, publish-tauri]
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      # Reading is enough, but a draft release is invisible to a token that
+      # only has contents: read — the API answers 403 until it can write.
+      contents: write
     steps:
       - name: Check every platform survived the manifest merge
         env:
