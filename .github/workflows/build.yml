@@ -548,6 +548,26 @@ jobs:
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           args: ${{ inputs.build-args }}
 
+      # Tauri notarizes and staples the .app, never the disk image it wraps it
+      # in, so a freshly downloaded .dmg is refused by Gatekeeper. The stapled
+      # image replaces the one tauri-action already uploaded.
+      - name: Notarize the macOS disk image
+        if: contains(inputs.platform, 'macos') && inputs.sign-binaries && inputs.release-id != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          DMG=$(printf '%s\n' "src-tauri/target/${{ inputs.target }}/${{ steps.build-profile.outputs.profile }}/bundle/dmg"/*.dmg | head -1)
+          xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "${APPLE_ID_PASSWORD:-${APPLE_PASSWORD:-}}" \
+            --wait
+          xcrun stapler staple "$DMG"
+          spctl -a -t open --context context:primary-signature -v "$DMG"
+          gh release upload "v${{ steps.get-version.outputs.version }}" "$DMG" --clobber
+
       - name: Verify Polish sidecar in macOS bundle
         if: contains(inputs.platform, 'macos')
         shell: bash

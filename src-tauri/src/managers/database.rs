@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use log::{debug, info};
+use log::{debug, info, warn};
 use rusqlite::Connection;
 use std::path::Path;
 
@@ -96,7 +96,8 @@ const MIGRATIONS: &[Migration] = &[
     },
 ];
 
-/// Idempotent; fails if the on-disk schema is newer than this build.
+/// Idempotent, and forward compatible: migrations only ever add, so a database written by a
+/// newer build opens read-only-compatible instead of locking the user out of an older one.
 pub fn initialize_database(db_path: &Path) -> Result<()> {
     let conn = Connection::open(db_path)
         .with_context(|| format!("Failed to open database at {:?}", db_path))?;
@@ -255,12 +256,12 @@ fn run_migrations(conn: &Connection) -> Result<()> {
     let current_version = get_schema_version(conn)?;
 
     if current_version > CURRENT_SCHEMA_VERSION {
-        anyhow::bail!(
-            "Database schema version ({}) is newer than application expects ({}). \
-             This may indicate the database was used with a newer version of the application.",
-            current_version,
-            CURRENT_SCHEMA_VERSION
+        warn!(
+            "Database schema version ({}) is newer than this build expects ({}); \
+             every migration this build knows is already applied",
+            current_version, CURRENT_SCHEMA_VERSION
         );
+        return Ok(());
     }
 
     if current_version == CURRENT_SCHEMA_VERSION {
@@ -348,6 +349,25 @@ mod tests {
         let conn = Connection::open(&db_path).unwrap();
         let version = get_schema_version(&conn).unwrap();
         assert_eq!(version, CURRENT_SCHEMA_VERSION);
+    }
+
+    /// A downgrade must never brick the app: an older build opens a database a newer one wrote.
+    #[test]
+    fn a_newer_schema_opens_without_migrating_it_back() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        initialize_database(&db_path).unwrap();
+        let conn = Connection::open(&db_path).unwrap();
+        set_schema_version(&conn, CURRENT_SCHEMA_VERSION + 3).unwrap();
+        drop(conn);
+
+        initialize_database(&db_path).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        assert_eq!(
+            get_schema_version(&conn).unwrap(),
+            CURRENT_SCHEMA_VERSION + 3
+        );
     }
 
     #[test]

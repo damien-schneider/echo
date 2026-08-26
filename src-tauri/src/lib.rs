@@ -19,6 +19,7 @@ pub mod settings;
 #[cfg(unix)]
 mod signal_handle;
 mod startup;
+mod startup_guards;
 mod tray;
 mod updates;
 mod utils;
@@ -528,6 +529,10 @@ pub fn run() {
         .manage(Mutex::new(startup::StartupState::default()))
         .manage(updates::manager())
         .setup(move |app| {
+            startup_guards::log_panics();
+            #[cfg(debug_assertions)]
+            startup_guards::assert_dev_data_is_isolated(&app.config().identifier);
+
             let settings = settings::get_settings(&app.handle());
             logging::set_debug_logging(settings.debug_logging_enabled);
             let file_log_level: log::LevelFilter = match settings.log_level {
