@@ -43,6 +43,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
 
+use anyhow::Context;
 #[cfg(unix)]
 use signal_hook::consts::{SIGINT, SIGTERM, SIGUSR2};
 #[cfg(unix)]
@@ -72,26 +73,23 @@ pub fn set_file_transcription_active(active: bool) {
     FILE_TRANSCRIPTION_ACTIVE.store(active, Ordering::SeqCst);
 }
 
-fn initialize_core_logic(app_handle: &AppHandle) {
-    let recording_manager = Arc::new(
-        AudioRecordingManager::new(app_handle).expect("Failed to initialize recording manager"),
-    );
-    let model_manager =
-        Arc::new(ModelManager::new(app_handle).expect("Failed to initialize model manager"));
+fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
+    let recording_manager =
+        Arc::new(AudioRecordingManager::new(app_handle).context("the audio recorder")?);
+    let model_manager = Arc::new(ModelManager::new(app_handle).context("model storage")?);
     let polish_manager = Arc::new(PolishManager::new(app_handle, model_manager.clone()));
     let transcription_manager = Arc::new(
         TranscriptionManager::new(app_handle, model_manager.clone())
-            .expect("Failed to initialize transcription manager"),
+            .context("the transcription engine")?,
     );
 
     let history_manager =
-        Arc::new(HistoryManager::new(app_handle).expect("Failed to initialize history manager"));
+        Arc::new(HistoryManager::new(app_handle).context("the history database")?);
 
-    let capture_store =
-        Arc::new(CaptureStore::new(app_handle).expect("Failed to initialize the capture store"));
+    let capture_store = Arc::new(CaptureStore::new(app_handle).context("the capture store")?);
 
     let input_tracker_manager = Arc::new(Mutex::new(
-        InputTrackerManager::new(app_handle).expect("Failed to initialize input tracker manager"),
+        InputTrackerManager::new(app_handle).context("input tracking")?,
     ));
 
     let tts_manager = Arc::new(TtsManager::new());
@@ -100,12 +98,11 @@ fn initialize_core_logic(app_handle: &AppHandle) {
         log::warn!("Failed to initialize TTS engine on startup: {}", e);
     }
 
-    let meeting_manager =
-        Arc::new(MeetingManager::new(app_handle).expect("Failed to initialize meeting manager"));
+    let meeting_manager = Arc::new(MeetingManager::new(app_handle).context("meeting recording")?);
 
     let diarization_manager = Arc::new(
         DiarizationManager::new(app_handle, model_manager.clone())
-            .expect("Failed to initialize diarization manager"),
+            .context("speaker diarization")?,
     );
 
     // Keep the selected local model resident so first dictation is responsive.
@@ -255,9 +252,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
                 app_handle
                     .path()
                     .resolve(initial_icon_path, tauri::path::BaseDirectory::Resource)
-                    .unwrap(),
+                    .context("the tray icon")?,
             )
-            .unwrap(),
+            .context("the tray icon")?,
         )
         .show_menu_on_left_click(true)
         .icon_as_template(true)
@@ -284,7 +281,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     #[cfg(debug_assertions)]
     let tray_builder = tray_builder.title("DEV").tooltip("Echo Dev");
 
-    let tray = tray_builder.build(app_handle).unwrap();
+    let tray = tray_builder.build(app_handle).context("the tray icon")?;
     app_handle.manage(tray);
 
     utils::update_tray_menu(app_handle, &utils::TrayIconState::Idle);
@@ -300,6 +297,8 @@ fn initialize_core_logic(app_handle: &AppHandle) {
 
     utils::create_recording_overlay(app_handle);
     updates::watch(app_handle);
+
+    Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -548,7 +547,9 @@ pub fn run() {
             startup::set_start_hidden(&app_handle, settings.start_hidden);
             startup::arm_startup_watchdog(&app_handle);
 
-            initialize_core_logic(&app_handle);
+            if let Err(error) = initialize_core_logic(&app_handle) {
+                startup_guards::report_unstartable(&error);
+            }
 
             if let Some(main_window) = app_handle.get_webview_window("main") {
                 #[cfg(debug_assertions)]

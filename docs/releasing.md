@@ -89,4 +89,13 @@ event.
 | `Tag vX.Y.Z already exists` | Bump again — version was not incremented. |
 | One platform fails mid-release | Cleanup ran — the draft and tag were deleted. Fix the failing platform, re-run `release:start`. |
 | Updater clients don't see the new version | Draft was never published — open the release on GitHub and click Publish. |
+| Downloaded `.dmg` refused by Gatekeeper | Only affects v0.8.0 and earlier — the image is notarized and stapled from v0.8.1 on. |
 | Local `tauri build` cmake error on macOS | `CMAKE_POLICY_VERSION_MINIMUM=3.5 bun run tauri:build`. |
+
+## Database schema bumps
+
+`CURRENT_SCHEMA_VERSION` in `src-tauri/src/managers/database.rs` is a one-way door for anyone
+running v0.8.0 or older: those builds refuse to open a database stamped with a version they do not
+know, and abort at startup. From v0.8.1 an unknown version is only a warning, so a bump is safe for
+every build from there on. Migrations must stay additive — a rename or a drop breaks the older
+build's queries, which no version check can catch.

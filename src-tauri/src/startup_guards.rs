@@ -36,3 +36,17 @@ mod tests {
         assert!(!dev_data_is_isolated("com.damien-schneider.echo"));
     }
 }
+
+/// A manager that cannot start leaves Echo with no window and no tray: without this the user sees
+/// a dock icon blink and nothing else, and the reason lives only in a system crash report.
+pub(crate) fn report_unstartable(error: &anyhow::Error) -> ! {
+    log::error!("Echo cannot start: {error:#}");
+    rfd::MessageDialog::new()
+        .set_level(rfd::MessageLevel::Error)
+        .set_title("Echo could not start")
+        .set_description(format!(
+            "Echo could not start {error}.\n\nReinstall the latest version from github.com/damien-schneider/echo/releases, then open Echo again."
+        ))
+        .show();
+    std::process::exit(1);
+}

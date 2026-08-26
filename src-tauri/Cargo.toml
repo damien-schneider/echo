@@ -81,6 +81,7 @@ whichlang = "0.1"
 async-trait = "0.1"
 getrandom = "0.3"
 clipboard-rs = { version = "0.3.5", features = ["wayland"] }
+rfd = "0.16"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
