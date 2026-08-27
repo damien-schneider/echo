@@ -169,11 +169,6 @@ jobs:
       # Cancel sibling builds on first failure so the partial draft can be
       # cleaned up immediately instead of burning compute on doomed jobs.
       fail-fast: true
-      # One job at a time: every platform rewrites the same release, and
-      # tauri-action deletes an asset by an id it read moments earlier, so
-      # siblings racing on latest.json make an upload fail with "Not Found".
-      # The repo is public, so the extra wall clock costs nothing.
-      max-parallel: 1
       matrix:
         include:
           - platform: "macos-latest" # for Arm based macs (M1 and above).
@@ -205,15 +200,36 @@ jobs:
       sign-binaries: ${{ !contains(matrix.platform, 'windows') }}
       asset-prefix: "echo"
       upload-artifacts: false
+      # latest.json is the one asset every platform would write, and racing
+      # siblings either lose an entry or kill an upload outright. It is
+      # composed once, after the matrix, from the signatures on the release.
+      include-updater-json: false
       release-id: ${{ needs.create-release.outputs.release-id }}
     secrets: inherit
 
-  # tauri-action merges each platform into the same latest.json by reading it,
-  # rewriting it and racing its siblings, so a lost update drops a platform
-  # from the manifest without failing a single job. Those users would simply
-  # stop being offered updates, silently, until someone noticed.
-  verify-updater-manifest:
+  compose-updater-manifest:
     needs: [create-release, publish-tauri]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Build latest.json from the signed bundles
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release-id }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        run: |
+          .github/scripts/updater-manifest.sh latest.json
+          gh release upload "v$VERSION" latest.json --clobber
+
+  # A manifest that lost a platform fails no job on its own: those users would
+  # simply stop being offered updates, silently, until someone noticed.
+  verify-updater-manifest:
+    needs: [create-release, compose-updater-manifest]
     runs-on: ubuntu-latest
     permissions:
       # Reading is enough, but a draft release is invisible to a token that
@@ -250,8 +266,8 @@ jobs:
     # Runs only when create-release succeeded but a downstream job failed or
     # was cancelled. Deletes the orphan draft + tag so the next attempt can
     # reuse the same version cleanly.
-    needs: [create-release, publish-tauri, verify-updater-manifest]
-    if: always() && needs.create-release.result == 'success' && (needs.publish-tauri.result != 'success' || needs.verify-updater-manifest.result != 'success')
+    needs: [create-release, publish-tauri, compose-updater-manifest, verify-updater-manifest]
+    if: always() && needs.create-release.result == 'success' && (needs.publish-tauri.result != 'success' || needs.compose-updater-manifest.result != 'success' || needs.verify-updater-manifest.result != 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: write

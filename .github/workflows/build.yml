@@ -43,6 +43,10 @@ on:
         required: false
         type: boolean
         default: false
+      include-updater-json:
+        required: false
+        type: boolean
+        default: true
 
 jobs:
   build:
@@ -547,6 +551,7 @@ jobs:
           releaseId: ${{ inputs.release-id }}
           assetNamePattern: ${{ steps.patch-release-name.outputs.platform }}
           args: ${{ inputs.build-args }}
+          includeUpdaterJson: ${{ inputs.include-updater-json }}
 
       # Tauri notarizes and staples the .app, never the disk image it wraps it
       # in, so a freshly downloaded .dmg is refused by Gatekeeper. The stapled
