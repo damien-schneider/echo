@@ -9,109 +9,82 @@ import type {
 } from "@/lib/types";
 import { useMeetingStore } from "@/stores/meeting-store";
 
+const store = useMeetingStore;
+
+const onStatusChanged = (status: MeetingStatus) => {
+  if (status === "complete") {
+    // Reset live state for clean next start_meeting; refresh list.
+    useMeetingStore.setState({
+      batchProgress: {},
+      currentMeetingId: null,
+      elapsedMs: 0,
+      interimSegments: { mic: null, system: null },
+      liveSegments: [],
+      status: "idle",
+      streamingFinals: [],
+    });
+    store.getState().loadMeetings();
+    return;
+  }
+  if (status === "processing" || status === "recording") {
+    store.getState().setStatus(status);
+  }
+};
+
+const onSummaryGenerated = (meetingId: number) => {
+  const state = store.getState();
+  if (state.selectedMeeting?.id === meetingId) {
+    state.selectMeeting(meetingId);
+  }
+  state.loadMeetings();
+};
+
 export function useMeetingListener() {
   useEffect(() => {
     let cancelled = false;
-    const unlisten: (() => void)[] = [];
-    const store = useMeetingStore;
+    let unlisten: (() => void)[] = [];
 
-    const setup = async () => {
-      unlisten.push(
-        await listen<MeetingSegment>("meeting-segment-added", (event) => {
-          if (cancelled) {
-            return;
-          }
-          store.getState().addLiveSegment(event.payload);
-        })
-      );
-
-      unlisten.push(
-        await listen<StreamingInterim>("meeting-streaming-interim", (event) => {
-          if (cancelled) {
-            return;
-          }
-          store.getState().applyStreamingInterim(event.payload);
-        })
-      );
-
-      // LA-2 commit during recording.
-      unlisten.push(
-        await listen<StreamingFinal>("meeting-streaming-final", (event) => {
-          if (cancelled) {
-            return;
-          }
-          store.getState().applyStreamingFinal(event.payload);
-        })
-      );
-
-      unlisten.push(
-        await listen<MeetingBatchProgress>(
-          "meeting-batch-progress",
-          (event) => {
-            if (cancelled) {
-              return;
-            }
-            store.getState().applyBatchProgress(event.payload);
-          }
-        )
-      );
-
-      unlisten.push(
-        await listen<MeetingStatus>("meeting-status-changed", (event) => {
-          if (cancelled) {
-            return;
-          }
-          const status = event.payload;
-          if (status === "complete") {
-            // Reset live state for clean next start_meeting; refresh list.
-            useMeetingStore.setState({
-              batchProgress: {},
-              currentMeetingId: null,
-              elapsedMs: 0,
-              interimSegments: { mic: null, system: null },
-              liveSegments: [],
-              status: "idle",
-              streamingFinals: [],
-            });
-            store.getState().loadMeetings();
-          } else if (status === "processing") {
-            store.getState().setStatus("processing");
-          } else if (status === "recording") {
-            store.getState().setStatus("recording");
-          }
-        })
-      );
-
-      unlisten.push(
-        await listen<number>("meeting-summary-generated", (event) => {
-          if (cancelled) {
-            return;
-          }
-          const state = store.getState();
-          if (state.selectedMeeting?.id === event.payload) {
-            state.selectMeeting(event.payload);
-          }
-          state.loadMeetings();
-        })
-      );
-
-      unlisten.push(
-        await listen<number>("meeting-auto-summary-requested", (event) => {
-          if (cancelled) {
-            return;
-          }
-          store.getState().generateSummary(event.payload);
-        })
-      );
-    };
-
-    setup();
-
-    return () => {
-      cancelled = true;
+    const release = () => {
       for (const fn of unlisten) {
         fn();
       }
+      unlisten = [];
+    };
+
+    Promise.all([
+      listen<MeetingSegment>("meeting-segment-added", (e) =>
+        store.getState().addLiveSegment(e.payload)
+      ),
+      listen<StreamingInterim>("meeting-streaming-interim", (e) =>
+        store.getState().applyStreamingInterim(e.payload)
+      ),
+      // LA-2 commit during recording.
+      listen<StreamingFinal>("meeting-streaming-final", (e) =>
+        store.getState().applyStreamingFinal(e.payload)
+      ),
+      listen<MeetingBatchProgress>("meeting-batch-progress", (e) =>
+        store.getState().applyBatchProgress(e.payload)
+      ),
+      listen<MeetingStatus>("meeting-status-changed", (e) =>
+        onStatusChanged(e.payload)
+      ),
+      listen<number>("meeting-summary-generated", (e) =>
+        onSummaryGenerated(e.payload)
+      ),
+      listen<number>("meeting-auto-summary-requested", (e) =>
+        store.getState().generateSummary(e.payload)
+      ),
+    ]).then((fns) => {
+      unlisten = fns;
+      // Unmounting mid-registration used to leave every listener resolved after it behind.
+      if (cancelled) {
+        release();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      release();
     };
   }, []);
 }

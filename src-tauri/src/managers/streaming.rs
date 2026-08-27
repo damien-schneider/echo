@@ -72,6 +72,19 @@ impl Default for StreamingConfig {
     }
 }
 
+/// Live preview is disposable: past this a backlogged worker drops the oldest audio instead of
+/// falling further behind on every decode, which is how a long recording used to spiral.
+pub const MAX_BACKLOG_SAMPLES: usize = 30 * 16_000;
+
+/// Keeps the newest [`MAX_BACKLOG_SAMPLES`]; returns how many were dropped.
+pub fn trim_backlog(samples: &mut Vec<f32>) -> usize {
+    let excess = samples.len().saturating_sub(MAX_BACKLOG_SAMPLES);
+    if excess > 0 {
+        samples.drain(..excess);
+    }
+    excess
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PipelineEvent {
     /// Frontend replaces prior Interim for same segment_start_ms.
@@ -123,7 +136,23 @@ impl StreamingPipeline {
     }
 
     /// Caller does VAD; decode closure returns empty on no result.
+    ///
+    /// A backlogged worker hands over seconds of coalesced audio at once; splitting it here keeps the
+    /// window at its configured size instead of growing one decode long enough to never catch up.
     pub fn push<D: FnMut(&[f32]) -> String>(
+        &mut self,
+        frame: &[f32],
+        is_speech: bool,
+        decode: &mut D,
+    ) -> Vec<PipelineEvent> {
+        let mut events = Vec::new();
+        for slice in frame.chunks(self.cfg.step_samples.max(1)) {
+            events.extend(self.push_slice(slice, is_speech, decode));
+        }
+        events
+    }
+
+    fn push_slice<D: FnMut(&[f32]) -> String>(
         &mut self,
         frame: &[f32],
         is_speech: bool,
@@ -435,10 +464,10 @@ mod tests {
             let mut o = decode_outputs.borrow_mut();
             o.remove(0)
         };
-        // 3 decode ticks at 1.5s, 2.5s, 3.5s.
-        speech(&mut p, 24_000, &mut decode);
-        let e2 = speech(&mut p, 16_000, &mut decode);
-        let e3 = speech(&mut p, 16_000, &mut decode);
+        // One decode per push: the window opens at 1s, then advances a step at a time.
+        speech(&mut p, 16_000, &mut decode);
+        let e2 = speech(&mut p, 8_000, &mut decode);
+        let e3 = speech(&mut p, 8_000, &mut decode);
         let last2 = match &e2[0] {
             PipelineEvent::Interim {
                 committed_text,
@@ -459,6 +488,46 @@ mod tests {
         assert_eq!(last2.1, "fox");
         assert_eq!(last3.0, "the quick brown fox");
         assert_eq!(last3.1, "jumps");
+    }
+
+    #[test]
+    fn backlogged_frame_never_decodes_more_than_one_window() {
+        let cfg = cfg_for_tests();
+        let mut p = StreamingPipeline::new(cfg);
+        let widest = std::cell::RefCell::new(0usize);
+        let mut decode = |buf: &[f32]| {
+            let mut widest = widest.borrow_mut();
+            *widest = (*widest).max(buf.len());
+            String::from("text")
+        };
+        // A worker that fell a minute behind hands its whole backlog over in one push.
+        speech(&mut p, 60 * 16_000, &mut decode);
+
+        assert!(
+            *widest.borrow() <= cfg.max_window_samples,
+            "decoded {} samples, window is {}",
+            widest.borrow(),
+            cfg.max_window_samples
+        );
+    }
+
+    #[test]
+    fn trim_backlog_keeps_the_newest_audio() {
+        let mut samples: Vec<f32> = (0..MAX_BACKLOG_SAMPLES + 10).map(|i| i as f32).collect();
+
+        let dropped = trim_backlog(&mut samples);
+
+        assert_eq!(dropped, 10);
+        assert_eq!(samples.len(), MAX_BACKLOG_SAMPLES);
+        assert_eq!(samples[0], 10.0);
+    }
+
+    #[test]
+    fn trim_backlog_leaves_a_short_queue_alone() {
+        let mut samples = vec![0.5f32; 16_000];
+
+        assert_eq!(trim_backlog(&mut samples), 0);
+        assert_eq!(samples.len(), 16_000);
     }
 
     #[test]

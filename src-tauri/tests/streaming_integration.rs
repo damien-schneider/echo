@@ -321,9 +321,10 @@ fn single_sample_frame_is_safe() {
     assert!(events.is_empty());
 }
 
-/// Oversized frame → single Final, no infinite loop.
+/// A backlogged worker hands over seconds at once: the frame must be drained in window-sized
+/// decodes, never decoded whole — one giant decode is what makes a slow machine fall further behind.
 #[test]
-fn oversized_frame_force_finalizes_once() {
+fn oversized_frame_is_drained_in_window_sized_decodes() {
     let cfg = StreamingConfig {
         min_window_samples: SAMPLE_RATE,
         step_samples: SAMPLE_RATE,
@@ -331,9 +332,9 @@ fn oversized_frame_force_finalizes_once() {
         silence_flush_samples: SAMPLE_RATE / 2,
     };
     let mut pipeline = StreamingPipeline::new(cfg);
-    let mut decode_count = 0;
-    let mut decode = |_: &[f32]| {
-        decode_count += 1;
+    let mut widest_decode = 0;
+    let mut decode = |buf: &[f32]| {
+        widest_decode = widest_decode.max(buf.len());
         "long buffer".to_string()
     };
     let frame = sine_seconds(220.0, 5.0);
@@ -342,8 +343,8 @@ fn oversized_frame_force_finalizes_once() {
         .iter()
         .filter(|e| matches!(e, PipelineEvent::Final { .. }))
         .count();
-    assert_eq!(finals, 1);
-    assert_eq!(decode_count, 1);
+    assert_eq!(finals, 2, "5s of speech against a 2s window");
+    assert_eq!(widest_decode, cfg.max_window_samples);
 }
 
 /// Mic + system pipelines must not leak text across.

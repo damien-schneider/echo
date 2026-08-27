@@ -214,11 +214,14 @@ pub async fn finalize_transcription(
     op_generation: u64,
     kind: PostProcessKind,
     tool_message: Option<String>,
-    audio_samples: Option<Vec<f32>>,
     post_process_prompt: Option<String>,
 ) -> Result<(), String> {
     // stale-skip still counts as handled — the watchdog must not clobber a UI the frontend already answered for
     FINALIZE_DONE.store(op_generation, Ordering::SeqCst);
+
+    // Stashed by the stop flow; the webview never carries the raw buffer. Taken before the stale
+    // check so an abandoned generation releases it instead of pinning it until the next dictation.
+    let audio_samples = crate::actions::take_pending_audio(op_generation);
 
     if OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
         debug!("finalize_transcription: stale op_generation, skipping");
@@ -237,10 +240,9 @@ pub async fn finalize_transcription(
 
             let hm_clone = Arc::clone(&hm);
             let transcription_for_history = original_transcription.clone();
-            let samples = audio_samples.unwrap_or_default();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = hm_clone
-                    .save_transcription(samples, transcription_for_history, None, None)
+                    .save_transcription(audio_samples, transcription_for_history, None, None)
                     .await
                 {
                     error!("Failed to save transcription to history: {}", e);
@@ -269,11 +271,10 @@ pub async fn finalize_transcription(
             let hm_clone = Arc::clone(&hm);
             let transcription_for_history = original_transcription.clone();
             let post_processed = Some(text.clone());
-            let samples = audio_samples.unwrap_or_default();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = hm_clone
                     .save_transcription(
-                        samples,
+                        audio_samples,
                         transcription_for_history,
                         post_processed,
                         post_process_prompt,
@@ -296,10 +297,9 @@ pub async fn finalize_transcription(
 
             let hm_clone = Arc::clone(&hm);
             let transcription_for_history = original_transcription.clone();
-            let samples = audio_samples.unwrap_or_default();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = hm_clone
-                    .save_transcription(samples, transcription_for_history, None, None)
+                    .save_transcription(audio_samples, transcription_for_history, None, None)
                     .await
                 {
                     error!("Failed to save transcription to history: {}", e);

@@ -1,5 +1,5 @@
 import { Download, Loader2, Mic, Square } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/features/meeting/format-elapsed";
@@ -17,8 +17,6 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
   const startMeeting = useMeetingStore((s) => s.startMeeting);
   const stopMeeting = useMeetingStore((s) => s.stopMeeting);
   const [title, setTitle] = useState("");
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const startTimeRef = useRef<number>(0);
 
   const isRecording = status === "recording";
   const isProcessing = status === "processing";
@@ -35,22 +33,20 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
     modelButtonLabel = "Downloading…";
   }
 
+  // elapsedMs is read once, not depended on — as a dependency the ticker would tear itself down
+  // and rebuild five times a second for the whole meeting.
   useEffect(() => {
-    if (isRecording) {
-      startTimeRef.current = Date.now() - elapsedMs;
-      timerRef.current = setInterval(() => {
-        setElapsedMs(Date.now() - startTimeRef.current);
-      }, 200);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
+    if (!isRecording) {
+      return;
     }
+    const startedAt = Date.now() - useMeetingStore.getState().elapsedMs;
+    const timer = setInterval(() => {
+      setElapsedMs(Date.now() - startedAt);
+    }, 200);
     return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+      clearInterval(timer);
     };
-  }, [isRecording, setElapsedMs, elapsedMs]);
+  }, [isRecording, setElapsedMs]);
 
   const handleStart = async () => {
     try {

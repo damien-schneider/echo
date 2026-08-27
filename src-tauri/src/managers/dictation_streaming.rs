@@ -16,7 +16,9 @@ const WORKER_FINISH_BUDGET: Duration = Duration::from_secs(8);
 
 use crate::managers::meeting_streaming::is_whisper_hallucination;
 use crate::managers::model::transcription_profile_id;
-use crate::managers::streaming::{PipelineEvent, StreamingConfig, StreamingPipeline};
+use crate::managers::streaming::{
+    PipelineEvent, StreamingConfig, StreamingPipeline, MAX_BACKLOG_SAMPLES,
+};
 use crate::managers::transcription::{StreamingTranscriber, TranscriptionManager};
 use crate::settings;
 
@@ -71,6 +73,28 @@ fn coalesce_audio_backlog(
         }
     }
     CoalescedAudioBacklog { frames, terminal }
+}
+
+/// Keeps the newest [`MAX_BACKLOG_SAMPLES`]; returns how many were dropped. Dropping here would
+/// silently truncate the dictation transcript, so the worker reports the loss and lets the caller
+/// fall back to the batch decode of the full recording.
+fn trim_frame_backlog(frames: &mut Vec<CapturedAudioFrame>) -> usize {
+    let total: usize = frames.iter().map(|frame| frame.samples.len()).sum();
+    let dropped = total.saturating_sub(MAX_BACKLOG_SAMPLES);
+    let mut remaining = dropped;
+    frames.retain_mut(|frame| {
+        if remaining == 0 {
+            return true;
+        }
+        if frame.samples.len() <= remaining {
+            remaining -= frame.samples.len();
+            return false;
+        }
+        frame.samples.drain(..remaining);
+        remaining = 0;
+        true
+    });
+    dropped
 }
 
 /// Seam so tests can script decodes without a real model file.
@@ -373,6 +397,7 @@ fn run_worker(
     let mut pipeline = StreamingPipeline::new(cfg);
     let mut accumulator = DictationAccumulator::new();
     let mut decode_errs = 0usize;
+    let mut dropped_samples = 0usize;
 
     let decoder_for_decode = decoder.clone();
     let shutdown_for_decode = shutdown_flag.clone();
@@ -383,7 +408,7 @@ fn run_worker(
     };
 
     while let Ok(command) = cmd_rx.recv() {
-        let backlog = match command {
+        let mut backlog = match command {
             Cmd::Audio(frame) => coalesce_audio_backlog(frame, &cmd_rx),
             Cmd::Finish(result_tx) => CoalescedAudioBacklog {
                 frames: Vec::new(),
@@ -394,6 +419,7 @@ fn run_worker(
                 terminal: Some(TerminalCommand::Shutdown),
             },
         };
+        dropped_samples += trim_frame_backlog(&mut backlog.frames);
         for frame in backlog.frames {
             if shutdown_flag.load(Ordering::Relaxed) {
                 break;
@@ -406,7 +432,18 @@ fn run_worker(
         match backlog.terminal {
             Some(TerminalCommand::Finish(result_tx)) => {
                 emit_events(pipeline.flush(&mut decode), &mut accumulator, &sink);
-                let _ = result_tx.send(accumulator.transcript());
+                // An incomplete preview must never stand in for the transcript — empty sends the
+                // stop flow to the batch decode of the full recording.
+                let transcript = if dropped_samples > 0 {
+                    warn!(
+                        "dictation preview fell behind and dropped {:.1}s of audio — falling back to the batch decode",
+                        dropped_samples as f32 / 16_000.0
+                    );
+                    String::new()
+                } else {
+                    accumulator.transcript()
+                };
+                let _ = result_tx.send(transcript);
                 break;
             }
             Some(TerminalCommand::Shutdown) => break,

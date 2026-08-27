@@ -33,8 +33,15 @@ impl DiarizationManager {
             .is_ok()
     }
 
-    /// 16 kHz mono f32; `threshold` unused — Sortformer exposes no clustering knob.
-    pub fn diarize(&self, samples: &[f32], _threshold: f32) -> Result<Vec<DiarizationSegment>> {
+    /// 16 kHz mono f32 windows; `threshold` unused — Sortformer exposes no clustering knob.
+    ///
+    /// Window by window: a whole-recording call would hold the audio, its mel features and its
+    /// predictions as three tensors sized by meeting length. The speaker cache lives in
+    /// `sortformer`, so identities still carry across windows.
+    pub fn diarize<I>(&self, windows: I, _threshold: f32) -> Result<Vec<DiarizationSegment>>
+    where
+        I: IntoIterator<Item = Result<Vec<f32>>>,
+    {
         let model_dir = self
             .model_manager
             .get_model_path(DIARIZATION_MODEL_ID)
@@ -46,11 +53,6 @@ impl DiarizationManager {
             model_path
         );
 
-        info!(
-            "Running Sortformer diarization on {:.1}s of audio",
-            samples.len() as f32 / 16000.0
-        );
-
         // fresh per call — diarize() runs once at meeting end
         let mut sortformer =
             Sortformer::with_config(&model_path, None, DiarizationConfig::callhome()).map_err(
@@ -58,9 +60,21 @@ impl DiarizationManager {
             )?;
 
         // caller already downmixed to mono
-        let raw_segments = sortformer
-            .diarize(samples.to_vec(), 16_000, 1)
-            .map_err(|e| anyhow::anyhow!("Sortformer inference failed: {}", e))?;
+        let mut raw_segments = Vec::new();
+        let mut fed_samples = 0usize;
+        for window in windows {
+            let window = window.context("Failed to read audio for diarization")?;
+            fed_samples += window.len();
+            let produced = sortformer
+                .feed(&window)
+                .map_err(|e| anyhow::anyhow!("Sortformer inference failed: {}", e))?;
+            raw_segments.extend(produced);
+        }
+        raw_segments.extend(
+            sortformer
+                .flush()
+                .map_err(|e| anyhow::anyhow!("Sortformer flush failed: {}", e))?,
+        );
 
         let result: Vec<DiarizationSegment> = raw_segments
             .into_iter()
@@ -72,7 +86,11 @@ impl DiarizationManager {
             })
             .collect();
 
-        info!("Diarization produced {} segments", result.len());
+        info!(
+            "Diarization produced {} segments over {:.1}s of audio",
+            result.len(),
+            fed_samples as f32 / 16_000.0
+        );
         Ok(result)
     }
 

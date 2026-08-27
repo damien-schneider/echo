@@ -151,6 +151,7 @@ fn taking_a_recording_resets_pause_metadata_and_pending_silence() {
         had_long_pause: true,
         pending_silence_samples: LONG_PAUSE_MIN_SAMPLES,
         samples: vec![0.1],
+        ..Default::default()
     };
 
     let captured = recorded.take_recording();
@@ -192,4 +193,19 @@ fn silence_watchdog_rearms_for_the_next_recording() {
 
     assert!(!watchdog.observe(&[0.0; 9]));
     assert!(watchdog.observe(&[0.0; 1]));
+}
+
+#[test]
+fn a_streaming_recorder_keeps_no_samples() {
+    let mut recorded = RecordedAudioBuffer {
+        retain: false,
+        ..Default::default()
+    };
+
+    recorded.push(&CapturedAudioFrame {
+        samples: vec![0.1, 0.2],
+        is_speech: true,
+    });
+
+    assert!(recorded.take_recording().samples.is_empty());
 }

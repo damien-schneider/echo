@@ -12,7 +12,7 @@ use tauri::{AppHandle, Emitter};
 /// Whisper FFI decode is non-cancellable — past this budget the worker thread is detached, not joined.
 const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 
-use super::streaming::{PipelineEvent, StreamingConfig, StreamingPipeline};
+use super::streaming::{trim_backlog, PipelineEvent, StreamingConfig, StreamingPipeline};
 use super::transcription::{StreamingTranscriber, TranscriptionManager};
 use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
 use crate::managers::cleanup_apply::cleanup_or_filter;
@@ -238,6 +238,13 @@ pub(crate) fn drain_commands(cmd_rx: &mpsc::Receiver<Cmd>) -> (Vec<f32>, Vec<f32
                 break;
             }
         }
+    }
+    let dropped = trim_backlog(&mut mic) + trim_backlog(&mut sys);
+    if dropped > 0 {
+        warn!(
+            "meeting streaming fell behind — dropped {:.1}s of preview audio to catch up",
+            dropped as f32 / 16_000.0
+        );
     }
     (mic, sys, shutdown)
 }

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { useMeetingStore } from "@/stores/meeting-store";
 import { MeetingBatchProgressView } from "./meeting-batch-progress";
 import { MeetingControls } from "./meeting-controls";
@@ -15,6 +15,11 @@ export const MeetingPage = () => {
   const batchProgress = useMeetingStore((s) => s.batchProgress);
   const selectedMeeting = useMeetingStore((s) => s.selectedMeeting);
   const selectMeeting = useMeetingStore((s) => s.selectMeeting);
+
+  const transcriptSegments = useMemo(
+    () => [...streamingFinals, ...liveSegments],
+    [streamingFinals, liveSegments]
+  );
 
   const handleSelect = useCallback(
     (id: number) => {
@@ -45,7 +50,7 @@ export const MeetingPage = () => {
           <MeetingTranscript
             autoScroll
             interimSegments={[interimSegments.mic, interimSegments.system]}
-            segments={[...streamingFinals, ...liveSegments]}
+            segments={transcriptSegments}
           />
         </div>
       </div>

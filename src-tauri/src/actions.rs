@@ -82,16 +82,10 @@ async fn apply_end_of_recording_action(
                 });
             }
             let hm_clone = Arc::clone(&hm);
-            let samples_for_history = samples.clone();
             let pasted_for_history = pasted.clone();
             tauri::async_runtime::spawn(async move {
                 if let Err(e) = hm_clone
-                    .save_transcription(
-                        samples_for_history,
-                        cleaned,
-                        Some(pasted_for_history),
-                        None,
-                    )
+                    .save_transcription(samples, cleaned, Some(pasted_for_history), None)
                     .await
                 {
                     error!("Failed to save transcription to history: {}", e);
@@ -105,11 +99,12 @@ async fn apply_end_of_recording_action(
             deliver_transcript(&ah, pasted, gen);
         }
         EndOfRecordingAction::PostProcess(transcription) => {
+            // Samples stay in Rust — a JSON round-trip of the raw buffer costs ~12 bytes per sample.
+            stash_pending_audio(gen, samples);
             // Watchdog guards against frontend hang/throw skipping finalize.
             let payload = serde_json::json!({
                 "transcription": transcription.clone(),
                 "op_generation": gen,
-                "audio_samples": samples.clone(),
             });
             match ah.emit("transcription-ready", payload) {
                 Ok(()) => {
@@ -300,6 +295,37 @@ pub(crate) static OPERATION_GENERATION: AtomicU64 = AtomicU64::new(0);
 
 /// Set by voice_tools::finalize_transcription on every exit path.
 pub static FINALIZE_DONE: AtomicU64 = AtomicU64::new(0);
+
+/// Recorded audio waiting for `finalize_transcription`, kept here instead of sent through the webview.
+/// Holds one dictation at most: a new stash replaces the previous, so an abandoned round-trip cannot pile up.
+static PENDING_DICTATION_AUDIO: Lazy<Mutex<Option<PendingDictationAudio>>> =
+    Lazy::new(|| Mutex::new(None));
+
+struct PendingDictationAudio {
+    generation: u64,
+    samples: Vec<f32>,
+}
+
+fn stash_pending_audio(generation: u64, samples: Vec<f32>) {
+    if let Ok(mut pending) = PENDING_DICTATION_AUDIO.lock() {
+        *pending = Some(PendingDictationAudio {
+            generation,
+            samples,
+        });
+    }
+}
+
+/// Takes the stash unconditionally — the slot only ever holds the newest dictation, and leaving a
+/// mismatched buffer behind would pin it until the next recording.
+pub(crate) fn take_pending_audio(generation: u64) -> Vec<f32> {
+    let Ok(mut pending) = PENDING_DICTATION_AUDIO.lock() else {
+        return Vec::new();
+    };
+    match pending.take() {
+        Some(pending) if pending.generation == generation => pending.samples,
+        _ => Vec::new(),
+    }
+}
 
 pub const POST_PROCESS_WATCHDOG: Duration = Duration::from_secs(30);
 
@@ -757,12 +783,11 @@ impl ShortcutAction for TranscribeAction {
                 samples: Vec::new(),
                 streaming_transcript: None,
             });
-            let samples = recording.samples.clone();
             info!(
                 "stop: stop_recording returned in {:?} — {} samples ({:.1}s audio), present={}",
                 stop_recording_time.elapsed(),
-                samples.len(),
-                samples.len() as f32 / 16000.0,
+                recording.samples.len(),
+                recording.samples.len() as f32 / 16000.0,
                 samples_present
             );
 
@@ -809,7 +834,9 @@ impl ShortcutAction for TranscribeAction {
             let action = decide_end_of_recording(samples_present, outcome);
             let action =
                 apply_post_process_preference(action, get_settings(&ah).post_process_enabled);
-            apply_end_of_recording_action(ah, action, gen, samples, hm, tts_manager).await;
+            // Moved, never cloned — the buffer is the largest allocation a dictation makes.
+            apply_end_of_recording_action(ah, action, gen, recording.samples, hm, tts_manager)
+                .await;
         });
 
         if let Ok(mut task) = TRANSCRIPTION_TASK.lock() {
@@ -1212,6 +1239,33 @@ mod decision_tests {
     fn stale_start_failure_cannot_reset_a_newer_recording() {
         assert!(is_current_operation(7, 7));
         assert!(!is_current_operation(8, 7));
+    }
+}
+
+#[cfg(test)]
+mod pending_audio_tests {
+    use super::{stash_pending_audio, take_pending_audio};
+
+    /// One test owns the process-wide slot; splitting it would race the other cases.
+    #[test]
+    fn stash_is_handed_over_once_and_only_to_its_own_generation() {
+        stash_pending_audio(7, vec![0.5; 4]);
+
+        assert!(
+            take_pending_audio(6).is_empty(),
+            "wrong generation gets none"
+        );
+        assert!(
+            take_pending_audio(7).is_empty(),
+            "a mismatched take still clears the slot"
+        );
+
+        stash_pending_audio(8, vec![0.5; 4]);
+        assert_eq!(take_pending_audio(8).len(), 4);
+        assert!(
+            take_pending_audio(8).is_empty(),
+            "taken buffers are released"
+        );
     }
 }
 

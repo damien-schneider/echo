@@ -4,7 +4,6 @@ import type { Settings } from "@/lib/types";
 import { runPostProcess } from "./post-process";
 
 interface TranscriptionReadyPayload {
-  audio_samples: number[] | null;
   op_generation: number;
   transcription: string;
 }
@@ -16,13 +15,12 @@ export function mountTranscriptionBridge(
   return listen<TranscriptionReadyPayload>(
     "transcription-ready",
     async (event) => {
-      const { transcription, op_generation, audio_samples } = event.payload;
+      const { transcription, op_generation } = event.payload;
 
       const settings = getSettings();
       if (!settings) {
         // Settings not loaded — paste raw.
         await invoke("finalize_transcription", {
-          audioSamples: audio_samples,
           kind: "empty",
           opGeneration: op_generation,
           originalTranscription: transcription,
@@ -51,7 +49,6 @@ export function mountTranscriptionBridge(
         }
 
         await invoke("finalize_transcription", {
-          audioSamples: audio_samples,
           kind: result.kind,
           opGeneration: op_generation,
           originalTranscription: transcription,
@@ -66,7 +63,6 @@ export function mountTranscriptionBridge(
         );
         try {
           await invoke("finalize_transcription", {
-            audioSamples: audio_samples,
             kind: "empty",
             opGeneration: op_generation,
             originalTranscription: transcription,

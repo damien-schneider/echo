@@ -1,7 +1,7 @@
 use std::{
     io::Error,
     sync::{mpsc, Arc, Mutex},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use cpal::{
@@ -17,8 +17,19 @@ use crate::audio_toolkit::{
 };
 use log::{debug, error, warn};
 
+/// A device that has not produced a live stream by now is wedged; the caller must hear about it
+/// instead of believing it is recording.
+const STREAM_START_BUDGET: Duration = Duration::from_secs(5);
+
+/// A live device delivers a buffer every few tens of milliseconds; this much silence on the wire
+/// means the stream died (unplugged, format change, driver reset) rather than that the room is quiet.
+const STREAM_STALL_BUDGET: Duration = Duration::from_secs(3);
+
 enum Cmd {
-    Start(Option<mpsc::Sender<CapturedAudioFrame>>),
+    Start {
+        chunk_tx: Option<mpsc::Sender<CapturedAudioFrame>>,
+        retain: bool,
+    },
     Stop(mpsc::Sender<RecordedAudio>),
     Shutdown,
 }
@@ -98,64 +109,71 @@ impl AudioRecorder {
         let vad = self.vad.clone();
         let level_cb = self.level_cb.clone();
         let silence_cb = self.silence_cb.clone();
+        // The cpal stream is not `Send`, so it is built on the worker; this reports whether it lives.
+        let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
 
         let worker = std::thread::spawn(move || {
-            let config = AudioRecorder::get_preferred_config(&thread_device)
-                .expect("failed to fetch preferred config");
-
-            let sample_rate = config.sample_rate().0;
-            let channels = config.channels() as usize;
-
-            debug!(
-                "Using device: {:?}\nSample rate: {}\nChannels: {}\nFormat: {:?}",
-                thread_device.name(),
-                sample_rate,
-                channels,
-                config.sample_format()
-            );
-
-            let stream = match config.sample_format() {
-                cpal::SampleFormat::U8 => {
-                    AudioRecorder::build_stream::<u8>(&thread_device, &config, sample_tx, channels)
-                        .unwrap()
+            let stream = match start_input_stream(&thread_device, sample_tx) {
+                Ok(started) => {
+                    let _ = ready_tx.send(Ok(()));
+                    started
                 }
-                cpal::SampleFormat::I8 => {
-                    AudioRecorder::build_stream::<i8>(&thread_device, &config, sample_tx, channels)
-                        .unwrap()
+                Err(error) => {
+                    let _ = ready_tx.send(Err(error));
+                    return;
                 }
-                cpal::SampleFormat::I16 => {
-                    AudioRecorder::build_stream::<i16>(&thread_device, &config, sample_tx, channels)
-                        .unwrap()
-                }
-                cpal::SampleFormat::I32 => {
-                    AudioRecorder::build_stream::<i32>(&thread_device, &config, sample_tx, channels)
-                        .unwrap()
-                }
-                cpal::SampleFormat::F32 => {
-                    AudioRecorder::build_stream::<f32>(&thread_device, &config, sample_tx, channels)
-                        .unwrap()
-                }
-                _ => panic!("unsupported sample format"),
             };
 
-            stream.play().expect("failed to start stream");
-
-            run_consumer(sample_rate, vad, sample_rx, cmd_rx, level_cb, silence_cb);
+            run_consumer(
+                stream.sample_rate,
+                vad,
+                sample_rx,
+                cmd_rx,
+                level_cb,
+                silence_cb,
+            );
         });
 
         self.device = Some(device);
         self.cmd_tx = Some(cmd_tx);
         self.worker_handle = Some(worker);
 
-        Ok(())
+        // Stored above first: on a wedged device `close()` still has to be able to reap the worker.
+        match ready_rx.recv_timeout(STREAM_START_BUDGET) {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(error)) => {
+                // Worker already returned — reap it so the next `open()` retries instead of
+                // believing a dead stream is still live.
+                let _ = self.close();
+                Err(error.into())
+            }
+            Err(_) => Err("audio device did not start in time".into()),
+        }
     }
 
     pub fn start(
         &self,
         chunk_tx: Option<mpsc::Sender<CapturedAudioFrame>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
+        self.send_start(chunk_tx, true)
+    }
+
+    /// Forwards frames without keeping them: `stop` returns nothing, and an hours-long recording
+    /// costs whatever the receiver does with each frame instead of growing here.
+    pub fn start_streaming(
+        &self,
+        chunk_tx: mpsc::Sender<CapturedAudioFrame>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.send_start(Some(chunk_tx), false)
+    }
+
+    fn send_start(
+        &self,
+        chunk_tx: Option<mpsc::Sender<CapturedAudioFrame>>,
+        retain: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if let Some(tx) = &self.cmd_tx {
-            tx.send(Cmd::Start(chunk_tx))?;
+            tx.send(Cmd::Start { chunk_tx, retain })?;
         }
         Ok(())
     }
@@ -256,6 +274,70 @@ impl AudioRecorder {
     }
 }
 
+/// The worker thread owns the cpal stream, so a dropped recorder that was never closed would keep
+/// the microphone open for the rest of the process.
+impl Drop for AudioRecorder {
+    fn drop(&mut self) {
+        if self.worker_handle.is_some() {
+            warn!("AudioRecorder dropped while open — closing its stream");
+            let _ = self.close();
+        }
+    }
+}
+
+/// Owns the live cpal stream; dropping it stops capture.
+struct StartedStream {
+    sample_rate: u32,
+    _stream: cpal::Stream,
+}
+
+fn start_input_stream(
+    device: &cpal::Device,
+    sample_tx: mpsc::Sender<Vec<f32>>,
+) -> Result<StartedStream, String> {
+    let config = AudioRecorder::get_preferred_config(device)
+        .map_err(|error| format!("failed to read audio device config: {error}"))?;
+    let sample_rate = config.sample_rate().0;
+    let channels = config.channels() as usize;
+
+    debug!(
+        "Using device: {:?}\nSample rate: {}\nChannels: {}\nFormat: {:?}",
+        device.name(),
+        sample_rate,
+        channels,
+        config.sample_format()
+    );
+
+    let stream = match config.sample_format() {
+        cpal::SampleFormat::U8 => {
+            AudioRecorder::build_stream::<u8>(device, &config, sample_tx, channels)
+        }
+        cpal::SampleFormat::I8 => {
+            AudioRecorder::build_stream::<i8>(device, &config, sample_tx, channels)
+        }
+        cpal::SampleFormat::I16 => {
+            AudioRecorder::build_stream::<i16>(device, &config, sample_tx, channels)
+        }
+        cpal::SampleFormat::I32 => {
+            AudioRecorder::build_stream::<i32>(device, &config, sample_tx, channels)
+        }
+        cpal::SampleFormat::F32 => {
+            AudioRecorder::build_stream::<f32>(device, &config, sample_tx, channels)
+        }
+        format => return Err(format!("unsupported sample format: {format:?}")),
+    }
+    .map_err(|error| format!("failed to build audio input stream: {error}"))?;
+
+    stream
+        .play()
+        .map_err(|error| format!("failed to start audio input stream: {error}"))?;
+
+    Ok(StartedStream {
+        sample_rate,
+        _stream: stream,
+    })
+}
+
 const LONG_PAUSE_MIN_SAMPLES: usize = constants::WHISPER_SAMPLE_RATE as usize / 2;
 pub(crate) const PAUSE_SEPARATOR_SAMPLES: usize = constants::WHISPER_SAMPLE_RATE as usize * 3 / 10;
 
@@ -306,11 +388,22 @@ impl SilenceWatchdog {
     }
 }
 
-#[derive(Default)]
 struct RecordedAudioBuffer {
+    retain: bool,
     pending_silence_samples: usize,
     had_long_pause: bool,
     samples: Vec<f32>,
+}
+
+impl Default for RecordedAudioBuffer {
+    fn default() -> Self {
+        Self {
+            retain: true,
+            pending_silence_samples: 0,
+            had_long_pause: false,
+            samples: Vec::new(),
+        }
+    }
 }
 
 impl RecordedAudioBuffer {
@@ -321,6 +414,9 @@ impl RecordedAudioBuffer {
     }
 
     fn push(&mut self, frame: &CapturedAudioFrame) {
+        if !self.retain {
+            return;
+        }
         if frame.is_speech {
             if !self.samples.is_empty() && self.pending_silence_samples >= LONG_PAUSE_MIN_SAMPLES {
                 self.had_long_pause = true;
@@ -343,7 +439,10 @@ impl RecordedAudioBuffer {
             had_long_pause: self.had_long_pause,
             samples: std::mem::take(&mut self.samples),
         };
-        *self = Self::default();
+        *self = Self {
+            retain: self.retain,
+            ..Self::default()
+        };
         recording
     }
 }
@@ -379,6 +478,8 @@ fn run_consumer(
     let mut silence_watchdog = SilenceWatchdog::new(in_sample_rate as usize * 2);
 
     let mut visualizer = AudioVisualiser::new(in_sample_rate);
+    let mut last_sample_at = Instant::now();
+    let mut stall_reported = false;
 
     fn handle_frame(
         samples: &[f32],
@@ -427,13 +528,19 @@ fn run_consumer(
         // commands before audio — shutdown must not queue behind a backlog
         while let Ok(cmd) = cmd_rx.try_recv() {
             match cmd {
-                Cmd::Start(tx) => {
+                Cmd::Start {
+                    chunk_tx: tx,
+                    retain,
+                } => {
                     debug!("Cmd::Start received, chunk_tx is_some: {}", tx.is_some());
                     recorded_audio.clear();
+                    recorded_audio.retain = retain;
                     recording = true;
                     chunk_tx = tx;
                     visualizer.reset();
                     silence_watchdog.reset();
+                    last_sample_at = Instant::now();
+                    stall_reported = false;
                     if let Some(v) = &vad {
                         v.lock().unwrap().reset();
                     }
@@ -468,10 +575,19 @@ fn run_consumer(
                 if let Ok(Cmd::Shutdown) = cmd_rx.try_recv() {
                     return;
                 }
+                if recording && !stall_reported && last_sample_at.elapsed() > STREAM_STALL_BUDGET {
+                    stall_reported = true;
+                    warn!("Audio device stopped delivering samples mid-recording");
+                    if let Some(callback) = &silence_cb {
+                        callback();
+                    }
+                }
                 continue;
             }
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
         };
+
+        last_sample_at = Instant::now();
 
         if let Some(callback) = &level_cb {
             if let Some(level) = visualizer.recording_level(&raw, recording) {

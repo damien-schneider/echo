@@ -68,7 +68,9 @@ impl HistoryManager {
         let title = self.format_timestamp_title(timestamp);
 
         let file_path = self.recordings_dir.join(&file_name);
-        save_wav_file(file_path, &audio_samples).await?;
+        tauri::async_runtime::spawn_blocking(move || save_wav_file(file_path, &audio_samples))
+            .await
+            .context("WAV writer thread panicked")??;
 
         self.save_to_database(
             file_name,

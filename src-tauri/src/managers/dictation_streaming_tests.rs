@@ -109,7 +109,8 @@ mod shutdown_aware_decode_tests {
 #[cfg(test)]
 mod audio_backlog_tests {
     use super::{
-        coalesce_audio_backlog, CapturedAudioFrame, Cmd, TerminalCommand,
+        coalesce_audio_backlog, trim_frame_backlog, CapturedAudioFrame, Cmd, TerminalCommand,
+        MAX_BACKLOG_SAMPLES,
     };
     use std::sync::mpsc;
 
@@ -135,6 +136,37 @@ mod audio_backlog_tests {
         assert_eq!(backlog.frames[1].samples.len(), 12);
         assert!(!backlog.frames[1].is_speech);
         assert!(backlog.terminal.is_none());
+    }
+
+    #[test]
+    fn trims_the_oldest_audio_once_the_backlog_outgrows_the_cap() {
+        let mut frames = vec![frame(MAX_BACKLOG_SAMPLES, true), frame(1_000, false)];
+
+        let dropped = trim_frame_backlog(&mut frames);
+
+        assert_eq!(dropped, 1_000);
+        assert_eq!(
+            frames.iter().map(|f| f.samples.len()).sum::<usize>(),
+            MAX_BACKLOG_SAMPLES
+        );
+        assert!(!frames.last().expect("newest frame").is_speech);
+    }
+
+    #[test]
+    fn drops_whole_frames_that_fall_entirely_outside_the_cap() {
+        let mut frames = vec![frame(2_000, true), frame(MAX_BACKLOG_SAMPLES, false)];
+
+        assert_eq!(trim_frame_backlog(&mut frames), 2_000);
+        assert_eq!(frames.len(), 1);
+        assert!(!frames[0].is_speech);
+    }
+
+    #[test]
+    fn leaves_a_backlog_under_the_cap_untouched() {
+        let mut frames = vec![frame(16_000, true)];
+
+        assert_eq!(trim_frame_backlog(&mut frames), 0);
+        assert_eq!(frames[0].samples.len(), 16_000);
     }
 
     #[test]
