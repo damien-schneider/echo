@@ -1,9 +1,9 @@
-import { Download, Loader2, Mic, Square } from "lucide-react";
+import { Loader2, Mic, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/features/meeting/format-elapsed";
-import { useDiarizationModel } from "@/features/model-download/use-diarization-model";
+import { useMeetingModels } from "@/features/meeting/use-meeting-models";
 import { useMeetingStore } from "@/stores/meeting-store";
 
 interface MeetingControlsProps {
@@ -20,18 +20,7 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
 
   const isRecording = status === "recording";
   const isProcessing = status === "processing";
-  const diarization = useDiarizationModel();
-  const modelReady = diarization.status?.downloaded ?? false;
-  const modelDownloading = diarization.status?.downloading ?? false;
-  let modelButtonIcon = <Download className="mr-1.5 size-3.5" />;
-  let modelButtonLabel = "Model required";
-  if (modelReady) {
-    modelButtonIcon = <Mic className="mr-1.5 size-3.5" />;
-    modelButtonLabel = "Start Meeting";
-  } else if (modelDownloading) {
-    modelButtonIcon = <Loader2 className="mr-1.5 size-3.5 animate-spin" />;
-    modelButtonLabel = "Downloading…";
-  }
+  const models = useMeetingModels();
 
   // elapsedMs is read once, not depended on — as a dependency the ticker would tear itself down
   // and rebuild five times a second for the whole meeting.
@@ -68,22 +57,44 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
 
   if (isRecording || isProcessing) {
     return (
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2">
-          <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
-          <span className="font-mono text-sm">
-            {isProcessing ? "Processing..." : formatElapsed(elapsedMs)}
-          </span>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="inline-block size-2.5 animate-pulse rounded-full bg-red-500" />
+            <span className="font-mono text-sm">
+              {isProcessing ? "Processing..." : formatElapsed(elapsedMs)}
+            </span>
+          </div>
+          <Button
+            disabled={isProcessing}
+            onClick={handleStop}
+            size="sm"
+            variant="destructive"
+          >
+            <Square className="mr-1.5 size-3.5" />
+            Stop Meeting
+          </Button>
         </div>
-        <Button
-          disabled={isProcessing}
-          onClick={handleStop}
-          size="sm"
-          variant="destructive"
-        >
-          <Square className="mr-1.5 size-3.5" />
-          Stop Meeting
-        </Button>
+        {isRecording && models.known && !models.ready && (
+          <div className="flex items-center gap-3 text-muted-foreground text-xs">
+            <span>
+              Download the models to transcribe and tell speakers apart
+            </span>
+            <Button
+              disabled={models.downloading}
+              onClick={() => {
+                models.ensure().catch(() => undefined);
+              }}
+              size="sm"
+              variant="secondary"
+            >
+              {models.downloading ? (
+                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+              ) : null}
+              {models.downloading ? "Downloading…" : models.label}
+            </Button>
+          </div>
+        )}
       </div>
     );
   }
@@ -98,18 +109,11 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
           type="text"
           value={title}
         />
-        <Button disabled={!modelReady} onClick={handleStart} size="sm">
-          {modelButtonIcon}
-          {modelButtonLabel}
+        <Button onClick={handleStart} size="sm">
+          <Mic className="mr-1.5 size-3.5" />
+          Start Meeting
         </Button>
       </div>
-      {!modelReady && (
-        <p className="text-muted-foreground text-xs">
-          {modelDownloading
-            ? "Downloading the speaker detection model in Meeting Settings."
-            : "Download the speaker detection model in Meeting Settings."}
-        </p>
-      )}
     </div>
   );
 };

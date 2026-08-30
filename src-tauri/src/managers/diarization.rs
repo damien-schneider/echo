@@ -3,13 +3,13 @@
 use anyhow::{Context, Result};
 use log::info;
 use parakeet_rs::sortformer::{DiarizationConfig, Sortformer};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::AppHandle;
 
 use super::model::ModelManager;
 
 pub const DIARIZATION_MODEL_ID: &str = "diarization-sortformer";
-const DIARIZATION_ONNX_FILENAME: &str = "diar_streaming_sortformer_4spk-v2.onnx";
 
 #[derive(Debug, Clone)]
 pub struct DiarizationSegment {
@@ -28,30 +28,24 @@ impl DiarizationManager {
     }
 
     pub fn is_available(&self) -> bool {
-        self.model_manager
-            .get_model_path(DIARIZATION_MODEL_ID)
-            .is_ok()
+        self.model_path().is_ok()
     }
 
-    /// 16 kHz mono f32 windows; `threshold` unused — Sortformer exposes no clustering knob.
-    ///
-    /// Window by window: a whole-recording call would hold the audio, its mel features and its
+    /// Catalog marks Sortformer a single-file artifact, so this already resolves the `.onnx`.
+    fn model_path(&self) -> Result<PathBuf> {
+        self.model_manager
+            .get_model_path(DIARIZATION_MODEL_ID)
+            .context("Diarization model not available")
+    }
+
+    /// 16 kHz mono f32 windows, window by window: a whole-recording call would hold the audio, its mel features and its
     /// predictions as three tensors sized by meeting length. The speaker cache lives in
     /// `sortformer`, so identities still carry across windows.
-    pub fn diarize<I>(&self, windows: I, _threshold: f32) -> Result<Vec<DiarizationSegment>>
+    pub fn diarize<I>(&self, windows: I) -> Result<Vec<DiarizationSegment>>
     where
         I: IntoIterator<Item = Result<Vec<f32>>>,
     {
-        let model_dir = self
-            .model_manager
-            .get_model_path(DIARIZATION_MODEL_ID)
-            .context("Diarization model not available")?;
-        let model_path = model_dir.join(DIARIZATION_ONNX_FILENAME);
-        anyhow::ensure!(
-            model_path.exists(),
-            "Sortformer .onnx file not found at {:?}",
-            model_path
-        );
+        let model_path = self.model_path()?;
 
         // fresh per call — diarize() runs once at meeting end
         let mut sortformer =
@@ -124,6 +118,19 @@ impl DiarizationManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::managers::model_catalog::available_model_catalog;
+
+    /// `diarize` hands the resolved path straight to Sortformer: a directory artifact, or a
+    /// filename that is not the `.onnx`, would make it load nothing.
+    #[test]
+    fn sortformer_artifact_is_the_onnx_file_itself() {
+        let model = available_model_catalog()
+            .remove(DIARIZATION_MODEL_ID)
+            .expect("Sortformer must stay in the catalog");
+
+        assert!(!model.is_directory);
+        assert!(model.filename.ends_with(".onnx"));
+    }
 
     fn seg(start_ms: i64, end_ms: i64, speaker_id: i32) -> DiarizationSegment {
         DiarizationSegment {

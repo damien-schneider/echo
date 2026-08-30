@@ -2,7 +2,10 @@ import { listen } from "@tauri-apps/api/event";
 import type { RefObject } from "react";
 import { z } from "zod";
 import { DownloadProgressSchema } from "@/features/model-download/download-state";
-import { updateMicrophoneAmbience } from "@/features/overlay-controls/recording-overlay-state";
+import {
+  OverlayRemedySchema,
+  updateMicrophoneAmbience,
+} from "@/features/overlay-controls/recording-overlay-state";
 import type { OverlayActivityEvent } from "@/features/overlay-controls/runtime/overlay-activity-state";
 import {
   ModelDownloadTerminalSchema,
@@ -25,6 +28,7 @@ const ShowOverlayPayloadSchema = z.union([
   OverlayStateSchema,
   z
     .object({
+      action: OverlayRemedySchema.nullish(),
       message: z.string(),
       state: z.enum(["processing", "warning", "tool"]),
     })

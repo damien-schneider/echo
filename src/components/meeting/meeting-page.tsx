@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { orderedTranscript } from "@/features/meeting/transcript-order";
 import { useMeetingStore } from "@/stores/meeting-store";
 import { MeetingBatchProgressView } from "./meeting-batch-progress";
 import { MeetingControls } from "./meeting-controls";
@@ -16,17 +16,7 @@ export const MeetingPage = () => {
   const selectedMeeting = useMeetingStore((s) => s.selectedMeeting);
   const selectMeeting = useMeetingStore((s) => s.selectMeeting);
 
-  const transcriptSegments = useMemo(
-    () => [...streamingFinals, ...liveSegments],
-    [streamingFinals, liveSegments]
-  );
-
-  const handleSelect = useCallback(
-    (id: number) => {
-      selectMeeting(id);
-    },
-    [selectMeeting]
-  );
+  const transcriptSegments = orderedTranscript(streamingFinals, liveSegments);
 
   if (status === "viewing" && selectedMeeting) {
     return (
@@ -76,7 +66,11 @@ export const MeetingPage = () => {
           <h3 className="mb-2 font-medium text-muted-foreground text-sm">
             Past Meetings
           </h3>
-          <MeetingList onSelect={handleSelect} />
+          <MeetingList
+            onSelect={(id) => {
+              selectMeeting(id);
+            }}
+          />
         </div>
       </div>
     </div>

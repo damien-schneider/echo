@@ -51,6 +51,7 @@ export const useOverlayEvents = (
     eventError: activity.error,
     isSurfaceReady: surfaceState.isReady,
     isVisible: activity.isVisible,
+    remedy: activity.remedy,
     state: activity.state,
     streamingText: activity.streamingText,
     surface: surfaceState.surface,

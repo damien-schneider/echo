@@ -31,6 +31,7 @@ export const CHAT_CONTEXT_EVENT = "overlay-chat-context";
 export const CHAT_CONTEXT_STATE_COMMAND = "get_overlay_chat_context";
 export const CHAT_MODEL_SETTINGS_COMMAND = "open_chat_model_settings";
 export const OVERLAY_WARNING_COMMAND = "warn_from_overlay";
+export const OVERLAY_MENU_COMMAND = "show_overlay_menu";
 export const CHAT_DICTATION_EVENT = "overlay-chat-dictation";
 export const CHAT_DICTATION_COMMAND = {
   start: "start_chat_dictation",

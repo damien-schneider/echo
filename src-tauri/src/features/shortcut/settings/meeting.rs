@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 use crate::settings;
+use crate::settings::MeetingSummaryEngine;
 
 #[tauri::command]
 pub fn change_meeting_system_audio_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
@@ -14,12 +15,12 @@ pub fn change_meeting_system_audio_setting(app: AppHandle, enabled: bool) -> Res
 }
 
 #[tauri::command]
-pub fn change_meeting_system_audio_device_setting(
+pub fn change_meeting_summary_engine_setting(
     app: AppHandle,
-    device: Option<String>,
+    engine: MeetingSummaryEngine,
 ) -> Result<(), String> {
     settings::update_settings(&app, |s| {
-        s.meeting_system_audio_device = device;
+        s.meeting_summary_engine = engine;
     });
     Ok(())
 }

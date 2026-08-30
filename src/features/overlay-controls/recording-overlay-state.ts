@@ -1,6 +1,11 @@
+import { z } from "zod";
 import type { NotificationRequest } from "@/features/overlay-controls/runtime/overlay-windows";
 import type { ModelState } from "@/lib/model-state";
 import type { PolishStatus } from "@/lib/types";
+
+/// What the island can do about the block it is showing — Rust names it, the island offers it.
+export const OverlayRemedySchema = z.literal("download_transcription_model");
+export type OverlayRemedy = z.infer<typeof OverlayRemedySchema>;
 
 export type OverlayState =
   | "processing"
@@ -26,12 +31,14 @@ export const isActiveOverlayState = (state: OverlayState) =>
 
 interface ActivityDismissalOptions {
   hasActiveOperation: boolean;
+  hasMeetingNotice: boolean;
   hasPassiveActivity: boolean;
   hasUpdateNotice: boolean;
 }
 
 export const activityDismissalFor = ({
   hasActiveOperation,
+  hasMeetingNotice,
   hasPassiveActivity,
   hasUpdateNotice,
 }: ActivityDismissalOptions) => {
@@ -47,6 +54,12 @@ export const activityDismissalFor = ({
       label: "Dismiss notification",
     };
   }
+  if (hasMeetingNotice) {
+    return {
+      intent: "dismiss_meeting" as const,
+      label: "Hide the meeting timer",
+    };
+  }
   if (hasUpdateNotice) {
     return {
       intent: "dismiss_update" as const,
@@ -58,7 +71,11 @@ export const activityDismissalFor = ({
 
 /// The one button the activity bar offers, whatever is speaking through it.
 export interface ActivityAction {
-  intent: "finish_recording" | "install_update";
+  intent:
+    | OverlayRemedy
+    | "finish_recording"
+    | "install_update"
+    | "stop_meeting";
   title: string;
 }
 

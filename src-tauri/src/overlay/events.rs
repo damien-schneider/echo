@@ -199,13 +199,18 @@ pub(super) fn emit_chat_context_capture(
     emit_chat_context_event(app_handle, event).map(Some)
 }
 
+/// What the island offers to do about the message it carries — `None` leaves it read-only.
+pub(crate) const DOWNLOAD_TRANSCRIPTION_MODEL: &str = "download_transcription_model";
+
 struct OverlayPresentation<'a> {
+    action: Option<&'static str>,
     state: &'a str,
     message: &'a str,
     duration: Option<std::time::Duration>,
 }
 
 struct PendingOverlayPresentation {
+    action: Option<&'static str>,
     duration: Option<std::time::Duration>,
     generation: OverlayGenerationToken,
     message: String,
@@ -285,9 +290,23 @@ pub(crate) fn show_warning_overlay(app_handle: &AppHandle, message: &str) {
     show_overlay_presentation(
         app_handle,
         OverlayPresentation {
+            action: None,
             state: "warning",
             message,
             duration: Some(std::time::Duration::from_secs(2)),
+        },
+    );
+}
+
+/// A block the user can clear from the island: it waits, and hands over the download that lifts it.
+pub(crate) fn show_model_required_overlay(app_handle: &AppHandle, message: &str) {
+    show_overlay_presentation(
+        app_handle,
+        OverlayPresentation {
+            action: Some(DOWNLOAD_TRANSCRIPTION_MODEL),
+            state: "warning",
+            message,
+            duration: None,
         },
     );
 }
@@ -297,6 +316,7 @@ pub(crate) fn show_tool_overlay(app_handle: &AppHandle, message: &str) {
     show_overlay_presentation(
         app_handle,
         OverlayPresentation {
+            action: None,
             state: "tool",
             message,
             duration: Some(std::time::Duration::from_secs(3)),
@@ -308,6 +328,7 @@ pub(crate) fn show_processing_overlay(app_handle: &AppHandle, message: &str) {
     show_overlay_presentation(
         app_handle,
         OverlayPresentation {
+            action: None,
             state: "processing",
             message,
             duration: None,
@@ -317,6 +338,7 @@ pub(crate) fn show_processing_overlay(app_handle: &AppHandle, message: &str) {
 
 fn show_overlay_presentation(app_handle: &AppHandle, presentation: OverlayPresentation<'_>) {
     let pending = PendingOverlayPresentation {
+        action: presentation.action,
         duration: presentation.duration,
         generation: OVERLAY_GENERATION.begin(),
         message: presentation.message.to_string(),
@@ -363,6 +385,7 @@ fn render_overlay_presentation(app_handle: &AppHandle, pending: PendingOverlayPr
         let _ = overlay_window.emit(
             "show-overlay",
             serde_json::json!({
+                "action": pending.action,
                 "state": pending.state,
                 "message": pending.message
             }),

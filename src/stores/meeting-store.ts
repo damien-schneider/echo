@@ -53,6 +53,11 @@ interface MeetingStore {
   unselectMeeting: () => void;
 }
 
+const isForeignMeeting = (
+  state: { currentMeetingId: number | null },
+  meetingId: number
+) => state.currentMeetingId !== null && state.currentMeetingId !== meetingId;
+
 const emptyInterimSegments = (): Record<
   StreamingSource,
   InterimSegmentState | null
@@ -63,9 +68,11 @@ const emptyInterimSegments = (): Record<
 
 export const useMeetingStore = create<MeetingStore>((set, get) => ({
   addLiveSegment: (segment) => {
-    set((state) => ({
-      liveSegments: [...state.liveSegments, segment],
-    }));
+    set((state) =>
+      isForeignMeeting(state, segment.meeting_id)
+        ? {}
+        : { liveSegments: [...state.liveSegments, segment] }
+    );
   },
 
   applyBatchProgress: (event) => {
@@ -78,40 +85,49 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   },
 
   applyStreamingFinal: (event) => {
-    set((state) => ({
-      interimSegments: {
-        ...state.interimSegments,
-        [event.source]: null,
-      },
-      // id=0 marks not-yet-persisted; post-meeting batch creates canonical row.
-      streamingFinals: [
-        ...state.streamingFinals,
-        {
-          audio_source: event.source,
-          confidence: null,
-          end_ms: event.end_ms,
-          id: 0,
-          meeting_id: event.meeting_id,
-          speaker_label: event.source === "system" ? "System" : "Speaker",
-          start_ms: event.start_ms,
-          text: event.text,
+    set((state) => {
+      if (isForeignMeeting(state, event.meeting_id)) {
+        return {};
+      }
+      return {
+        interimSegments: {
+          ...state.interimSegments,
+          [event.source]: null,
         },
-      ],
-    }));
+        // id=0 marks not-yet-persisted; post-meeting batch creates canonical row.
+        streamingFinals: [
+          ...state.streamingFinals,
+          {
+            audio_source: event.source,
+            confidence: null,
+            end_ms: event.end_ms,
+            id: 0,
+            meeting_id: event.meeting_id,
+            speaker_label: event.source === "system" ? "System" : "Speaker",
+            start_ms: event.start_ms,
+            text: event.text,
+          },
+        ],
+      };
+    });
   },
 
   applyStreamingInterim: (event) => {
-    set((state) => ({
-      interimSegments: {
-        ...state.interimSegments,
-        [event.source]: {
-          committedText: event.committed_text,
-          segmentStartMs: event.segment_start_ms,
-          source: event.source,
-          tentativeText: event.tentative_text,
-        },
-      },
-    }));
+    set((state) =>
+      isForeignMeeting(state, event.meeting_id)
+        ? {}
+        : {
+            interimSegments: {
+              ...state.interimSegments,
+              [event.source]: {
+                committedText: event.committed_text,
+                segmentStartMs: event.segment_start_ms,
+                source: event.source,
+                tentativeText: event.tentative_text,
+              },
+            },
+          }
+    );
   },
   batchProgress: {},
   currentMeetingId: null,
@@ -168,11 +184,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
 
   retranscribeMeeting: async (id) => {
     await invoke("retranscribe_meeting", { meetingId: id });
-    const meeting = await invoke<Meeting>("get_meeting", { id });
-    const segments = await invoke<MeetingSegment[]>("get_meeting_segments", {
-      meetingId: id,
-    });
-    set({ selectedMeeting: meeting, selectedSegments: segments });
+    await get().selectMeeting(id);
   },
   selectedMeeting: null,
   selectedSegments: [],
@@ -190,7 +202,18 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   },
   setElapsedMs: (ms) => set({ elapsedMs: ms }),
 
-  setStatus: (status) => set({ status }),
+  // Batch rows are canonical once processing starts: keeping the live preview would show every
+  // sentence twice, in two different timelines.
+  setStatus: (status) =>
+    set(
+      status === "processing"
+        ? {
+            interimSegments: emptyInterimSegments(),
+            status,
+            streamingFinals: [],
+          }
+        : { status }
+    ),
 
   startMeeting: async (title) => {
     const id = await invoke<number>("start_meeting", { title: title ?? null });
@@ -208,7 +231,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   status: "idle",
 
   stopMeeting: async () => {
-    set({ status: "processing" });
+    get().setStatus("processing");
     // stop_meeting returns on capture stop; batch transcription completes via meeting-status-changed("complete").
     await invoke("stop_meeting");
   },

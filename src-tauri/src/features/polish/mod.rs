@@ -8,6 +8,7 @@ mod platform;
 mod policy;
 mod runtime;
 mod selection;
+pub(crate) mod summarize;
 
 use serde::{Deserialize, Serialize};
 

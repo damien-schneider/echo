@@ -10,11 +10,13 @@ import {
   type NotificationMode,
   notificationModeFor,
   type OverlayEscapeIntent,
+  type OverlayRemedy,
   overlayActivityText,
   overlayEscapeIntent,
 } from "@/features/overlay-controls/recording-overlay-state";
 import type { NotificationRequest } from "@/features/overlay-controls/runtime/overlay-windows";
 import type { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events";
+import type { MeetingNotice } from "@/features/overlay-notification/meeting-notice";
 import type { UpdateNotice } from "@/features/overlay-notification/update-notice";
 import type { ModelState } from "@/lib/model-state";
 
@@ -31,6 +33,7 @@ export interface NotificationPresentation {
 
 interface NotificationPresentationOptions {
   events: ReturnType<typeof useOverlayEvents>;
+  meetingNotice: MeetingNotice | null;
   modelState: ModelState;
   request: NotificationRequest | null;
   updateNotice: UpdateNotice | null;
@@ -42,14 +45,32 @@ interface ActivityShape {
   visualState: ActivityVisualState;
 }
 
-const activityActionFor = (
-  isRecording: boolean,
-  notice: UpdateNotice | null
-): ActivityAction | null => {
+interface ActivityActionOptions {
+  isRecording: boolean;
+  meeting: MeetingNotice | null;
+  notice: UpdateNotice | null;
+  remedy: OverlayRemedy | null;
+}
+
+const activityActionFor = ({
+  isRecording,
+  meeting,
+  notice,
+  remedy,
+}: ActivityActionOptions): ActivityAction | null => {
   if (isRecording) {
     return {
       intent: "finish_recording",
       title: "Finish recording and transcribe",
+    };
+  }
+  if (remedy !== null) {
+    return { intent: remedy, title: "Download the transcription model" };
+  }
+  if (meeting?.actionLabel) {
+    return {
+      intent: "stop_meeting",
+      title: "Stop the meeting and transcribe it",
     };
   }
   if (notice?.actionLabel) {
@@ -64,6 +85,7 @@ const activityActionFor = (
 /// A null mode means nothing to say — the window collapses back into the notch.
 export const createNotificationPresentation = ({
   events,
+  meetingNotice,
   modelState,
   request,
   updateNotice,
@@ -79,43 +101,54 @@ export const createNotificationPresentation = ({
     (events.isVisible && !hasActiveOperation) ||
     activityError !== null ||
     showsBackgroundDownload;
-  // The update is the quietest thing the notch can say, so anything else wins.
-  const notice =
-    request === null && !(hasActiveOperation || hasPassiveActivity)
-      ? updateNotice
-      : null;
+  const hasQuietIsland =
+    request === null && !(hasActiveOperation || hasPassiveActivity);
+  // A running meeting owns the quiet notch; the update is the quietest thing it can say.
+  const meeting = hasQuietIsland ? meetingNotice : null;
+  const notice = hasQuietIsland && meeting === null ? updateNotice : null;
   const mode = notificationModeFor({
-    isShown: events.isVisible || hasPassiveActivity || notice !== null,
+    isShown:
+      events.isVisible ||
+      hasPassiveActivity ||
+      meeting !== null ||
+      notice !== null,
     request,
   });
-  const activity: ActivityShape = notice ?? {
-    decoration: activityDecorationFor({
-      hasError: activityError !== null,
-      isPolishing,
-      isRecording,
-      isTranscribing,
-      showsDownload: showsBackgroundDownload,
-    }),
-    text: overlayActivityText({
-      activityError,
-      download: events.download,
-      isVisible: events.isVisible,
-      modelBadge: modelStateLabel(modelState),
-      state: events.state,
-      streamingText: events.streamingText,
-      warningMessage: events.warningMessage,
-    }),
-    visualState: activityVisualStateFor({
-      hasError: activityError !== null,
-      isProcessing: isPolishing || isTranscribing || showsBackgroundDownload,
-    }),
-  };
+  const activity: ActivityShape = meeting ??
+    notice ?? {
+      decoration: activityDecorationFor({
+        hasError: activityError !== null,
+        isPolishing,
+        isRecording,
+        isTranscribing,
+        showsDownload: showsBackgroundDownload,
+      }),
+      text: overlayActivityText({
+        activityError,
+        download: events.download,
+        isVisible: events.isVisible,
+        modelBadge: modelStateLabel(modelState),
+        state: events.state,
+        streamingText: events.streamingText,
+        warningMessage: events.warningMessage,
+      }),
+      visualState: activityVisualStateFor({
+        hasError: activityError !== null,
+        isProcessing: isPolishing || isTranscribing || showsBackgroundDownload,
+      }),
+    };
 
   return {
-    activityAction: activityActionFor(isRecording, notice),
+    activityAction: activityActionFor({
+      isRecording,
+      meeting,
+      notice,
+      remedy: events.isVisible ? events.remedy : null,
+    }),
     activityDecoration: activity.decoration,
     activityDismissal: activityDismissalFor({
       hasActiveOperation,
+      hasMeetingNotice: meeting?.isDismissible ?? false,
       hasPassiveActivity,
       hasUpdateNotice: notice?.isDismissible ?? false,
     }),

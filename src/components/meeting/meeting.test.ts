@@ -35,7 +35,13 @@ describe("formatElapsed", () => {
 
 describe("MeetingStatusSchema", () => {
   it("accepts valid statuses", () => {
-    for (const status of ["recording", "processing", "complete", "error"]) {
+    for (const status of [
+      "recording",
+      "processing",
+      "complete",
+      "partial",
+      "error",
+    ]) {
       expect(MeetingStatusSchema.safeParse(status).success).toBe(true);
     }
   });

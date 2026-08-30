@@ -28,7 +28,7 @@ use protocol::{
     parse_chat_response, ChatRequest, ChatRequestMessage, ChatStreamDecoder, TokenizeRequest,
     TokenizeResponse,
 };
-use server_args::{server_arguments, ServerBinding};
+use server_args::{local_input_char_budget, server_arguments, ServerBinding, MAX_RESPONSE_TOKENS};
 
 const HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const HEALTH_REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
@@ -279,7 +279,7 @@ impl PolishRuntime {
                 stream,
                 temperature,
                 seed: 0,
-                max_tokens: 2_048,
+                max_tokens: MAX_RESPONSE_TOKENS,
             })
             .send()
             .await?;
@@ -307,6 +307,10 @@ impl PolishRuntime {
             "Polish correction request",
         )
         .await
+    }
+
+    pub(super) fn input_char_budget() -> usize {
+        local_input_char_budget()
     }
 
     pub(super) async fn chat(

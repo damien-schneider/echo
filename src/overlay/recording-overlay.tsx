@@ -6,11 +6,13 @@ import {
   screenHandoffFreezesLayout,
 } from "@/features/overlay-controls/runtime/screen-handoff";
 import { useNativeHover } from "@/features/overlay-controls/runtime/use-native-hover";
+import { useOverlayMenu } from "@/features/overlay-controls/runtime/use-overlay-menu";
 import { useRecordingOverlayController } from "@/features/overlay-controls/use-recording-overlay-controller";
 
 const RecordingOverlay = () => {
   const controller = useRecordingOverlayController();
   useNativeHover();
+  useOverlayMenu();
   const surface = controller.events.surface;
   if (!(controller.events.isSurfaceReady && surface)) {
     return null;

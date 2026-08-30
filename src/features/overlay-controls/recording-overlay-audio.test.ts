@@ -19,6 +19,7 @@ describe("recording activity semantics", () => {
     expect(
       activityDismissalFor({
         hasActiveOperation: true,
+        hasMeetingNotice: false,
         hasPassiveActivity: false,
         hasUpdateNotice: false,
       })
@@ -29,6 +30,7 @@ describe("recording activity semantics", () => {
     expect(
       activityDismissalFor({
         hasActiveOperation: false,
+        hasMeetingNotice: false,
         hasPassiveActivity: true,
         hasUpdateNotice: false,
       })
@@ -39,6 +41,7 @@ describe("recording activity semantics", () => {
     expect(
       activityDismissalFor({
         hasActiveOperation: false,
+        hasMeetingNotice: false,
         hasPassiveActivity: false,
         hasUpdateNotice: true,
       })
@@ -46,6 +49,7 @@ describe("recording activity semantics", () => {
     expect(
       activityDismissalFor({
         hasActiveOperation: false,
+        hasMeetingNotice: false,
         hasPassiveActivity: false,
         hasUpdateNotice: false,
       })

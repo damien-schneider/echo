@@ -229,9 +229,15 @@ pub(crate) fn drain_commands(cmd_rx: &mpsc::Receiver<Cmd>) -> (Vec<f32>, Vec<f32
     };
     classify_cmd(first, &mut mic, &mut sys, &mut shutdown);
 
+    // Trimming per command, not once at the end: an hour of backlog would otherwise be
+    // materialized in full before anything was dropped from it.
+    let mut dropped = trim_backlog(&mut mic) + trim_backlog(&mut sys);
     loop {
         match cmd_rx.try_recv() {
-            Ok(c) => classify_cmd(c, &mut mic, &mut sys, &mut shutdown),
+            Ok(c) => {
+                classify_cmd(c, &mut mic, &mut sys, &mut shutdown);
+                dropped += trim_backlog(&mut mic) + trim_backlog(&mut sys);
+            }
             Err(mpsc::TryRecvError::Empty) => break,
             Err(mpsc::TryRecvError::Disconnected) => {
                 shutdown = true;
@@ -239,7 +245,6 @@ pub(crate) fn drain_commands(cmd_rx: &mpsc::Receiver<Cmd>) -> (Vec<f32>, Vec<f32
             }
         }
     }
-    let dropped = trim_backlog(&mut mic) + trim_backlog(&mut sys);
     if dropped > 0 {
         warn!(
             "meeting streaming fell behind — dropped {:.1}s of preview audio to catch up",
@@ -532,6 +537,31 @@ mod tests {
         assert_eq!(mic.len(), 7);
         assert_eq!(sys.len(), 2);
         assert!(!sd);
+    }
+
+    /// A worker that fell an hour behind used to materialize the whole queue before trimming it.
+    #[test]
+    fn a_long_backlog_never_grows_past_the_cap_while_it_drains() {
+        let (tx, rx) = mpsc::channel::<Cmd>();
+        let frame = crate::managers::streaming::MAX_BACKLOG_SAMPLES / 4;
+        for _ in 0..40 {
+            tx.send(Cmd::Audio {
+                source: StreamingSource::Mic,
+                samples: vec![0.1; frame],
+            })
+            .unwrap();
+        }
+        drop(tx);
+
+        let (mic, _sys, _sd) = drain_commands(&rx);
+
+        // Capacity is what the buffer actually peaked at; trimming only shrinks the length.
+        assert!(
+            mic.capacity() <= 2 * crate::managers::streaming::MAX_BACKLOG_SAMPLES,
+            "backlog peaked at {} samples, cap is {}",
+            mic.capacity(),
+            crate::managers::streaming::MAX_BACKLOG_SAMPLES
+        );
     }
 
     #[test]

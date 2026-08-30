@@ -30,6 +30,7 @@ import {
   NotificationRequestEventSchema,
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events";
+import { useMeetingNotice } from "@/features/overlay-notification/meeting-notice";
 import { createNotificationPresentation } from "@/features/overlay-notification/notification-presentation";
 import { updateNoticeFor } from "@/features/overlay-notification/update-notice";
 import { usePolishModel } from "@/features/polish/use-polish-model";
@@ -276,9 +277,11 @@ export const useNotificationController = () => {
   const modelState = useModelState();
   const { chatContext, clearRequest, request } = useNotificationRequest();
   const update = useUpdateNotice();
+  const meeting = useMeetingNotice();
   const heldTranscript = useHeldTranscript(request === "transcript");
   const presentation = createNotificationPresentation({
     events,
+    meetingNotice: meeting.notice,
     modelState,
     request,
     updateNotice: update.notice,
@@ -324,6 +327,10 @@ export const useNotificationController = () => {
         invoke("cancel_operation").catch(() => undefined);
         return;
       }
+      if (intent === "dismiss_meeting") {
+        meeting.dismiss();
+        return;
+      }
       if (intent === "dismiss_update") {
         update.dismiss();
         return;
@@ -358,10 +365,20 @@ export const useNotificationController = () => {
       invoke(HELD_TRANSCRIPT_COMMAND.send).catch(() => undefined);
     },
     renderMode,
-    /// Stop-recording and install-update share the activity bar's single button.
+    /// Whatever speaks through the island acts through its one button.
     runActivityAction: (intent: ActivityAction["intent"]) => {
       if (intent === "install_update") {
         update.install();
+        return;
+      }
+      if (intent === "stop_meeting") {
+        meeting.stop();
+        return;
+      }
+      if (intent === "download_transcription_model") {
+        invoke("download_configured_transcription_model").catch(
+          () => undefined
+        );
         return;
       }
       invoke(overlayControlCommand("stop_recording")).catch(() => undefined);

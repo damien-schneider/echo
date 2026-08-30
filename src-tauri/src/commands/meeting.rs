@@ -1,6 +1,6 @@
 use crate::managers::export;
 use crate::managers::meeting::{
-    ExportFormat, Meeting, MeetingManager, MeetingSegment, MeetingStatus,
+    ActiveMeeting, ExportFormat, Meeting, MeetingManager, MeetingSegment, MeetingStatus,
 };
 use std::sync::Arc;
 use tauri::{AppHandle, State};
@@ -35,6 +35,13 @@ pub fn get_meeting_status(
     meeting_manager: State<'_, Arc<MeetingManager>>,
 ) -> Result<MeetingStatus, String> {
     Ok(meeting_manager.get_meeting_status())
+}
+
+#[tauri::command]
+pub fn get_active_meeting(
+    meeting_manager: State<'_, Arc<MeetingManager>>,
+) -> Result<Option<ActiveMeeting>, String> {
+    Ok(meeting_manager.get_active_meeting())
 }
 
 #[tauri::command]
@@ -108,7 +115,7 @@ pub fn get_meeting_audio_path(
     meeting_id: i64,
 ) -> Result<Option<String>, String> {
     meeting_manager
-        .get_mic_audio_path(meeting_id)
+        .get_audio_path(meeting_id)
         .map_err(|e| e.to_string())
 }
 

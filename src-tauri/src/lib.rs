@@ -259,23 +259,29 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
         )
         .show_menu_on_left_click(true)
         .icon_as_template(true)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "settings" => {
-                show_main_window(app);
+        .on_menu_event(|app, event| {
+            if overlay::context_menu::handle_menu_event(app, event.id.as_ref()) {
+                return;
             }
-            "check_updates" => {
-                show_main_window(app);
-                updates::check_in_background(app);
-            }
-            "cancel" => {
-                use crate::utils::cancel_current_operation;
+            match event.id.as_ref() {
+                "settings" => {
+                    show_main_window(app);
+                    let _ = app.emit_to("main", "open-settings-section", "app");
+                }
+                "check_updates" => {
+                    show_main_window(app);
+                    updates::check_in_background(app);
+                }
+                "cancel" => {
+                    use crate::utils::cancel_current_operation;
 
-                cancel_current_operation(app);
+                    cancel_current_operation(app);
+                }
+                "quit" => {
+                    app.exit(0);
+                }
+                _ => {}
             }
-            "quit" => {
-                app.exit(0);
-            }
-            _ => {}
         });
 
     // Tray icons are identical, so a dev build labels itself next to an installed Echo.
@@ -531,7 +537,7 @@ pub fn run() {
         .setup(move |app| {
             startup_guards::log_panics();
             #[cfg(debug_assertions)]
-            startup_guards::assert_dev_data_is_isolated(&app.config().identifier);
+            startup_guards::exit_unless_dev_data_is_isolated(&app.config().identifier);
 
             let settings = settings::get_settings(&app.handle());
             logging::set_debug_logging(settings.debug_logging_enabled);
@@ -715,11 +721,13 @@ pub fn run() {
             overlay::send_held_transcript_to_chat,
             overlay::open_chat_model_settings,
             overlay::warn_from_overlay,
+            overlay::context_menu::show_overlay_menu,
             commands::cancel_operation,
             commands::get_app_dir_path,
             commands::open_recordings_folder,
             commands::models::get_transcription_profiles,
             commands::models::select_transcription_model_size,
+            commands::models::download_configured_transcription_model,
             commands::models::delete_model,
             commands::models::get_transcription_model_status,
             commands::models::is_model_loading,
@@ -729,6 +737,8 @@ pub fn run() {
             features::polish::manager::get_polish_status,
             features::polish::manager::chat_with_polish_model,
             features::polish::manager::stop_polish_chat,
+            features::polish::summarize::summarize_text_local,
+            features::polish::summarize::local_summary_char_budget,
             features::polish::manager::download_polish_model,
             features::polish::manager::repair_polish_model,
             commands::audio::update_microphone_mode,
@@ -775,14 +785,15 @@ pub fn run() {
             commands::set_log_level,
             features::shortcut::settings::tts::change_tts_enabled_setting,
             shortcut::settings::meeting::change_meeting_system_audio_setting,
-            shortcut::settings::meeting::change_meeting_system_audio_device_setting,
             shortcut::settings::meeting::change_meeting_auto_summary_setting,
+            shortcut::settings::meeting::change_meeting_summary_engine_setting,
             shortcut::settings::meeting::change_meeting_chunk_duration_setting,
             shortcut::settings::meeting::get_diarization_status,
             shortcut::settings::meeting::download_diarization_model,
             commands::meeting::start_meeting,
             commands::meeting::stop_meeting,
             commands::meeting::get_meeting_status,
+            commands::meeting::get_active_meeting,
             commands::meeting::get_meeting,
             commands::meeting::get_meeting_segments,
             commands::meeting::list_meetings,

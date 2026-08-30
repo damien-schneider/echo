@@ -1,5 +1,6 @@
 import type {
   OverlayDownloadProgress,
+  OverlayRemedy,
   OverlayState,
 } from "@/features/overlay-controls/recording-overlay-state";
 
@@ -8,6 +9,7 @@ export interface OverlayActivity {
   download: OverlayDownloadProgress | null;
   error: string | null;
   isVisible: boolean;
+  remedy: OverlayRemedy | null;
   state: OverlayState;
   streamingText: string;
   warningMessage: string;
@@ -16,7 +18,12 @@ export interface OverlayActivity {
 export type OverlayActivityEvent =
   | { modelId: string; type: "download_finished" }
   | { download: OverlayDownloadProgress; type: "download_progress" }
-  | { message: string; state: OverlayState; type: "shown" }
+  | {
+      action?: OverlayRemedy | null;
+      message: string;
+      state: OverlayState;
+      type: "shown";
+    }
   | { message: string; type: "failed" }
   | { text: string; type: "progress" }
   | { type: "dismissed" }
@@ -27,6 +34,7 @@ export const initialOverlayActivity: OverlayActivity = {
   download: null,
   error: null,
   isVisible: false,
+  remedy: null,
   state: "recording",
   streamingText: "",
   warningMessage: "",
@@ -38,6 +46,7 @@ const shown = (
 ): OverlayActivity => ({
   ...state,
   isVisible: true,
+  remedy: event.action ?? null,
   state: event.state,
   streamingText: event.state === "recording" ? "" : state.streamingText,
   warningMessage: event.message,
@@ -52,7 +61,19 @@ const downloadProgress = (
   }
   const holdsAnotherDownload =
     state.download !== null && state.download.model_id !== incoming.model_id;
-  return holdsAnotherDownload ? state : { ...state, download: incoming };
+  if (holdsAnotherDownload) {
+    return state;
+  }
+  // the download the island offered: its progress takes over from the block that asked for it
+  return state.remedy === null
+    ? { ...state, download: incoming }
+    : {
+        ...state,
+        download: incoming,
+        isVisible: false,
+        remedy: null,
+        warningMessage: "",
+      };
 };
 
 const downloadFinished = (
@@ -72,6 +93,7 @@ const dismissed = (state: OverlayActivity): OverlayActivity => ({
   download: null,
   error: null,
   isVisible: false,
+  remedy: null,
   warningMessage: "",
 });
 

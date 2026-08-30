@@ -115,6 +115,42 @@ describe("overlay activity", () => {
     expect(state.streamingText).toBe("kept");
   });
 
+  test("a block keeps the download it offers until that download reports", () => {
+    const blocked = apply([
+      {
+        action: "download_transcription_model",
+        message: "Download the Medium model to dictate",
+        state: "warning",
+        type: "shown",
+      },
+    ]);
+
+    expect(blocked.remedy).toBe("download_transcription_model");
+    expect(blocked.isVisible).toBe(true);
+
+    const downloading = reduceOverlayActivity(blocked, {
+      download: download("whisper-medium", 4),
+      type: "download_progress",
+    });
+    expect(downloading.remedy).toBeNull();
+    expect(downloading.warningMessage).toBe("");
+    expect(downloading.download).toEqual(download("whisper-medium", 4));
+  });
+
+  test("a plain warning offers nothing and clears a previous block", () => {
+    const state = apply([
+      {
+        action: "download_transcription_model",
+        message: "Download the Medium model to dictate",
+        state: "warning",
+        type: "shown",
+      },
+      { message: "Microphone is muted", state: "warning", type: "shown" },
+    ]);
+
+    expect(state.remedy).toBeNull();
+  });
+
   test("hiding an already hidden overlay changes nothing", () => {
     expect(
       reduceOverlayActivity(initialOverlayActivity, { type: "hidden" })

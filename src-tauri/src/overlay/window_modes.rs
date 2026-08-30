@@ -167,7 +167,10 @@ pub(super) fn set_notification_mode(app_handle: &AppHandle, mode: &str) -> Resul
         state,
         Some(requested),
     );
-    if result.is_err() {
+    if let Err(ref error) = result {
+        // The webview asked for a surface and got none: without this line the island is simply
+        // never there, and nothing anywhere says why.
+        warn!("[Overlay] Failed to show the notification surface: {error}");
         replace_state(&NOTIFICATION_MODE, state);
     }
     render_hud(app_handle).and(result)

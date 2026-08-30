@@ -16,14 +16,21 @@ fn dev_data_is_isolated(identifier: &str) -> bool {
 }
 
 /// A debug build carrying the production identifier writes into the installed app's data
-/// directory, and a migration applied there is one the installed app cannot undo.
+/// directory, and a migration applied there is one the installed app cannot undo. Exits instead
+/// of panicking: this runs inside `did_finish_launching`, where a panic aborts with a backtrace
+/// wall that buries the one line that matters.
 #[cfg(debug_assertions)]
-pub(crate) fn assert_dev_data_is_isolated(identifier: &str) {
-    assert!(
-        dev_data_is_isolated(identifier),
+pub(crate) fn exit_unless_dev_data_is_isolated(identifier: &str) {
+    if dev_data_is_isolated(identifier) {
+        return;
+    }
+    let message = format!(
         "Debug build running as '{identifier}', which shares the installed app's data. \
-         Start it with `bun run tauri:dev`."
+         Start it with `bun run tauri dev` from the repo root."
     );
+    log::error!("{message}");
+    eprintln!("{message}");
+    std::process::exit(1);
 }
 
 #[cfg(all(test, debug_assertions))]

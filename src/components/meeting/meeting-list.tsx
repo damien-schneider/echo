@@ -87,6 +87,24 @@ function MeetingListItem({
             <Clock className="size-3" />
             {formatDuration(meeting.duration_ms)}
           </span>
+          {meeting.status === "recording" && (
+            <span className="flex items-center gap-1 text-red-500">
+              <span className="inline-block size-1.5 animate-pulse rounded-full bg-red-500" />
+              Recording
+            </span>
+          )}
+          {meeting.status === "processing" && (
+            <span className="text-muted-foreground">Transcribing…</span>
+          )}
+          {meeting.status === "error" && (
+            <span className="text-destructive">Interrupted</span>
+          )}
+          {meeting.status === "partial" && (
+            <span className="text-amber-500">Partial</span>
+          )}
+          {meeting.status === "recorded" && (
+            <span className="text-amber-500">Not transcribed</span>
+          )}
         </div>
       </button>
       <Button

@@ -6,7 +6,10 @@ use crate::managers::transcription::{
     transcription_timeout, TranscribeError, TranscriptionManager,
 };
 use crate::managers::tts::TtsManager;
-use crate::overlay::{show_recording_overlay, show_transcribing_overlay, show_warning_overlay};
+use crate::overlay::{
+    show_model_required_overlay, show_recording_overlay, show_transcribing_overlay,
+    show_warning_overlay,
+};
 use crate::settings::{get_settings, AppSettings};
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils;
@@ -474,6 +477,26 @@ pub(crate) enum ModelReadiness {
     Downloading(String),
 }
 
+impl ModelReadiness {
+    /// A message that fades leaves the user exactly where they were: a block the user can lift
+    /// stays on the island with the download that lifts it. `true` when the dictation must not run.
+    fn report_block(&self, app: &AppHandle) -> bool {
+        let message = match self {
+            ModelReadiness::Ready => return false,
+            ModelReadiness::Blocked(message) => {
+                show_model_required_overlay(app, message);
+                message
+            }
+            ModelReadiness::Downloading(message) => {
+                show_warning_overlay(app, message);
+                message
+            }
+        };
+        warn!("Dictation not started: {message}");
+        true
+    }
+}
+
 fn model_readiness_for_status(
     name: &str,
     is_downloaded: bool,
@@ -485,9 +508,7 @@ fn model_readiness_for_status(
     if is_downloading {
         return ModelReadiness::Downloading(format!("Downloading the {name} model…"));
     }
-    ModelReadiness::Blocked(format!(
-        "Download the {name} model in Settings before recording."
-    ))
+    ModelReadiness::Blocked(format!("Download the {name} model to dictate"))
 }
 
 pub(crate) fn check_model_readiness(app: &AppHandle) -> ModelReadiness {
@@ -584,17 +605,12 @@ impl ShortcutAction for TranscribeAction {
         }
 
         // Recording without a model only fails later after capturing audio.
-        match check_model_readiness(app) {
-            ModelReadiness::Ready => {}
-            ModelReadiness::Blocked(message) | ModelReadiness::Downloading(message) => {
-                warn!("Dictation not started: {message}");
-                show_warning_overlay(app, &message);
-                let toggle_state_manager = app.state::<ManagedToggleState>();
-                if let Ok(mut states) = toggle_state_manager.lock() {
-                    states.active_toggles.insert(binding_id.to_string(), false);
-                }
-                return;
+        if check_model_readiness(app).report_block(app) {
+            let toggle_state_manager = app.state::<ManagedToggleState>();
+            if let Ok(mut states) = toggle_state_manager.lock() {
+                states.active_toggles.insert(binding_id.to_string(), false);
             }
+            return;
         }
 
         // Recording without microphone access only captures silence.
@@ -1369,10 +1385,7 @@ mod tests {
 
         match readiness {
             ModelReadiness::Blocked(message) => {
-                assert_eq!(
-                    message,
-                    "Download the Medium model in Settings before recording."
-                );
+                assert_eq!(message, "Download the Medium model to dictate");
             }
             _ => panic!("missing model must not start an implicit download"),
         }

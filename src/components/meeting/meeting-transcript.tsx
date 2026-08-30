@@ -19,22 +19,16 @@ export const MeetingTranscript = ({
   interimSegments,
 }: MeetingTranscriptProps) => {
   const bottomRef = useRef<HTMLDivElement>(null);
-  const prevCountRef = useRef(segments.length);
   const activeInterims = (interimSegments ?? []).filter(
     (i): i is InterimSegmentState =>
       i !== null && (i.committedText !== "" || i.tentativeText !== "")
   );
 
   useEffect(() => {
-    if (
-      autoScroll &&
-      segments.length !== prevCountRef.current &&
-      bottomRef.current
-    ) {
-      bottomRef.current.scrollIntoView({ behavior: "smooth" });
+    if (autoScroll && segments.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-    prevCountRef.current = segments.length;
-  });
+  }, [autoScroll, segments.length]);
 
   if (segments.length === 0 && activeInterims.length === 0) {
     return (

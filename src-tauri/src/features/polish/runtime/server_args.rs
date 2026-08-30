@@ -1,7 +1,18 @@
 /// llama.cpp defaults to every core, which stalls the machine mid-build or mid-call.
 const MAX_THREADS: usize = 8;
 
-const CONTEXT_SIZE: &str = "4096";
+const CONTEXT_TOKENS: usize = 4096;
+
+/// Every completion the sidecar serves is capped here, and the input budget is what is left over.
+pub(in crate::features::polish) const MAX_RESPONSE_TOKENS: usize = 2_048;
+const PROMPT_OVERHEAD_TOKENS: usize = 256;
+/// Deliberately pessimistic: accented and CJK text tokenizes far worse than English.
+const CHARS_PER_TOKEN: usize = 3;
+
+/// How much transcript one local call can take before the sidecar truncates it.
+pub(in crate::features::polish) fn local_input_char_budget() -> usize {
+    CONTEXT_TOKENS.saturating_sub(MAX_RESPONSE_TOKENS + PROMPT_OVERHEAD_TOKENS) * CHARS_PER_TOKEN
+}
 
 pub(super) struct ServerBinding<'a> {
     pub(super) model_path: &'a str,
@@ -24,7 +35,7 @@ pub(super) fn server_arguments(binding: ServerBinding<'_>) -> Vec<String> {
         "--port",
         &binding.port.to_string(),
         "--ctx-size",
-        CONTEXT_SIZE,
+        &CONTEXT_TOKENS.to_string(),
         "--threads",
         &threads.to_string(),
         "--api-key",
@@ -48,6 +59,15 @@ fn available_cores() -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A chunk sized past this makes llama.cpp drop the head of the transcript without saying so.
+    #[test]
+    fn the_input_budget_leaves_room_for_the_answer_inside_the_context() {
+        let budget_tokens = local_input_char_budget() / CHARS_PER_TOKEN;
+
+        assert!(budget_tokens + MAX_RESPONSE_TOKENS < CONTEXT_TOKENS);
+        assert!(local_input_char_budget() > 0);
+    }
 
     #[test]
     fn a_correction_leaves_half_the_machine_to_the_user() {

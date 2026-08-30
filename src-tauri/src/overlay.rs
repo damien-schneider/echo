@@ -1,3 +1,4 @@
+pub(crate) mod context_menu;
 mod drag_preview;
 mod events;
 mod generation;
@@ -24,8 +25,9 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, State};
 
 pub(crate) use events::{
-    emit_levels, emit_transcription_progress, hide_recording_overlay, show_processing_overlay,
-    show_recording_overlay, show_tool_overlay, show_transcribing_overlay, show_warning_overlay,
+    emit_levels, emit_transcription_progress, hide_recording_overlay, show_model_required_overlay,
+    show_processing_overlay, show_recording_overlay, show_tool_overlay, show_transcribing_overlay,
+    show_warning_overlay,
 };
 pub(crate) use window_modes::update_overlay_position;
 pub(crate) use window_setup::create_recording_overlay;

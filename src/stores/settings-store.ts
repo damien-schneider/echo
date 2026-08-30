@@ -115,8 +115,8 @@ const settingUpdaters: {
     invoke("change_meeting_chunk_duration_setting", {
       durationSecs: value,
     }),
-  meeting_system_audio_device: (value) =>
-    invoke("change_meeting_system_audio_device_setting", { device: value }),
+  meeting_summary_engine: (value) =>
+    invoke("change_meeting_summary_engine_setting", { engine: value }),
   meeting_system_audio_enabled: (value) =>
     invoke("change_meeting_system_audio_setting", { enabled: value }),
   mute_while_recording: (value) =>

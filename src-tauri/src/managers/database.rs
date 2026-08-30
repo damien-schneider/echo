@@ -4,7 +4,7 @@ use rusqlite::Connection;
 use std::path::Path;
 
 /// Bump when adding a migration.
-const CURRENT_SCHEMA_VERSION: u32 = 7;
+const CURRENT_SCHEMA_VERSION: u32 = 8;
 
 struct Migration {
     version: u32,
@@ -93,6 +93,11 @@ const MIGRATIONS: &[Migration] = &[
             timestamp INTEGER NOT NULL
         );
         CREATE INDEX idx_captures_timestamp ON captures(timestamp)",
+    },
+    Migration {
+        version: 8,
+        description: "add_meeting_system_offset_ms_column",
+        sql: "ALTER TABLE meetings ADD COLUMN system_offset_ms INTEGER NOT NULL DEFAULT 0",
     },
 ];
 

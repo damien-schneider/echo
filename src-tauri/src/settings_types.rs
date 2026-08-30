@@ -112,6 +112,15 @@ pub enum ClipboardHandling {
     CopyToClipboard,
 }
 
+/// Local by default: a meeting transcript is the most private thing this app holds.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum MeetingSummaryEngine {
+    #[default]
+    Local,
+    Cloud,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RecordingRetentionPeriod {
@@ -120,6 +129,19 @@ pub enum RecordingRetentionPeriod {
     Days3,
     Weeks2,
     Months3,
+}
+
+impl RecordingRetentionPeriod {
+    /// `None` for the periods that are not time based — they keep or count instead.
+    pub fn cutoff_timestamp(self, now: i64) -> Option<i64> {
+        const DAY: i64 = 24 * 60 * 60;
+        match self {
+            Self::Never | Self::PreserveLimit => None,
+            Self::Days3 => Some(now - 3 * DAY),
+            Self::Weeks2 => Some(now - 14 * DAY),
+            Self::Months3 => Some(now - 90 * DAY),
+        }
+    }
 }
 
 impl Default for PasteMethod {
@@ -253,13 +275,11 @@ pub struct AppSettings {
     #[serde(default)]
     pub meeting_system_audio_enabled: bool,
     #[serde(default)]
-    pub meeting_system_audio_device: Option<String>,
-    #[serde(default)]
     pub meeting_auto_summary: bool,
+    #[serde(default)]
+    pub meeting_summary_engine: MeetingSummaryEngine,
     #[serde(default = "default_meeting_chunk_duration_secs")]
     pub meeting_chunk_duration_secs: u32,
-    #[serde(default = "default_diarization_threshold")]
-    pub meeting_diarization_threshold: f32,
     /// Qwen 2.5 1.5B GGUF; defaults off (privacy).
     #[serde(default = "default_cleanup_enabled")]
     pub cleanup_enabled: bool,

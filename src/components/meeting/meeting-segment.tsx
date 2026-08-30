@@ -33,6 +33,7 @@ export const MeetingSegmentItem = ({
       )}
       disabled={!isClickable}
       onClick={() => onSeek?.(segment.start_ms)}
+      style={{ containIntrinsicSize: "auto 36px", contentVisibility: "auto" }}
       type="button"
     >
       <span className="shrink-0 font-mono text-muted-foreground text-xs leading-6">

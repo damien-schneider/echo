@@ -76,10 +76,6 @@ pub(super) fn default_meeting_chunk_duration_secs() -> u32 {
     30
 }
 
-pub(super) fn default_diarization_threshold() -> f32 {
-    0.5
-}
-
 pub(super) fn default_post_process_provider_id() -> String {
     "openai".to_string()
 }

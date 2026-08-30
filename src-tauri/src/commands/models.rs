@@ -11,6 +11,19 @@ pub async fn get_transcription_profiles(
     Ok(model_manager.get_transcription_profile_statuses())
 }
 
+/// What the notch offers when a dictation is blocked: the model Settings already picked, no
+/// settings page to find first.
+#[tauri::command]
+pub async fn download_configured_transcription_model(
+    app_handle: AppHandle,
+    model_manager: State<'_, Arc<ModelManager>>,
+    transcription_manager: State<'_, Arc<TranscriptionManager>>,
+) -> Result<(), String> {
+    let size = settings::get_settings(&app_handle).transcription_model_size;
+    select_transcription_model_size(app_handle.clone(), model_manager, transcription_manager, size)
+        .await
+}
+
 #[tauri::command]
 pub async fn select_transcription_model_size(
     app_handle: AppHandle,

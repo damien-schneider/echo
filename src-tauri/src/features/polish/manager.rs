@@ -51,7 +51,7 @@ pub(crate) enum SelectionRead {
 pub(crate) struct PolishManager {
     app: AppHandle,
     models: Arc<ModelManager>,
-    runtime: Arc<PolishRuntime>,
+    pub(super) runtime: Arc<PolishRuntime>,
     runtime_path: PathBuf,
     initialization_error: Option<String>,
     cancellation: Arc<CancellationClock>,

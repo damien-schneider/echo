@@ -82,6 +82,9 @@ export const ClipboardHandlingSchema = z.enum([
 ]);
 export type ClipboardHandling = z.infer<typeof ClipboardHandlingSchema>;
 
+export const MeetingSummaryEngineSchema = z.enum(["local", "cloud"]);
+export type MeetingSummaryEngine = z.infer<typeof MeetingSummaryEngineSchema>;
+
 export const RecordingRetentionPeriodSchema = z.enum([
   "never",
   "preserve_limit",
@@ -155,8 +158,8 @@ export const SettingsSchema = z.object({
   log_level: z.number().int().min(1).max(5).optional().default(2),
   meeting_auto_summary: z.boolean().optional().default(false),
   meeting_chunk_duration_secs: z.number().optional().default(30),
-  meeting_diarization_threshold: z.number().optional().default(0.5),
-  meeting_system_audio_device: z.string().nullable().optional(),
+  meeting_summary_engine:
+    MeetingSummaryEngineSchema.optional().default("local"),
   meeting_system_audio_enabled: z.boolean().optional().default(false),
   mute_while_recording: z.boolean().optional().default(false),
   overlay_dock_edge: OverlayDockEdgeSchema.optional().default("right"),
@@ -217,10 +220,24 @@ export type FileTranscriptionProgress = z.infer<
   typeof FileTranscriptionProgressSchema
 >;
 
+export const ActiveMeetingSchema = z.discriminatedUnion("state", [
+  z
+    .object({
+      meeting_id: z.number(),
+      start_time: z.number(),
+      state: z.literal("recording"),
+    })
+    .strict(),
+  z.object({ state: z.literal("processing") }).strict(),
+]);
+export type ActiveMeeting = z.infer<typeof ActiveMeetingSchema>;
+
 export const MeetingStatusSchema = z.enum([
   "recording",
   "processing",
+  "recorded",
   "complete",
+  "partial",
   "error",
 ]);
 export type MeetingStatus = z.infer<typeof MeetingStatusSchema>;
@@ -242,6 +259,12 @@ export type MeetingSegment = z.infer<typeof MeetingSegmentSchema>;
 
 export const StreamingSourceSchema = z.enum(["mic", "system"]);
 export type StreamingSource = z.infer<typeof StreamingSourceSchema>;
+
+export const MeetingAudioWarningSchema = z.object({
+  reason: z.enum(["device", "write"]),
+  source: StreamingSourceSchema,
+});
+export type MeetingAudioWarning = z.infer<typeof MeetingAudioWarningSchema>;
 
 export const StreamingInterimSchema = z.object({
   committed_text: z.string(),

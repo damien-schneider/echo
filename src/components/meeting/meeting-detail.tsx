@@ -2,7 +2,8 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { useMeetingModels } from "@/features/meeting/use-meeting-models";
+import { cn, errorMessage } from "@/lib/utils";
 import { useMeetingStore } from "@/stores/meeting-store";
 import { MeetingAudioPlayer } from "./meeting-audio-player";
 import { MeetingExport } from "./meeting-export";
@@ -16,6 +17,7 @@ export const MeetingDetail = () => {
   const retranscribeMeeting = useMeetingStore((s) => s.retranscribeMeeting);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [retranscribing, setRetranscribing] = useState(false);
+  const models = useMeetingModels();
 
   const handleSeek = (ms: number) => {
     const audio = audioRef.current;
@@ -34,15 +36,27 @@ export const MeetingDetail = () => {
     try {
       await retranscribeMeeting(meeting.id);
       toast.success("Meeting retranscribed successfully");
-    } catch {
-      toast.error("Failed to retranscribe meeting");
+    } catch (error) {
+      toast.error(errorMessage(error, "Failed to retranscribe meeting"));
     } finally {
       setRetranscribing(false);
     }
   };
 
+  // Rust re-checks the models before transcribing, so a failed download surfaces as its toast.
+  const handleBuildTranscript = async () => {
+    await models.ensure();
+    await handleRetranscribe();
+  };
+
   if (!meeting) {
     return null;
+  }
+
+  const buildBusy = retranscribing || models.downloading;
+  let buildLabel = models.ready ? "Transcribe" : models.label;
+  if (buildBusy) {
+    buildLabel = retranscribing ? "Transcribing…" : "Downloading…";
   }
 
   return (
@@ -76,11 +90,34 @@ export const MeetingDetail = () => {
         meetingTitle={meeting.title}
       />
 
+      {meeting.status === "recorded" && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border/40 px-3 py-2">
+          <span className="text-muted-foreground text-sm">
+            The transcript hasn't been built yet
+          </span>
+          <Button
+            disabled={buildBusy}
+            onClick={handleBuildTranscript}
+            size="sm"
+          >
+            <RefreshCw
+              className={cn("mr-1 size-3", buildBusy && "animate-spin")}
+            />
+            {buildLabel}
+          </Button>
+        </div>
+      )}
+
       <MeetingSummary meetingId={meeting.id} summary={meeting.summary} />
 
       <div className="min-h-0 flex-1">
-        <h3 className="mb-2 font-medium text-muted-foreground text-sm">
+        <h3 className="mb-2 flex items-center gap-2 font-medium text-muted-foreground text-sm">
           Transcript
+          {meeting.status === "partial" && (
+            <span className="text-amber-500 text-xs">
+              incomplete — Retranscribe to retry
+            </span>
+          )}
         </h3>
         <MeetingTranscript onSeek={handleSeek} segments={segments} />
       </div>

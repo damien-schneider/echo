@@ -7,7 +7,7 @@ pub fn export(meeting: &Meeting, segments: &[MeetingSegment], format: &ExportFor
     match format {
         ExportFormat::Srt => export_srt(segments),
         ExportFormat::Vtt => export_vtt(segments),
-        ExportFormat::Txt => export_txt(segments),
+        ExportFormat::Txt => export_txt(meeting, segments),
         ExportFormat::Markdown => export_markdown(meeting, segments),
     }
 }
@@ -41,8 +41,11 @@ fn export_vtt(segments: &[MeetingSegment]) -> String {
     out
 }
 
-fn export_txt(segments: &[MeetingSegment]) -> String {
-    let mut out = String::new();
+fn export_txt(meeting: &Meeting, segments: &[MeetingSegment]) -> String {
+    let mut out = match meeting.summary {
+        Some(ref summary) => format!("Summary\n\n{summary}\n\nTranscript\n\n"),
+        None => String::new(),
+    };
     for seg in segments {
         out.push_str(&format!(
             "[{}] {}: {}\n",
@@ -188,15 +191,37 @@ mod tests {
 
     #[test]
     fn txt_has_timestamp_speaker_text_format() {
-        let output = export_txt(&sample_segments());
+        let output = export_txt(&sample_meeting(), &sample_segments());
         assert!(output.contains("[00:00:00] Alice: Good morning everyone.\n"));
         assert!(output.contains("[00:00:05] Bob: Morning! Let's get started.\n"));
     }
 
     #[test]
     fn txt_empty_segments_produces_empty() {
-        let output = export_txt(&[]);
+        let output = export_txt(&sample_meeting(), &[]);
         assert!(output.is_empty());
+    }
+
+    /// A plain-text export is what gets pasted into a ticket — the summary is the part read first.
+    #[test]
+    fn txt_leads_with_the_summary_when_there_is_one() {
+        let mut meeting = sample_meeting();
+        meeting.summary = Some("Shipped the release.".to_string());
+
+        let output = export_txt(&meeting, &sample_segments());
+
+        assert!(output.starts_with("Summary\n\nShipped the release."));
+        assert!(output.contains("[00:00:00] Alice: Good morning everyone.\n"));
+    }
+
+    /// Subtitle players choke on anything that is not a cue.
+    #[test]
+    fn subtitle_formats_stay_free_of_the_summary() {
+        let mut meeting = sample_meeting();
+        meeting.summary = Some("Shipped the release.".to_string());
+
+        assert!(!export(&meeting, &sample_segments(), &ExportFormat::Srt).contains("Shipped"));
+        assert!(!export(&meeting, &sample_segments(), &ExportFormat::Vtt).contains("Shipped"));
     }
 
     #[test]

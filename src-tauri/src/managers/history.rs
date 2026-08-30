@@ -182,12 +182,9 @@ impl HistoryManager {
     fn cleanup_by_time(&self, retention_period: RecordingRetentionPeriod) -> Result<()> {
         let conn = self.get_connection()?;
 
-        let now = Utc::now().timestamp();
-        let cutoff_timestamp = match retention_period {
-            RecordingRetentionPeriod::Days3 => now - (3 * 24 * 60 * 60),
-            RecordingRetentionPeriod::Weeks2 => now - (2 * 7 * 24 * 60 * 60),
-            RecordingRetentionPeriod::Months3 => now - (3 * 30 * 24 * 60 * 60),
-            _ => unreachable!("cleanup_by_time called with unsupported retention period"),
+        let Some(cutoff_timestamp) = retention_period.cutoff_timestamp(Utc::now().timestamp())
+        else {
+            return Ok(());
         };
 
         let mut stmt = conn.prepare(

@@ -1,4 +1,4 @@
-import { ArrowDownToLine, Check } from "lucide-react";
+import { ArrowDownToLine, Check, Square } from "lucide-react";
 import { ChatPanel } from "@/features/overlay-chat/chat-panel";
 import { PolishModelPanel } from "@/features/overlay-controls/polish-model-panel";
 import type {
@@ -12,12 +12,15 @@ import {
 import { TranscriptPanel } from "@/features/overlay-notification/transcript-panel";
 import type { NotificationController } from "@/features/overlay-notification/use-notification-controller";
 
-const actionIcon = (intent: ActivityAction["intent"]) =>
-  intent === "finish_recording" ? (
-    <Check aria-hidden="true" className="size-3.5" />
-  ) : (
-    <ArrowDownToLine aria-hidden="true" className="size-3.5" />
-  );
+const actionIcon = (intent: ActivityAction["intent"]) => {
+  if (intent === "finish_recording") {
+    return <Check aria-hidden="true" className="size-3.5" />;
+  }
+  if (intent === "stop_meeting") {
+    return <Square aria-hidden="true" className="size-3" />;
+  }
+  return <ArrowDownToLine aria-hidden="true" className="size-3.5" />;
+};
 
 const islandAction = (
   controller: NotificationController
