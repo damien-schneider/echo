@@ -1,6 +1,6 @@
 [package]
 name = "echo-app"
-version = "0.8.3"
+version = "0.8.4"
 description = "Echo"
 authors = ["Damien Schneider <damien-schneider>"]
 edition = "2021"
