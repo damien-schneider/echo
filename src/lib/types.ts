@@ -85,6 +85,9 @@ export type ClipboardHandling = z.infer<typeof ClipboardHandlingSchema>;
 export const MeetingSummaryEngineSchema = z.enum(["local", "cloud"]);
 export type MeetingSummaryEngine = z.infer<typeof MeetingSummaryEngineSchema>;
 
+export const PolishLevelSchema = z.enum(["correct", "natural", "clear"]);
+export type PolishLevel = z.infer<typeof PolishLevelSchema>;
+
 export const RecordingRetentionPeriodSchema = z.enum([
   "never",
   "preserve_limit",
@@ -166,6 +169,7 @@ export const SettingsSchema = z.object({
   overlay_dock_offset: z.number().min(0).max(1).optional().default(0.5),
   overlay_position: OverlayPositionSchema,
   paste_method: PasteMethodSchema.optional().default("ctrl_v"),
+  polish_level: PolishLevelSchema.optional().default("natural"),
   post_process_api_keys: z
     .record(z.string(), z.string())
     .optional()

@@ -122,7 +122,7 @@ impl InferencePort for FakeInference {
         Ok(self.token_count)
     }
 
-    async fn polish(&self, _text: &str) -> Result<String> {
+    async fn polish(&self, _text: &str, _level: PolishLevel) -> Result<String> {
         self.polish_calls.fetch_add(1, Ordering::SeqCst);
         if let Some(action) = &self.during_inference {
             action();

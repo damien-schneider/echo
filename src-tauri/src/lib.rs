@@ -790,6 +790,7 @@ pub fn run() {
             shortcut::settings::meeting::change_meeting_chunk_duration_setting,
             shortcut::settings::meeting::get_diarization_status,
             shortcut::settings::meeting::download_diarization_model,
+            shortcut::settings::polish::change_polish_level_setting,
             commands::meeting::start_meeting,
             commands::meeting::stop_meeting,
             commands::meeting::get_meeting_status,

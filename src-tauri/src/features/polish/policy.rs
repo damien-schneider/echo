@@ -6,28 +6,74 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 
+use crate::settings::PolishLevel;
+
 pub(super) const MAX_POLISH_CHARACTERS: usize = 4_000;
 
-pub(super) fn build_polish_prompt(text: &str) -> String {
+/// One place to tune how far each level may go, in the prompt and in the guards that police it.
+struct LevelPolicy {
+    system: &'static str,
+    instruction: &'static str,
+    min_output_length_percent: usize,
+    max_output_length_percent: usize,
+    max_word_edit_percent: usize,
+}
+
+fn level_policy(level: PolishLevel) -> LevelPolicy {
+    match level {
+        PolishLevel::Correct => LevelPolicy {
+            system: "You are a conservative multilingual proofreader. Never translate or rewrite. Keep the input language, meaning, tone, line breaks, names, URLs, emails, identifiers, and code. Fix only clear spelling, grammar, punctuation, or agreement errors. If the text is already correct, return it byte-for-byte. Output only the final text.",
+            instruction: "Fix only spelling, grammar, punctuation, and agreement errors, and leave every word choice and sentence shape untouched.",
+            min_output_length_percent: 70,
+            max_output_length_percent: 140,
+            max_word_edit_percent: 50,
+        },
+        PolishLevel::Natural => LevelPolicy {
+            system: "You are a native-speaker editor. Never translate, never add or drop information, never merge, split, or reorder sentences. Keep the input language, meaning, tone, line breaks, names, URLs, emails, identifiers, and code. Output only the final text.",
+            instruction: "Fix spelling, grammar, punctuation, and agreement, then rewrite whatever a native speaker would not say: word choice, word order inside a sentence, missing articles, literal translations. Keep every sentence where it is.",
+            min_output_length_percent: 70,
+            max_output_length_percent: 140,
+            max_word_edit_percent: 60,
+        },
+        PolishLevel::Clear => LevelPolicy {
+            system: "You are a native-speaker editor. Never translate, never add information, never drop a point the text makes. Keep the input language, meaning, tone, line breaks, names, URLs, emails, identifiers, and code. Output only the final text.",
+            instruction: "Fix spelling, grammar, punctuation, and agreement, rewrite whatever a native speaker would not say, and restructure what reads badly: split run-on sentences, cut repetition, lead with the point.",
+            min_output_length_percent: 50,
+            max_output_length_percent: 160,
+            max_word_edit_percent: 85,
+        },
+    }
+}
+
+pub(super) fn polish_system_prompt(level: PolishLevel) -> &'static str {
+    level_policy(level).system
+}
+
+pub(super) fn build_polish_prompt(text: &str, level: PolishLevel) -> String {
+    let instruction = level_policy(level).instruction;
     format!(
-        "Proofread the text between <text> tags. Fix only spelling, grammar, punctuation, agreement, and clearly awkward idioms; preserve meaning, tone, formatting, and the same language. Preserve URLs, emails, names, identifiers, and code exactly. Return only the corrected text without quotes or explanation.\n<text>{text}</text>"
+        "Edit the text between <text> tags. {instruction} Preserve meaning, tone, the same language, and every line break. Preserve URLs, emails, names, identifiers, and code exactly. Return only the edited text without quotes or explanation.\n<text>{text}</text>"
     )
 }
 
 #[cfg(test)]
 pub(super) fn validate_polish_output(input: &str, output: &str) -> Result<()> {
-    validated_polish_output(input, output).map(drop)
+    validated_polish_output(input, output, PolishLevel::Natural).map(drop)
 }
 
-pub(super) fn validated_polish_output(input: &str, output: &str) -> Result<String> {
+pub(super) fn validated_polish_output(
+    input: &str,
+    output: &str,
+    level: PolishLevel,
+) -> Result<String> {
     validate_polish_input(input)?;
     let output = output.trim();
-    if output.is_empty() || has_explanation_wrapper(output) {
+    if output.is_empty() || (has_explanation_wrapper(output) && !has_explanation_wrapper(input)) {
         bail!("Polish response is empty or contains an explanation");
     }
     validate_language(input, output)?;
     validate_protected_spans(input, output)?;
-    validate_edit_size(input, output)?;
+    validate_edit_size(input, output, level)?;
     let output = restore_line_structure(input, output)?;
     validate_line_structure(input, &output)?;
     Ok(output)
@@ -134,7 +180,6 @@ static PROTECTED_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
         r"\b[\p{L}\p{N}]+_[\p{L}\p{N}_]+\b",
         r"\b(?:\p{Lu}\p{Ll}+){2,}\b",
         r"\b\p{Ll}[\p{L}\p{N}]*(?:\p{Lu}[\p{L}\p{N}]*)+\b",
-        r"\b\p{Lu}\p{Ll}{2,}\b",
         r"\b[\p{L}_][\p{L}\p{N}_]*\([^()\n]*\)",
         r"(?:^|\s)--?[\p{L}\p{N}][\p{L}\p{N}-]*",
         r"\b[\p{L}\p{N}_.-]+/[\p{L}\p{N}_./-]+\b",
@@ -144,10 +189,28 @@ static PROTECTED_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
     .collect()
 });
 
+/// Mid-sentence a capitalised word is a name; opening a sentence it is only capitalisation.
+static CAPITALISED_WORD: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\b\p{Lu}\p{Ll}{2,}\b").expect("static protected-span regex must compile")
+});
+
+fn opens_a_sentence(before: &str) -> bool {
+    let line = before
+        .rsplit_once('\n')
+        .map_or(before, |(_, last_line)| last_line)
+        .trim_end();
+    line.is_empty() || line.ends_with(['.', '!', '?', '…', ':', '-', '*', '•'])
+}
+
 fn validate_protected_spans(input: &str, output: &str) -> Result<()> {
     let mut expected_counts = HashMap::new();
     for pattern in PROTECTED_PATTERNS.iter() {
         for found in pattern.find_iter(input) {
+            *expected_counts.entry(found.as_str()).or_insert(0) += 1;
+        }
+    }
+    for found in CAPITALISED_WORD.find_iter(input) {
+        if !opens_a_sentence(&input[..found.start()]) {
             *expected_counts.entry(found.as_str()).or_insert(0) += 1;
         }
     }
@@ -159,18 +222,22 @@ fn validate_protected_spans(input: &str, output: &str) -> Result<()> {
     Ok(())
 }
 
-fn validate_edit_size(input: &str, output: &str) -> Result<()> {
+fn validate_edit_size(input: &str, output: &str, level: PolishLevel) -> Result<()> {
+    let policy = level_policy(level);
     let input_characters = input.chars().count();
     let output_characters = output.chars().count();
-    if output_characters * 10 < input_characters * 7
-        || output_characters * 10 > input_characters * 14
+    if output_characters * 100 < input_characters * policy.min_output_length_percent
+        || output_characters * 100 > input_characters * policy.max_output_length_percent
     {
         bail!("Polish response changed too much text");
     }
     let input_words = input.split_whitespace().collect::<Vec<_>>();
     let output_words = output.split_whitespace().collect::<Vec<_>>();
     let longest = input_words.len().max(output_words.len());
-    if longest > 3 && word_edit_distance(&input_words, &output_words) * 10 > longest * 5 {
+    if longest > 3
+        && word_edit_distance(&input_words, &output_words) * 100
+            > longest * policy.max_word_edit_percent
+    {
         bail!("Polish response edit ratio is unsafe");
     }
     Ok(())
@@ -198,14 +265,58 @@ fn word_edit_distance(before: &[&str], after: &[&str]) -> usize {
 mod tests {
     use super::*;
 
-    #[test]
-    fn prompt_requests_conservative_proofreading_without_rewriting() {
-        let prompt = build_polish_prompt("Bonjour tout le monde");
+    fn polished(input: &str, output: &str) -> Result<String> {
+        validated_polish_output(input, output, PolishLevel::Natural)
+    }
 
-        assert!(prompt.contains("preserve meaning"));
-        assert!(prompt.contains("same language"));
-        assert!(prompt.contains("Return only"));
-        assert!(prompt.contains("Bonjour tout le monde"));
+    #[test]
+    fn each_level_states_how_far_polish_may_go() {
+        let correct = build_polish_prompt("Bonjour tout le monde", PolishLevel::Correct);
+        let natural = build_polish_prompt("Bonjour tout le monde", PolishLevel::Natural);
+        let clear = build_polish_prompt("Bonjour tout le monde", PolishLevel::Clear);
+
+        assert!(correct.contains("leave every word choice and sentence shape untouched"));
+        assert!(natural.contains("rewrite whatever a native speaker would not say"));
+        assert!(!natural.contains("restructure"));
+        assert!(clear.contains("restructure"));
+        for prompt in [&correct, &natural, &clear] {
+            assert!(prompt.contains("Preserve meaning"));
+            assert!(prompt.contains("the same language"));
+            assert!(prompt.contains("Return only"));
+            assert!(prompt.contains("Bonjour tout le monde"));
+        }
+    }
+
+    #[test]
+    fn a_sentence_opener_may_be_reworded_but_a_name_may_not() {
+        assert!(polished(
+            "Basically the sidebar is broken.",
+            "The sidebar is basically broken."
+        )
+        .is_ok());
+        assert!(polished("I told Damien about it.", "I told Thomas about it.").is_err());
+    }
+
+    #[test]
+    fn text_that_opens_like_an_explanation_is_still_polished() {
+        assert_eq!(
+            polished(
+                "Here is the report, it are ready.",
+                "Here is the report, it is ready."
+            )
+            .unwrap(),
+            "Here is the report, it is ready."
+        );
+    }
+
+    #[test]
+    fn restructuring_needs_the_level_that_asks_for_it() {
+        let input =
+            "The thing is that the sidebar, it doesn't open when you click on it sometimes.";
+        let output = "The sidebar sometimes fails to open when clicked.";
+
+        assert!(validated_polish_output(input, output, PolishLevel::Natural).is_err());
+        assert!(validated_polish_output(input, output, PolishLevel::Clear).is_ok());
     }
 
     #[test]
@@ -220,7 +331,7 @@ mod tests {
     #[test]
     fn restores_line_boundaries_after_a_safe_model_reflow() {
         assert_eq!(
-            validated_polish_output(
+            polished(
                 "This are wrong.\nKeep this second line.",
                 "This is wrong. Keep this second line."
             )
@@ -232,7 +343,7 @@ mod tests {
     #[test]
     fn restores_blank_line_topology_after_a_safe_model_reflow() {
         assert_eq!(
-            validated_polish_output(
+            polished(
                 "This are wrong.\n\nKeep this second paragraph.",
                 "This is wrong. Keep this second paragraph."
             )
@@ -244,7 +355,7 @@ mod tests {
     #[test]
     fn preserves_each_original_line_separator() {
         assert_eq!(
-            validated_polish_output(
+            polished(
                 "This are wrong.\r\nKeep this line.\nKeep the last line.",
                 "This is wrong. Keep this line. Keep the last line."
             )
@@ -256,7 +367,7 @@ mod tests {
     #[test]
     fn preserves_original_line_padding() {
         assert_eq!(
-            validated_polish_output(
+            polished(
                 "  This are wrong.  \n\tKeep this line.",
                 "This is wrong.\nKeep this line."
             )

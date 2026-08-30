@@ -7,6 +7,7 @@ use std::time::Duration;
 mod copy_wait;
 
 use super::policy::{validate_polish_input, validated_polish_output};
+use crate::settings::PolishLevel;
 use copy_wait::copy_poll_delays;
 
 const MAX_POLISH_TOKENS: usize = 1_500;
@@ -41,7 +42,7 @@ pub(super) trait FocusPort: Send + Sync {
 #[async_trait]
 pub(super) trait InferencePort: Send + Sync {
     async fn token_count(&self, text: &str) -> Result<usize>;
-    async fn polish(&self, text: &str) -> Result<String>;
+    async fn polish(&self, text: &str, level: PolishLevel) -> Result<String>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,7 +125,8 @@ impl PolishTransaction {
         let Some(captured) = self.capture(mode, generation).await? else {
             return Ok(PolishOutcome::NoSelection);
         };
-        self.complete(captured, generation).await
+        self.complete(captured, generation, PolishLevel::default())
+            .await
     }
 
     pub(super) async fn capture(
@@ -171,15 +173,16 @@ impl PolishTransaction {
         &self,
         captured: CapturedPolishInput,
         generation: u64,
+        level: PolishLevel,
     ) -> Result<PolishOutcome> {
         self.ensure_current(generation)?;
         if self.ports.inference.token_count(&captured.text).await? > MAX_POLISH_TOKENS {
             anyhow::bail!("Selection exceeds {MAX_POLISH_TOKENS} tokens");
         }
         self.ensure_current(generation)?;
-        let output = self.ports.inference.polish(&captured.text).await?;
+        let output = self.ports.inference.polish(&captured.text, level).await?;
         self.ensure_current(generation)?;
-        let output = validated_polish_output(&captured.text, &output).context(
+        let output = validated_polish_output(&captured.text, &output, level).context(
             "Original text kept because Polish could not preserve it safely. Try a shorter selection.",
         )?;
         if captured.text == output {

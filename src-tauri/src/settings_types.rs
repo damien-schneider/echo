@@ -121,6 +121,16 @@ pub enum MeetingSummaryEngine {
     Cloud,
 }
 
+/// How far Polish may go: mistakes only, native phrasing, or clearer structure.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PolishLevel {
+    Correct,
+    #[default]
+    Natural,
+    Clear,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RecordingRetentionPeriod {
@@ -245,6 +255,8 @@ pub struct AppSettings {
     pub paste_method: PasteMethod,
     #[serde(default)]
     pub clipboard_handling: ClipboardHandling,
+    #[serde(default)]
+    pub polish_level: PolishLevel,
     #[serde(default = "default_post_process_provider_id")]
     pub post_process_provider_id: String,
     #[serde(default = "default_post_process_providers")]

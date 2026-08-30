@@ -125,6 +125,8 @@ const settingUpdaters: {
     invoke("change_overlay_position_setting", { position: value }),
   paste_method: (value) =>
     invoke("change_paste_method_setting", { method: value }),
+  polish_level: (value) =>
+    invoke("change_polish_level_setting", { level: value }),
   post_process_enabled: (value) =>
     invoke("change_post_process_enabled_setting", { enabled: value }),
   post_process_selected_prompt_id: (value) =>

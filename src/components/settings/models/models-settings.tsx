@@ -1,6 +1,7 @@
 import { AlertCircle, CircleCheck, CircleDashed } from "lucide-react";
 import { useEffect } from "react";
 import { TranscriptionProfileCard } from "@/components/model-selector/transcription-profile-card";
+import { PolishLevelSlider } from "@/components/settings/models/polish-level-slider";
 import { PolishStatusCard } from "@/components/settings/models/polish-status-card";
 import { usePolishModel } from "@/features/polish/use-polish-model";
 import type { TranscriptionModelSize } from "@/lib/types";
@@ -129,6 +130,7 @@ export const ModelsSettings = () => {
         progress={polish.progress?.percentage}
         status={polish.status}
       />
+      <PolishLevelSlider />
     </div>
   );
 };

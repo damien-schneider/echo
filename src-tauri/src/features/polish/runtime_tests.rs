@@ -166,16 +166,19 @@ async fn multilingual_real_model_release_smoke() {
         ("이것은 좋은 생각입니다.", "이것은 좋은 생각입니다."),
     ];
     for (input, expected) in fixtures {
-        let output = runtime.polish(input).await.unwrap();
+        let output = runtime.polish(input, PolishLevel::Natural).await.unwrap();
         assert_eq!(output, expected);
         validate_polish_output(input, &output).unwrap();
     }
     let protected = "Email FooBar at hello@example.com about user_id and https://echo.app.";
-    let protected_output = runtime.polish(protected).await.unwrap();
+    let protected_output = runtime
+        .polish(protected, PolishLevel::Natural)
+        .await
+        .unwrap();
     validate_polish_output(protected, &protected_output).unwrap();
     let input = "This are a short sentence that need one correction.";
     let started = Instant::now();
-    let _ = runtime.polish(input).await.unwrap();
+    let _ = runtime.polish(input, PolishLevel::Natural).await.unwrap();
     assert!(started.elapsed() < Duration::from_millis(500));
 }
 

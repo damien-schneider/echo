@@ -16,9 +16,10 @@ use std::time::{Duration, Instant};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
-use super::policy::build_polish_prompt;
+use super::policy::{build_polish_prompt, polish_system_prompt};
 use super::selection::InferencePort;
 use super::BundledChatMessage;
+use crate::settings::PolishLevel;
 pub(in crate::features::polish) use idle::IDLE_CHECK_INTERVAL;
 use idle::{should_release_idle_runtime, ActivityTracker};
 use process_lifecycle::{
@@ -37,7 +38,6 @@ const POLISH_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const CHAT_STREAM_TIMEOUT: Duration = Duration::from_secs(180);
 const CHAT_PUBLISH_INTERVAL: Duration = Duration::from_millis(50);
 const TOKENIZE_REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
-const POLISH_SYSTEM_PROMPT: &str = "You are a conservative multilingual proofreader. Never translate or rewrite. Keep the input language, meaning, tone, line breaks, names, URLs, emails, identifiers, and code. Fix only clear spelling, grammar, punctuation, agreement, or idiom errors. If the text is already correct, return it byte-for-byte. Output only the final text.";
 
 fn bundled_chat_request_messages<'a>(
     system: &'a str,
@@ -246,12 +246,12 @@ impl PolishRuntime {
         ))
     }
 
-    async fn request_polish(&self, text: &str) -> Result<String> {
-        let prompt = build_polish_prompt(text);
+    async fn request_polish(&self, text: &str, level: PolishLevel) -> Result<String> {
+        let prompt = build_polish_prompt(text, level);
         let messages = [
             ChatRequestMessage {
                 role: "system",
-                content: POLISH_SYSTEM_PROMPT,
+                content: polish_system_prompt(level),
             },
             ChatRequestMessage {
                 role: "user",
@@ -442,9 +442,9 @@ impl InferencePort for PolishRuntime {
         self.run_with_restart(|| self.send_token_count(text)).await
     }
 
-    async fn polish(&self, text: &str) -> Result<String> {
+    async fn polish(&self, text: &str, level: PolishLevel) -> Result<String> {
         let _request = self.activity.begin_request();
-        self.request_polish(text).await
+        self.request_polish(text, level).await
     }
 }
 

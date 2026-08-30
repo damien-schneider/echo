@@ -10,6 +10,7 @@ mod setup;
 
 use crate::managers::model::{ModelManager, POLISH_MODEL_ID};
 use crate::overlay::{show_processing_overlay, show_tool_overlay, show_warning_overlay};
+use crate::settings;
 
 use super::chat_context::{
     chat_text_context, ChatContextCapture, ChatContextSource, ShownChatContext,
@@ -398,7 +399,8 @@ impl PolishManager {
             return;
         }
         show_processing_overlay(&self.app, "Polishing…");
-        let outcome = transaction.complete(captured, generation).await;
+        let level = settings::get_settings(&self.app).polish_level;
+        let outcome = transaction.complete(captured, generation, level).await;
         self.present_outcome(outcome).await;
     }
 
