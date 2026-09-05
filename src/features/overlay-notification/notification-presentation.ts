@@ -92,6 +92,7 @@ export const createNotificationPresentation = ({
 }: NotificationPresentationOptions): NotificationPresentation => {
   const hasActiveOperation =
     events.isVisible && isActiveOverlayState(events.state);
+  const isPreparing = hasActiveOperation && events.state === "preparing";
   const isRecording = hasActiveOperation && events.state === "recording";
   const isTranscribing = hasActiveOperation && events.state === "transcribing";
   const isPolishing = hasActiveOperation && events.state === "processing";
@@ -119,6 +120,7 @@ export const createNotificationPresentation = ({
       decoration: activityDecorationFor({
         hasError: activityError !== null,
         isPolishing,
+        isPreparing,
         isRecording,
         isTranscribing,
         showsDownload: showsBackgroundDownload,
@@ -134,7 +136,11 @@ export const createNotificationPresentation = ({
       }),
       visualState: activityVisualStateFor({
         hasError: activityError !== null,
-        isProcessing: isPolishing || isTranscribing || showsBackgroundDownload,
+        isProcessing:
+          isPolishing ||
+          isPreparing ||
+          isTranscribing ||
+          showsBackgroundDownload,
       }),
     };
 

@@ -17,6 +17,7 @@ import {
 } from "@/features/overlay-controls/runtime/overlay-surface";
 
 const OverlayStateSchema = z.enum([
+  "preparing",
   "processing",
   "recording",
   "transcribing",

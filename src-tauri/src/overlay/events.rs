@@ -220,7 +220,7 @@ struct PendingOverlayPresentation {
 type MainThreadMutation = Box<dyn FnOnce() + Send + 'static>;
 
 /// run_on_main_thread required for Wayland GTK/layer-shell.
-pub(crate) fn show_recording_overlay(app_handle: &AppHandle) {
+pub(crate) fn show_preparing_overlay(app_handle: &AppHandle) {
     let generation = OVERLAY_GENERATION.begin();
     let app_handle = app_handle.clone();
     let app_handle_inner = app_handle.clone();
@@ -247,11 +247,30 @@ pub(crate) fn show_recording_overlay(app_handle: &AppHandle) {
             #[cfg(target_os = "linux")]
             update_wayland_anchors(&overlay_window, OverlayPlacement::from_settings(&settings));
 
-            let _ = overlay_window.emit("show-overlay", "recording");
+            let _ = overlay_window.emit("show-overlay", "preparing");
         }
     });
     if let Err(error) = result {
         warn!("[Overlay] Failed to schedule recording overlay: {error}");
+    }
+}
+
+/// Microphone is capturing at last — the island stops preparing and starts listening.
+/// Rides the main thread so it always lands after the preparing show it replaces.
+pub(crate) fn mark_recording_live(app_handle: &AppHandle) {
+    let app_handle = app_handle.clone();
+    let app_handle_inner = app_handle.clone();
+    let result = app_handle.run_on_main_thread(move || {
+        let app_handle = app_handle_inner;
+        if settings::get_settings(&app_handle).overlay_position == OverlayPosition::None {
+            return;
+        }
+        if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
+            let _ = overlay_window.emit("show-overlay", "recording");
+        }
+    });
+    if let Err(error) = result {
+        warn!("[Overlay] Failed to mark the recording live: {error}");
     }
 }
 

@@ -48,7 +48,10 @@ const shown = (
   isVisible: true,
   remedy: event.action ?? null,
   state: event.state,
-  streamingText: event.state === "recording" ? "" : state.streamingText,
+  streamingText:
+    event.state === "preparing" || event.state === "recording"
+      ? ""
+      : state.streamingText,
   warningMessage: event.message,
 });
 

@@ -72,6 +72,7 @@ describe("island presentation states", () => {
       activityDecorationFor({
         hasError: false,
         isPolishing: true,
+        isPreparing: false,
         isRecording: false,
         isTranscribing: false,
         showsDownload: false,
@@ -81,6 +82,7 @@ describe("island presentation states", () => {
       activityDecorationFor({
         hasError: false,
         isPolishing: false,
+        isPreparing: false,
         isRecording: true,
         isTranscribing: false,
         showsDownload: false,
@@ -90,8 +92,22 @@ describe("island presentation states", () => {
       activityDecorationFor({
         hasError: false,
         isPolishing: false,
+        isPreparing: false,
         isRecording: false,
         isTranscribing: true,
+        showsDownload: false,
+      })
+    ).toBe("progress");
+  });
+
+  it("withholds the listening breath until capture is live", () => {
+    expect(
+      activityDecorationFor({
+        hasError: false,
+        isPolishing: false,
+        isPreparing: true,
+        isRecording: false,
+        isTranscribing: false,
         showsDownload: false,
       })
     ).toBe("progress");
@@ -320,6 +336,17 @@ describe("overlayActivityText", () => {
         streamingText: "",
       })
     ).toBe("");
+  });
+
+  it("says the model is still loading so nobody speaks into a dead recorder", () => {
+    expect(
+      overlayActivityText({
+        ...base,
+        download: null,
+        state: "preparing",
+        streamingText: "",
+      })
+    ).toBe("Preparing local model…");
   });
 });
 

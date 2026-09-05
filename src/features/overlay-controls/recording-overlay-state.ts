@@ -8,6 +8,7 @@ export const OverlayRemedySchema = z.literal("download_transcription_model");
 export type OverlayRemedy = z.infer<typeof OverlayRemedySchema>;
 
 export type OverlayState =
+  | "preparing"
   | "processing"
   | "recording"
   | "tool"
@@ -27,7 +28,10 @@ export type ActivityVisualState = "error" | "processing" | "steady";
 export type ActivityDecoration = "microphone" | "none" | "orbit" | "progress";
 
 export const isActiveOverlayState = (state: OverlayState) =>
-  state === "recording" || state === "transcribing" || state === "processing";
+  state === "preparing" ||
+  state === "recording" ||
+  state === "transcribing" ||
+  state === "processing";
 
 interface ActivityDismissalOptions {
   hasActiveOperation: boolean;
@@ -122,6 +126,7 @@ export const activityVisualStateFor = ({
 interface ActivityDecorationOptions {
   hasError: boolean;
   isPolishing: boolean;
+  isPreparing: boolean;
   isRecording: boolean;
   isTranscribing: boolean;
   showsDownload: boolean;
@@ -130,6 +135,7 @@ interface ActivityDecorationOptions {
 export const activityDecorationFor = ({
   hasError,
   isPolishing,
+  isPreparing,
   isRecording,
   isTranscribing,
   showsDownload,
@@ -139,6 +145,9 @@ export const activityDecorationFor = ({
   }
   if (isPolishing) {
     return "orbit";
+  }
+  if (isPreparing) {
+    return "progress";
   }
   if (isRecording) {
     return "microphone";
@@ -222,9 +231,11 @@ export const polishControlIntent = (
   status: PolishStatus
 ): "run" | "open_panel" => (status.state === "ready" ? "run" : "open_panel");
 
+const PREPARING_LABEL = "Preparing local model…";
+
 export const modelStateLabel = (state: ModelState): string | null => {
   if (state === "Loading") {
-    return "Preparing local model…";
+    return PREPARING_LABEL;
   }
   if (state === "Error") {
     return "Local model error";
@@ -271,6 +282,12 @@ export const overlayDisplayText = ({
   return modelBadge ?? "";
 };
 
+/// What the island says when a state has nothing of its own to show yet.
+const ACTIVITY_FALLBACK_TEXT: Partial<Record<OverlayState, string>> = {
+  preparing: PREPARING_LABEL,
+  transcribing: "Transcribing…",
+};
+
 interface OverlayActivityTextOptions extends OverlayDisplayOptions {
   activityError: string | null;
   download: OverlayDownloadProgress | null;
@@ -291,7 +308,7 @@ export const overlayActivityText = ({
     if (displayText) {
       return displayText;
     }
-    return displayOptions.state === "transcribing" ? "Transcribing…" : "";
+    return ACTIVITY_FALLBACK_TEXT[displayOptions.state] ?? "";
   }
   if (download) {
     return modelDownloadLabel(download.model_id, download.percentage);

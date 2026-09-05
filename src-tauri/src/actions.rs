@@ -7,8 +7,8 @@ use crate::managers::transcription::{
 };
 use crate::managers::tts::TtsManager;
 use crate::overlay::{
-    show_model_required_overlay, show_recording_overlay, show_transcribing_overlay,
-    show_warning_overlay,
+    mark_recording_live, show_model_required_overlay, show_preparing_overlay,
+    show_transcribing_overlay, show_warning_overlay,
 };
 use crate::settings::{get_settings, AppSettings};
 use crate::tray::{change_tray_icon, TrayIconState};
@@ -394,6 +394,9 @@ impl StartFeedback {
             ) {
                 return;
             }
+            if !crate::dictation::routes_to_chat() {
+                mark_recording_live(&self.app);
+            }
             play_feedback_sound_blocking(&self.app, SoundType::Start);
             let current_generation = OPERATION_GENERATION.load(Ordering::SeqCst);
             if is_current_operation(current_generation, self.generation) {
@@ -642,7 +645,7 @@ impl ShortcutAction for TranscribeAction {
         let generation = attempt.operation_generation();
         change_tray_icon(app, TrayIconState::Recording);
         if !crate::dictation::routes_to_chat() {
-            show_recording_overlay(app);
+            show_preparing_overlay(app);
         }
         info!(
             "start: overlay show requested at +{:?} (on shortcut callback thread)",
