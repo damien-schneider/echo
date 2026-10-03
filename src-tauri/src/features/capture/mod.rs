@@ -66,32 +66,22 @@ async fn selected_text(app: &AppHandle) -> Option<String> {
     log::info!("[Capture] reading the selection after a double Shift");
     let polish = Arc::clone(app.state::<Arc<PolishManager>>().inner());
     let generation = polish.begin_selection_read();
-    let read = match polish.read_selection(generation).await {
-        Ok(read) => read,
+    match polish
+        .read_selection(generation)
+        .await
+        .and_then(SelectionRead::text)
+    {
+        Ok(Some(text)) => Some(text),
+        Ok(None) => {
+            show_warning_overlay(app, "No text selected");
+            None
+        }
         Err(error) => {
             warn!("Double-shift capture could not read the selection: {error:#}");
-            show_warning_overlay(app, "Could not read the selection");
-            return None;
+            show_warning_overlay(app, &error.to_string());
+            None
         }
-    };
-
-    let text = match read {
-        SelectionRead::PermissionRequired => {
-            show_warning_overlay(app, "Accessibility access is needed to read the selection");
-            return None;
-        }
-        SelectionRead::Selected(text)
-        | SelectionRead::Copied {
-            text: Some(text), ..
-        } => text,
-        SelectionRead::Copied { text: None, .. } => String::new(),
-    };
-
-    if text.trim().is_empty() {
-        show_warning_overlay(app, "No text selected");
-        return None;
     }
-    Some(text)
 }
 
 fn store_capture(app: &AppHandle, text: &str) {

@@ -65,6 +65,21 @@ pub(super) struct CapturedPolishInput {
     mode: SelectionMode,
 }
 
+impl CapturedPolishInput {
+    pub(super) fn new(
+        text: String,
+        focused_application: Option<String>,
+        mode: SelectionMode,
+    ) -> Result<Self> {
+        validate_polish_input(&text)?;
+        Ok(Self {
+            text,
+            focused_application,
+            mode,
+        })
+    }
+}
+
 #[derive(Default)]
 pub(super) struct CancellationClock {
     generation: AtomicU64,
@@ -122,29 +137,20 @@ impl PolishTransaction {
 
     #[cfg(test)]
     async fn run(&self, mode: SelectionMode, generation: u64) -> Result<PolishOutcome> {
-        let Some(captured) = self.capture(mode, generation).await? else {
+        let focused_application = self.focused_application();
+        let Some(text) = self.capture_text(mode, generation).await? else {
             return Ok(PolishOutcome::NoSelection);
         };
-        self.complete(captured, generation, PolishLevel::default())
-            .await
+        self.complete(
+            CapturedPolishInput::new(text, focused_application, mode)?,
+            generation,
+            PolishLevel::default(),
+        )
+        .await
     }
 
-    pub(super) async fn capture(
-        &self,
-        mode: SelectionMode,
-        generation: u64,
-    ) -> Result<Option<CapturedPolishInput>> {
-        self.ensure_current(generation)?;
-        let focused_application = self.ports.focus.focused_application();
-        let Some(input) = self.capture_text(mode, generation).await? else {
-            return Ok(None);
-        };
-        validate_polish_input(&input)?;
-        Ok(Some(CapturedPolishInput {
-            text: input,
-            focused_application,
-            mode,
-        }))
+    pub(super) fn focused_application(&self) -> Option<String> {
+        self.ports.focus.focused_application()
     }
 
     pub(super) async fn capture_text(

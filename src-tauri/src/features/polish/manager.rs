@@ -21,7 +21,8 @@ use super::platform::{
 };
 use super::runtime::PolishRuntime;
 use super::selection::{
-    CancellationClock, PolishOutcome, PolishTransaction, PolishTransactionPorts, SelectionMode,
+    CancellationClock, CapturedPolishInput, PolishOutcome, PolishTransaction,
+    PolishTransactionPorts, SelectionMode,
 };
 use super::{
     polish_failure_status, polish_failure_updates_shared_status, polish_joins_active_operation,
@@ -47,6 +48,56 @@ pub(crate) enum SelectionRead {
         mode: SelectionMode,
         text: Option<String>,
     },
+}
+
+impl SelectionRead {
+    /// A refused read is a fault to report; an empty one is an answer — `None` is "nothing selected".
+    pub(crate) fn text(self) -> Result<Option<String>> {
+        match self {
+            Self::PermissionRequired => {
+                anyhow::bail!("Accessibility access is needed to read the selection")
+            }
+            Self::Selected(text)
+            | Self::Copied {
+                text: Some(text), ..
+            } => Ok(Some(text)),
+            Self::Copied { text: None, .. } => Ok(None),
+        }
+    }
+}
+
+/// Accessibility answers instantly when it can; otherwise the copy shortcut asks the app itself.
+async fn selection_read(transaction: &PolishTransaction, generation: u64) -> Result<SelectionRead> {
+    let observed = read_selected_text().unwrap_or_else(|error| {
+        log::debug!("Accessibility could not read the selection: {error:#}");
+        DirectSelection::Unavailable
+    });
+    match settled_selection(observed) {
+        Some(SettledSelection::PermissionRequired) => return Ok(SelectionRead::PermissionRequired),
+        Some(SettledSelection::Text(text)) => return Ok(SelectionRead::Selected(text)),
+        None => {}
+    }
+    let mode = selection_mode();
+    Ok(SelectionRead::Copied {
+        mode,
+        text: transaction.capture_text(mode, generation).await?,
+    })
+}
+
+/// Focus is read before the selection: a user who switches app mid-capture must not be pasted into.
+async fn captured_selection(
+    transaction: &PolishTransaction,
+    generation: u64,
+) -> Result<Option<CapturedPolishInput>> {
+    let focused_application = transaction.focused_application();
+    let Some(text) = selection_read(transaction, generation).await?.text()? else {
+        return Ok(None);
+    };
+    Ok(Some(CapturedPolishInput::new(
+        text,
+        focused_application,
+        selection_mode(),
+    )?))
 }
 
 pub(crate) struct PolishManager {
@@ -100,25 +151,9 @@ impl PolishManager {
         self.chat_cancellation.begin()
     }
 
-    /// Accessibility answers instantly when it can; otherwise the copy shortcut asks the app itself.
     pub(crate) async fn read_selection(&self, generation: u64) -> Result<SelectionRead> {
-        let observed = read_selected_text().unwrap_or_else(|error| {
-            log::debug!("Accessibility could not read the selection: {error:#}");
-            DirectSelection::Unavailable
-        });
-        match settled_selection(observed) {
-            Some(SettledSelection::PermissionRequired) => {
-                return Ok(SelectionRead::PermissionRequired)
-            }
-            Some(SettledSelection::Text(text)) => return Ok(SelectionRead::Selected(text)),
-            None => {}
-        }
-        let mode = selection_mode();
         let transaction = self.transaction_with_cancellation(self.chat_cancellation.clone())?;
-        Ok(SelectionRead::Copied {
-            mode,
-            text: transaction.capture_text(mode, generation).await?,
-        })
+        selection_read(&transaction, generation).await
     }
 
     pub(crate) async fn capture_chat_context(&self, generation: u64) -> Result<ShownChatContext> {
@@ -377,7 +412,7 @@ impl PolishManager {
                 return;
             }
         };
-        let captured = match transaction.capture(selection_mode(), generation).await {
+        let captured = match captured_selection(&transaction, generation).await {
             Ok(Some(captured)) => captured,
             Ok(None) => return self.present_outcome(Ok(PolishOutcome::NoSelection)).await,
             Err(error) => {
@@ -488,4 +523,50 @@ pub(crate) async fn repair_polish_model(
     manager: tauri::State<'_, Arc<PolishManager>>,
 ) -> Result<(), String> {
     manager.repair().await.map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod selection_read_tests {
+    use super::*;
+
+    /// Polish and the double-Shift capture read through this one answer, so a selection the
+    /// accessibility tree hands over must reach Polish exactly like a copied one.
+    #[test]
+    fn accessibility_and_copy_reads_hand_back_the_same_text() {
+        assert_eq!(
+            SelectionRead::Selected("cargo test".to_owned())
+                .text()
+                .unwrap(),
+            Some("cargo test".to_owned())
+        );
+        assert_eq!(
+            SelectionRead::Copied {
+                mode: SelectionMode::ReplaceSelection,
+                text: Some("cargo test".to_owned()),
+            }
+            .text()
+            .unwrap(),
+            Some("cargo test".to_owned())
+        );
+    }
+
+    #[test]
+    fn an_unanswered_copy_reads_as_nothing_selected_and_a_refused_read_as_a_fault() {
+        assert_eq!(
+            SelectionRead::Copied {
+                mode: SelectionMode::ReplaceSelection,
+                text: None,
+            }
+            .text()
+            .unwrap(),
+            None
+        );
+        assert_eq!(
+            SelectionRead::PermissionRequired
+                .text()
+                .unwrap_err()
+                .to_string(),
+            "Accessibility access is needed to read the selection"
+        );
+    }
 }

@@ -232,7 +232,7 @@ async fn capture_phase_finishes_before_any_inference_work() {
 
     let captured = fixture
         .transaction
-        .capture(SelectionMode::ReplaceSelection, generation)
+        .capture_text(SelectionMode::ReplaceSelection, generation)
         .await
         .unwrap();
 
