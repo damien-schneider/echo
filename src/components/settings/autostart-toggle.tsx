@@ -12,9 +12,8 @@ export const AutostartToggle = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="Automatically start Echo when you log in to your computer."
       icon={<PlayCircle className="h-4 w-4" />}
-      title="Launch on Startup"
+      title="Launch at login"
     >
       <Switch
         checked={autostartEnabled}

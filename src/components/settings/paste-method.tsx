@@ -25,7 +25,7 @@ const getPasteMethodOptions = (
   label: string;
 }[] => {
   if (isWayland) {
-    return [{ label: "Clipboard Only", value: "clipboard_only" }];
+    return [{ label: "Copy only", value: "clipboard_only" }];
   }
   const baseOptions: { label: string; value: PasteMethod }[] = [
     { label: "Clipboard (Ctrl+V)", value: "ctrl_v" },
@@ -40,7 +40,7 @@ const getPasteMethodOptions = (
     });
   }
   baseOptions.push({
-    label: "Clipboard Only (no paste)",
+    label: "Copy only (no paste)",
     value: "clipboard_only",
   });
   return baseOptions;
@@ -60,13 +60,13 @@ export const PasteMethodSetting = () => {
   const selectedMethod = pasteMethod || "ctrl_v";
   const pasteMethodOptions = getPasteMethodOptions(osType, isWayland);
   const description = isWayland
-    ? "Auto-paste is unavailable on Wayland. Echo copies the text for you to paste with Ctrl+V."
-    : "Choose how Echo inserts your transcription. Clipboard Only copies the text for you to paste manually.";
+    ? "Wayland requires manual paste. Press Ctrl+V after recording."
+    : "Choose how transcriptions are inserted.";
   return (
     <SettingRow
       description={description}
       icon={<Clipboard className="h-4 w-4" />}
-      title="Paste Method"
+      title="Paste method"
     >
       <div className="flex items-center gap-2">
         <Select<PasteMethod>

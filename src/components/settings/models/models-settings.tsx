@@ -88,7 +88,7 @@ export const ModelsSettings = () => {
 
   const isBusy = modelStatus === "loading" || modelStatus === "downloading";
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 pb-20">
+    <div className="space-y-5">
       <div className="rounded-lg border border-border/20 bg-card px-4 py-3">
         <div className="flex items-center gap-3">
           {renderStatusIcon(modelStatus)}

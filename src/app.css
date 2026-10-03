@@ -15,6 +15,10 @@
 @custom-variant hover (&:hover,
 &[data-hovered]);
 
+@theme {
+  --breakpoint-lg: 48rem;
+}
+
 @theme inline {
   --color-brand: var(--brand);
 }
@@ -26,7 +30,7 @@
 
   html,
   body {
-    @apply bg-background text-foreground font-body;
+    @apply bg-background text-foreground font-body antialiased;
   }
 
   [data-tauri-drag-region] {

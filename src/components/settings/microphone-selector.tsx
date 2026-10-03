@@ -31,18 +31,14 @@ export const MicrophoneSelector = () => {
     await resetSetting("selected_microphone");
   };
   return (
-    <SettingRow
-      description="Select your preferred microphone device"
-      icon={<Mic className="h-4 w-4" />}
-      title="Microphone"
-    >
-      <div className="flex items-center space-x-1">
+    <SettingRow icon={<Mic className="h-4 w-4" />} title="Microphone">
+      <div className="flex items-center gap-1">
         <Select
           disabled={isUpdatingMic || isLoading || audioDevices.length === 0}
           onValueChange={handleMicrophoneSelect}
           value={selectedMicrophone}
         >
-          <SelectTrigger className="flex-1">
+          <SelectTrigger className="min-w-0 flex-1">
             <SelectValue
               placeholder={
                 isLoading || audioDevices.length === 0

@@ -1,37 +1,37 @@
 :root,
 [data-skin="echo"] {
-  --background: #f8f6f2;
-  --foreground: #28211d;
-  --canvas: #eee9e2;
-  --card: #fffdfa;
+  --background: #fafafa;
+  --foreground: #171717;
+  --canvas: #f4f4f4;
+  --card: #ffffff;
   --card-foreground: var(--foreground);
-  --popover: #fffdfa;
+  --popover: #ffffff;
   --popover-foreground: var(--foreground);
-  --primary: #934b22;
+  --primary: #171717;
   --primary-foreground: #ffffff;
-  --primary-text: #934b22;
-  --secondary: #eee8e0;
+  --primary-text: #171717;
+  --secondary: #f0f0f0;
   --secondary-foreground: var(--foreground);
-  --muted: #eee8e0;
-  --muted-foreground: #75685f;
-  --accent: #efe0d2;
+  --muted: #f0f0f0;
+  --muted-foreground: #626262;
+  --accent: #ebebeb;
   --accent-foreground: var(--foreground);
   --brand: var(--primary-text);
   --destructive: #b52e36;
   --destructive-foreground: #ffffff;
   --destructive-text: #b52e36;
-  --border: #ded6cc;
-  --input: #938476;
-  --ring: #a65326;
+  --border: #e5e5e5;
+  --input: #8a8a8a;
+  --ring: #171717;
   --focus-ring: var(--ring);
   --control-boundary: var(--input);
   --control-fill: var(--card);
   --control-rim: var(--input);
-  --hover-fill: #efe7dd;
-  --active-fill: #e8d6c4;
-  --shadow-color: #352518;
-  --scale-neutral-seed: oklch(0.5 0.018 65);
-  --scale-primary-seed: oklch(0.57 0.12 50);
+  --hover-fill: #ededed;
+  --active-fill: #e3e3e3;
+  --shadow-color: #000000;
+  --scale-neutral-seed: oklch(0.5 0 0);
+  --scale-primary-seed: oklch(0.3 0 0);
   --sidebar: var(--canvas);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
@@ -41,9 +41,9 @@
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
   --radius: 6px;
-  --radius-control: 10px;
-  --radius-panel: 16px;
-  --radius-popover: 14px;
+  --radius-control: 8px;
+  --radius-panel: 12px;
+  --radius-popover: 12px;
   --font-sans:
     "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-body: var(--font-sans);
@@ -59,31 +59,60 @@
 .dark,
 .dark [data-skin="echo"],
 [data-skin="echo"].dark {
-  --background: #151312;
-  --foreground: #f2ede6;
-  --canvas: #100f0e;
-  --card: #201c19;
-  --popover: #25201c;
-  --primary: #dfa274;
-  --primary-foreground: #23170f;
-  --primary-text: #dfa274;
-  --secondary: #2b2520;
-  --muted: #2b2520;
-  --muted-foreground: #b4a79b;
-  --accent: #3d2c20;
+  --background: #111111;
+  --foreground: #f5f5f5;
+  --canvas: #161616;
+  --card: #191919;
+  --popover: #222222;
+  --primary: #f5f5f5;
+  --primary-foreground: #171717;
+  --primary-text: #f5f5f5;
+  --secondary: #252525;
+  --muted: #252525;
+  --muted-foreground: #ababab;
+  --accent: #2b2b2b;
   --destructive: #ff9aa0;
   --destructive-foreground: #3d0c14;
   --destructive-text: #ff9aa0;
-  --border: #43382f;
-  --input: #9c8979;
-  --ring: #e6a679;
-  --hover-fill: #332a23;
-  --active-fill: #473324;
+  --border: #303030;
+  --input: #787878;
+  --ring: #f5f5f5;
+  --hover-fill: #292929;
+  --active-fill: #333333;
   --shadow-color: #000000;
 }
 
 [data-skin="echo"] :where([data-control-family="button"][data-control="true"]) {
   --cui-button-radius: var(--nest-radius, var(--radius-control));
+}
+
+[data-skin="echo"]
+  :where([data-control-family="collapsible"][data-slot="root"]) {
+  --cui-collapsible-trigger-hover-background: transparent;
+}
+
+[data-skin="echo"]
+  :where([data-control-family="collapsible"][data-slot="trigger"]) {
+  transition: none;
+}
+
+[data-skin="echo"] :where([data-control-family="sidebar"][data-slot="root"]) {
+  --cui-sidebar-menu-button-radius: var(--radius-control);
+  --cui-sidebar-menu-button-font-size: 13px;
+  --cui-sidebar-menu-button-font-weight: 500;
+  --cui-sidebar-menu-button-foreground: var(--muted-foreground);
+}
+
+[data-skin="echo"]
+  :where(
+    [data-control-family="sidebar"]:is(
+        [data-slot="container"],
+        [data-slot="gap"],
+        [data-slot="inner"],
+        [data-slot="menu-button"]
+      )
+  ) {
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

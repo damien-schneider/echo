@@ -1,4 +1,3 @@
-import { Button } from "@ctrl-ui/react/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,9 +24,10 @@ export function ThemeSwitcher() {
   return (
     <DropdownMenu onOpenChange={setOpen} open={open}>
       <DropdownMenuTrigger
-        render={
-          <Button aria-label="Theme" iconOnly size="sm" variant="ghost" />
-        }
+        aria-label="Theme"
+        iconOnly
+        size="md"
+        variant="ghost"
       >
         {getThemeIcon()}
       </DropdownMenuTrigger>
@@ -41,15 +41,15 @@ export function ThemeSwitcher() {
           value={theme || "system"}
         >
           <DropdownMenuRadioItem closeOnClick value="light">
-            <Sun className="mr-2 h-4 w-4" />
+            <Sun className="size-4" />
             Light
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem closeOnClick value="dark">
-            <Moon className="mr-2 h-4 w-4" />
+            <Moon className="size-4" />
             Dark
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem closeOnClick value="system">
-            <Monitor className="mr-2 h-4 w-4" />
+            <Monitor className="size-4" />
             System
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

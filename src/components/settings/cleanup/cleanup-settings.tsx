@@ -15,9 +15,9 @@ const CleanupEnabledToggle = () => {
   const updateSetting = useSettingsStore((state) => state.updateSetting);
   return (
     <SettingRow
-      description="Apply local hallucination filtering and your dictionary without downloading another model."
+      description="Remove stray phrases and apply your dictionary on this device."
       icon={<Sparkles className="h-4 w-4" />}
-      title="Enable Lightweight Cleanup"
+      title="Clean up transcriptions"
     >
       <Switch
         checked={enabled}
@@ -28,8 +28,8 @@ const CleanupEnabledToggle = () => {
   );
 };
 export const CleanupSettings = () => (
-  <div className="mx-auto w-full max-w-3xl pb-20">
-    <SettingsSection defaultOpen={true} title="Local Cleanup">
+  <div className="space-y-5">
+    <SettingsSection defaultOpen={true} title="On-device cleanup">
       <CleanupEnabledToggle />
     </SettingsSection>
 

@@ -12,9 +12,9 @@ export const InputTrackingToggle = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="Track text typed in any application. Entries are saved when switching apps, clicking, or after idle timeout. Requires accessibility permissions."
+      description="Save text as you type across apps. Requires Accessibility access."
       icon={<Keyboard className="h-4 w-4" />}
-      title="Enable Input Tracking"
+      title="Track typed text"
     >
       <Switch
         checked={inputTrackingEnabled}

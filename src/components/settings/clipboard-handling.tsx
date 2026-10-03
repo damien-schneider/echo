@@ -15,8 +15,8 @@ import {
 } from "@/stores/settings-store";
 
 const clipboardHandlingOptions = [
-  { label: "Don't Modify Clipboard", value: "dont_modify" },
-  { label: "Copy to Clipboard", value: "copy_to_clipboard" },
+  { label: "Keep existing content", value: "dont_modify" },
+  { label: "Keep transcription", value: "copy_to_clipboard" },
 ] satisfies { value: ClipboardHandling; label: string }[];
 export const ClipboardHandlingSetting = () => {
   const selectedHandling = useSetting("clipboard_handling") || "dont_modify";
@@ -24,9 +24,9 @@ export const ClipboardHandlingSetting = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="Don't Modify Clipboard preserves your current clipboard contents after transcription. Copy to Clipboard leaves the transcription result in your clipboard after pasting."
+      description="Choose what stays on the clipboard after pasting."
       icon={<ClipboardCopy className="h-4 w-4" />}
-      title="Clipboard Handling"
+      title="Clipboard"
     >
       <Select<ClipboardHandling>
         disabled={updating}

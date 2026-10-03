@@ -205,7 +205,7 @@ function App() {
         activeSection={currentSection}
         onSectionChange={setCurrentSection}
       >
-        <div className="mx-auto max-w-xl">
+        <div className="space-y-4">
           <AccessibilityPermissions />
           <MicrophonePermissions />
           {renderSettingsContent(currentSection)}

@@ -37,6 +37,10 @@ export async function expectSkinContrast(page: Page) {
       ].map((token) => [token, style.getPropertyValue(`--${token}`).trim()])
     );
   });
+  for (const [token, color] of Object.entries(colors)) {
+    expect(color.slice(1, 3), `${token} stays neutral`).toBe(color.slice(3, 5));
+    expect(color.slice(3, 5), `${token} stays neutral`).toBe(color.slice(5, 7));
+  }
   for (const surface of ["background", "card", "popover"]) {
     for (const [token, minimum] of [
       ["foreground", 4.5],

@@ -7,13 +7,32 @@ test.beforeEach(async ({ page }) => {
     const state = window.__ECHO_TEST_STATE__;
     const respond = state.respond;
     state.respond = (command, args) => {
+      if (command === "get_microphone_permission_status") {
+        return "authorized";
+      }
       if (command === "plugin:store|get") {
         return [
           {
             audio_feedback: true,
             audio_feedback_volume: 1,
             start_hidden: false,
-            bindings: {},
+            push_to_talk: true,
+            bindings: {
+              transcribe: {
+                id: "transcribe",
+                name: "Transcribe",
+                description: "Converts your speech into text.",
+                default_binding: "Alt+Space",
+                current_binding: "Alt+Space",
+              },
+              polish: {
+                id: "polish",
+                name: "Polish",
+                description: "Fix spelling and grammar in selected text.",
+                default_binding: "Alt+Shift+Space",
+                current_binding: "Alt+Shift+Space",
+              },
+            },
           },
           true,
         ];
@@ -28,10 +47,10 @@ test("settings controls have labels and save keyboard changes", async ({
 }) => {
   await page.goto("/?accessibility=granted");
   await expect(
-    page.getByRole("switch", { name: "Audio Feedback", exact: true })
+    page.getByRole("switch", { name: "Recording sounds", exact: true })
   ).toBeChecked();
   const startHidden = page.getByRole("switch", {
-    name: "Start Hidden",
+    name: "Start hidden",
     exact: true,
   });
   await expect(startHidden).toBeVisible();
@@ -54,7 +73,7 @@ test("settings controls have labels and save keyboard changes", async ({
 test("failed setting saves roll back the switch", async ({ page }) => {
   await page.goto("/?accessibility=granted&reject=change_start_hidden_setting");
   const startHidden = page.getByRole("switch", {
-    name: "Start Hidden",
+    name: "Start hidden",
     exact: true,
   });
   await startHidden.click();
@@ -115,12 +134,12 @@ test("selecting a saved prompt loads its text into the editor", async ({
   });
   await page.goto("/?accessibility=granted");
   await page
-    .getByRole("button", { name: "Post Processing", exact: true })
+    .getByRole("button", { name: "Post-processing", exact: true })
     .click();
   const editor = page.locator('[contenteditable="true"]');
   await expect(editor).toContainText("Keep this concise:");
   const prompt = page.getByRole("combobox", {
-    name: "Selected Prompt",
+    name: "Saved prompt",
     exact: true,
   });
   await prompt.click();
@@ -134,7 +153,7 @@ test("Echo settings remain readable in light and dark modes", async ({
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/?accessibility=granted");
   await expect(
-    page.getByRole("switch", { name: "Start Hidden", exact: true })
+    page.getByRole("switch", { name: "Start hidden", exact: true })
   ).toBeVisible();
   for (const mode of ["Light", "Dark"]) {
     await page.getByRole("button", { name: "Theme", exact: true }).click();
@@ -144,17 +163,22 @@ test("Echo settings remain readable in light and dark modes", async ({
     await page.screenshot({
       path: testInfo.outputPath(`settings-${mode.toLowerCase()}.png`),
     });
+    await page.setViewportSize({ width: 900, height: 680 });
+    await page.screenshot({
+      path: testInfo.outputPath(`settings-${mode.toLowerCase()}-desktop.png`),
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
   }
 });
 
 test("settings fit a narrow app window with reduced motion", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ width: 640, height: 900 });
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/?accessibility=granted");
   await expect(
-    page.getByRole("switch", { name: "Start Hidden", exact: true })
+    page.getByRole("switch", { name: "Start hidden", exact: true })
   ).toBeVisible();
   expect(
     await page.evaluate(() =>
@@ -163,20 +187,26 @@ test("settings fit a narrow app window with reduced motion", async ({
         .trim()
     )
   ).toBe("0ms");
-  expect(
-    await page
-      .locator('[data-control-ui="scroll-area"][data-slot="viewport"]')
-      .evaluateAll((viewports) =>
-        viewports.every(
-          (viewport) => viewport.scrollWidth <= viewport.clientWidth
+  for (const width of [640, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page
+        .locator('[data-control-ui="scroll-area"][data-slot="viewport"]')
+        .evaluateAll((viewports) =>
+          viewports.every(
+            (viewport) => viewport.scrollWidth <= viewport.clientWidth
+          )
         )
-      )
-  ).toBe(true);
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`settings-${width}.png`),
+    });
+  }
 });
 
 test("provider fields discard drafts when the selected provider changes", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.addInitScript(() => {
     const state = window.__ECHO_TEST_STATE__;
     const respond = state.respond;
@@ -224,12 +254,12 @@ test("provider fields discard drafts when the selected provider changes", async 
   });
   await page.goto("/?accessibility=granted");
   await page
-    .getByRole("button", { name: "Post Processing", exact: true })
+    .getByRole("button", { name: "Post-processing", exact: true })
     .click();
   await expect(page.getByLabel("Base URL", { exact: true })).toHaveValue(
     "http://localhost:8080/v1"
   );
-  await expect(page.getByLabel("API Key", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("API key", { exact: true })).toHaveValue(
     "custom-key"
   );
   await page.getByRole("combobox", { name: "Provider", exact: true }).click();
@@ -237,7 +267,9 @@ test("provider fields discard drafts when the selected provider changes", async 
   await expect(page.getByLabel("Base URL", { exact: true })).toHaveValue(
     "https://api.openai.com/v1"
   );
-  await expect(page.getByLabel("API Key", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("API key", { exact: true })).toHaveValue(
     "openai-key"
   );
+  await expect(page.getByRole("listbox")).not.toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("provider-settings.png") });
 });

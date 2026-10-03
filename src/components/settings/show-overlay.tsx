@@ -35,7 +35,7 @@ export const ShowOverlay = () => {
   };
   return (
     <SettingRow
-      description="Dock the control to any screen edge and drag it along the screen border"
+      description="Drag the docked overlay along any screen edge."
       icon={<Layers className="h-4 w-4" />}
       title="Overlay"
     >

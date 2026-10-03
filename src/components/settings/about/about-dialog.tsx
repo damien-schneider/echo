@@ -75,10 +75,10 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
         render={
           trigger ?? (
             <Button
+              aria-label="About Echo"
               className="rounded-lg"
               iconOnly
-              size="sm"
-              title="About Echo"
+              size="md"
               variant="ghost"
             >
               <Info className="size-4" />

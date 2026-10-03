@@ -1,6 +1,19 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 const DARK_CLASS = /dark/;
+
+async function expectNeutralSurface(page: Page) {
+  const colors = await page.locator("body").evaluate((body) => {
+    const style = getComputedStyle(body);
+    return [style.color, style.backgroundColor];
+  });
+  for (const color of colors) {
+    const channels = color.match(/\d+/g);
+    expect(channels).not.toBeNull();
+    expect(channels?.[0]).toBe(channels?.[1]);
+    expect(channels?.[1]).toBe(channels?.[2]);
+  }
+}
 
 test("website shares the Echo skin in both color modes", async ({
   page,
@@ -18,10 +31,12 @@ test("website shares the Echo skin in both color modes", async ({
   await expect(
     page.getByRole("link", { name: "Download Echo — it’s free" }).locator("..")
   ).toHaveCSS("opacity", "1");
+  await expectNeutralSurface(page);
   await page.screenshot({ path: testInfo.outputPath("website-dark.png") });
   await theme.click();
   await expect(page.locator("html")).not.toHaveClass(DARK_CLASS);
   await expect(theme).toHaveAttribute("aria-pressed", "false");
+  await expectNeutralSurface(page);
   await page.screenshot({ path: testInfo.outputPath("website-light.png") });
   await expect(
     page.locator('[data-control-ui="button"]').first()
@@ -41,6 +56,34 @@ test("FAQ accordions can be operated by keyboard", async ({ page }) => {
     "aria-expanded",
     expanded === "true" ? "false" : "true"
   );
+});
+
+test("model choices support keyboard selection in both themes", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  const medium = page.getByRole("button", { name: "Whisper Medium" });
+  await medium.focus();
+  await page.keyboard.press("Space");
+  await expect(medium).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("button", { name: "Whisper Small" })
+  ).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.getByRole("heading", { name: "Whisper Medium", exact: true })
+  ).toBeVisible();
+  const models = page.locator("section").filter({ has: medium });
+  await expect(models.getByText("Recommended", { exact: true })).toBeVisible();
+  await expect(
+    models.getByRole("heading", { level: 3 }).locator("..")
+  ).toHaveCSS("opacity", "1");
+  await models.screenshot({ path: testInfo.outputPath("models-dark.png") });
+  await page
+    .getByRole("button", { name: "Toggle color theme" })
+    .first()
+    .click();
+  await expect(page.locator("html")).not.toHaveClass(DARK_CLASS);
+  await models.screenshot({ path: testInfo.outputPath("models-light.png") });
 });
 
 test("mobile navigation has a reachable toggle and closes with Escape", async ({

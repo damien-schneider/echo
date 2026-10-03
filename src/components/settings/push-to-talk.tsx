@@ -12,9 +12,9 @@ export const PushToTalk = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="Hold to record, release to stop"
+      description="Hold the shortcut to record; release to stop."
       icon={<Hand className="h-4 w-4" />}
-      title="Push To Talk"
+      title="Push to talk"
     >
       <Switch
         checked={pttEnabled === true}

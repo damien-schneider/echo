@@ -96,14 +96,16 @@ test("chat repair reports its reason and visibly starts recovery", async ({
     .toContain("repair_polish_model");
 });
 
-test("chat model setup opens the Post Processing settings section", async ({
+test("chat model setup opens the post-processing settings section", async ({
   page,
 }) => {
   await page.goto("/");
   await waitForTauriListener(page, "open-settings-section");
   await emitTauriEvent(page, "open-settings-section", "post-processing");
 
-  await expect(page.getByText("Enable Post Processing")).toBeVisible();
+  await expect(
+    page.getByRole("switch", { name: "Post-process transcriptions" })
+  ).toBeVisible();
   await expect(page.getByText("Provider", { exact: true })).toBeVisible();
 });
 

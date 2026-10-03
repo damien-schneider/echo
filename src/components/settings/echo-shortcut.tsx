@@ -252,22 +252,20 @@ export const EchoShortcut: React.FC = () => {
   if (isLoading) {
     return (
       <SettingRow
-        description="Configure keyboard shortcuts to trigger speech-to-text recording"
+        description="Start and stop recording."
         icon={<Keyboard className="h-4 w-4" />}
-        title="Echo Shortcuts"
+        title="Shortcuts"
       >
-        <div className="text-muted-foreground text-sm">
-          Loading shortcuts...
-        </div>
+        <div className="text-muted-foreground text-sm">Loading shortcuts…</div>
       </SettingRow>
     );
   }
   if (Object.keys(bindings).length === 0) {
     return (
       <SettingRow
-        description="Configure keyboard shortcuts to trigger speech-to-text recording"
+        description="Start and stop recording."
         icon={<Keyboard className="h-4 w-4" />}
-        title="Echo Shortcuts"
+        title="Shortcuts"
       >
         <div className="text-muted-foreground text-sm">
           No shortcuts configured
@@ -286,11 +284,11 @@ export const EchoShortcut: React.FC = () => {
   };
   return (
     <SettingRow
-      description="Set the keyboard shortcut to start and stop speech-to-text recording"
       icon={<Keyboard className="h-4 w-4" />}
-      title="Echo Shortcut"
+      layout="stacked"
+      title="Shortcuts"
     >
-      <div className="w-full divide-y divide-border/30">
+      <div className="w-full divide-y divide-border">
         {orderedShortcutBindings(bindings).map((binding) => (
           <ShortcutBindingRow
             binding={binding}

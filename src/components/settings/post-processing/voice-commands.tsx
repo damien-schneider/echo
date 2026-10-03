@@ -102,8 +102,8 @@ export const VoiceCommandsToggle = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="When enabled, the LLM can execute voice commands (open apps, create notes, change themes) in addition to processing text. When disabled, only text correction is performed."
-      title="Enable Voice Commands"
+      description="Let AI open apps, create notes, and change settings by voice."
+      title="Voice commands"
     >
       <Switch
         checked={voiceCommandsEnabled}

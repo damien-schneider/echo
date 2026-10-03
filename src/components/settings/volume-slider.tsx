@@ -9,7 +9,6 @@ export const VolumeSlider: React.FC<{
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingSlider
-      description="Adjust the volume of audio feedback sounds"
       disabled={disabled}
       formatValue={(value) => `${Math.round(value * 100)}%`}
       icon={<Volume2 className="h-4 w-4" />}

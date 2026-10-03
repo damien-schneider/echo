@@ -156,10 +156,7 @@ function HeroNotch() {
       initial={{ opacity: 0, scale: 0.92, y: -60 }}
       transition={{ delay: 0.15, duration: 1, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div
-        className="relative mx-auto flex items-center gap-[3px] overflow-hidden rounded-[24px] bg-black/80 px-8 py-4 shadow-[0_0_100px_rgba(200,150,100,0.05)] backdrop-blur-xl"
-        style={{ width: "min(420px, 80vw)" }}
-      >
+      <div className="relative mx-auto flex w-[min(420px,80vw)] items-center gap-[3px] overflow-hidden rounded-[24px] bg-black/80 px-8 py-4 backdrop-blur-xl">
         <EchoLogo
           className="absolute left-4 h-4 w-4 text-white/40"
           variant="sm"
@@ -171,15 +168,10 @@ function HeroNotch() {
           ))}
         </div>
 
-        {/* Sweep line */}
         <div className="absolute bottom-0 left-0 h-[1.5px] w-full overflow-hidden">
           <motion.div
             animate={{ x: ["-100%", "500%"] }}
-            className="h-full w-1/4"
-            style={{
-              background:
-                "linear-gradient(90deg, transparent, rgba(200,150,100,0.5), transparent)",
-            }}
+            className="h-full w-1/4 bg-linear-to-r from-transparent via-white/50 to-transparent"
             transition={{
               duration: 3.5,
               ease: "easeInOut",
@@ -199,12 +191,11 @@ export default function Hero() {
 
   return (
     <div
-      className="mask-[linear-gradient(to_bottom,white_82%,transparent)] relative flex min-h-svh w-full flex-col items-center justify-center overflow-hidden bg-black px-6 text-white"
+      className="mask-[linear-gradient(to_bottom,white_95%,transparent)] relative flex min-h-svh w-full flex-col items-center justify-center overflow-hidden bg-black px-6 text-white"
       ref={ref}
     >
-      {/* Three.js shader — black/white ray-march landscape */}
       <motion.div
-        animate={{ opacity: isInView ? 1 : 0 }}
+        animate={{ opacity: isInView ? 0.25 : 0 }}
         className="absolute inset-0"
         initial={{ opacity: 0 }}
         transition={{ duration: 1.5, ease: "easeInOut" }}
@@ -212,27 +203,23 @@ export default function Hero() {
         <ShaderBackground isActive={isInView} />
       </motion.div>
 
-      {/* Radial dark vignette over shader */}
       <div className="pointer-events-none absolute inset-0 [background:radial-gradient(120%_80%_at_50%_50%,transparent_40%,black_100%)]" />
 
       <div className="relative z-10 flex w-full max-w-4xl flex-col items-center">
-        {/* Floating notch — the hook */}
         <HeroNotch />
 
-        {/* Tag line */}
         <motion.p
           animate={{ opacity: 1, y: 0 }}
-          className="mt-12 text-[11px] text-white/25 uppercase tracking-[0.3em]"
+          className="mt-12 text-[11px] text-white/70 uppercase tracking-[0.3em]"
           initial={{ opacity: 0, y: 10 }}
           transition={{ delay: 0.7, duration: 0.5 }}
         >
           Free &amp; open source speech-to-text
           {version && (
-            <span className="ml-3 font-medium text-white/40">{version}</span>
+            <span className="ml-3 font-medium text-white/70">{version}</span>
           )}
         </motion.p>
 
-        {/* Main headline */}
         <motion.h1
           animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
           className="mt-6 text-center"
@@ -246,15 +233,14 @@ export default function Hero() {
           <span className="block font-display font-extrabold text-[clamp(3.2rem,9vw,8rem)] leading-[0.88] tracking-[-0.04em]">
             Speak
           </span>
-          <span className="block font-display font-light text-[clamp(3.2rem,9vw,8rem)] text-white/40 italic leading-[0.88] tracking-[-0.02em]">
+          <span className="block font-display font-light text-[clamp(3.2rem,9vw,8rem)] text-white/75 italic leading-[0.88] tracking-[-0.02em]">
             freely.
           </span>
         </motion.h1>
 
-        {/* Description */}
         <motion.p
           animate={{ filter: "blur(0px)", opacity: 1, y: 0 }}
-          className="mt-8 max-w-md text-center text-[15px]/7 text-white/35"
+          className="mt-8 max-w-md text-center text-[15px]/7 text-white/75"
           initial={{ filter: "blur(6px)", opacity: 0, y: 14 }}
           transition={{ delay: 1.3, duration: 0.7, ease: "easeOut" }}
         >
@@ -263,7 +249,6 @@ export default function Hero() {
           home.
         </motion.p>
 
-        {/* CTA #1 */}
         <motion.div
           animate={{ opacity: 1, y: 0 }}
           className="mt-10 flex flex-col items-center gap-5"
@@ -276,7 +261,7 @@ export default function Hero() {
           >
             Download Echo &mdash; it&rsquo;s free
           </a>
-          <div className="flex items-center gap-3 text-[11px] text-white/20">
+          <div className="flex items-center gap-3 text-[11px] text-white/70">
             <span>macOS</span>
             <span className="h-2.5 w-px bg-white/10" />
             <span>Windows</span>

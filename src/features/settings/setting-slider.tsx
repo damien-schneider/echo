@@ -23,9 +23,6 @@ export function SettingSlider({
       {...props}
     />
   );
-  if (!description) {
-    return control;
-  }
   return (
     <SettingRow
       description={description}

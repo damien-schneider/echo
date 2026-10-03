@@ -29,7 +29,7 @@ export const PostProcessingSettingsApi = () => {
   return (
     <>
       <SettingRow
-        description="Select the AI provider used by Chat and post-processing."
+        description="Used by Chat and post-processing."
         layout="horizontal"
         title="Provider"
       >
@@ -43,7 +43,7 @@ export const PostProcessingSettingsApi = () => {
       </SettingRow>
 
       <SettingRow
-        description="API base URL for the selected provider. Only the custom provider can be edited."
+        description="Editable for custom providers."
         layout="stacked"
         title="Base URL"
       >
@@ -64,12 +64,10 @@ export const PostProcessingSettingsApi = () => {
 
       <SettingRow
         description={
-          state.isLocalProvider
-            ? "API key is optional for local providers like Ollama."
-            : "API key for the selected provider."
+          state.isLocalProvider ? "Optional for local providers." : undefined
         }
         layout="horizontal"
-        title="API Key"
+        title="API key"
       >
         <div className="flex min-w-0 items-center gap-2">
           <ApiKeyField
@@ -85,8 +83,8 @@ export const PostProcessingSettingsApi = () => {
       <SettingRow
         description={
           state.isLocalProvider
-            ? "Provide the model identifier expected by your endpoint (e.g., llama3.2 for Ollama)."
-            : "Choose a model exposed by the selected provider."
+            ? "Use the model name from your endpoint, such as llama3.2."
+            : undefined
         }
         layout="stacked"
         title="Model"
@@ -129,7 +127,7 @@ export const PostProcessingSettingsApi = () => {
                 />
               </TooltipTrigger>
               <TooltipContent>
-                <p>Fetch available models from the provider</p>
+                <p>Refresh models</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

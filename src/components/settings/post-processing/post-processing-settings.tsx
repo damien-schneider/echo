@@ -15,8 +15,8 @@ const PostProcessingEnableToggle = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="Enable LLM post-processing to refine transcriptions using custom prompts."
-      title="Enable Post Processing"
+      description="Refine transcriptions with an AI provider and a prompt."
+      title="Post-process transcriptions"
     >
       <Switch
         checked={postProcessEnabled}
@@ -29,12 +29,12 @@ const PostProcessingEnableToggle = () => {
   );
 };
 export const PostProcessingSettings = () => (
-  <div className="mx-auto w-full max-w-3xl pb-20">
+  <div className="space-y-5">
     <SettingsSection title="General">
       <PostProcessingEnableToggle />
     </SettingsSection>
 
-    <SettingsSection title="AI Providers">
+    <SettingsSection title="AI provider">
       <PostProcessingSettingsApi />
     </SettingsSection>
 

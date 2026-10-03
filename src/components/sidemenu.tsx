@@ -1,11 +1,19 @@
-import { Button } from "@ctrl-ui/react/ui/button";
 import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@ctrl-ui/react/ui/tooltip";
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+  useSidebar,
+} from "@ctrl-ui/react/ui/sidebar";
 import {
   AudioLines,
   BookText,
@@ -13,49 +21,40 @@ import {
   ClipboardList,
   History,
   Keyboard,
-  PanelLeft,
   Settings2,
   Sparkles,
   Speech,
   Users,
 } from "lucide-react";
-import type React from "react";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
-import type { PanelImperativeHandle } from "react-resizable-panels";
+import type { ComponentType, ReactNode } from "react";
 import { FileTranscriptionCenter } from "@/components/file-transcription-center";
 import EchoLogo from "@/components/icons/echo-logo";
+import { MeetingPage } from "@/components/meeting/meeting-page";
+import { AboutDialog } from "@/components/settings/about/about-dialog";
+import { AppSettings } from "@/components/settings/app/app-settings";
+import { CapturesSettings } from "@/components/settings/captures/captures-settings";
+import { CleanupSettings } from "@/components/settings/cleanup/cleanup-settings";
+import { HistorySettings } from "@/components/settings/history/history-settings";
+import { KeyboardTrackingSettings } from "@/components/settings/keyboard-tracking/keyboard-tracking-settings";
+import { ModelsSettings } from "@/components/settings/models/models-settings";
+import { PostProcessingSettings } from "@/components/settings/post-processing/post-processing-settings";
+import { TranscriptionSettings } from "@/components/settings/transcription/transcription-settings";
+import { TtsSettingsPage } from "@/components/settings/tts-settings-page";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable";
-import { cn } from "@/lib/utils";
-import { MeetingPage } from "./meeting/meeting-page";
-import { AboutDialog } from "./settings/about/about-dialog";
-import { AppSettings } from "./settings/app/app-settings";
-import { CapturesSettings } from "./settings/captures/captures-settings";
-import { CleanupSettings } from "./settings/cleanup/cleanup-settings";
-import { HistorySettings } from "./settings/history/history-settings";
-import { KeyboardTrackingSettings } from "./settings/keyboard-tracking/keyboard-tracking-settings";
-import { ModelsSettings } from "./settings/models/models-settings";
-import { PostProcessingSettings } from "./settings/post-processing/post-processing-settings";
-import { TranscriptionSettings } from "./settings/transcription/transcription-settings";
-import { TtsSettingsPage } from "./settings/tts-settings-page";
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 interface IconProps {
   className?: string;
 }
 interface SectionConfig {
-  component: React.ComponentType;
-  icon: React.ComponentType<IconProps>;
+  component: ComponentType;
+  icon: ComponentType<IconProps>;
   label: string;
 }
 export const SECTIONS_CONFIG = {
   app: {
     component: AppSettings,
     icon: Settings2,
-    label: "App Settings",
+    label: "General",
   },
   captures: {
     component: CapturesSettings,
@@ -65,7 +64,7 @@ export const SECTIONS_CONFIG = {
   cleanup: {
     component: CleanupSettings,
     icon: BookText,
-    label: "On-Device Cleanup",
+    label: "On-device cleanup",
   },
   history: {
     component: HistorySettings,
@@ -90,12 +89,12 @@ export const SECTIONS_CONFIG = {
   "post-processing": {
     component: PostProcessingSettings,
     icon: Sparkles,
-    label: "Post Processing",
+    label: "Post-processing",
   },
   "text-to-speech": {
     component: TtsSettingsPage,
     icon: Speech,
-    label: "Text-to-Speech",
+    label: "Text to speech",
   },
   transcription: {
     component: TranscriptionSettings,
@@ -105,176 +104,105 @@ export const SECTIONS_CONFIG = {
 } as const satisfies Record<string, SectionConfig>;
 const isSidebarSection = (value: unknown): value is SidebarSection =>
   typeof value === "string" && Object.hasOwn(SECTIONS_CONFIG, value);
-const DEFAULT_SIDEBAR_WIDTH = "220px";
-const MIN_SIDEBAR_WIDTH = "180px";
-const MAX_SIDEBAR_WIDTH = "320px";
-function AppSidebar({
-  activeSection,
-  onSectionChange,
-}: {
+interface SettingsNavigationProps {
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
-}) {
-  const availableSections = Object.keys(SECTIONS_CONFIG)
-    .filter(isSidebarSection)
-    .map((id) => ({ id, ...SECTIONS_CONFIG[id] }));
+}
+
+const sections = Object.keys(SECTIONS_CONFIG).filter(isSidebarSection);
+
+function SettingsNavigation({
+  activeSection,
+  onSectionChange,
+}: SettingsNavigationProps) {
+  const { setOpenMobile } = useSidebar();
+  function selectSection(section: SidebarSection) {
+    onSectionChange(section);
+    setOpenMobile(false);
+  }
   return (
-    <div
-      className="flex h-full w-full flex-col rounded-xl bg-foreground/5 p-2"
-      data-tauri-drag-region
-    >
-      <div
-        className="flex shrink-0 select-none items-center gap-2 p-2"
-        data-tauri-drag-region
-      >
-        <div className="flex aspect-square size-8 items-center justify-center rounded-lg">
-          <EchoLogo className="size-4" data-tauri-drag-region />
-        </div>
-        <div className="grid flex-1 text-left text-sm leading-tight">
-          <span className="truncate font-semibold">Echo</span>
-          <span className="truncate text-muted-foreground text-xs">
-            Settings
-          </span>
-        </div>
-      </div>
-
-      <ScrollArea
-        className="-mx-2 min-h-16 flex-1"
-        mask={false}
-        viewportClassName="min-w-0 overflow-x-hidden p-2"
-      >
-        <div className="flex flex-col gap-1" data-tauri-drag-region>
-          {availableSections.map((section) => {
-            const Icon = section.icon;
-            return (
-              <Button
-                className={cn(
-                  "w-full justify-start gap-2 font-normal",
-                  activeSection === section.id &&
-                    "bg-foreground/8 text-foreground"
-                )}
-                key={section.id}
-                onClick={() => onSectionChange(section.id)}
-                variant="ghost"
+    <nav aria-label="Settings">
+      <SidebarMenu>
+        {sections.map((section) => {
+          const { icon: Icon, label } = SECTIONS_CONFIG[section];
+          return (
+            <SidebarMenuItem key={section}>
+              <SidebarMenuButton
+                isActive={activeSection === section}
+                onClick={() => selectSection(section)}
               >
-                <Icon className="size-4 shrink-0" />
-                <span className="truncate">{section.label}</span>
-              </Button>
-            );
-          })}
-        </div>
-      </ScrollArea>
-
-      <div
-        className="flex shrink-0 select-none flex-col gap-1"
-        data-tauri-drag-region
-      >
-        <ThemeSwitcher />
-        <FileTranscriptionCenter />
-        <div className="flex items-center py-1.5">
-          <AboutDialog />
-        </div>
-      </div>
-    </div>
+                <Icon aria-hidden="true" className="size-4" />
+                <span>{label}</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          );
+        })}
+      </SidebarMenu>
+    </nav>
   );
 }
+
+function AppSidebar(props: SettingsNavigationProps) {
+  return (
+    <Sidebar label="Settings">
+      <SidebarHeader
+        className="h-14 flex-row items-center gap-2.5 px-4"
+        data-tauri-drag-region
+      >
+        <EchoLogo className="size-5" />
+        <span className="font-semibold text-sm">Echo</span>
+      </SidebarHeader>
+      <SidebarContent>
+        <SidebarGroup>
+          <SettingsNavigation {...props} />
+        </SidebarGroup>
+      </SidebarContent>
+      <SidebarFooter className="flex-row items-center border-sidebar-border border-t px-3 py-2">
+        <ThemeSwitcher />
+        <FileTranscriptionCenter />
+        <AboutDialog />
+      </SidebarFooter>
+      <SidebarRail resizable />
+    </Sidebar>
+  );
+}
+
 export function SidebarLayout({
   activeSection,
   onSectionChange,
   children,
-}: {
-  activeSection: SidebarSection;
-  onSectionChange: (section: SidebarSection) => void;
-  children: React.ReactNode;
-}) {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const sidebarPanelRef = useRef<PanelImperativeHandle | null>(null);
-  const toggleSidebar = () => {
-    const panel = sidebarPanelRef.current;
-    if (!panel) {
-      return;
-    }
-    if (panel.isCollapsed()) {
-      panel.expand();
-      setSidebarOpen(true);
-    } else {
-      panel.collapse();
-      setSidebarOpen(false);
-    }
-  };
-  const toggleSidebarFromShortcut = useEffectEvent(toggleSidebar);
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "b" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        toggleSidebarFromShortcut();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+}: SettingsNavigationProps & { children: ReactNode }) {
   return (
-    <TooltipProvider delay={0}>
-      <div
-        className={cn("flex h-[calc(100vh-2rem)] w-full gap-0 p-2 pt-0")}
-        data-tauri-drag-region
-      >
-        <ResizablePanelGroup className="h-full flex-1" orientation="horizontal">
-          <ResizablePanel
-            collapsedSize={0}
-            collapsible
-            defaultSize={DEFAULT_SIDEBAR_WIDTH}
-            maxSize={MAX_SIDEBAR_WIDTH}
-            minSize={MIN_SIDEBAR_WIDTH}
-            onResize={() => {
-              const collapsed = sidebarPanelRef.current?.isCollapsed() ?? false;
-              setSidebarOpen(!collapsed);
-            }}
-            panelRef={sidebarPanelRef}
-          >
-            <AppSidebar
-              activeSection={activeSection}
-              onSectionChange={onSectionChange}
-            />
-          </ResizablePanel>
-          <ResizableHandle
-            className={cn(
-              "transition-[width,margin] duration-200",
-              !sidebarOpen && "z-10 -mr-2 w-2"
-            )}
-            withHandle
-          />
-          <ResizablePanel className="flex h-full min-h-0">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              {!sidebarOpen && (
-                <div className="shrink-0 px-2 pt-1">
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/20"
-                          onClick={toggleSidebar}
-                          type="button"
-                        />
-                      }
-                    >
-                      <PanelLeft className="size-4" />
-                      <span className="sr-only">Toggle Sidebar</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">Toggle Sidebar</TooltipContent>
-                  </Tooltip>
-                </div>
-              )}
-              <ScrollArea
-                className="min-h-0 flex-1"
-                viewportClassName="pt-4 *:w-full"
-              >
-                <div data-tauri-drag-region>{children}</div>
-              </ScrollArea>
-            </div>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      </div>
-    </TooltipProvider>
+    <SidebarProvider
+      className="h-[calc(100dvh-2rem)]"
+      defaultWidth={216}
+      layout="contained"
+      maxWidth={280}
+      minWidth={184}
+      persistOpen={false}
+    >
+      <AppSidebar
+        activeSection={activeSection}
+        onSectionChange={onSectionChange}
+      />
+      <SidebarInset className="min-h-0" render={<main />}>
+        <header
+          className="flex h-14 shrink-0 items-center gap-3 px-4"
+          data-tauri-drag-region
+        >
+          <SidebarTrigger />
+          <h1 className="font-semibold text-base">
+            {SECTIONS_CONFIG[activeSection].label}
+          </h1>
+        </header>
+        <ScrollArea
+          className="min-h-0 flex-1"
+          mask={false}
+          viewportClassName="px-4 pb-8 sm:px-6"
+        >
+          <div className="mx-auto w-full max-w-2xl">{children}</div>
+        </ScrollArea>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }

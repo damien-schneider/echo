@@ -44,7 +44,7 @@ export const LanguageSelector = () => {
   };
   return (
     <SettingRow
-      description="Select the language for speech recognition. Auto detects every supported language, while a specific language can improve accuracy."
+      description="Choose a language for better accuracy, or let Echo detect it."
       icon={<Globe className="h-4 w-4" />}
       title="Language"
     >
@@ -55,7 +55,7 @@ export const LanguageSelector = () => {
               <Button
                 aria-expanded={isOpen}
                 aria-label="Language"
-                className="w-full min-w-[200px] justify-between"
+                className="w-44 max-w-full justify-between"
                 disabled={isLanguageUpdating}
                 id={id}
                 role="combobox"
@@ -77,12 +77,9 @@ export const LanguageSelector = () => {
               size={16}
             />
           </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            className="w-full min-w-(--radix-popper-anchor-width) border-input p-0"
-          >
+          <PopoverContent align="start" className="w-64 p-0">
             <Command>
-              <CommandInput placeholder="Search languages..." />
+              <CommandInput placeholder="Search languages…" />
               <CommandList>
                 <CommandEmpty>No language found.</CommandEmpty>
                 <CommandGroup>
@@ -105,6 +102,7 @@ export const LanguageSelector = () => {
           </PopoverContent>
         </Popover>
         <Button
+          aria-label="Reset language"
           disabled={isLanguageUpdating}
           iconOnly
           onClick={handleReset}
@@ -114,12 +112,6 @@ export const LanguageSelector = () => {
           <RotateCcw className="h-5 w-5" />
         </Button>
       </div>
-
-      {isLanguageUpdating && (
-        <div className="absolute inset-0 flex items-center justify-center rounded bg-muted/10">
-          <div className="h-4 w-4 animate-spin rounded-full border-2 border-brand border-t-transparent" />
-        </div>
-      )}
     </SettingRow>
   );
 };

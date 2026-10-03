@@ -1,13 +1,9 @@
 "use client";
 
-import {
-  AnimatePresence,
-  motion,
-  useInView,
-  useScroll,
-  useTransform,
-} from "motion/react";
+import { Button } from "@ctrl-ui/react/ui/button";
+import { AnimatePresence, motion, useInView } from "motion/react";
 import { useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 
 interface ModelData {
   accuracy: number;
@@ -64,7 +60,7 @@ function ProgressBar({
     <div className="h-1 w-full overflow-hidden rounded-full bg-foreground/5">
       <motion.div
         animate={{ width: `${value}%` }}
-        className={`h-full rounded-full ${color}`}
+        className={cn("h-full rounded-full", color)}
         initial={{ width: 0 }}
         transition={{ delay, duration: 0.8, ease: "easeOut" }}
       />
@@ -78,24 +74,13 @@ export default function ModelsShowcase() {
   const [active, setActive] = useState(0);
   const model = models[active];
 
-  const { scrollYProgress } = useScroll({
-    offset: ["start end", "end start"],
-    target: containerRef,
-  });
-
-  const titleY = useTransform(scrollYProgress, [0, 0.4], [40, 0]);
-  const titleOpacity = useTransform(scrollYProgress, [0, 0.2], [0, 1]);
-
   return (
     <section
       className="overflow-hidden bg-background py-24 text-foreground md:py-32"
       ref={containerRef}
     >
       <div className="container mx-auto px-4">
-        <motion.div
-          className="mb-20 text-center"
-          style={{ opacity: titleOpacity, y: titleY }}
-        >
+        <div className="mb-20 text-center">
           <h2 className="font-bold font-display text-[clamp(1.8rem,4vw,3.2rem)] leading-tight tracking-[-0.03em]">
             Three sizes,{" "}
             <span className="font-display font-light text-muted-foreground italic">
@@ -106,7 +91,7 @@ export default function ModelsShowcase() {
             Choose faster local transcription or higher multilingual accuracy.
             Every model runs on this computer.
           </p>
-        </motion.div>
+        </div>
 
         <div className="mx-auto max-w-3xl">
           <AnimatePresence mode="wait">
@@ -120,7 +105,7 @@ export default function ModelsShowcase() {
             >
               <div className="mb-6 inline-flex items-center gap-3">
                 {model.recommended && (
-                  <span className="rounded-full bg-brand px-2.5 py-0.5 font-medium text-[10px] text-white uppercase tracking-wider">
+                  <span className="rounded-full bg-primary px-2.5 py-0.5 font-medium text-[10px] text-primary-foreground uppercase tracking-wider">
                     Recommended
                   </span>
                 )}
@@ -177,15 +162,16 @@ export default function ModelsShowcase() {
             transition={{ delay: 0.3, duration: 0.6, ease: "easeOut" }}
           >
             {models.map((m, i) => (
-              <button
-                className={`relative cursor-pointer rounded-full px-4 py-2 text-sm transition-all duration-300 ${
-                  i === active
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground/70"
-                }`}
+              <Button
+                aria-pressed={i === active}
+                className={cn(
+                  "relative rounded-full",
+                  i !== active && "text-muted-foreground"
+                )}
                 key={m.id}
                 onClick={() => setActive(i)}
                 type="button"
+                variant="ghost"
               >
                 {i === active && (
                   <motion.div
@@ -199,7 +185,7 @@ export default function ModelsShowcase() {
                   />
                 )}
                 <span className="relative z-10">{m.name}</span>
-              </button>
+              </Button>
             ))}
           </motion.div>
 

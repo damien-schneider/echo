@@ -1,7 +1,7 @@
 {
   "name": "echo-app",
   "private": true,
-  "version": "0.8.6",
+  "version": "0.8.7",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -40,6 +40,7 @@
     "@ariakit/react": "^0.4.26",
     "@base-ui/react": "^1.8.0",
     "@ctrl-ui/react": "catalog:",
+    "@echo/ui": "workspace:*",
     "@floating-ui/react": "^0.27.19",
     "@platejs/ai": "^53.0.4",
     "@platejs/basic-nodes": "^53.0.0",
@@ -102,8 +103,7 @@
     "tailwindcss-animate": "^1.0.7",
     "tauri-plugin-macos-permissions-api": "2.3.0",
     "zod": "^4.4.3",
-    "zustand": "^5.0.14",
-    "@echo/ui": "workspace:*"
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",

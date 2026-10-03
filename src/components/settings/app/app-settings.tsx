@@ -14,7 +14,7 @@ import { useSetting } from "@/stores/settings-store";
 export const AppSettings = () => {
   const audioFeedbackEnabled = useSetting("audio_feedback") ?? false;
   return (
-    <div className="mx-auto w-full max-w-3xl pb-20">
+    <div className="space-y-5">
       <SettingsSection defaultOpen={true} title="Startup">
         <StartHidden />
         <AutostartToggle />
@@ -26,7 +26,7 @@ export const AppSettings = () => {
         <MicrophoneSelector />
       </SettingsSection>
 
-      <SettingsSection defaultOpen={true} title="Audio Feedback">
+      <SettingsSection defaultOpen={true} title="Recording sounds">
         <AudioFeedback />
         <OutputDeviceSelector disabled={!audioFeedbackEnabled} />
         <VolumeSlider disabled={!audioFeedbackEnabled} />

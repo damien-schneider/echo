@@ -3,7 +3,7 @@ import { LanguageSelector } from "@/components/settings/language-selector";
 import { TranslateToEnglish } from "@/components/settings/translate-to-english";
 import { SettingsSection } from "@/features/settings/settings-section";
 export const TranscriptionSettings = () => (
-  <div className="mx-auto w-full max-w-3xl pb-20">
+  <div className="space-y-5">
     <SettingsSection defaultOpen={true} title="Language">
       <LanguageSelector />
       <TranslateToEnglish />

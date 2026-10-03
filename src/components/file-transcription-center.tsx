@@ -71,10 +71,10 @@ export function FileTranscriptionCenter() {
       <PopoverTrigger
         render={
           <Button
+            aria-label="File transcriptions"
             className="relative"
             iconOnly
-            size="sm"
-            title="File transcriptions"
+            size="md"
             variant="ghost"
           />
         }
@@ -88,7 +88,7 @@ export function FileTranscriptionCenter() {
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96 p-0" side="top">
         <div className="flex items-center justify-between border-foreground/10 border-b px-4 py-3">
-          <h3 className="font-semibold text-sm">File Transcriptions</h3>
+          <h3 className="font-semibold text-sm">File transcriptions</h3>
           {hasCompleted && (
             <Button onClick={() => clearCompleted()} size="xs" variant="ghost">
               <Trash2 className="mr-1 h-3 w-3" />
@@ -127,6 +127,7 @@ export function FileTranscriptionCenter() {
                       {item.fileName}
                     </p>
                     <Button
+                      aria-label={`Dismiss ${item.fileName}`}
                       iconOnly
                       onClick={() => removeTranscription(item.id)}
                       size="xs"

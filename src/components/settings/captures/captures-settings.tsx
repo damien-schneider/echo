@@ -88,7 +88,7 @@ const CapturesList = () => {
   );
 };
 export const CapturesSettings = () => (
-  <div className="mx-auto w-full max-w-3xl pb-20">
+  <div className="space-y-5">
     <SettingsSection defaultOpen={true} title="Capture">
       <DoubleShiftToggle />
     </SettingsSection>

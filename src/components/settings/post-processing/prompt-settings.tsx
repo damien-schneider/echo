@@ -37,13 +37,12 @@ const OutputPlaceholderWarning = () => (
   <div className="flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-warning">
     <AlertTriangle className="h-4 w-4" />
     <p className="text-xs">
-      No output placeholder found. The transcript will be automatically appended
-      to the end of your prompt.
+      The transcript will be appended. Add @output to place it elsewhere.
     </p>
   </div>
 );
 const DisabledNotice = ({ children }: { children: React.ReactNode }) => (
-  <div className="rounded-lg border border-border/20 bg-muted/5 p-4 text-center">
+  <div className="px-4 py-3">
     <p className="text-muted-foreground text-sm">{children}</p>
   </div>
 );
@@ -105,25 +104,22 @@ function PromptSettingsEditor({
       <div className="space-y-3">
         <div className="flex flex-col space-y-2">
           <div className="flex flex-col gap-1">
-            <span className="font-semibold text-sm">Prompt Instructions</span>
-            <p className="text-muted-foreground text-xs">
-              Write the instructions to run after transcription.
-            </p>
+            <span className="font-semibold text-sm">Instructions</span>
           </div>
           <MarkdownEditor
             className="min-h-32"
             onChange={setDraftText}
-            placeholder="Start typing..."
+            placeholder="e.g. Fix spelling and punctuation"
             showMentionMenu
             showToolbar
             value={draftText}
           />
-          <p className="text-muted-foreground/70 text-xs">
-            Tip: Type{" "}
+          <p className="text-muted-foreground text-xs">
+            Use{" "}
             <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
               @output
             </code>{" "}
-            to insert the transcribed text placeholder.
+            to insert the transcript.
           </p>
           {hasMissingOutputPlaceholder(draftText) && (
             <OutputPlaceholderWarning />
@@ -137,14 +133,14 @@ function PromptSettingsEditor({
             tone="primary"
             variant="solid"
           >
-            Save Changes
+            Save changes
           </Button>
           <Button
             disabled={!selectedPromptId || prompts.length <= 1}
             onClick={() => handleDeletePrompt(selectedPromptId)}
             variant="surface"
           >
-            Delete Prompt
+            Delete prompt
           </Button>
         </div>
       </div>
@@ -158,8 +154,8 @@ function PromptSettingsEditor({
       <div className="rounded border border-border/20 bg-muted/5 p-3">
         <p className="text-muted-foreground text-sm">
           {hasPrompts
-            ? "Select a prompt above to view and edit its details."
-            : "Click 'Create New Prompt' above to create your first post-processing prompt."}
+            ? "Select a prompt to edit it."
+            : "Create a prompt with the + button above."}
         </p>
       </div>
     );
@@ -171,10 +167,13 @@ function PromptSettingsEditor({
     return (
       <div className="space-y-3">
         <div className="flex flex-col space-y-2">
-          <span className="font-semibold text-sm text-text">Prompt Label</span>
+          <label className="font-medium text-sm" htmlFor="new-prompt-name">
+            Name
+          </label>
           <Input
+            id="new-prompt-name"
             onChange={(e) => setDraftName(e.target.value)}
-            placeholder="Enter prompt name"
+            placeholder="e.g. Meeting notes"
             type="text"
             value={draftName}
           />
@@ -182,25 +181,22 @@ function PromptSettingsEditor({
 
         <div className="flex flex-col space-y-2">
           <div className="flex flex-col gap-1">
-            <span className="font-semibold text-sm">Prompt Instructions</span>
-            <p className="text-muted-foreground text-xs">
-              Write the instructions to run after transcription.
-            </p>
+            <span className="font-semibold text-sm">Instructions</span>
           </div>
           <MarkdownEditor
             onChange={setDraftText}
-            placeholder="Start writing..."
+            placeholder="e.g. Fix spelling and punctuation"
             showMentionMenu
             showToolbar
             value={draftText}
           />
           <div className="flex flex-col gap-2">
-            <p className="text-muted-foreground/70 text-xs">
-              Tip: Type{" "}
+            <p className="text-muted-foreground text-xs">
+              Use{" "}
               <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
                 @output
               </code>{" "}
-              to insert the transcribed text placeholder.
+              to insert the transcript.
             </p>
             {hasMissingOutputPlaceholder(draftText) && (
               <OutputPlaceholderWarning />
@@ -215,7 +211,7 @@ function PromptSettingsEditor({
             tone="primary"
             variant="solid"
           >
-            Create Prompt
+            Create prompt
           </Button>
           <Button onClick={handleCancelCreate} variant="surface">
             Cancel
@@ -225,11 +221,7 @@ function PromptSettingsEditor({
     );
   };
   return (
-    <SettingRow
-      description="Select a template for refining transcriptions or create a new one. Type @output inside the prompt to reference the captured transcript."
-      layout="stacked"
-      title="Selected Prompt"
-    >
+    <SettingRow layout="stacked" title="Saved prompt">
       <div className="space-y-3">
         <div className="flex gap-2">
           {isEditingName && selectedPrompt ? (
@@ -247,7 +239,7 @@ function PromptSettingsEditor({
                     handleCancelNameEdit();
                   }
                 }}
-                placeholder="Enter prompt name"
+                placeholder="e.g. Meeting notes"
                 type="text"
                 value={draftName}
               />
@@ -256,6 +248,7 @@ function PromptSettingsEditor({
                   <TooltipTrigger
                     render={
                       <Button
+                        aria-label="Save name"
                         disabled={!draftName.trim()}
                         iconOnly
                         onClick={handleSaveNameEdit}
@@ -274,6 +267,7 @@ function PromptSettingsEditor({
                   <TooltipTrigger
                     render={
                       <Button
+                        aria-label="Cancel rename"
                         iconOnly
                         onClick={handleCancelNameEdit}
                         size="md"
@@ -327,6 +321,7 @@ function PromptSettingsEditor({
                     <TooltipTrigger
                       render={
                         <Button
+                          aria-label="Rename prompt"
                           className="shrink-0"
                           iconOnly
                           onClick={handleStartEditName}
@@ -348,6 +343,7 @@ function PromptSettingsEditor({
               <TooltipTrigger
                 render={
                   <Button
+                    aria-label="Create prompt"
                     className="shrink-0"
                     disabled={isCreating || isEditingName}
                     iconOnly

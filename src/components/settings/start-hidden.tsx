@@ -12,9 +12,9 @@ export const StartHidden = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="Launch to system tray without opening the window."
+      description="Keep the window closed when Echo starts."
       icon={<EyeOff className="h-4 w-4" />}
-      title="Start Hidden"
+      title="Start hidden"
     >
       <Switch
         checked={startHidden}

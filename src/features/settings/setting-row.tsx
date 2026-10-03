@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 
 interface SettingRowProps {
   children: ReactNode;
-  description: string;
+  description?: string;
   disabled?: boolean;
   icon?: ReactNode;
   layout?: "horizontal" | "stacked";
@@ -26,21 +26,23 @@ export function SettingRow({
 }: SettingRowProps) {
   return (
     <Field
-      className={cn(
-        "gap-4 px-4 py-4",
-        layout === "horizontal" && "flex-wrap sm:flex-nowrap"
-      )}
+      className="gap-3 px-4 py-3"
       disabled={disabled}
-      orientation={layout === "stacked" ? "vertical" : "horizontal"}
+      orientation={layout === "stacked" ? "vertical" : "responsive"}
     >
       <FieldContent>
-        <FieldLabel className="flex items-center gap-2">
+        <FieldLabel className="flex items-center gap-2 font-normal [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
           {icon}
           {title}
         </FieldLabel>
-        <FieldDescription>{description}</FieldDescription>
+        {description && <FieldDescription>{description}</FieldDescription>}
       </FieldContent>
-      <div className={cn("min-w-0", layout === "stacked" && "w-full")}>
+      <div
+        className={cn(
+          "min-w-0 max-w-full shrink-0",
+          layout === "stacked" && "w-full"
+        )}
+      >
         {children}
       </div>
     </Field>

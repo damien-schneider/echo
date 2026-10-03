@@ -38,12 +38,11 @@ export const OutputDeviceSelector = ({
   };
   return (
     <SettingRow
-      description="Select your preferred audio output device for feedback sounds"
       disabled={disabled}
       icon={<Speaker className="h-4 w-4" />}
-      title="Output Device"
+      title="Output device"
     >
-      <div className="flex items-center space-x-1">
+      <div className="flex items-center gap-1">
         <Select
           disabled={
             disabled ||
@@ -54,7 +53,7 @@ export const OutputDeviceSelector = ({
           onValueChange={handleOutputDeviceSelect}
           value={selectedOutputDevice}
         >
-          <SelectTrigger className="flex-1">
+          <SelectTrigger className="min-w-0 flex-1">
             <SelectValue
               placeholder={
                 isLoading || outputDevices.length === 0

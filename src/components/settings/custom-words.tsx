@@ -5,7 +5,6 @@ import { BookText, PlusIcon, XIcon } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import { SettingRow } from "@/features/settings/setting-row";
-import { cn } from "@/lib/utils";
 import {
   useIsSettingUpdating,
   useSetting,
@@ -44,9 +43,9 @@ export const CustomWords = () => {
   return (
     <>
       <SettingRow
-        description="Add words that are often misheard or misspelled during transcription. The system will automatically correct similar-sounding words to match your list."
+        description="Correct words Echo often mishears."
         icon={<BookText className="h-4 w-4" />}
-        title="Custom Words"
+        title="Custom words"
       >
         <ButtonGroup className="w-full">
           <Input
@@ -59,6 +58,7 @@ export const CustomWords = () => {
             value={newWord}
           />
           <Button
+            aria-label="Add word"
             disabled={
               !newWord.trim() ||
               newWord.includes(" ") ||
@@ -76,7 +76,7 @@ export const CustomWords = () => {
         </ButtonGroup>
       </SettingRow>
       {customWords.length > 0 && (
-        <div className={cn("p-2 px-4", false)}>
+        <div className="px-4 py-3">
           <ButtonGroup className="w-full flex-wrap gap-1">
             {customWords.map((word) => (
               <Button
