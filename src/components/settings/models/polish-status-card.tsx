@@ -1,3 +1,4 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   AlertCircle,
   CircleCheck,
@@ -6,7 +7,6 @@ import {
   Loader2,
 } from "lucide-react";
 import ProgressBar from "@/components/shared/progress-bar";
-import { Button } from "@/components/ui/button";
 import { polishStatusCopy } from "@/features/polish/polish-status-copy";
 import type { PolishStatus } from "@/lib/types";
 
@@ -16,7 +16,6 @@ interface PolishStatusCardProps {
   progress?: number;
   status: PolishStatus;
 }
-
 const StatusIcon = ({ state }: Pick<PolishStatus, "state">) => {
   if (state === "ready") {
     return <CircleCheck className="h-4 w-4 text-emerald-500" />;
@@ -31,7 +30,6 @@ const StatusIcon = ({ state }: Pick<PolishStatus, "state">) => {
     <CircleDashed className="h-4 w-4 animate-pulse text-muted-foreground" />
   );
 };
-
 export const PolishStatusCard = ({
   onDownload,
   onRepair,
@@ -43,7 +41,6 @@ export const PolishStatusCard = ({
     status.state === "downloading" && progress !== undefined
       ? ` ${Math.round(progress)}%`
       : "";
-
   return (
     <div className="rounded-lg border border-border/30 bg-card p-4">
       <div className="flex items-start justify-between gap-4">
@@ -63,18 +60,18 @@ export const PolishStatusCard = ({
           </div>
         </div>
         {status.state === "repair" ? (
-          <Button onClick={onRepair} size="sm" variant="secondary">
+          <Button onClick={onRepair} size="sm" variant="surface">
             {polishStatusCopy.repair.action}
           </Button>
         ) : null}
         {status.state === "not_downloaded" ? (
-          <Button onClick={onDownload} size="sm">
+          <Button onClick={onDownload} size="sm" tone="primary" variant="solid">
             <Download aria-hidden="true" className="mr-1 h-4 w-4" />
             {polishStatusCopy.not_downloaded.action}
           </Button>
         ) : null}
         {status.state === "downloading" ? (
-          <Button disabled={true} size="sm" variant="secondary">
+          <Button disabled={true} size="sm" variant="surface">
             <Loader2 aria-hidden="true" className="mr-1 h-4 w-4 animate-spin" />
             Downloading
           </Button>

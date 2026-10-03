@@ -1,12 +1,11 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import { Switch } from "@ctrl-ui/react/ui/switch";
 import { invoke } from "@tauri-apps/api/core";
 import { CheckCircle, Loader2, Play, Volume2, XCircle } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 const DEFAULT_PREVIEW_TEXT = "This is a preview of the text to speech voice.";
-
 export function TtsSettings() {
   const ttsEnabled = useSetting("tts_enabled");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
@@ -14,15 +13,12 @@ export function TtsSettings() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [previewText, setPreviewText] = useState(DEFAULT_PREVIEW_TEXT);
-
   const isEnabled = ttsEnabled ?? false;
-
   const handlePreview = async () => {
     if (!previewText.trim()) {
       setErrorMessage("Please enter some text to preview");
       return;
     }
-
     setPlaying(true);
     setErrorMessage(null);
     try {
@@ -36,7 +32,6 @@ export function TtsSettings() {
       setPlaying(false);
     }
   };
-
   return (
     <div className="space-y-6">
       <div className="rounded-lg border border-border/40 bg-card px-4 py-3">
@@ -86,7 +81,7 @@ export function TtsSettings() {
                   disabled={playing}
                   onClick={handlePreview}
                   size="sm"
-                  variant="outline"
+                  variant="surface"
                 >
                   {playing ? (
                     <>

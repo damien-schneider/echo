@@ -2,20 +2,10 @@ import { invoke } from "@tauri-apps/api/core";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { TextDisplay } from "@/components/ui/text-display";
-
-interface AppDataDirectoryProps {
-  descriptionMode?: "tooltip" | "inline";
-  grouped?: boolean;
-}
-
-export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
-  descriptionMode = "inline",
-  grouped = false,
-}) => {
+export const AppDataDirectory: React.FC = () => {
   const [appDirPath, setAppDirPath] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
     const loadAppDirectory = async () => {
       try {
@@ -29,14 +19,8 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
         setLoading(false);
       }
     };
-
     loadAppDirectory();
   }, []);
-
-  const handleCopy = (_value: string) => {
-    // TODO: toast notification.
-  };
-
   if (loading) {
     return (
       <div className="animate-pulse">
@@ -45,7 +29,6 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
       </div>
     );
   }
-
   if (error) {
     return (
       <div className="rounded-lg border border-red-200 bg-red-50 p-4">
@@ -55,16 +38,12 @@ export const AppDataDirectory: React.FC<AppDataDirectoryProps> = ({
       </div>
     );
   }
-
   return (
     <TextDisplay
       copyable={true}
       description="Main directory where application data, settings, and models are stored"
-      descriptionMode={descriptionMode}
-      grouped={grouped}
       label="App Data Directory"
       monospace={true}
-      onCopy={handleCopy}
       value={appDirPath}
     />
   );

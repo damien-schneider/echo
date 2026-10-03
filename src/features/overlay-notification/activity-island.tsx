@@ -1,36 +1,31 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { X } from "lucide-react";
 import { type ReactNode, type RefObject, useLayoutEffect } from "react";
-import { Button } from "@/components/ui/button";
 import { IslandHud } from "@/features/overlay-controls/island-hud";
 import {
   type ActivityDecoration,
   type ActivityVisualState,
   hasHorizontalOverflow,
 } from "@/features/overlay-controls/recording-overlay-state";
-
 export interface ActivityIslandAction {
   icon: ReactNode;
   onAction: () => void;
   title: string;
 }
-
 interface ActivityIslandProps {
   action: ActivityIslandAction | null;
   decoration: ActivityDecoration;
   dismissLabel: string | null;
-  /// A cut-out to sit either side of — the controls leave the text row and take the flanks.
   hasFlanks: boolean;
   onDismiss: () => void;
   text: string;
   textScrollRef: RefObject<HTMLOutputElement | null>;
   visualState: ActivityVisualState;
 }
-
 interface ActivityTextOverflowOptions {
   text: string;
   textScrollRef: RefObject<HTMLOutputElement | null>;
 }
-
 const useActivityTextOverflow = ({
   text,
   textScrollRef,
@@ -55,12 +50,10 @@ const useActivityTextOverflow = ({
     };
   }, [text, textScrollRef]);
 };
-
 interface ActivityDismissButtonProps {
   label: string;
   onDismiss: () => void;
 }
-
 const ActivityDismissButton = ({
   label,
   onDismiss,
@@ -68,15 +61,15 @@ const ActivityDismissButton = ({
   <Button
     aria-label={label}
     className="echo-island-activity-dismiss size-6 rounded-full text-white/50 hover:bg-white/10 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
+    iconOnly
     onClick={onDismiss}
-    size="icon-xs"
+    size="xs"
     title={label}
     variant="ghost"
   >
     <X aria-hidden="true" />
   </Button>
 );
-
 const ActivityActionButton = ({
   icon,
   onAction,
@@ -85,15 +78,15 @@ const ActivityActionButton = ({
   <Button
     aria-label={title}
     className="echo-island-activity-submit size-6 rounded-full bg-white/90 text-black shadow-none hover:bg-white focus-visible:ring-1 focus-visible:ring-white/60"
+    iconOnly
     onClick={onAction}
-    size="icon-xs"
+    size="xs"
     title={title}
-    variant="secondary"
+    variant="surface"
   >
     {icon}
   </Button>
 );
-
 export const ActivityIsland = ({
   action,
   decoration,

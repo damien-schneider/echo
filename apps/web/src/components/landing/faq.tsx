@@ -1,12 +1,11 @@
 "use client";
-
-import { motion } from "motion/react";
 import {
   Accordion,
-  AccordionContent,
   AccordionItem,
+  AccordionPanel,
   AccordionTrigger,
-} from "@/components/ui/accordion";
+} from "@ctrl-ui/react/ui/accordion";
+import { motion } from "motion/react";
 
 const faqs = [
   {
@@ -45,7 +44,6 @@ const faqs = [
     question: "Do I need a powerful computer?",
   },
 ];
-
 const faqSchema = JSON.stringify({
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -58,7 +56,6 @@ const faqSchema = JSON.stringify({
     name: faq.question,
   })),
 });
-
 export function LandingFaq() {
   return (
     <section className="bg-background py-20 text-foreground">
@@ -79,7 +76,7 @@ export function LandingFaq() {
             questions
           </span>
         </motion.h2>
-        <Accordion className="w-full" collapsible type="single">
+        <Accordion className="w-full">
           {faqs.map((faq, index) => (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -90,7 +87,7 @@ export function LandingFaq() {
             >
               <AccordionItem value={`item-${index}`}>
                 <AccordionTrigger>{faq.question}</AccordionTrigger>
-                <AccordionContent>{faq.answer}</AccordionContent>
+                <AccordionPanel>{faq.answer}</AccordionPanel>
               </AccordionItem>
             </motion.div>
           ))}

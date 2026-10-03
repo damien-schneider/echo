@@ -1,6 +1,7 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { AudioLines, Check, Copy, MessageSquareText, X } from "lucide-react";
+import { m } from "motion/react";
 import { useEffect, useEffectEvent, useState } from "react";
-import { Button } from "@/components/ui/button";
 
 interface TranscriptPanelProps {
   onClose: () => void;
@@ -8,12 +9,9 @@ interface TranscriptPanelProps {
   onSendToChat: () => void;
   text: string;
 }
-
 const TRANSCRIPT_HEADLINE = "Echo could not place this dictation";
 const READING_LINGER_MS = 6000;
 const COPIED_LINGER_MS = 2000;
-
-/// The text is safe once copied, so the panel stops waiting and steps aside.
 const useDismissCountdown = (isCopied: boolean, onClose: () => void) => {
   const close = useEffectEvent(onClose);
   const lingerMs = isCopied ? COPIED_LINGER_MS : READING_LINGER_MS;
@@ -23,7 +21,6 @@ const useDismissCountdown = (isCopied: boolean, onClose: () => void) => {
   }, [lingerMs]);
   return lingerMs;
 };
-
 export const TranscriptPanel = ({
   onClose,
   onCopy,
@@ -52,8 +49,9 @@ export const TranscriptPanel = ({
         <Button
           aria-label="Dismiss the dictated text"
           className="size-7 shrink-0 rounded-full text-white/55 hover:bg-white/10 hover:text-white"
+          iconOnly
           onClick={onClose}
-          size="icon-xs"
+          size="xs"
           variant="ghost"
         >
           <X aria-hidden="true" />
@@ -66,8 +64,9 @@ export const TranscriptPanel = ({
         <Button
           aria-label="Send the dictated text to Echo chat"
           className="size-9 rounded-full bg-white/8 text-white/80 hover:bg-white/14 hover:text-white"
+          iconOnly
           onClick={onSendToChat}
-          size="icon"
+          size="md"
           title="Send to chat"
           variant="ghost"
         >
@@ -77,6 +76,8 @@ export const TranscriptPanel = ({
           className="rounded-full bg-white/12 px-4 text-white hover:bg-white/20"
           onClick={copy}
           size="sm"
+          tone="primary"
+          variant="solid"
         >
           {isCopied ? (
             <Check aria-hidden="true" className="size-4" />
@@ -86,11 +87,13 @@ export const TranscriptPanel = ({
           {isCopied ? "Copied" : "Copy"}
         </Button>
       </div>
-      <span
+      <m.span
+        animate={{ scaleX: 0 }}
         aria-hidden="true"
         className="echo-island-countdown"
+        initial={{ scaleX: 1 }}
         key={lingerMs}
-        style={{ animationDuration: `${lingerMs}ms` }}
+        transition={{ duration: lingerMs / 1000, ease: "linear" }}
       />
     </dialog>
   );

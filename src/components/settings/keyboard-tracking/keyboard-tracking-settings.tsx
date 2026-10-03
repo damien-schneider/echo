@@ -2,29 +2,21 @@ import { Keyboard } from "lucide-react";
 import { InputTrackingExcludedApps } from "@/components/settings/input-tracking-excluded-apps";
 import { InputTrackingIdleTimeout } from "@/components/settings/input-tracking-idle-timeout";
 import { InputTrackingToggle } from "@/components/settings/input-tracking-toggle";
-import { CollapsibleSettingsGroup } from "@/components/ui/collapsible-settings-group";
+import { SettingsSection } from "@/features/settings/settings-section";
 import { useSetting } from "@/stores/settings-store";
-
 export const KeyboardTrackingSettings = () => {
   const inputTrackingEnabled = useSetting("input_tracking_enabled") ?? false;
-
   return (
     <div className="mx-auto w-full max-w-3xl pb-20">
-      <CollapsibleSettingsGroup defaultOpen={true} title="Keyboard Tracking">
-        <InputTrackingToggle descriptionMode="tooltip" grouped={true} />
+      <SettingsSection defaultOpen={true} title="Keyboard Tracking">
+        <InputTrackingToggle />
         {inputTrackingEnabled && (
           <>
-            <InputTrackingIdleTimeout
-              descriptionMode="tooltip"
-              grouped={true}
-            />
-            <InputTrackingExcludedApps
-              descriptionMode="tooltip"
-              grouped={true}
-            />
+            <InputTrackingIdleTimeout />
+            <InputTrackingExcludedApps />
           </>
         )}
-      </CollapsibleSettingsGroup>
+      </SettingsSection>
 
       <div className="flex flex-col items-center gap-3 rounded-lg border border-border/50 border-dashed px-4 py-8 text-center text-muted-foreground">
         <Keyboard className="h-10 w-10 opacity-40" />

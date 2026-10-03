@@ -1,7 +1,7 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
 import { Clock, Trash2 } from "lucide-react";
 import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Meeting } from "@/lib/types";
 import { useMeetingStore } from "@/stores/meeting-store";
 
@@ -17,7 +17,6 @@ function formatDuration(ms: number | null | undefined): string {
   }
   return `${m}m`;
 }
-
 function formatDate(timestamp: number): string {
   return new Date(timestamp * 1000).toLocaleDateString(undefined, {
     day: "numeric",
@@ -26,20 +25,16 @@ function formatDate(timestamp: number): string {
     month: "short",
   });
 }
-
 interface MeetingListProps {
   onSelect: (id: number) => void;
 }
-
 export const MeetingList = ({ onSelect }: MeetingListProps) => {
   const meetings = useMeetingStore((s) => s.meetings);
   const loadMeetings = useMeetingStore((s) => s.loadMeetings);
   const deleteMeeting = useMeetingStore((s) => s.deleteMeeting);
-
   useEffect(() => {
     loadMeetings();
   }, [loadMeetings]);
-
   if (meetings.length === 0) {
     return (
       <p className="py-4 text-center text-muted-foreground text-sm">
@@ -47,7 +42,6 @@ export const MeetingList = ({ onSelect }: MeetingListProps) => {
       </p>
     );
   }
-
   return (
     <ScrollArea className="max-h-[400px]">
       <div className="flex flex-col gap-1">
@@ -63,7 +57,6 @@ export const MeetingList = ({ onSelect }: MeetingListProps) => {
     </ScrollArea>
   );
 };
-
 function MeetingListItem({
   meeting,
   onSelect,
@@ -109,11 +102,12 @@ function MeetingListItem({
       </button>
       <Button
         className="opacity-0 group-hover:opacity-100"
+        iconOnly
         onClick={(e) => {
           e.stopPropagation();
           onDelete();
         }}
-        size="icon"
+        size="md"
         variant="ghost"
       >
         <Trash2 className="size-3.5 text-muted-foreground" />

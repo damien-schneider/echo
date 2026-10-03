@@ -1,12 +1,12 @@
-import type React from "react";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { SettingContainer } from "@/components/ui/setting-container";
+} from "@ctrl-ui/react/ui/select";
+import type React from "react";
+import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
   useSetting,
@@ -20,23 +20,12 @@ const LOG_LEVEL_OPTIONS = [
   { label: "Debug", value: "4" },
   { label: "Trace", value: "5" },
 ];
-
-interface LogLevelSelectorProps {
-  descriptionMode?: "tooltip" | "inline";
-  grouped?: boolean;
-}
-
-export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
-  descriptionMode = "tooltip",
-  grouped = false,
-}) => {
+export const LogLevelSelector: React.FC = () => {
   const logLevel = useSetting("log_level");
   const isLevelUpdating = useIsSettingUpdating("log_level");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
-
   const currentLevel = logLevel ?? 2;
   const selectedValue = currentLevel.toString();
-
   const handleSelect = async (value: string) => {
     const parsed = Number.parseInt(value, 10);
     if (Number.isNaN(parsed) || parsed === currentLevel) {
@@ -48,18 +37,16 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
       console.error("Failed to update log level:", error);
     }
   };
-
   return (
-    <SettingContainer
+    <SettingRow
       description="Choose how verbose Handy should be while logging to disk"
-      descriptionMode={descriptionMode}
-      grouped={grouped}
       layout="horizontal"
       title="Log Level"
     >
       <div className="space-y-1">
         <Select
           disabled={logLevel === undefined || isLevelUpdating}
+          items={LOG_LEVEL_OPTIONS}
           onValueChange={handleSelect}
           value={selectedValue}
         >
@@ -75,6 +62,6 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
           </SelectContent>
         </Select>
       </div>
-    </SettingContainer>
+    </SettingRow>
   );
 };

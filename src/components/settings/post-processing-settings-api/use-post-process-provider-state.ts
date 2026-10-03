@@ -1,15 +1,14 @@
-import { useCallback, useEffect } from "react";
+import { useEffect } from "react";
+import { getDefaultBaseUrl } from "@/components/settings/post-processing-settings-api/default-providers";
+import type { ModelOption } from "@/components/settings/post-processing-settings-api/types";
 import type { PostProcessProvider } from "@/lib/types";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
-import { getDefaultBaseUrl } from "./default-providers";
-import type { ModelOption } from "./types";
 
 interface DropdownOption {
   label: string;
   value: string;
 }
 
-// true=supports, false=no, null=unknown/checking.
 export type ToolSupportStatus = boolean | null;
 
 interface PostProcessProviderState {
@@ -136,9 +135,9 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     updatePostProcessSetting("model", selectedProviderId, value);
   };
 
-  const handleRefreshModels = useCallback(() => {
+  const handleRefreshModels = () => {
     fetchPostProcessModels(selectedProviderId);
-  }, [fetchPostProcessModels, selectedProviderId]);
+  };
 
   const availableModelsRaw = postProcessModelOptions[selectedProviderId] || [];
 
@@ -177,7 +176,6 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     isUpdatingMap[`post_process_models_fetch:${selectedProviderId}`]
   );
 
-  // Ollama / custom: no API key required.
   const isCustomProvider = selectedProvider?.id === "custom";
   const isOllamaProvider = selectedProvider?.id === "ollama";
   const isLocalProvider = isCustomProvider || isOllamaProvider;

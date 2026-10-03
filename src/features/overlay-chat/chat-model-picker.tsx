@@ -1,13 +1,13 @@
-import { Settings2 } from "lucide-react";
-import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@ctrl-ui/react/ui/select";
+import { Settings2 } from "lucide-react";
+import type { ReactNode } from "react";
 import {
   CHAT_MODEL_MODES,
   type ChatModelMode,
@@ -22,7 +22,6 @@ interface ModeButtonProps {
   mode: ChatModelMode;
   onSelect: (mode: ChatModelMode) => void;
 }
-
 const ModeButton = ({
   children,
   disabled,
@@ -47,7 +46,6 @@ const ModeButton = ({
     {children}
   </Button>
 );
-
 interface ModelSelectProps {
   disabled: boolean;
   mode: ChatModelMode;
@@ -56,7 +54,6 @@ interface ModelSelectProps {
   options: ChatModelOption[];
   selected: ChatModelOption | null;
 }
-
 const ModelSelect = ({
   disabled,
   mode,
@@ -82,7 +79,15 @@ const ModelSelect = ({
     );
   }
   return (
-    <Select disabled={disabled} onValueChange={onSelect} value={selected?.id}>
+    <Select
+      disabled={disabled}
+      items={options.map((option) => ({
+        value: option.id,
+        label: option.label,
+      }))}
+      onValueChange={onSelect}
+      value={selected?.id}
+    >
       <SelectTrigger
         aria-label="Provider and model"
         className="h-8 min-w-0 flex-1 rounded-full border-white/10 bg-white/8 px-3 text-[11px] text-white shadow-none hover:bg-white/12 focus:ring-white/25 [&>span]:min-w-0 [&>span]:truncate"
@@ -105,13 +110,11 @@ const ModelSelect = ({
     </Select>
   );
 };
-
 interface ChatModePickerProps {
   disabled: boolean;
   mode: ChatModelMode;
   onSelect: (mode: ChatModelMode) => void;
 }
-
 export const ChatModePicker = ({
   disabled,
   mode,
@@ -136,9 +139,7 @@ export const ChatModePicker = ({
     </ModeButton>
   </div>
 );
-
 type ChatModelPickerProps = ModelSelectProps;
-
 export const ChatModelPicker = ({
   disabled,
   mode,
@@ -161,8 +162,9 @@ export const ChatModelPicker = ({
         aria-label="Manage chat models"
         className="size-7 shrink-0 rounded-full text-white/55 hover:bg-white/10 hover:text-white"
         disabled={disabled}
+        iconOnly
         onClick={onManageModels}
-        size="icon-xs"
+        size="xs"
         type="button"
         variant="ghost"
       >

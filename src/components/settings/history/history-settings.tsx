@@ -1,8 +1,13 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { FolderOpen, Keyboard, Mic } from "lucide-react";
-import { type ComponentProps, useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import {
+  type ComponentProps,
+  useEffect,
+  useEffectEvent,
+  useState,
+} from "react";
 import { runPostProcess } from "@/lib/llm/post-process";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
@@ -13,13 +18,11 @@ import {
 import { KeyboardInputList } from "./keyboard-input-list";
 
 type HistoryTab = "transcriptions" | "keyboard";
-
 export const HistorySettings = () => {
   const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<HistoryTab>("transcriptions");
-
-  const loadHistoryEntries = useCallback(async () => {
+  const loadHistoryEntries = async () => {
     try {
       const entries = await invoke<HistoryEntry[]>("get_history_entries");
       setHistoryEntries(entries);
@@ -28,21 +31,17 @@ export const HistorySettings = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
-
+  };
+  const refreshHistory = useEffectEvent(loadHistoryEntries);
   useEffect(() => {
-    loadHistoryEntries();
-
+    refreshHistory();
     const setupListener = async () => {
       const unlisten = await listen("history-updated", () => {
-        loadHistoryEntries();
+        refreshHistory();
       });
-
       return unlisten;
     };
-
     const unlistenPromise = setupListener();
-
     return () => {
       unlistenPromise.then((unlisten) => {
         if (unlisten) {
@@ -50,8 +49,7 @@ export const HistorySettings = () => {
         }
       });
     };
-  }, [loadHistoryEntries]);
-
+  }, []);
   const toggleSaved = async (id: number) => {
     try {
       await invoke("toggle_history_entry_saved", { id });
@@ -59,7 +57,6 @@ export const HistorySettings = () => {
       console.error("Failed to toggle saved status:", error);
     }
   };
-
   const copyToClipboard = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -67,20 +64,17 @@ export const HistorySettings = () => {
       console.error("Failed to copy to clipboard:", error);
     }
   };
-
   const getAudioUrl = async (fileName: string) => {
     try {
       const filePath = await invoke<string>("get_audio_file_path", {
         fileName,
       });
-
       return convertFileSrc(`${filePath}`, "asset");
     } catch (error) {
       console.error("Failed to get audio file path:", error);
       return null;
     }
   };
-
   const deleteAudioEntry = async (id: number) => {
     try {
       await invoke("delete_history_entry", { id });
@@ -89,7 +83,6 @@ export const HistorySettings = () => {
       throw error;
     }
   };
-
   const retranscribeEntry = async (id: number) => {
     try {
       await invoke("retranscribe_history_entry", { id });
@@ -98,7 +91,6 @@ export const HistorySettings = () => {
       throw error;
     }
   };
-
   const reprocessEntry = async (id: number) => {
     try {
       const settings = useSettingsStore.getState().settings;
@@ -110,8 +102,6 @@ export const HistorySettings = () => {
         { id }
       );
       const result = await runPostProcess(transcription, settings);
-
-      // History reprocessing: tools ignored, text only.
       const postProcessedText = result.kind === "text" ? result.content : null;
       let postProcessPrompt: string | null = null;
       if (postProcessedText && settings.post_process_selected_prompt_id) {
@@ -123,7 +113,6 @@ export const HistorySettings = () => {
           postProcessPrompt = prompt.prompt;
         }
       }
-
       await invoke("reprocess_history_entry", {
         id,
         postProcessedText,
@@ -134,7 +123,6 @@ export const HistorySettings = () => {
       throw error;
     }
   };
-
   const openRecordingsFolder = async () => {
     try {
       await invoke("open_recordings_folder");
@@ -142,7 +130,6 @@ export const HistorySettings = () => {
       console.error("Failed to open recordings folder:", error);
     }
   };
-
   const renderTranscriptionContent = () => {
     if (loading) {
       return (
@@ -151,7 +138,6 @@ export const HistorySettings = () => {
         </div>
       );
     }
-
     if (historyEntries.length === 0) {
       return (
         <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-text/60">
@@ -165,7 +151,6 @@ export const HistorySettings = () => {
         </div>
       );
     }
-
     return (
       <div className="divide-y divide-border/10">
         {historyEntries.map((entry) => (
@@ -183,7 +168,6 @@ export const HistorySettings = () => {
       </div>
     );
   };
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -232,7 +216,6 @@ export const HistorySettings = () => {
     </div>
   );
 };
-
 const OpenRecordingsButton = ({
   onClick,
   className,
@@ -243,7 +226,7 @@ const OpenRecordingsButton = ({
     onClick={onClick}
     size="sm"
     title="Open recordings folder"
-    variant="secondary"
+    variant="surface"
     {...props}
   >
     <FolderOpen className="h-4 w-4" />

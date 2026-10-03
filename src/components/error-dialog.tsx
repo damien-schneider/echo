@@ -1,8 +1,4 @@
-import { listen } from "@tauri-apps/api/event";
-import { AlertCircle } from "lucide-react";
-import type React from "react";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,20 +6,22 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@ctrl-ui/react/ui/dialog";
+import { listen } from "@tauri-apps/api/event";
+import { AlertCircle } from "lucide-react";
+import type React from "react";
+import { useEffect, useState } from "react";
 
 interface ErrorPayload {
   details?: string;
   message: string;
   title?: string;
 }
-
 export const ErrorDialog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [errorData, setErrorData] = useState<ErrorPayload>({
     message: "",
   });
-
   useEffect(() => {
     const unlisten = listen<string | ErrorPayload>(
       "show-error-dialog",
@@ -43,16 +41,13 @@ export const ErrorDialog: React.FC = () => {
         setIsOpen(true);
       }
     );
-
     return () => {
       unlisten.then((u) => u());
     };
   }, []);
-
   const handleClose = () => {
     setIsOpen(false);
   };
-
   return (
     <Dialog onOpenChange={setIsOpen} open={isOpen}>
       <DialogContent>
@@ -73,7 +68,9 @@ export const ErrorDialog: React.FC = () => {
         )}
 
         <DialogFooter>
-          <Button onClick={handleClose}>Close</Button>
+          <Button onClick={handleClose} tone="primary" variant="solid">
+            Close
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,6 +1,6 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { X } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { Button } from "@/components/ui/button";
 import {
   CHAT_MODEL_KINDS,
   CHAT_MODEL_MODES,
@@ -27,7 +27,6 @@ import type {
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import { cn } from "@/lib/utils";
 import "@/features/overlay-chat/chat-panel.css";
-
 interface ChatPanelProps {
   bundledModel: BundledChatModel;
   context: ChatTextContext | null;
@@ -38,13 +37,11 @@ interface ChatPanelProps {
   onManageModels: () => void;
   onRequestAccessibility: () => Promise<void>;
 }
-
 interface ChatToolbarRightProps {
   chat: ChatSession;
   onClose: () => void;
   onManageModels: () => void;
 }
-
 const ChatToolbarRight = ({
   chat,
   onClose,
@@ -62,15 +59,17 @@ const ChatToolbarRight = ({
     <Button
       aria-label="Close chat"
       className="size-7 shrink-0 rounded-full bg-white/8 text-white/80 hover:bg-white/14 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
+      iconOnly
       onClick={onClose}
-      size="icon-xs"
+      size="xs"
+      tone="primary"
       type="button"
+      variant="solid"
     >
       <X aria-hidden="true" className="size-3.5" />
     </Button>
   </div>
 );
-
 interface ChatPanelShellProps {
   chat: ChatSession;
   children: ReactNode;
@@ -79,7 +78,6 @@ interface ChatPanelShellProps {
   onManageModels: () => void;
   panelHeightClass: string;
 }
-
 const ChatPanelShell = ({
   chat,
   children,
@@ -116,7 +114,6 @@ const ChatPanelShell = ({
     {children}
   </IslandHud>
 );
-
 interface ChatPanelContentProps {
   bundledModel: BundledChatModel;
   chat: ChatSession;
@@ -126,8 +123,6 @@ interface ChatPanelContentProps {
   isSelectedModelReady: boolean;
   onRequestAccessibility: () => Promise<void>;
 }
-
-/// The reference the panel shows is the one that goes out — no re-read behind the user's back.
 const ChatPanelContent = ({
   bundledModel,
   chat,
@@ -172,7 +167,6 @@ const ChatPanelContent = ({
     </>
   );
 };
-
 export const ChatPanel = ({
   bundledModel,
   context,

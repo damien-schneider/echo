@@ -1,7 +1,7 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { Loader2, Mic, Square } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { formatElapsed } from "@/features/meeting/format-elapsed";
 import { useMeetingModels } from "@/features/meeting/use-meeting-models";
 import { useMeetingStore } from "@/stores/meeting-store";
@@ -9,7 +9,6 @@ import { useMeetingStore } from "@/stores/meeting-store";
 interface MeetingControlsProps {
   onStarted?: () => void;
 }
-
 export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
   const status = useMeetingStore((s) => s.status);
   const elapsedMs = useMeetingStore((s) => s.elapsedMs);
@@ -17,13 +16,9 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
   const startMeeting = useMeetingStore((s) => s.startMeeting);
   const stopMeeting = useMeetingStore((s) => s.stopMeeting);
   const [title, setTitle] = useState("");
-
   const isRecording = status === "recording";
   const isProcessing = status === "processing";
   const models = useMeetingModels();
-
-  // elapsedMs is read once, not depended on — as a dependency the ticker would tear itself down
-  // and rebuild five times a second for the whole meeting.
   useEffect(() => {
     if (!isRecording) {
       return;
@@ -36,7 +31,6 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
       clearInterval(timer);
     };
   }, [isRecording, setElapsedMs]);
-
   const handleStart = async () => {
     try {
       await startMeeting(title || undefined);
@@ -46,7 +40,6 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
       toast.error(msg);
     }
   };
-
   const handleStop = async () => {
     try {
       await stopMeeting();
@@ -54,7 +47,6 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
       toast.error("Failed to stop meeting");
     }
   };
-
   if (isRecording || isProcessing) {
     return (
       <div className="flex flex-col gap-2">
@@ -69,7 +61,8 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
             disabled={isProcessing}
             onClick={handleStop}
             size="sm"
-            variant="destructive"
+            tone="danger"
+            variant="solid"
           >
             <Square className="mr-1.5 size-3.5" />
             Stop Meeting
@@ -86,7 +79,7 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
                 models.ensure().catch(() => undefined);
               }}
               size="sm"
-              variant="secondary"
+              variant="surface"
             >
               {models.downloading ? (
                 <Loader2 className="mr-1.5 size-3.5 animate-spin" />
@@ -98,7 +91,6 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
       </div>
     );
   }
-
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-3">
@@ -109,7 +101,7 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
           type="text"
           value={title}
         />
-        <Button onClick={handleStart} size="sm">
+        <Button onClick={handleStart} size="sm" tone="primary" variant="solid">
           <Mic className="mr-1.5 size-3.5" />
           Start Meeting
         </Button>

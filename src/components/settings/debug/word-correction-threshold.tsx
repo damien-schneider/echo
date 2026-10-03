@@ -1,32 +1,20 @@
 import type React from "react";
-import { Slider } from "@/components/ui/slider";
+import { SettingSlider } from "@/features/settings/setting-slider";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
-
-interface WordCorrectionThresholdProps {
-  descriptionMode?: "tooltip" | "inline";
-  grouped?: boolean;
-}
-
-export const WordCorrectionThreshold: React.FC<
-  WordCorrectionThresholdProps
-> = ({ descriptionMode = "tooltip", grouped = false }) => {
+export const WordCorrectionThreshold: React.FC = () => {
   const wordCorrectionThreshold = useSetting("word_correction_threshold");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
-
   const handleThresholdChange = (value: number) => {
     updateSetting("word_correction_threshold", value);
   };
-
   return (
-    <Slider
+    <SettingSlider
       description="Controls how aggressively custom words are applied. Lower values mean fewer corrections will be made, higher values mean more corrections."
-      descriptionMode={descriptionMode}
       formatValue={(v) => v.toFixed(2)}
-      grouped={grouped}
       label="Correction Threshold"
       max={1.0}
       min={0.0}
-      onChange={handleThresholdChange}
+      onValueChange={handleThresholdChange}
       value={wordCorrectionThreshold ?? 0.18}
     />
   );

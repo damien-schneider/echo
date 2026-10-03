@@ -1,3 +1,5 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import { Switch } from "@ctrl-ui/react/ui/switch";
 import {
   Check,
   Cloud,
@@ -11,12 +13,10 @@ import {
 import type { ReactNode } from "react";
 import { MicrophoneSelector } from "@/components/settings/microphone-selector";
 import ProgressBar from "@/components/shared/progress-bar";
-import { Button } from "@/components/ui/button";
-import { SettingContainer } from "@/components/ui/setting-container";
-import { Switch } from "@/components/ui/switch";
 import { useTranscriptionReadiness } from "@/features/meeting/use-transcription-readiness";
 import type { DownloadProgress } from "@/features/model-download/download-state";
 import { useDiarizationModel } from "@/features/model-download/use-diarization-model";
+import { SettingRow } from "@/features/settings/setting-row";
 import { useModelStore } from "@/stores/model-store";
 import {
   useIsSettingUpdating,
@@ -35,7 +35,6 @@ interface ModelRowProps {
   progress?: DownloadProgress;
   title: string;
 }
-
 const ModelRow = ({
   description,
   downloadLabel,
@@ -48,13 +47,7 @@ const ModelRow = ({
   title,
 }: ModelRowProps) => (
   <div>
-    <SettingContainer
-      description={description}
-      descriptionMode="tooltip"
-      grouped
-      icon={icon}
-      title={title}
-    >
+    <SettingRow description={description} icon={icon} title={title}>
       {downloaded ? (
         <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
           <Check className="size-3" />
@@ -65,7 +58,7 @@ const ModelRow = ({
           disabled={downloading}
           onClick={onDownload}
           size="sm"
-          variant="secondary"
+          variant="surface"
         >
           {downloading ? (
             <Loader2 className="mr-1.5 size-3.5 animate-spin" />
@@ -75,7 +68,7 @@ const ModelRow = ({
           {downloading ? "Downloading" : downloadLabel}
         </Button>
       )}
-    </SettingContainer>
+    </SettingRow>
     {progress && !downloaded ? (
       <div className="px-4 pb-2">
         <ProgressBar
@@ -97,7 +90,6 @@ const ModelRow = ({
     ) : null}
   </div>
 );
-
 export const MeetingSettings = () => {
   const systemAudioEnabled =
     useSetting("meeting_system_audio_enabled") ?? false;
@@ -112,14 +104,11 @@ export const MeetingSettings = () => {
   const diarization = useDiarizationModel();
   const transcription = useTranscriptionReadiness();
   const transcriptionError = useModelStore((s) => s.error);
-
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-border/20">
-      <MicrophoneSelector descriptionMode="tooltip" grouped />
-      <SettingContainer
+      <MicrophoneSelector />
+      <SettingRow
         description="Capture system/output audio in addition to your microphone"
-        descriptionMode="tooltip"
-        grouped
         icon={<Monitor className="h-4 w-4" />}
         title="Capture system audio"
       >
@@ -130,11 +119,9 @@ export const MeetingSettings = () => {
             updateSetting("meeting_system_audio_enabled", enabled)
           }
         />
-      </SettingContainer>
-      <SettingContainer
+      </SettingRow>
+      <SettingRow
         description="Automatically generate an AI summary when a meeting ends"
-        descriptionMode="tooltip"
-        grouped
         icon={<Sparkles className="h-4 w-4" />}
         title="Auto-generate summary"
       >
@@ -145,11 +132,9 @@ export const MeetingSettings = () => {
             updateSetting("meeting_auto_summary", enabled)
           }
         />
-      </SettingContainer>
-      <SettingContainer
+      </SettingRow>
+      <SettingRow
         description="Summaries run on your machine by default. Turn this on to use the AI provider configured in Settings."
-        descriptionMode="tooltip"
-        grouped
         icon={<Cloud className="h-4 w-4" />}
         title="Summarize in the cloud"
       >
@@ -160,7 +145,7 @@ export const MeetingSettings = () => {
             updateSetting("meeting_summary_engine", enabled ? "cloud" : "local")
           }
         />
-      </SettingContainer>
+      </SettingRow>
       {summaryEngine === "cloud" && (
         <p className="px-4 pb-3 text-muted-foreground text-xs">
           Meeting transcripts leave your machine for your AI provider.

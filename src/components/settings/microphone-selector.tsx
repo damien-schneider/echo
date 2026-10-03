@@ -1,53 +1,38 @@
-import { Mic, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { SettingContainer } from "@/components/ui/setting-container";
+} from "@ctrl-ui/react/ui/select";
+import { Mic, RotateCcw } from "lucide-react";
+import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
   useSetting,
   useSettingsActions,
   useSettingsStore,
 } from "@/stores/settings-store";
-
-interface MicrophoneSelectorProps {
-  descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
-}
-
-export const MicrophoneSelector = ({
-  descriptionMode = "tooltip",
-  grouped = false,
-}: MicrophoneSelectorProps) => {
+export const MicrophoneSelector = () => {
   const selectedMicrophoneRaw = useSetting("selected_microphone");
   const isUpdatingMic = useIsSettingUpdating("selected_microphone");
   const isLoading = useSettingsStore((s) => s.isLoading);
   const audioDevices = useSettingsStore((s) => s.audioDevices);
   const { updateSetting, resetSetting } = useSettingsActions();
-
   const selectedMicrophone =
     selectedMicrophoneRaw === "default"
       ? "Default"
       : selectedMicrophoneRaw || "Default";
-
   const handleMicrophoneSelect = async (deviceName: string) => {
     await updateSetting("selected_microphone", deviceName);
   };
-
   const handleReset = async () => {
     await resetSetting("selected_microphone");
   };
-
   return (
-    <SettingContainer
+    <SettingRow
       description="Select your preferred microphone device"
-      descriptionMode={descriptionMode}
-      grouped={grouped}
       icon={<Mic className="h-4 w-4" />}
       title="Microphone"
     >
@@ -75,14 +60,16 @@ export const MicrophoneSelector = ({
           </SelectContent>
         </Select>
         <Button
+          aria-label="Reset microphone"
           disabled={isUpdatingMic || isLoading}
+          iconOnly
           onClick={handleReset}
-          size="icon"
+          size="md"
           variant="ghost"
         >
           <RotateCcw className="h-5 w-5" />
         </Button>
       </div>
-    </SettingContainer>
+    </SettingRow>
   );
 };

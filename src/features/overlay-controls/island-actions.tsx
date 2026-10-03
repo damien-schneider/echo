@@ -1,7 +1,7 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { MessageSquareText, Mic, WandSparkles } from "lucide-react";
 import { m, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
 import type { IslandActionState } from "@/features/overlay-controls/recording-overlay-state";
 import { cn } from "@/lib/utils";
 
@@ -13,10 +13,8 @@ interface IslandActionsProps {
   onRecord: () => void;
   orientation: "horizontal" | "vertical";
 }
-
 const actionClassName =
   "echo-island-action p-0 text-white/68 hover:bg-white/10 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45 [&_svg]:size-3";
-
 const ACTION_TOOLBAR_VARIANTS = {
   hidden: {
     transition: { staggerChildren: 0.02, staggerDirection: -1 },
@@ -25,8 +23,6 @@ const ACTION_TOOLBAR_VARIANTS = {
     transition: { staggerChildren: 0.02 },
   },
 } as const;
-
-// nothing here may resize: the action row holds one layout while the shell grows around it
 const ACTION_ITEM_VARIANTS = {
   hidden: {
     filter: "blur(2px)",
@@ -39,7 +35,6 @@ const ACTION_ITEM_VARIANTS = {
     transition: { duration: 0.18, ease: [0.22, 1, 0.36, 1] },
   },
 } as const;
-
 interface IslandActionButtonProps {
   disabled: boolean;
   icon: ReactNode;
@@ -48,7 +43,6 @@ interface IslandActionButtonProps {
   onAction: () => void;
   title: string;
 }
-
 const IslandActionButton = ({
   disabled,
   icon,
@@ -66,8 +60,9 @@ const IslandActionButton = ({
         isActive && "bg-white text-black hover:bg-white/88 hover:text-black"
       )}
       disabled={disabled}
+      iconOnly
       onClick={onAction}
-      size="icon-2xs"
+      size="xs"
       title={title}
       variant="ghost"
     >
@@ -75,7 +70,6 @@ const IslandActionButton = ({
     </Button>
   </m.div>
 );
-
 export const IslandActions = ({
   actionState,
   isVisible,

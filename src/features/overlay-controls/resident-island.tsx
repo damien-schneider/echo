@@ -1,3 +1,4 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { GripHorizontal } from "lucide-react";
 import {
   type CSSProperties,
@@ -7,7 +8,6 @@ import {
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
-import { Button } from "@/components/ui/button";
 import { IslandActions } from "@/features/overlay-controls/island-actions";
 import type { IslandActionState } from "@/features/overlay-controls/recording-overlay-state";
 import type { IslandControlMotionPhase } from "@/features/overlay-controls/runtime/island-control-state";
@@ -25,7 +25,6 @@ interface ActionPorts {
   onPolish: () => void;
   onRecord: () => void;
 }
-
 interface ResidentIslandProps extends ActionPorts {
   anchor: OverlayAnchor;
   drag: EdgeDockDrag;
@@ -38,7 +37,6 @@ interface ResidentIslandProps extends ActionPorts {
   residentRef: RefObject<HTMLDivElement | null>;
   triggerBox: OverlayBox;
 }
-
 const useResidentActionFocus = (isExpanded: boolean, onReveal: () => void) => {
   const actionsRef = useRef<HTMLDivElement>(null);
   const focusAfterReveal = useRef(false);
@@ -55,13 +53,11 @@ const useResidentActionFocus = (isExpanded: boolean, onReveal: () => void) => {
   };
   return { actionsRef, revealForActivation };
 };
-
 interface ResidentContentProps extends ActionPorts {
   actionsRef: RefObject<HTMLDivElement | null>;
   isInteractive: boolean;
   orientation: "horizontal" | "vertical";
 }
-
 const ResidentContent = ({
   actionsRef,
   isInteractive,
@@ -81,15 +77,12 @@ const ResidentContent = ({
     />
   </div>
 );
-
 interface ResidentTriggerProps {
   box: OverlayBox;
   motionPhase: IslandControlMotionPhase;
   onActivate: (event: MouseEvent<HTMLButtonElement>) => void;
   onPointerEnter: () => void;
 }
-
-// Portalled out of the clipped island so the hit area can survive the collapse.
 const ResidentTrigger = ({
   box,
   motionPhase,
@@ -117,7 +110,6 @@ const ResidentTrigger = ({
     document.body
   );
 };
-
 export const ResidentIsland = ({
   anchor,
   drag,
@@ -135,7 +127,6 @@ export const ResidentIsland = ({
   const actionsAreInteractive =
     !drag.isDragging &&
     (isSideDocked || (isExpanded && motionPhase === "open"));
-  // The grip keeps its slot whenever the island can dock: appearing mid-morph would shove the toolbar.
   const hasDockGrip = isSideDocked || presentation === "docked";
   const gripIsLive =
     drag.isDragging ||

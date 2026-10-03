@@ -1,3 +1,6 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import { ButtonGroup } from "@ctrl-ui/react/ui/button-group";
+import { Input } from "@ctrl-ui/react/ui/input";
 import {
   BookText,
   Download,
@@ -8,10 +11,8 @@ import {
 } from "lucide-react";
 import type React from "react";
 import { useRef, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
-import { Input } from "@/components/ui/input";
-import { SettingContainer } from "@/components/ui/setting-container";
+import { z } from "zod";
+import { SettingRow } from "@/features/settings/setting-row";
 import type { DictionaryEntry } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
@@ -20,13 +21,7 @@ import {
   useSettingsStore,
 } from "@/stores/settings-store";
 
-interface DictionaryEditorProps {
-  descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
-}
-
 const VARIANT_SPLIT_REGEX = /[\n,]+/;
-
 const parseVariantsInput = (raw: string): string[] => {
   const seen = new Set<string>();
   return raw
@@ -40,43 +35,22 @@ const parseVariantsInput = (raw: string): string[] => {
       return true;
     });
 };
-
-const isValidImportShape = (value: unknown): value is DictionaryEntry[] => {
-  if (!Array.isArray(value)) {
-    return false;
-  }
-  return value.every(
-    (entry): entry is DictionaryEntry =>
-      typeof entry === "object" &&
-      entry !== null &&
-      typeof (entry as { canonical?: unknown }).canonical === "string" &&
-      Array.isArray((entry as { variants?: unknown }).variants) &&
-      (entry as { variants: unknown[] }).variants.every(
-        (v) => typeof v === "string"
-      )
-  );
-};
-
-export const DictionaryEditor = ({
-  descriptionMode = "tooltip",
-  grouped = false,
-}: DictionaryEditorProps) => {
+const DictionaryImportSchema = z.array(
+  z.object({ canonical: z.string(), variants: z.array(z.string()) })
+) satisfies z.ZodType<DictionaryEntry[]>;
+export const DictionaryEditor = () => {
   const dictionary = useSetting("cleanup_dictionary") || [];
   const updating = useIsSettingUpdating("cleanup_dictionary");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
-
   const [newCanonical, setNewCanonical] = useState("");
   const [newVariantsRaw, setNewVariantsRaw] = useState("");
   const [editingCanonical, setEditingCanonical] = useState<string | null>(null);
   const [editCanonicalDraft, setEditCanonicalDraft] = useState("");
   const [editVariantsDraft, setEditVariantsDraft] = useState("");
-
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-
   const persist = (next: DictionaryEntry[]) => {
     updateSetting("cleanup_dictionary", next);
   };
-
   const handleAddEntry = () => {
     const canonical = newCanonical.trim();
     if (
@@ -92,23 +66,19 @@ export const DictionaryEditor = ({
     setNewCanonical("");
     setNewVariantsRaw("");
   };
-
   const handleRemoveEntry = (canonical: string) => {
     persist(dictionary.filter((e) => e.canonical !== canonical));
   };
-
   const handleStartEdit = (entry: DictionaryEntry) => {
     setEditingCanonical(entry.canonical);
     setEditCanonicalDraft(entry.canonical);
     setEditVariantsDraft(entry.variants.join(", "));
   };
-
   const handleCancelEdit = () => {
     setEditingCanonical(null);
     setEditCanonicalDraft("");
     setEditVariantsDraft("");
   };
-
   const handleSaveEdit = () => {
     if (editingCanonical === null) {
       return;
@@ -137,14 +107,12 @@ export const DictionaryEditor = ({
     );
     handleCancelEdit();
   };
-
   const handleAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       handleAddEntry();
     }
   };
-
   const handleExport = () => {
     const blob = new Blob([JSON.stringify(dictionary, null, 2)], {
       type: "application/json",
@@ -158,11 +126,9 @@ export const DictionaryEditor = ({
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   };
-
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
-
   const handleImportFile = async (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -173,15 +139,14 @@ export const DictionaryEditor = ({
     }
     try {
       const text = await file.text();
-      const parsed: unknown = JSON.parse(text);
-      if (!isValidImportShape(parsed)) {
+      const imported = DictionaryImportSchema.safeParse(JSON.parse(text));
+      if (!imported.success) {
         console.error("Invalid dictionary JSON shape");
         return;
       }
-      // Dedupe by canonical, case-insensitive, preserve order.
       const seen = new Set<string>();
       const merged: DictionaryEntry[] = [];
-      for (const entry of parsed) {
+      for (const entry of imported.data) {
         const key = entry.canonical.toLowerCase();
         if (seen.has(key)) {
           continue;
@@ -197,19 +162,15 @@ export const DictionaryEditor = ({
       console.error("Failed to import dictionary:", error);
     }
   };
-
   const canAddEntry =
     newCanonical.trim().length > 0 &&
     !dictionary.some(
       (e) => e.canonical.toLowerCase() === newCanonical.trim().toLowerCase()
     );
-
   return (
     <>
-      <SettingContainer
+      <SettingRow
         description="Names and terms to preserve verbatim in cleaned transcripts. Add the canonical spelling and any variants (commonly misheard or misspelled forms) — variants are rewritten to the canonical before the cleanup model runs."
-        descriptionMode={descriptionMode}
-        grouped={grouped}
         icon={<BookText className="h-4 w-4" />}
         layout="stacked"
         title="Custom Dictionary"
@@ -224,7 +185,6 @@ export const DictionaryEditor = ({
               placeholder="Canonical (e.g. Damien)"
               type="text"
               value={newCanonical}
-              variant="button"
             />
             <Input
               className="min-w-0 flex-1"
@@ -234,14 +194,15 @@ export const DictionaryEditor = ({
               placeholder="Variants, comma-separated (optional)"
               type="text"
               value={newVariantsRaw}
-              variant="button"
             />
             <Button
               aria-label="Add entry"
               disabled={!canAddEntry || updating}
+              iconOnly
               onClick={handleAddEntry}
-              size="icon"
-              variant="default"
+              size="md"
+              tone="primary"
+              variant="solid"
             >
               <PlusIcon className="h-4 w-4" />
             </Button>
@@ -275,15 +236,10 @@ export const DictionaryEditor = ({
             />
           </div>
         </div>
-      </SettingContainer>
+      </SettingRow>
 
       {dictionary.length > 0 && (
-        <div
-          className={cn(
-            "flex flex-col gap-2 p-2 px-4",
-            !grouped && "rounded-lg border border-border/20"
-          )}
-        >
+        <div className={cn("flex flex-col gap-2 p-2 px-4", false)}>
           {dictionary.map((entry) => {
             const isEditing = editingCanonical === entry.canonical;
             if (isEditing) {
@@ -311,6 +267,8 @@ export const DictionaryEditor = ({
                       disabled={!editCanonicalDraft.trim() || updating}
                       onClick={handleSaveEdit}
                       size="xs"
+                      tone="primary"
+                      variant="solid"
                     >
                       Save
                     </Button>
@@ -336,8 +294,9 @@ export const DictionaryEditor = ({
                     <Button
                       aria-label={`Edit ${entry.canonical}`}
                       disabled={updating}
+                      iconOnly
                       onClick={() => handleStartEdit(entry)}
-                      size="icon"
+                      size="md"
                       variant="ghost"
                     >
                       <PencilIcon className="h-3 w-3" />
@@ -345,8 +304,9 @@ export const DictionaryEditor = ({
                     <Button
                       aria-label={`Remove ${entry.canonical}`}
                       disabled={updating}
+                      iconOnly
                       onClick={() => handleRemoveEntry(entry.canonical)}
-                      size="icon"
+                      size="md"
                       variant="ghost"
                     >
                       <Trash2 className="h-3 w-3" />

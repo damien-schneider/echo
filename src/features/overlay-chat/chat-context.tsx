@@ -1,5 +1,5 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { Download, Loader2, Quote, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import {
   CHAT_MODEL_KINDS,
   type ChatModelOption,
@@ -10,20 +10,17 @@ import type {
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import type { PolishModelProgress } from "@/features/polish/polish-model-state";
 import type { PolishStatus } from "@/lib/types";
-
 export interface BundledChatModel {
   download: () => Promise<void>;
   progress?: PolishModelProgress;
   repair: () => Promise<void>;
   status: PolishStatus;
 }
-
 interface ChatReferenceProps {
   context: ChatTextContext | null;
   onRequestAccessibility: () => Promise<void>;
   state: ChatContextEvent["state"];
 }
-
 const LoadingChatReference = () => (
   <output
     aria-label="Selected text context"
@@ -33,7 +30,6 @@ const LoadingChatReference = () => (
     <span>Checking selected text…</span>
   </output>
 );
-
 const AccessibilityChatReference = ({
   onRequestAccessibility,
 }: Pick<ChatReferenceProps, "onRequestAccessibility">) => (
@@ -52,13 +48,14 @@ const AccessibilityChatReference = ({
       className="h-7 shrink-0 rounded-full bg-white px-3 text-[11px] text-black hover:bg-white/88"
       onClick={onRequestAccessibility}
       size="sm"
+      tone="primary"
       type="button"
+      variant="solid"
     >
       Allow
     </Button>
   </fieldset>
 );
-
 const SelectedChatReference = ({
   context,
 }: Pick<ChatReferenceProps, "context">) => {
@@ -91,7 +88,6 @@ const SelectedChatReference = ({
     </fieldset>
   );
 };
-
 export const ChatReference = ({
   context,
   onRequestAccessibility,
@@ -109,12 +105,10 @@ export const ChatReference = ({
   }
   return <SelectedChatReference context={context} />;
 };
-
 interface BundledModelSetupProps {
   model: BundledChatModel;
   selected: ChatModelOption | null;
 }
-
 const bundledModelProgressLabel = (model: BundledChatModel) => {
   const percentage = Math.round(model.progress?.percentage ?? 0);
   if (model.status.state === "downloading") {
@@ -128,7 +122,6 @@ const bundledModelProgressLabel = (model: BundledChatModel) => {
   }
   return "Checking Echo 4B…";
 };
-
 const DownloadBundledModel = ({
   download,
 }: Pick<BundledChatModel, "download">) => (
@@ -141,19 +134,19 @@ const DownloadBundledModel = ({
       className="h-8 shrink-0 rounded-full bg-white px-3 text-[11px] text-black hover:bg-white/88"
       onClick={download}
       size="sm"
+      tone="primary"
       type="button"
+      variant="solid"
     >
       <Download aria-hidden="true" className="size-3.5" />
       Download 2.5 GB
     </Button>
   </div>
 );
-
 interface RepairBundledModelProps {
   message: string;
   repair: () => Promise<void>;
 }
-
 const RepairBundledModel = ({ message, repair }: RepairBundledModelProps) => (
   <div
     className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-red-400/10 px-3 py-2"
@@ -165,14 +158,15 @@ const RepairBundledModel = ({ message, repair }: RepairBundledModelProps) => (
       className="h-8 shrink-0 rounded-full bg-white px-3 text-[11px] text-black hover:bg-white/88"
       onClick={repair}
       size="sm"
+      tone="primary"
       type="button"
+      variant="solid"
     >
       <RotateCcw aria-hidden="true" className="size-3.5" />
       Repair
     </Button>
   </div>
 );
-
 export const BundledModelSetup = ({
   model,
   selected,

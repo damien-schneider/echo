@@ -1,7 +1,4 @@
-import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
-import type React from "react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -9,28 +6,30 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command";
+} from "@ctrl-ui/react/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
+} from "@ctrl-ui/react/ui/popover";
+import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
+import type React from "react";
+import { useState } from "react";
+import type { ModelOption } from "@/components/settings/post-processing-settings-api/types";
 import { cn } from "@/lib/utils";
-import type { ModelOption } from "./types";
 
 interface ModelSelectProps {
   allowCreate?: boolean;
   className?: string;
   disabled?: boolean;
   isLoading?: boolean;
-  onBlur: () => void;
+  onBlur?: () => void;
   onCreate?: (value: string) => void;
   onSelect: (value: string) => void;
   options: ModelOption[];
   placeholder?: string;
   value: string;
 }
-
 export const ModelSelect: React.FC<ModelSelectProps> = ({
   value,
   options,
@@ -45,15 +44,12 @@ export const ModelSelect: React.FC<ModelSelectProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
-
   const selectedOption = options.find((opt) => opt.value === value);
-
   const handleSelect = (selectedValue: string) => {
     onSelect(selectedValue);
     setOpen(false);
     setSearch("");
   };
-
   const handleCreate = () => {
     const trimmed = search.trim();
     if (trimmed && onCreate) {
@@ -62,13 +58,11 @@ export const ModelSelect: React.FC<ModelSelectProps> = ({
       setSearch("");
     }
   };
-
   const filteredOptions = options.filter(
     (opt) =>
       opt.label.toLowerCase().includes(search.toLowerCase()) ||
       opt.value.toLowerCase().includes(search.toLowerCase())
   );
-
   const showCreateOption =
     allowCreate &&
     search.trim() &&
@@ -77,22 +71,25 @@ export const ModelSelect: React.FC<ModelSelectProps> = ({
         opt.value.toLowerCase() === search.trim().toLowerCase() ||
         opt.label.toLowerCase() === search.trim().toLowerCase()
     );
-
   return (
     <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger asChild>
-        <Button
-          aria-expanded={open}
-          className={cn("justify-between font-normal text-sm", className)}
-          disabled={disabled || isLoading}
-          onBlur={onBlur}
-          role="combobox"
-        >
-          <span className="truncate">
-            {selectedOption?.label || value || placeholder}
-          </span>
-          <ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            aria-expanded={open}
+            aria-label="Model"
+            className={cn("justify-between font-normal text-sm", className)}
+            disabled={disabled || isLoading}
+            onBlur={onBlur}
+            role="combobox"
+            variant="surface"
+          />
+        }
+      >
+        <span className="truncate">
+          {selectedOption?.label || value || placeholder}
+        </span>
+        <ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0">
         <Command shouldFilter={false}>
@@ -108,14 +105,15 @@ export const ModelSelect: React.FC<ModelSelectProps> = ({
           <CommandList>
             <CommandEmpty>
               {allowCreate && search.trim() ? (
-                <button
+                <Button
                   className="flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-brand text-sm hover:bg-accent"
                   onClick={handleCreate}
                   type="button"
+                  variant="ghost"
                 >
                   <PlusIcon className="h-4 w-4" />
                   Create "{search.trim()}"
-                </button>
+                </Button>
               ) : (
                 "No model found."
               )}
@@ -164,5 +162,4 @@ export const ModelSelect: React.FC<ModelSelectProps> = ({
     </Popover>
   );
 };
-
 ModelSelect.displayName = "ModelSelect";

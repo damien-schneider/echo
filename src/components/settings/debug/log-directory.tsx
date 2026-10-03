@@ -1,22 +1,12 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { invoke } from "@tauri-apps/api/core";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { SettingContainer } from "@/components/ui/setting-container";
-
-interface LogDirectoryProps {
-  descriptionMode?: "tooltip" | "inline";
-  grouped?: boolean;
-}
-
-export const LogDirectory: React.FC<LogDirectoryProps> = ({
-  descriptionMode = "tooltip",
-  grouped = false,
-}) => {
+import { SettingRow } from "@/features/settings/setting-row";
+export const LogDirectory: React.FC = () => {
   const [logDir, setLogDir] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
   useEffect(() => {
     const loadLogDirectory = async () => {
       try {
@@ -32,10 +22,8 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
         setLoading(false);
       }
     };
-
     loadLogDirectory();
   }, []);
-
   const handleOpen = async () => {
     if (!logDir) {
       return;
@@ -46,7 +34,6 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
       console.error("Failed to open log directory:", openError);
     }
   };
-
   const renderContent = () => {
     if (loading) {
       return (
@@ -72,23 +59,20 @@ export const LogDirectory: React.FC<LogDirectoryProps> = ({
           disabled={!logDir}
           onClick={handleOpen}
           size="sm"
-          variant="secondary"
+          variant="surface"
         >
           Open
         </Button>
       </div>
     );
   };
-
   return (
-    <SettingContainer
+    <SettingRow
       description="Location on disk where Handy writes rotated log files"
-      descriptionMode={descriptionMode}
-      grouped={grouped}
       layout="stacked"
       title="Log Directory"
     >
       {renderContent()}
-    </SettingContainer>
+    </SettingRow>
   );
 };

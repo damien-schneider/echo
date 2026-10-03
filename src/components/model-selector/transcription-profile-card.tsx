@@ -1,7 +1,7 @@
+import { Badge } from "@ctrl-ui/react/ui/badge";
+import { Button } from "@ctrl-ui/react/ui/button";
 import { Check, Download, Loader2, Trash2 } from "lucide-react";
 import ProgressBar from "@/components/shared/progress-bar";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { modelActionPresentation } from "@/features/model-download/download-state";
 import type { TranscriptionProfileStatus } from "@/lib/types";
 import { formatModelSize } from "@/lib/utils/format";
@@ -14,7 +14,6 @@ interface TranscriptionProfileCardProps {
   onSelect: () => void;
   profile: TranscriptionProfileStatus;
 }
-
 export const TranscriptionProfileCard = ({
   downloadProgress,
   downloadSpeed,
@@ -30,7 +29,6 @@ export const TranscriptionProfileCard = ({
     isDownloaded: profile.is_downloaded,
     isDownloading,
   });
-
   return (
     <div className="rounded-xl border border-border/30 bg-card p-4 transition-colors hover:border-border/60">
       <div className="flex items-start justify-between gap-4">
@@ -41,7 +39,7 @@ export const TranscriptionProfileCard = ({
               {formatModelSize(profile.download_size_mb)}
             </span>
             {profile.is_recommended ? (
-              <Badge variant="secondary">Recommended</Badge>
+              <Badge variant="default">Recommended</Badge>
             ) : null}
             {profile.is_active ? (
               <Badge className="gap-1" variant="default">
@@ -59,16 +57,24 @@ export const TranscriptionProfileCard = ({
           {profile.is_downloaded && !profile.is_active && onDelete ? (
             <Button
               disabled={isBusy}
+              iconOnly
               onClick={onDelete}
-              size="icon-sm"
+              size="sm"
               title={`Delete ${profile.label} model`}
-              variant="ghostDestructive"
+              tone="danger"
+              variant="ghost"
             >
               <Trash2 aria-hidden="true" className="h-4 w-4" />
             </Button>
           ) : null}
           {action.show ? (
-            <Button disabled={action.disabled} onClick={onSelect} size="sm">
+            <Button
+              disabled={action.disabled}
+              onClick={onSelect}
+              size="sm"
+              tone="primary"
+              variant="solid"
+            >
               {action.showSpinner ? (
                 <Loader2
                   aria-hidden="true"

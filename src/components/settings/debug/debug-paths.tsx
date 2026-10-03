@@ -1,19 +1,8 @@
 import type React from "react";
-import { SettingContainer } from "@/components/ui/setting-container";
-
-interface DebugPathsProps {
-  descriptionMode?: "tooltip" | "inline";
-  grouped?: boolean;
-}
-
-export const DebugPaths: React.FC<DebugPathsProps> = ({
-  descriptionMode = "inline",
-  grouped = false,
-}) => (
-  <SettingContainer
+import { SettingRow } from "@/features/settings/setting-row";
+export const DebugPaths: React.FC = () => (
+  <SettingRow
     description="Display internal file paths and directories for debugging purposes"
-    descriptionMode={descriptionMode}
-    grouped={grouped}
     title="Debug Paths"
   >
     <div className="space-y-2 text-gray-600 text-sm">
@@ -32,5 +21,5 @@ export const DebugPaths: React.FC<DebugPathsProps> = ({
         </span>
       </div>
     </div>
-  </SettingContainer>
+  </SettingRow>
 );

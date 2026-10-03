@@ -1,20 +1,17 @@
 "use client";
-
+import { Button } from "@ctrl-ui/react/ui/button";
+import { Separator } from "@ctrl-ui/react/ui/separator";
 import { Bold, Code, Italic, Strikethrough } from "lucide-react";
 import { useEditorRef } from "platejs/react";
-import { Button } from "@/components/ui/button";
 import {
   RedoToolbarButton,
   UndoToolbarButton,
 } from "@/components/ui/history-toolbar-button";
-import { Separator } from "@/components/ui/separator";
 import { Toolbar } from "@/components/ui/toolbar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-
 export function EditorToolbar({ className }: { className?: string }) {
   const editor = useEditorRef();
-
   return (
     <TooltipProvider>
       <Toolbar
@@ -56,7 +53,6 @@ export function EditorToolbar({ className }: { className?: string }) {
     </TooltipProvider>
   );
 }
-
 interface ToolbarButtonProps {
   active?: boolean;
   disabled?: boolean;
@@ -64,7 +60,6 @@ interface ToolbarButtonProps {
   onClick: () => void;
   tooltip: string;
 }
-
 function ToolbarButton({
   onClick,
   icon,

@@ -1,31 +1,21 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import { ButtonGroup } from "@ctrl-ui/react/ui/button-group";
+import { Input } from "@ctrl-ui/react/ui/input";
 import { BookText, PlusIcon, XIcon } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
-import { Input } from "@/components/ui/input";
-import { SettingContainer } from "@/components/ui/setting-container";
+import { SettingRow } from "@/features/settings/setting-row";
 import { cn } from "@/lib/utils";
 import {
   useIsSettingUpdating,
   useSetting,
   useSettingsStore,
 } from "@/stores/settings-store";
-
-interface CustomWordsProps {
-  descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
-}
-
-export const CustomWords = ({
-  descriptionMode = "tooltip",
-  grouped = false,
-}: CustomWordsProps) => {
+export const CustomWords = () => {
   const customWords = useSetting("custom_words") || [];
   const updating = useIsSettingUpdating("custom_words");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const [newWord, setNewWord] = useState("");
-
   const handleAddWord = () => {
     const trimmedWord = newWord.trim();
     const sanitizedWord = trimmedWord.replace(/[<>"'&]/g, "");
@@ -39,27 +29,22 @@ export const CustomWords = ({
       setNewWord("");
     }
   };
-
   const handleRemoveWord = (wordToRemove: string) => {
     updateSetting(
       "custom_words",
       customWords.filter((word) => word !== wordToRemove)
     );
   };
-
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       e.preventDefault();
       handleAddWord();
     }
   };
-
   return (
     <>
-      <SettingContainer
+      <SettingRow
         description="Add words that are often misheard or misspelled during transcription. The system will automatically correct similar-sounding words to match your list."
-        descriptionMode={descriptionMode}
-        grouped={grouped}
         icon={<BookText className="h-4 w-4" />}
         title="Custom Words"
       >
@@ -72,7 +57,6 @@ export const CustomWords = ({
             placeholder="Add a word"
             type="text"
             value={newWord}
-            variant="button"
           />
           <Button
             disabled={
@@ -81,21 +65,18 @@ export const CustomWords = ({
               newWord.trim().length > 50 ||
               updating
             }
+            iconOnly
             onClick={handleAddWord}
-            size="icon"
-            variant="default"
+            size="md"
+            tone="primary"
+            variant="solid"
           >
             <PlusIcon className="h-4 w-4" />
           </Button>
         </ButtonGroup>
-      </SettingContainer>
+      </SettingRow>
       {customWords.length > 0 && (
-        <div
-          className={cn(
-            "p-2 px-4",
-            !grouped && "rounded-lg border border-border/20"
-          )}
-        >
+        <div className={cn("p-2 px-4", false)}>
           <ButtonGroup className="w-full flex-wrap gap-1">
             {customWords.map((word) => (
               <Button

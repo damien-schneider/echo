@@ -4,60 +4,47 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { SettingContainer } from "@/components/ui/setting-container";
+} from "@ctrl-ui/react/ui/select";
+import { SettingRow } from "@/features/settings/setting-row";
 import type { RecordingRetentionPeriod } from "@/lib/types";
 import {
   useIsSettingUpdating,
   useSetting,
   useSettingsStore,
 } from "@/stores/settings-store";
-
-interface RecordingRetentionPeriodProps {
-  descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
-}
-
-export const RecordingRetentionPeriodSelector = ({
-  descriptionMode = "tooltip",
-  grouped = false,
-}: RecordingRetentionPeriodProps) => {
+export const RecordingRetentionPeriodSelector = () => {
   const selectedRetentionPeriod =
     useSetting("recording_retention_period") || "preserve_limit";
   const historyLimit = useSetting("history_limit") ?? 5;
   const updating = useIsSettingUpdating("recording_retention_period");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
-
-  const retentionOptions: { value: RecordingRetentionPeriod; label: string }[] =
-    [
-      { label: "Never", value: "never" },
-      {
-        label: `Preserve ${historyLimit} Recording${historyLimit === 1 ? "" : "s"}`,
-        value: "preserve_limit",
-      },
-      { label: "After 3 Days", value: "days3" },
-      { label: "After 2 Weeks", value: "weeks2" },
-      { label: "After 3 Months", value: "months3" },
-    ];
-
+  const retentionOptions: {
+    value: RecordingRetentionPeriod;
+    label: string;
+  }[] = [
+    { label: "Never", value: "never" },
+    {
+      label: `Preserve ${historyLimit} Recording${historyLimit === 1 ? "" : "s"}`,
+      value: "preserve_limit",
+    },
+    { label: "After 3 Days", value: "days3" },
+    { label: "After 2 Weeks", value: "weeks2" },
+    { label: "After 3 Months", value: "months3" },
+  ];
   const handleRetentionPeriodSelect = async (
     period: RecordingRetentionPeriod
   ) => {
     await updateSetting("recording_retention_period", period);
   };
-
   return (
-    <SettingContainer
+    <SettingRow
       description="Automatically delete recordings from the device"
-      descriptionMode={descriptionMode}
-      grouped={grouped}
       title="Delete Recordings"
     >
-      <Select
+      <Select<RecordingRetentionPeriod>
         disabled={updating}
-        onValueChange={(val) =>
-          handleRetentionPeriodSelect(val as RecordingRetentionPeriod)
-        }
+        items={retentionOptions}
+        onValueChange={(val) => handleRetentionPeriodSelect(val)}
         value={selectedRetentionPeriod}
       >
         <SelectTrigger className="w-full md:w-72">
@@ -71,9 +58,8 @@ export const RecordingRetentionPeriodSelector = ({
           ))}
         </SelectContent>
       </Select>
-    </SettingContainer>
+    </SettingRow>
   );
 };
-
 RecordingRetentionPeriodSelector.displayName =
   "RecordingRetentionPeriodSelector";

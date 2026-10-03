@@ -1,13 +1,13 @@
-import { RotateCcw, Speaker } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { SettingContainer } from "@/components/ui/setting-container";
+} from "@ctrl-ui/react/ui/select";
+import { RotateCcw, Speaker } from "lucide-react";
+import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
   useSetting,
@@ -16,14 +16,9 @@ import {
 } from "@/stores/settings-store";
 
 interface OutputDeviceSelectorProps {
-  descriptionMode?: "inline" | "tooltip";
   disabled?: boolean;
-  grouped?: boolean;
 }
-
 export const OutputDeviceSelector = ({
-  descriptionMode = "tooltip",
-  grouped = false,
   disabled = false,
 }: OutputDeviceSelectorProps) => {
   const selectedOutputDeviceRaw = useSetting("selected_output_device");
@@ -31,26 +26,20 @@ export const OutputDeviceSelector = ({
   const isLoading = useSettingsStore((s) => s.isLoading);
   const outputDevices = useSettingsStore((s) => s.outputDevices);
   const { updateSetting, resetSetting } = useSettingsActions();
-
   const selectedOutputDevice =
     selectedOutputDeviceRaw === "default"
       ? "Default"
       : selectedOutputDeviceRaw || "Default";
-
   const handleOutputDeviceSelect = async (deviceName: string) => {
     await updateSetting("selected_output_device", deviceName);
   };
-
   const handleReset = async () => {
     await resetSetting("selected_output_device");
   };
-
   return (
-    <SettingContainer
+    <SettingRow
       description="Select your preferred audio output device for feedback sounds"
-      descriptionMode={descriptionMode}
       disabled={disabled}
-      grouped={grouped}
       icon={<Speaker className="h-4 w-4" />}
       title="Output Device"
     >
@@ -83,14 +72,16 @@ export const OutputDeviceSelector = ({
           </SelectContent>
         </Select>
         <Button
+          aria-label="Reset output device"
           disabled={disabled || isUpdatingDevice || isLoading}
+          iconOnly
           onClick={handleReset}
-          size="icon"
+          size="md"
           variant="ghost"
         >
           <RotateCcw className="h-5 w-5" />
         </Button>
       </div>
-    </SettingContainer>
+    </SettingRow>
   );
 };

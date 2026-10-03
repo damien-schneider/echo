@@ -1,6 +1,6 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { CircleCheck, Download, RotateCcw, X } from "lucide-react";
 import ProgressBar from "@/components/shared/progress-bar";
-import { Button } from "@/components/ui/button";
 import type { PolishModelProgress } from "@/features/polish/polish-model-state";
 import { polishStatusCopy } from "@/features/polish/polish-status-copy";
 import type { PolishStatus } from "@/lib/types";
@@ -12,10 +12,8 @@ interface PolishModelPanelProps {
   progress?: PolishModelProgress;
   status: PolishStatus;
 }
-
 const polishActionClassName =
   "rounded-full bg-white px-4 text-black hover:bg-white/88";
-
 const StatusIcon = ({ state }: Pick<PolishStatus, "state">) => {
   if (state === "ready") {
     return (
@@ -30,18 +28,15 @@ const StatusIcon = ({ state }: Pick<PolishStatus, "state">) => {
   }
   return <span aria-hidden="true" className="echo-polish-phase-indicator" />;
 };
-
 const isBusyState = (state: PolishStatus["state"]) =>
   state === "preparing" ||
   state === "downloading" ||
   state === "verifying" ||
   state === "loading";
-
 interface PolishPanelHeaderProps {
   onClose: () => void;
   status: PolishStatus;
 }
-
 const PolishPanelHeader = ({ onClose, status }: PolishPanelHeaderProps) => {
   const copy = polishStatusCopy[status.state];
   return (
@@ -62,8 +57,9 @@ const PolishPanelHeader = ({ onClose, status }: PolishPanelHeaderProps) => {
       <Button
         aria-label="Close Polish model panel"
         className="size-7 rounded-full text-white/55 hover:bg-white/10 hover:text-white"
+        iconOnly
         onClick={onClose}
-        size="icon-xs"
+        size="xs"
         variant="ghost"
       >
         <X aria-hidden="true" />
@@ -71,12 +67,10 @@ const PolishPanelHeader = ({ onClose, status }: PolishPanelHeaderProps) => {
     </div>
   );
 };
-
 interface PolishProgressProps {
   progress?: PolishModelProgress;
   state: PolishStatus["state"];
 }
-
 const determinateProgress = ({ progress, state }: PolishProgressProps) => {
   if (state === "downloading") {
     return {
@@ -92,14 +86,12 @@ const determinateProgress = ({ progress, state }: PolishProgressProps) => {
   }
   return null;
 };
-
 const indeterminateProgressLabel = (state: PolishStatus["state"]) => {
   if (state === "loading") {
     return "Polish model loading";
   }
   return state === "preparing" ? "Polish model preparation" : null;
 };
-
 const PolishProgress = ({ progress, state }: PolishProgressProps) => {
   const determinate = determinateProgress({ progress, state });
   if (determinate) {
@@ -134,7 +126,6 @@ const PolishProgress = ({ progress, state }: PolishProgressProps) => {
     </div>
   );
 };
-
 const PolishPanelAction = ({
   onClose,
   onDownload,
@@ -145,7 +136,13 @@ const PolishPanelAction = ({
 }) => {
   if (state === "not_downloaded") {
     return (
-      <Button className={polishActionClassName} onClick={onDownload} size="sm">
+      <Button
+        className={polishActionClassName}
+        onClick={onDownload}
+        size="sm"
+        tone="primary"
+        variant="solid"
+      >
         <Download aria-hidden="true" />
         Download 2.5 GB
       </Button>
@@ -153,7 +150,13 @@ const PolishPanelAction = ({
   }
   if (state === "repair") {
     return (
-      <Button className={polishActionClassName} onClick={onRepair} size="sm">
+      <Button
+        className={polishActionClassName}
+        onClick={onRepair}
+        size="sm"
+        tone="primary"
+        variant="solid"
+      >
         <RotateCcw aria-hidden="true" />
         Repair Polish
       </Button>
@@ -161,14 +164,19 @@ const PolishPanelAction = ({
   }
   if (state === "ready") {
     return (
-      <Button className={polishActionClassName} onClick={onClose} size="sm">
+      <Button
+        className={polishActionClassName}
+        onClick={onClose}
+        size="sm"
+        tone="primary"
+        variant="solid"
+      >
         Done
       </Button>
     );
   }
   return null;
 };
-
 export const PolishModelPanel = ({
   onClose,
   onDownload,

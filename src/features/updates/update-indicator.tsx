@@ -1,14 +1,14 @@
-import { RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
-import ProgressBar from "@/components/shared/progress-bar";
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@ctrl-ui/react/ui/tooltip";
+import { RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import ProgressBar from "@/components/shared/progress-bar";
+import { Spinner } from "@/components/ui/spinner";
 import {
   canInstallUpdate,
   type UpdateSnapshot,
@@ -18,8 +18,6 @@ import { useUpdateStatus } from "@/features/updates/use-update-status";
 import { cn } from "@/lib/utils";
 
 const UP_TO_DATE_LINGER_MS = 3000;
-
-/// "Nothing to install" is only worth saying right after the user asked.
 const useUpToDateFlash = () => {
   const [isShown, setIsShown] = useState(false);
   useEffect(() => {
@@ -35,7 +33,6 @@ const useUpToDateFlash = () => {
     show: () => setIsShown(true),
   };
 };
-
 const CheckButton = ({
   isChecking,
   onCheck,
@@ -45,21 +42,23 @@ const CheckButton = ({
 }) => (
   <TooltipProvider>
     <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          className="text-muted-foreground hover:text-foreground"
-          disabled={isChecking}
-          onClick={onCheck}
-          size="xs"
-          variant="ghost"
-        >
-          {isChecking ? (
-            <Spinner className="size-3!" />
-          ) : (
-            <RefreshCw className="size-3!" />
-          )}
-          <span className="sr-only">Check for updates</span>
-        </Button>
+      <TooltipTrigger
+        render={
+          <Button
+            className="text-muted-foreground hover:text-foreground"
+            disabled={isChecking}
+            onClick={onCheck}
+            size="xs"
+            variant="ghost"
+          />
+        }
+      >
+        {isChecking ? (
+          <Spinner className="size-3!" />
+        ) : (
+          <RefreshCw className="size-3!" />
+        )}
+        <span className="sr-only">Check for updates</span>
       </TooltipTrigger>
       <TooltipContent side="bottom">
         {isChecking ? "Checking…" : "Check for updates"}
@@ -67,14 +66,12 @@ const CheckButton = ({
     </Tooltip>
   </TooltipProvider>
 );
-
 interface StatusButtonProps {
   isActionable: boolean;
   label: string;
   onAction: () => void;
   tone: "brand" | "error" | "muted";
 }
-
 const StatusButton = ({
   isActionable,
   label,
@@ -97,7 +94,6 @@ const StatusButton = ({
     {label}
   </Button>
 );
-
 const statusTone = (snapshot: UpdateSnapshot) => {
   if (snapshot.phase === "error") {
     return "error" as const;
@@ -106,11 +102,9 @@ const statusTone = (snapshot: UpdateSnapshot) => {
     ? ("brand" as const)
     : ("muted" as const);
 };
-
 export const UpdateIndicator = ({ className = "" }: { className?: string }) => {
   const { check, install, snapshot } = useUpdateStatus();
   const flash = useUpToDateFlash();
-
   const runCheck = async () => {
     flash.hide();
     const next = await check();
@@ -118,7 +112,6 @@ export const UpdateIndicator = ({ className = "" }: { className?: string }) => {
       flash.show();
     }
   };
-
   const renderContent = () => {
     if (snapshot.phase === "unsupported") {
       return null;
@@ -157,7 +150,6 @@ export const UpdateIndicator = ({ className = "" }: { className?: string }) => {
     }
     return <CheckButton isChecking={false} onCheck={runCheck} />;
   };
-
   return (
     <div className={cn("flex items-center", className)}>{renderContent()}</div>
   );

@@ -1,47 +1,37 @@
-import { invoke } from "@tauri-apps/api/core";
-import { Laptop2, RefreshCw, RotateCcw } from "lucide-react";
-import type React from "react";
-import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
+import { Button } from "@ctrl-ui/react/ui/button";
+import { ButtonGroup } from "@ctrl-ui/react/ui/button-group";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { SettingContainer } from "@/components/ui/setting-container";
+} from "@ctrl-ui/react/ui/select";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@ctrl-ui/react/ui/tooltip";
+import { invoke } from "@tauri-apps/api/core";
+import { Laptop2, RefreshCw, RotateCcw } from "lucide-react";
+import type React from "react";
+import { useEffect, useState } from "react";
+import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
   useSetting,
   useSettingsActions,
   useSettingsStore,
 } from "@/stores/settings-store";
-
-interface ClamshellMicrophoneSelectorProps {
-  descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
-}
-
-export const ClamshellMicrophoneSelector: React.FC<
-  ClamshellMicrophoneSelectorProps
-> = ({ descriptionMode = "tooltip", grouped = false }) => {
+export const ClamshellMicrophoneSelector: React.FC = () => {
   const clamshellMicRaw = useSetting("clamshell_microphone");
   const isUpdatingClamshell = useIsSettingUpdating("clamshell_microphone");
   const isLoading = useSettingsStore((s) => s.isLoading);
   const audioDevices = useSettingsStore((s) => s.audioDevices);
   const refreshAudioDevices = useSettingsStore((s) => s.refreshAudioDevices);
   const { updateSetting, resetSetting } = useSettingsActions();
-
   const [isLaptop, setIsLaptop] = useState<boolean>(false);
-
   useEffect(() => {
     const checkIsLaptop = async () => {
       try {
@@ -52,30 +42,22 @@ export const ClamshellMicrophoneSelector: React.FC<
         setIsLaptop(false);
       }
     };
-
     checkIsLaptop();
   }, []);
-
   if (!isLaptop) {
     return null;
   }
-
   const selectedClamshellMicrophone =
     clamshellMicRaw === "default" ? "Default" : clamshellMicRaw || "Default";
-
   const handleSelect = async (deviceName: string) => {
     await updateSetting("clamshell_microphone", deviceName);
   };
-
   const handleReset = async () => {
     await resetSetting("clamshell_microphone");
   };
-
   return (
-    <SettingContainer
+    <SettingRow
       description="Choose a fallback microphone to use when your laptop lid is closed"
-      descriptionMode={descriptionMode}
-      grouped={grouped}
       icon={<Laptop2 className="h-4 w-4" />}
       title="Clamshell Microphone"
     >
@@ -107,36 +89,41 @@ export const ClamshellMicrophoneSelector: React.FC<
         <TooltipProvider>
           <ButtonGroup className="">
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  disabled={isUpdatingClamshell || isLoading}
-                  onClick={handleReset}
-                  size="icon"
-                  variant="outline"
-                >
-                  <RotateCcw className="h-5 w-5" />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    disabled={isUpdatingClamshell || isLoading}
+                    iconOnly
+                    onClick={handleReset}
+                    size="md"
+                    variant="surface"
+                  />
+                }
+              >
+                <RotateCcw className="h-5 w-5" />
               </TooltipTrigger>
               <TooltipContent>Reset to default</TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  disabled={isLoading}
-                  onClick={refreshAudioDevices}
-                  size="icon"
-                  variant="outline"
-                >
-                  <RefreshCw className="h-5 w-5" />
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    disabled={isLoading}
+                    iconOnly
+                    onClick={refreshAudioDevices}
+                    size="md"
+                    variant="surface"
+                  />
+                }
+              >
+                <RefreshCw className="h-5 w-5" />
               </TooltipTrigger>
               <TooltipContent>Refresh devices</TooltipContent>
             </Tooltip>
           </ButtonGroup>
         </TooltipProvider>
       </div>
-    </SettingContainer>
+    </SettingRow>
   );
 };
-
 ClamshellMicrophoneSelector.displayName = "ClamshellMicrophoneSelector";

@@ -1,21 +1,18 @@
+import { Badge } from "@ctrl-ui/react/ui/badge";
 import { getVersion } from "@tauri-apps/api/app";
 import { useEffect, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { UpdateIndicator } from "@/features/updates/update-indicator";
 import { getNormalizedOsPlatform } from "@/lib/os";
 import { cn } from "@/lib/utils";
 
 const isMacOS = getNormalizedOsPlatform() === "mac";
-
 export function AppHeader() {
   const [version, setVersion] = useState("");
-
   useEffect(() => {
     getVersion()
       .then(setVersion)
       .catch(() => setVersion(""));
   }, []);
-
   return (
     <div
       className={cn(

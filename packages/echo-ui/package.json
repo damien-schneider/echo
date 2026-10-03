@@ -1,0 +1,15 @@
+{
+  "name": "@echo/ui",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./skin": "./src/skin.tsx",
+    "./skin.css": "./src/skin.css"
+  },
+  "dependencies": {
+    "@ctrl-ui/react": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8"
+  }
+}

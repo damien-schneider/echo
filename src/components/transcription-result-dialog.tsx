@@ -1,48 +1,41 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { listen } from "@tauri-apps/api/event";
 import { CheckCircle2, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
 
 interface TranscriptionResultDialogProps {
   onClose?: () => void;
 }
-
 export const TranscriptionResultDialog: React.FC<
   TranscriptionResultDialogProps
 > = ({ onClose }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [transcriptionText, setTranscriptionText] = useState("");
   const [fileName, setFileName] = useState("");
-
   useEffect(() => {
-    const unlisten = listen<{ text: string; fileName: string }>(
-      "transcription-complete",
-      (event) => {
-        setTranscriptionText(event.payload.text);
-        setFileName(event.payload.fileName);
-        setIsOpen(true);
-      }
-    );
-
+    const unlisten = listen<{
+      text: string;
+      fileName: string;
+    }>("transcription-complete", (event) => {
+      setTranscriptionText(event.payload.text);
+      setFileName(event.payload.fileName);
+      setIsOpen(true);
+    });
     return () => {
       unlisten.then((u) => u());
     };
   }, []);
-
   const handleClose = () => {
     setIsOpen(false);
     onClose?.();
   };
-
   const copyToClipboard = async () => {
     await navigator.clipboard.writeText(transcriptionText);
   };
-
   if (!isOpen) {
     return null;
   }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-full max-w-lg rounded-lg bg-background p-6 shadow-lg">
@@ -69,10 +62,12 @@ export const TranscriptionResultDialog: React.FC<
         </div>
 
         <div className="flex justify-end gap-2">
-          <Button onClick={handleClose} variant="secondary">
+          <Button onClick={handleClose} variant="surface">
             Close
           </Button>
-          <Button onClick={copyToClipboard}>Copy to Clipboard</Button>
+          <Button onClick={copyToClipboard} tone="primary" variant="solid">
+            Copy to Clipboard
+          </Button>
         </div>
       </div>
     </div>

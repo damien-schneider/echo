@@ -1,8 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import { Ban, Loader2, Plus, X } from "lucide-react";
-import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@ctrl-ui/react/ui/badge";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -10,13 +7,16 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command";
+} from "@ctrl-ui/react/ui/command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover";
-import { SettingContainer } from "@/components/ui/setting-container";
+} from "@ctrl-ui/react/ui/popover";
+import { invoke } from "@tauri-apps/api/core";
+import { Ban, Loader2, Plus, X } from "lucide-react";
+import { useState } from "react";
+import { SettingRow } from "@/features/settings/setting-row";
 import { cn } from "@/lib/utils";
 import {
   useIsSettingUpdating,
@@ -25,16 +25,7 @@ import {
 } from "@/stores/settings-store";
 
 type InstalledApp = [name: string, bundleId: string];
-
-interface InputTrackingExcludedAppsProps {
-  descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
-}
-
-export const InputTrackingExcludedApps = ({
-  descriptionMode = "tooltip",
-  grouped = false,
-}: InputTrackingExcludedAppsProps) => {
+export const InputTrackingExcludedApps = () => {
   const excludedApps = useSetting("input_tracking_excluded_apps") ?? [];
   const inputTrackingEnabled = useSetting("input_tracking_enabled") ?? false;
   const isUpdatingExcluded = useIsSettingUpdating(
@@ -45,12 +36,10 @@ export const InputTrackingExcludedApps = ({
   const [open, setOpen] = useState(false);
   const [loadingApps, setLoadingApps] = useState(false);
   const [appsLoaded, setAppsLoaded] = useState(false);
-
   const fetchApps = async () => {
     if (appsLoaded || loadingApps) {
       return;
     }
-
     setLoadingApps(true);
     try {
       const apps = await invoke<InstalledApp[]>("get_installed_apps");
@@ -62,14 +51,12 @@ export const InputTrackingExcludedApps = ({
       setLoadingApps(false);
     }
   };
-
   const handleOpenChange = (isOpen: boolean) => {
     setOpen(isOpen);
     if (isOpen && !appsLoaded) {
       fetchApps();
     }
   };
-
   const addApp = (bundleId: string) => {
     if (!excludedApps.includes(bundleId)) {
       updateSetting("input_tracking_excluded_apps", [
@@ -79,38 +66,32 @@ export const InputTrackingExcludedApps = ({
     }
     setOpen(false);
   };
-
   const removeApp = (bundleId: string) => {
     updateSetting(
       "input_tracking_excluded_apps",
       excludedApps.filter((id) => id !== bundleId)
     );
   };
-
   const getAppName = (bundleId: string) => {
     const app = installedApps.find(([, id]) => id === bundleId);
     return app ? app[0] : bundleId;
   };
-
   if (!inputTrackingEnabled) {
     return null;
   }
-
   return (
     <>
-      <SettingContainer
+      <SettingRow
         description="Select applications where input tracking should be disabled (e.g., code editors, password managers)"
-        descriptionMode={descriptionMode}
-        grouped={grouped}
         icon={<Ban className="h-4 w-4" />}
         title="Excluded Applications"
       >
         <Popover onOpenChange={handleOpenChange} open={open}>
-          <PopoverTrigger asChild>
-            <Button disabled={isUpdatingExcluded} variant="outline">
-              <Plus className="mr-1.5 h-4 w-4" />
-              Add App
-            </Button>
+          <PopoverTrigger
+            render={<Button disabled={isUpdatingExcluded} variant="surface" />}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            Add App
           </PopoverTrigger>
           <PopoverContent align="end" className="w-[300px] p-0">
             <Command>
@@ -152,20 +133,15 @@ export const InputTrackingExcludedApps = ({
             </Command>
           </PopoverContent>
         </Popover>
-      </SettingContainer>
+      </SettingRow>
       {excludedApps.length > 0 && (
-        <div
-          className={cn(
-            "p-2 px-4",
-            !grouped && "rounded-lg border border-border/20"
-          )}
-        >
+        <div className={cn("p-2 px-4", false)}>
           <div className="flex flex-wrap gap-1.5">
             {excludedApps.map((bundleId) => (
               <Badge
                 className="flex items-center gap-1 pr-1"
                 key={bundleId}
-                variant="secondary"
+                variant="default"
               >
                 <span className="max-w-[150px] truncate">
                   {getAppName(bundleId)}

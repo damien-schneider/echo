@@ -1,3 +1,13 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@ctrl-ui/react/ui/dialog";
+import { Switch } from "@ctrl-ui/react/ui/switch";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { ExternalLink, Heart, Info } from "lucide-react";
@@ -14,18 +24,8 @@ import { HistoryLimit } from "@/components/settings/history-limit";
 import { MuteWhileRecording } from "@/components/settings/mute-while-recording";
 import { RecordingRetentionPeriodSelector } from "@/components/settings/recording-retention-period";
 import { SoundPicker } from "@/components/settings/sound-picker";
-import { Button } from "@/components/ui/button";
-import { CollapsibleSettingsGroup } from "@/components/ui/collapsible-settings-group";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { SettingContainer } from "@/components/ui/setting-container";
-import { Switch } from "@/components/ui/switch";
+import { SettingRow } from "@/features/settings/setting-row";
+import { SettingsSection } from "@/features/settings/settings-section";
 import {
   useIsSettingUpdating,
   useSetting,
@@ -33,16 +33,14 @@ import {
 } from "@/stores/settings-store";
 
 interface AboutDialogProps {
-  trigger?: React.ReactNode;
+  trigger?: React.ReactElement;
 }
-
 export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
   const [version, setVersion] = useState("");
   const [open, setOpen] = useState(false);
   const debugLoggingEnabled = useSetting("debug_logging_enabled") ?? false;
   const debugLoggingUpdating = useIsSettingUpdating("debug_logging_enabled");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
-
   useEffect(() => {
     const fetchVersion = async () => {
       try {
@@ -53,12 +51,10 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
         setVersion("0.0.0");
       }
     };
-
     if (open) {
       fetchVersion();
     }
   }, [open]);
-
   const handleOpenGitHub = async () => {
     try {
       await openUrl("https://github.com/damien-schneider/echo");
@@ -66,7 +62,6 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
       console.error("Failed to open GitHub:", error);
     }
   };
-
   const handleDonate = async () => {
     try {
       await openUrl("https://github.com/sponsors/damien-schneider");
@@ -74,21 +69,23 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
       console.error("Failed to open donate link:", error);
     }
   };
-
   return (
     <Dialog onOpenChange={setOpen} open={open}>
-      <DialogTrigger asChild>
-        {trigger ?? (
-          <Button
-            className="rounded-lg"
-            size="icon-sm"
-            title="About Echo"
-            variant="ghost"
-          >
-            <Info className="size-4" />
-          </Button>
-        )}
-      </DialogTrigger>
+      <DialogTrigger
+        render={
+          trigger ?? (
+            <Button
+              className="rounded-lg"
+              iconOnly
+              size="sm"
+              title="About Echo"
+              variant="ghost"
+            >
+              <Info className="size-4" />
+            </Button>
+          )
+        }
+      />
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -101,53 +98,47 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
         </DialogHeader>
 
         <div className="space-y-4">
-          <CollapsibleSettingsGroup defaultOpen={true} title="About">
-            <SettingContainer
-              description="Current version of Echo"
-              grouped={true}
-              title="Version"
-            >
+          <SettingsSection defaultOpen={true} title="About">
+            <SettingRow description="Current version of Echo" title="Version">
               <span className="font-mono text-sm">v{version}</span>
-            </SettingContainer>
+            </SettingRow>
 
-            <AppDataDirectory descriptionMode="tooltip" grouped={true} />
+            <AppDataDirectory />
 
-            <SettingContainer
+            <SettingRow
               description="View source code and contribute"
-              grouped={true}
               title="Source Code"
             >
               <Button
                 className="gap-2"
                 onClick={handleOpenGitHub}
                 size="sm"
-                variant="outline"
+                variant="surface"
               >
                 <GithubIcon className="h-4 w-4" />
                 GitHub
                 <ExternalLink className="h-3 w-3" />
               </Button>
-            </SettingContainer>
+            </SettingRow>
 
-            <SettingContainer
+            <SettingRow
               description="Help us continue building Echo"
-              grouped={true}
               title="Support Development"
             >
               <Button
                 className="gap-2"
                 onClick={handleDonate}
                 size="sm"
-                variant="default"
+                tone="primary"
+                variant="solid"
               >
                 <Heart className="h-4 w-4" />
                 Donate
               </Button>
-            </SettingContainer>
+            </SettingRow>
 
-            <SettingContainer
+            <SettingRow
               description="High-performance inference of OpenAI's Whisper automatic speech recognition model"
-              grouped={true}
               layout="stacked"
               title="Powered by Whisper.cpp"
             >
@@ -155,17 +146,12 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
                 Echo uses Whisper.cpp for fast, local speech-to-text processing.
                 Thanks to Georgi Gerganov and contributors.
               </p>
-            </SettingContainer>
-          </CollapsibleSettingsGroup>
+            </SettingRow>
+          </SettingsSection>
 
-          <CollapsibleSettingsGroup
-            defaultOpen={false}
-            title="Advanced / Debug"
-          >
-            <SettingContainer
+          <SettingsSection defaultOpen={false} title="Advanced / Debug">
+            <SettingRow
               description="Increase backend log verbosity to help diagnose issues. Logs remain local but may include sensitive snippets."
-              descriptionMode="tooltip"
-              grouped={true}
               title="Enable Debug Logging"
             >
               <Switch
@@ -175,28 +161,22 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
                   updateSetting("debug_logging_enabled", value)
                 }
               />
-            </SettingContainer>
+            </SettingRow>
 
             <SoundPicker
               description="Choose a sound theme for recording start and stop feedback"
               label="Sound Theme"
             />
 
-            <WordCorrectionThreshold descriptionMode="tooltip" grouped={true} />
-            <HistoryLimit descriptionMode="tooltip" grouped={true} />
-            <RecordingRetentionPeriodSelector
-              descriptionMode="tooltip"
-              grouped={true}
-            />
-            <AlwaysOnMicrophone descriptionMode="tooltip" grouped={true} />
-            <ClamshellMicrophoneSelector
-              descriptionMode="tooltip"
-              grouped={true}
-            />
-            <LogDirectory descriptionMode="tooltip" grouped={true} />
-            <LogLevelSelector descriptionMode="tooltip" grouped={true} />
-            <MuteWhileRecording descriptionMode="tooltip" grouped={true} />
-          </CollapsibleSettingsGroup>
+            <WordCorrectionThreshold />
+            <HistoryLimit />
+            <RecordingRetentionPeriodSelector />
+            <AlwaysOnMicrophone />
+            <ClamshellMicrophoneSelector />
+            <LogDirectory />
+            <LogLevelSelector />
+            <MuteWhileRecording />
+          </SettingsSection>
         </div>
       </DialogContent>
     </Dialog>

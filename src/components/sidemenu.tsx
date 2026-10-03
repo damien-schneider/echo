@@ -1,3 +1,11 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@ctrl-ui/react/ui/tooltip";
 import {
   AudioLines,
   BookText,
@@ -12,24 +20,16 @@ import {
   Users,
 } from "lucide-react";
 import type React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import { FileTranscriptionCenter } from "@/components/file-transcription-center";
 import EchoLogo from "@/components/icons/echo-logo";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { MeetingPage } from "./meeting/meeting-page";
 import { AboutDialog } from "./settings/about/about-dialog";
@@ -42,19 +42,15 @@ import { ModelsSettings } from "./settings/models/models-settings";
 import { PostProcessingSettings } from "./settings/post-processing/post-processing-settings";
 import { TranscriptionSettings } from "./settings/transcription/transcription-settings";
 import { TtsSettingsPage } from "./settings/tts-settings-page";
-
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
-
 interface IconProps {
   className?: string;
 }
-
 interface SectionConfig {
   component: React.ComponentType;
   icon: React.ComponentType<IconProps>;
   label: string;
 }
-
 export const SECTIONS_CONFIG = {
   app: {
     component: AppSettings,
@@ -107,14 +103,11 @@ export const SECTIONS_CONFIG = {
     label: "Transcription",
   },
 } as const satisfies Record<string, SectionConfig>;
-
 const isSidebarSection = (value: unknown): value is SidebarSection =>
   typeof value === "string" && Object.hasOwn(SECTIONS_CONFIG, value);
-
 const DEFAULT_SIDEBAR_WIDTH = "220px";
 const MIN_SIDEBAR_WIDTH = "180px";
 const MAX_SIDEBAR_WIDTH = "320px";
-
 function AppSidebar({
   activeSection,
   onSectionChange,
@@ -125,7 +118,6 @@ function AppSidebar({
   const availableSections = Object.keys(SECTIONS_CONFIG)
     .filter(isSidebarSection)
     .map((id) => ({ id, ...SECTIONS_CONFIG[id] }));
-
   return (
     <div
       className="flex h-full w-full flex-col rounded-xl bg-foreground/5 p-2"
@@ -148,8 +140,8 @@ function AppSidebar({
 
       <ScrollArea
         className="-mx-2 min-h-16 flex-1"
-        classNameViewport="min-w-0 overflow-x-hidden p-2"
-        showMask={false}
+        mask={false}
+        viewportClassName="min-w-0 overflow-x-hidden p-2"
       >
         <div className="flex flex-col gap-1" data-tauri-drag-region>
           {availableSections.map((section) => {
@@ -186,7 +178,6 @@ function AppSidebar({
     </div>
   );
 }
-
 export function SidebarLayout({
   activeSection,
   onSectionChange,
@@ -198,8 +189,7 @@ export function SidebarLayout({
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const sidebarPanelRef = useRef<PanelImperativeHandle | null>(null);
-
-  const toggleSidebar = useCallback(() => {
+  const toggleSidebar = () => {
     const panel = sidebarPanelRef.current;
     if (!panel) {
       return;
@@ -211,21 +201,20 @@ export function SidebarLayout({
       panel.collapse();
       setSidebarOpen(false);
     }
-  }, []);
-
+  };
+  const toggleSidebarFromShortcut = useEffectEvent(toggleSidebar);
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "b" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
-        toggleSidebar();
+        toggleSidebarFromShortcut();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleSidebar]);
-
+  }, []);
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delay={0}>
       <div
         className={cn("flex h-[calc(100vh-2rem)] w-full gap-0 p-2 pt-0")}
         data-tauri-drag-region
@@ -260,15 +249,17 @@ export function SidebarLayout({
               {!sidebarOpen && (
                 <div className="shrink-0 px-2 pt-1">
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/20"
-                        onClick={toggleSidebar}
-                        type="button"
-                      >
-                        <PanelLeft className="size-4" />
-                        <span className="sr-only">Toggle Sidebar</span>
-                      </button>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          className="inline-flex size-7 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring/20"
+                          onClick={toggleSidebar}
+                          type="button"
+                        />
+                      }
+                    >
+                      <PanelLeft className="size-4" />
+                      <span className="sr-only">Toggle Sidebar</span>
                     </TooltipTrigger>
                     <TooltipContent side="right">Toggle Sidebar</TooltipContent>
                   </Tooltip>
@@ -276,7 +267,7 @@ export function SidebarLayout({
               )}
               <ScrollArea
                 className="min-h-0 flex-1"
-                classNameViewport="pt-4 *:w-full"
+                viewportClassName="pt-4 *:w-full"
               >
                 <div data-tauri-drag-region>{children}</div>
               </ScrollArea>

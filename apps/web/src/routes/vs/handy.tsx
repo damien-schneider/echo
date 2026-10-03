@@ -1,11 +1,9 @@
 "use client";
-
+import { ButtonLink } from "@ctrl-ui/react/ui/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
 import EchoFooter from "@/components/landing/footer";
-import { Button } from "@/components/ui/button";
-
 export const Route = createFileRoute("/vs/handy")({
   component: HandyPage,
   head: () => ({
@@ -30,7 +28,6 @@ export const Route = createFileRoute("/vs/handy")({
     ],
   }),
 });
-
 const COMPARISON_ROWS = [
   {
     competitor: "Free forever",
@@ -117,7 +114,6 @@ const COMPARISON_ROWS = [
     feature: "ASR Models",
   },
 ];
-
 const WIN_CARDS = [
   {
     description:
@@ -138,11 +134,9 @@ const WIN_CARDS = [
     title: "Same Privacy, More Polish",
   },
 ];
-
 function ComparisonTable() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-80px", once: true });
-
   return (
     <motion.div
       animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
@@ -214,11 +208,9 @@ function ComparisonTable() {
     </motion.div>
   );
 }
-
 function WinCards() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-60px", once: true });
-
   return (
     <div className="grid gap-6 md:grid-cols-3" ref={ref}>
       {WIN_CARDS.map((card, index) => (
@@ -248,15 +240,12 @@ function WinCards() {
     </div>
   );
 }
-
 function HandyPage() {
   const heroRef = useRef<HTMLDivElement>(null);
   const heroInView = useInView(heroRef, { once: true });
-
   return (
     <div className="min-h-screen bg-background font-body text-foreground">
       <main className="pt-24">
-        {/* Hero */}
         <section className="mx-auto max-w-5xl px-4 pt-16 pb-12">
           <motion.div
             animate={heroInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
@@ -293,15 +282,17 @@ function HandyPage() {
               original, Handy is excellent. If you want the extended feature
               set, try Echo.
             </p>
-            <Button asChild size="lg">
-              <Link hash="download" to="/">
-                Download Echo Free
-              </Link>
-            </Button>
+            <ButtonLink
+              render={<Link hash="download" to="/" />}
+              size="lg"
+              tone="primary"
+              variant="solid"
+            >
+              Download Echo Free
+            </ButtonLink>
           </motion.div>
         </section>
 
-        {/* Quick wins bar */}
         <section className="border-border border-y bg-card/40 py-5">
           <div className="mx-auto max-w-5xl px-4">
             <div className="flex flex-wrap items-center gap-3">
@@ -326,7 +317,6 @@ function HandyPage() {
           </div>
         </section>
 
-        {/* Comparison table */}
         <section className="mx-auto max-w-5xl px-4 py-16">
           <motion.h2
             animate={{ opacity: 1, y: 0 }}
@@ -339,7 +329,6 @@ function HandyPage() {
           <ComparisonTable />
         </section>
 
-        {/* Why Echo */}
         <section className="mx-auto max-w-5xl px-4 pb-16">
           <motion.h2
             animate={{ opacity: 1, y: 0 }}
@@ -352,7 +341,6 @@ function HandyPage() {
           <WinCards />
         </section>
 
-        {/* Final CTA */}
         <section className="mx-auto max-w-5xl px-4 pb-24">
           <motion.div
             animate={{ opacity: 1, y: 0 }}
@@ -366,11 +354,15 @@ function HandyPage() {
             <p className="max-w-sm font-body text-muted-foreground text-sm">
               No account. No cloud. Free forever.
             </p>
-            <Button asChild className="mt-2" size="lg">
-              <Link hash="download" to="/">
-                Download Echo Free
-              </Link>
-            </Button>
+            <ButtonLink
+              className="mt-2"
+              render={<Link hash="download" to="/" />}
+              size="lg"
+              tone="primary"
+              variant="solid"
+            >
+              Download Echo Free
+            </ButtonLink>
             <p className="font-body text-muted-foreground text-xs">
               Free forever · MIT License ·{" "}
               <a

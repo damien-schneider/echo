@@ -1,28 +1,25 @@
-import { formatDistanceToNow } from "date-fns";
-import { Check, Copy, Trash2 } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
+import { Button } from "@ctrl-ui/react/ui/button";
+import { ButtonGroup } from "@ctrl-ui/react/ui/button-group";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@ctrl-ui/react/ui/tooltip";
+import { formatDistanceToNow } from "date-fns";
+import { Check, Copy, Trash2 } from "lucide-react";
+import { useState } from "react";
 import type { Capture } from "@/lib/types";
 
 const COPIED_FEEDBACK_MS = 2000;
 const DELETE_CONFIRM_MS = 3000;
-
 interface CaptureEntryProps {
   capture: Capture;
   onDelete: (id: number) => Promise<void>;
 }
-
 export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
   const [showCopied, setShowCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(capture.content);
@@ -32,14 +29,12 @@ export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
       console.error("Failed to copy the capture:", error);
     }
   };
-
   const handleDelete = async () => {
     if (!confirmDelete) {
       setConfirmDelete(true);
       setTimeout(() => setConfirmDelete(false), DELETE_CONFIRM_MS);
       return;
     }
-
     try {
       await onDelete(capture.id);
     } catch (error) {
@@ -47,7 +42,6 @@ export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
       setConfirmDelete(false);
     }
   };
-
   return (
     <div className="flex flex-col gap-2 px-4 py-3">
       <div className="flex items-center justify-between">
@@ -64,32 +58,43 @@ export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
         <TooltipProvider>
           <ButtonGroup>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button onClick={handleCopy} size="icon-xs" variant="secondary">
-                  {showCopied ? (
-                    <Check height={16} width={16} />
-                  ) : (
-                    <Copy height={16} width={16} />
-                  )}
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    iconOnly
+                    onClick={handleCopy}
+                    size="xs"
+                    variant="surface"
+                  />
+                }
+              >
+                {showCopied ? (
+                  <Check height={16} width={16} />
+                ) : (
+                  <Copy height={16} width={16} />
+                )}
               </TooltipTrigger>
               <TooltipContent>
                 {showCopied ? "Copied!" : "Copy text"}
               </TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={handleDelete}
-                  size="icon-xs"
-                  variant={confirmDelete ? "ghostDestructive" : "secondary"}
-                >
-                  {confirmDelete ? (
-                    <Check height={16} width={16} />
-                  ) : (
-                    <Trash2 height={16} width={16} />
-                  )}
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    iconOnly
+                    onClick={handleDelete}
+                    size="xs"
+                    tone={confirmDelete ? "danger" : "neutral"}
+                    variant={confirmDelete ? "ghost" : "surface"}
+                  />
+                }
+              >
+                {confirmDelete ? (
+                  <Check height={16} width={16} />
+                ) : (
+                  <Trash2 height={16} width={16} />
+                )}
               </TooltipTrigger>
               <TooltipContent>
                 {confirmDelete ? "Click again to confirm" : "Delete capture"}

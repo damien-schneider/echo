@@ -1,12 +1,12 @@
-import { ClipboardCopy } from "lucide-react";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { SettingContainer } from "@/components/ui/setting-container";
+} from "@ctrl-ui/react/ui/select";
+import { ClipboardCopy } from "lucide-react";
+import { SettingRow } from "@/features/settings/setting-row";
 import type { ClipboardHandling } from "@/lib/types";
 import {
   useIsSettingUpdating,
@@ -14,37 +14,24 @@ import {
   useSettingsStore,
 } from "@/stores/settings-store";
 
-interface ClipboardHandlingProps {
-  descriptionMode?: "inline" | "tooltip";
-  grouped?: boolean;
-}
-
 const clipboardHandlingOptions = [
   { label: "Don't Modify Clipboard", value: "dont_modify" },
   { label: "Copy to Clipboard", value: "copy_to_clipboard" },
-];
-
-export const ClipboardHandlingSetting = ({
-  descriptionMode = "tooltip",
-  grouped = false,
-}: ClipboardHandlingProps) => {
+] satisfies { value: ClipboardHandling; label: string }[];
+export const ClipboardHandlingSetting = () => {
   const selectedHandling = useSetting("clipboard_handling") || "dont_modify";
   const updating = useIsSettingUpdating("clipboard_handling");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
-
   return (
-    <SettingContainer
+    <SettingRow
       description="Don't Modify Clipboard preserves your current clipboard contents after transcription. Copy to Clipboard leaves the transcription result in your clipboard after pasting."
-      descriptionMode={descriptionMode}
-      grouped={grouped}
       icon={<ClipboardCopy className="h-4 w-4" />}
       title="Clipboard Handling"
     >
-      <Select
+      <Select<ClipboardHandling>
         disabled={updating}
-        onValueChange={(val) =>
-          updateSetting("clipboard_handling", val as ClipboardHandling)
-        }
+        items={clipboardHandlingOptions}
+        onValueChange={(val) => updateSetting("clipboard_handling", val)}
         value={selectedHandling}
       >
         <SelectTrigger>
@@ -58,6 +45,6 @@ export const ClipboardHandlingSetting = ({
           ))}
         </SelectContent>
       </Select>
-    </SettingContainer>
+    </SettingRow>
   );
 };

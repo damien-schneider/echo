@@ -18,6 +18,7 @@ export default defineConfig({
   use: {
     baseURL: testUrl,
     trace: "on-first-retry",
+    screenshot: "only-on-failure",
   },
   webServer: {
     command: `bun run dev -- --port ${testPort}`,

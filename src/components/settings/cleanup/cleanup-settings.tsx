@@ -1,8 +1,8 @@
+import { Switch } from "@ctrl-ui/react/ui/switch";
 import { Sparkles } from "lucide-react";
 import { DictionaryEditor } from "@/components/settings/cleanup/dictionary-editor";
-import { CollapsibleSettingsGroup } from "@/components/ui/collapsible-settings-group";
-import { SettingContainer } from "@/components/ui/setting-container";
-import { Switch } from "@/components/ui/switch";
+import { SettingRow } from "@/features/settings/setting-row";
+import { SettingsSection } from "@/features/settings/settings-section";
 import {
   useIsSettingUpdating,
   useSetting,
@@ -13,12 +13,9 @@ const CleanupEnabledToggle = () => {
   const enabled = useSetting("cleanup_enabled") ?? false;
   const updating = useIsSettingUpdating("cleanup_enabled");
   const updateSetting = useSettingsStore((state) => state.updateSetting);
-
   return (
-    <SettingContainer
+    <SettingRow
       description="Apply local hallucination filtering and your dictionary without downloading another model."
-      descriptionMode="tooltip"
-      grouped={true}
       icon={<Sparkles className="h-4 w-4" />}
       title="Enable Lightweight Cleanup"
     >
@@ -27,18 +24,17 @@ const CleanupEnabledToggle = () => {
         disabled={updating}
         onCheckedChange={(value) => updateSetting("cleanup_enabled", value)}
       />
-    </SettingContainer>
+    </SettingRow>
   );
 };
-
 export const CleanupSettings = () => (
   <div className="mx-auto w-full max-w-3xl pb-20">
-    <CollapsibleSettingsGroup defaultOpen={true} title="Local Cleanup">
+    <SettingsSection defaultOpen={true} title="Local Cleanup">
       <CleanupEnabledToggle />
-    </CollapsibleSettingsGroup>
+    </SettingsSection>
 
-    <CollapsibleSettingsGroup defaultOpen={true} title="Dictionary">
-      <DictionaryEditor descriptionMode="tooltip" grouped={true} />
-    </CollapsibleSettingsGroup>
+    <SettingsSection defaultOpen={true} title="Dictionary">
+      <DictionaryEditor />
+    </SettingsSection>
   </div>
 );

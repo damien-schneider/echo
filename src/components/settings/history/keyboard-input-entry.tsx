@@ -1,16 +1,15 @@
-import { formatDistanceToNow } from "date-fns";
-import { Check, Copy, Trash2 } from "lucide-react";
-import type React from "react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
+import { Button } from "@ctrl-ui/react/ui/button";
+import { ButtonGroup } from "@ctrl-ui/react/ui/button-group";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
-
+} from "@ctrl-ui/react/ui/tooltip";
+import { formatDistanceToNow } from "date-fns";
+import { Check, Copy, Trash2 } from "lucide-react";
+import type React from "react";
+import { useState } from "react";
 export interface InputEntry {
   app_bundle_id: string | null;
   app_name: string;
@@ -20,19 +19,16 @@ export interface InputEntry {
   timestamp: number;
   window_title: string | null;
 }
-
 interface KeyboardInputEntryProps {
   entry: InputEntry;
   onDelete: (id: number) => Promise<void>;
 }
-
 export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
   entry,
   onDelete,
 }) => {
   const [showCopied, setShowCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-
   const handleCopyText = async () => {
     try {
       await navigator.clipboard.writeText(entry.content);
@@ -42,14 +38,12 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
       console.error("Failed to copy to clipboard:", error);
     }
   };
-
   const handleDeleteClick = async () => {
     if (!confirmDelete) {
       setConfirmDelete(true);
       setTimeout(() => setConfirmDelete(false), 3000);
       return;
     }
-
     try {
       await onDelete(entry.id);
     } catch (error) {
@@ -57,12 +51,10 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
       setConfirmDelete(false);
     }
   };
-
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
     return formatDistanceToNow(date, { addSuffix: true });
   };
-
   const formatDuration = (durationMs: number) => {
     if (durationMs < 1000) {
       return `${durationMs}ms`;
@@ -75,7 +67,6 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
     const remainingSeconds = seconds % 60;
     return `${minutes}m ${remainingSeconds}s`;
   };
-
   return (
     <div className="flex flex-col gap-2 px-4 py-3">
       <div className="flex items-center justify-between">
@@ -93,36 +84,43 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
         <TooltipProvider>
           <ButtonGroup>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={handleCopyText}
-                  size="icon-xs"
-                  variant="secondary"
-                >
-                  {showCopied ? (
-                    <Check height={16} width={16} />
-                  ) : (
-                    <Copy height={16} width={16} />
-                  )}
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    iconOnly
+                    onClick={handleCopyText}
+                    size="xs"
+                    variant="surface"
+                  />
+                }
+              >
+                {showCopied ? (
+                  <Check height={16} width={16} />
+                ) : (
+                  <Copy height={16} width={16} />
+                )}
               </TooltipTrigger>
               <TooltipContent>
                 {showCopied ? "Copied!" : "Copy text"}
               </TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  onClick={handleDeleteClick}
-                  size="icon-xs"
-                  variant={confirmDelete ? "ghostDestructive" : "secondary"}
-                >
-                  {confirmDelete ? (
-                    <Check height={16} width={16} />
-                  ) : (
-                    <Trash2 height={16} width={16} />
-                  )}
-                </Button>
+              <TooltipTrigger
+                render={
+                  <Button
+                    iconOnly
+                    onClick={handleDeleteClick}
+                    size="xs"
+                    tone={confirmDelete ? "danger" : "neutral"}
+                    variant={confirmDelete ? "ghost" : "surface"}
+                  />
+                }
+              >
+                {confirmDelete ? (
+                  <Check height={16} width={16} />
+                ) : (
+                  <Trash2 height={16} width={16} />
+                )}
               </TooltipTrigger>
               <TooltipContent>
                 {confirmDelete ? "Click again to confirm" : "Delete entry"}

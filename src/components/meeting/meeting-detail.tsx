@@ -1,7 +1,7 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { useMeetingModels } from "@/features/meeting/use-meeting-models";
 import { cn, errorMessage } from "@/lib/utils";
 import { useMeetingStore } from "@/stores/meeting-store";
@@ -9,7 +9,6 @@ import { MeetingAudioPlayer } from "./meeting-audio-player";
 import { MeetingExport } from "./meeting-export";
 import { MeetingSummary } from "./meeting-summary";
 import { MeetingTranscript } from "./meeting-transcript";
-
 export const MeetingDetail = () => {
   const meeting = useMeetingStore((s) => s.selectedMeeting);
   const segments = useMeetingStore((s) => s.selectedSegments);
@@ -18,7 +17,6 @@ export const MeetingDetail = () => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [retranscribing, setRetranscribing] = useState(false);
   const models = useMeetingModels();
-
   const handleSeek = (ms: number) => {
     const audio = audioRef.current;
     if (!audio) {
@@ -27,7 +25,6 @@ export const MeetingDetail = () => {
     audio.currentTime = ms / 1000;
     audio.play();
   };
-
   const handleRetranscribe = async () => {
     if (!meeting || retranscribing) {
       return;
@@ -42,28 +39,23 @@ export const MeetingDetail = () => {
       setRetranscribing(false);
     }
   };
-
-  // Rust re-checks the models before transcribing, so a failed download surfaces as its toast.
   const handleBuildTranscript = async () => {
     await models.ensure();
     await handleRetranscribe();
   };
-
   if (!meeting) {
     return null;
   }
-
   const buildBusy = retranscribing || models.downloading;
   let buildLabel = models.ready ? "Transcribe" : models.label;
   if (buildBusy) {
     buildLabel = retranscribing ? "Transcribing…" : "Downloading…";
   }
-
   return (
     <div className="flex h-full flex-col gap-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button onClick={unselectMeeting} size="icon" variant="ghost">
+          <Button iconOnly onClick={unselectMeeting} size="md" variant="ghost">
             <ArrowLeft className="size-4" />
           </Button>
           <h2 className="font-semibold text-lg">{meeting.title}</h2>
@@ -73,7 +65,7 @@ export const MeetingDetail = () => {
             disabled={retranscribing}
             onClick={handleRetranscribe}
             size="sm"
-            variant="outline"
+            variant="surface"
           >
             <RefreshCw
               className={cn("mr-1 size-3", retranscribing && "animate-spin")}
@@ -99,6 +91,8 @@ export const MeetingDetail = () => {
             disabled={buildBusy}
             onClick={handleBuildTranscript}
             size="sm"
+            tone="primary"
+            variant="solid"
           >
             <RefreshCw
               className={cn("mr-1 size-3", buildBusy && "animate-spin")}

@@ -1,10 +1,10 @@
-import { AlertTriangle, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@ctrl-ui/react/ui/tooltip";
+import { AlertTriangle, RotateCcw } from "lucide-react";
 import type { ShortcutBinding } from "@/lib/types";
 import { formatKeyCombination, type OSType } from "@/lib/utils/keyboard";
 
@@ -19,7 +19,6 @@ interface ShortcutBindingRowProps {
   setRef: (id: string, ref: HTMLDivElement | null) => void;
   showWaylandWarning: boolean;
 }
-
 export const ShortcutBindingRow = ({
   binding,
   currentKeys,
@@ -40,15 +39,19 @@ export const ShortcutBindingRow = ({
     </div>
     <div className="flex shrink-0 items-center space-x-1">
       {isEditing ? (
-        <Button asChild size="sm" variant="secondary">
-          <div ref={(ref) => setRef(binding.id, ref)}>{currentKeys}</div>
+        <Button
+          render={<div ref={(ref) => setRef(binding.id, ref)} />}
+          size="sm"
+          variant="surface"
+        >
+          {currentKeys}
         </Button>
       ) : (
         <Button
           className="font-semibold"
           onClick={() => onEdit(binding.id)}
           size="sm"
-          variant="secondary"
+          variant="surface"
         >
           {formatKeyCombination(binding.current_binding, osType)}
         </Button>
@@ -56,17 +59,18 @@ export const ShortcutBindingRow = ({
       <Button
         aria-label={`Reset ${binding.name} shortcut`}
         disabled={isUpdating}
+        iconOnly
         onClick={() => onReset(binding.id)}
-        size="icon"
+        size="md"
         variant="ghost"
       >
         <RotateCcw className="h-5 w-5" />
       </Button>
       {showWaylandWarning ? (
         <Tooltip>
-          <TooltipTrigger asChild>
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={<AlertTriangle className="h-4 w-4 text-orange-500" />}
+          />
           <TooltipContent className="max-w-xs" side="bottom">
             <p className="text-xs">
               This shortcut may type a character when activated on Wayland.

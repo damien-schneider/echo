@@ -1,41 +1,28 @@
 "use client";
-
+import { Button, ButtonLink } from "@ctrl-ui/react/ui/button";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Download, Menu, Moon, Sun, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import EchoLogo from "@/components/icons/echo-logo";
 import { useLenis } from "@/components/smooth-scroll";
-import { Button } from "@/components/ui/button";
 import { useGithubData } from "@/hooks/use-github-data";
-
 export default function Navbar() {
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(true);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const lenis = useLenis();
   const { stars } = useGithubData();
   const location = useLocation();
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const isDarkMode = document.documentElement.classList.contains("dark");
-      setIsDark(isDarkMode);
-    }
-  }, []);
-
   useEffect(() => {
     if (location.hash) {
       if (location.hash === "top") {
         lenis?.scrollTo(0);
       } else {
-        const element = document.querySelector(`#${location.hash}`);
-        if (element) {
-          lenis?.scrollTo(element as HTMLElement);
-        }
+        lenis?.scrollTo(`#${location.hash}`);
       }
     }
   }, [location.hash, lenis]);
-
   const toggleTheme = () => {
     const newTheme = !isDark;
     setIsDark(newTheme);
@@ -45,7 +32,6 @@ export default function Navbar() {
       document.documentElement.classList.remove("dark");
     }
   };
-
   return (
     <motion.nav
       animate={{ opacity: 1, y: 0 }}
@@ -60,7 +46,6 @@ export default function Navbar() {
           </Link>
         </div>
 
-        {/* Desktop Menu */}
         <div className="hidden items-center gap-6 md:flex">
           <Link
             className="font-medium text-sm transition-colors hover:text-primary"
@@ -108,9 +93,12 @@ export default function Navbar() {
 
           <div className="ml-4 flex items-center gap-2">
             <Button
+              aria-label="Toggle color theme"
+              aria-pressed={isDark}
               className="rounded-full"
+              iconOnly
               onClick={toggleTheme}
-              size="icon"
+              size="md"
               variant="ghost"
             >
               {isDark ? (
@@ -119,21 +107,26 @@ export default function Navbar() {
                 <Moon className="h-5 w-5" />
               )}
             </Button>
-            <Button asChild className="gap-2 rounded-full">
-              <Link hash="download" to="/">
-                <Download className="h-4 w-4" />
-                Download
-              </Link>
-            </Button>
+            <ButtonLink
+              className="gap-2 rounded-full"
+              render={<Link hash="download" to="/" />}
+              tone="primary"
+              variant="solid"
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </ButtonLink>
           </div>
         </div>
 
-        {/* Mobile Menu Toggle */}
         <div className="flex items-center gap-4 md:hidden">
           <Button
+            aria-label="Toggle color theme"
+            aria-pressed={isDark}
             className="rounded-full"
+            iconOnly
             onClick={toggleTheme}
-            size="icon"
+            size="md"
             variant="ghost"
           >
             {isDark ? (
@@ -142,20 +135,34 @@ export default function Navbar() {
               <Moon className="h-5 w-5" />
             )}
           </Button>
-          <button onClick={() => setIsMenuOpen(!isMenuOpen)} type="button">
+          <Button
+            aria-controls="echo-navigation"
+            aria-expanded={isMenuOpen}
+            aria-label="Toggle navigation"
+            iconOnly
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            ref={menuButtonRef}
+            variant="ghost"
+          >
             {isMenuOpen ? <X /> : <Menu />}
-          </button>
+          </Button>
         </div>
       </div>
 
-      {/* Mobile Menu */}
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
             animate={{ opacity: 1, scale: 1, y: 0 }}
             className="absolute top-full right-0 left-0 mt-2 flex flex-col gap-4 rounded-2xl border border-border bg-background/95 p-4 shadow-xl backdrop-blur-md md:hidden"
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
+            id="echo-navigation"
             initial={{ opacity: 0, scale: 0.95, y: -20 }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                setIsMenuOpen(false);
+                menuButtonRef.current?.focus();
+              }
+            }}
             transition={{ duration: 0.2 }}
           >
             <Link
@@ -202,12 +209,21 @@ export default function Navbar() {
                 </span>
               )}
             </a>
-            <Button asChild className="w-full gap-2 rounded-full">
-              <Link hash="download" onClick={() => setIsMenuOpen(false)} to="/">
-                <Download className="h-4 w-4" />
-                Download
-              </Link>
-            </Button>
+            <ButtonLink
+              className="w-full gap-2 rounded-full"
+              render={
+                <Link
+                  hash="download"
+                  onClick={() => setIsMenuOpen(false)}
+                  to="/"
+                />
+              }
+              tone="primary"
+              variant="solid"
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </ButtonLink>
           </motion.div>
         )}
       </AnimatePresence>

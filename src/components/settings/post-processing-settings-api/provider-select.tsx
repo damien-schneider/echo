@@ -1,31 +1,34 @@
-import type React from "react";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@ctrl-ui/react/ui/select";
+import type React from "react";
 
 interface DropdownOption {
   label: string;
   value: string;
 }
-
 interface ProviderSelectProps {
   disabled?: boolean;
   onChange: (value: string) => void;
   options: DropdownOption[];
   value: string;
 }
-
 export const ProviderSelect: React.FC<ProviderSelectProps> = ({
   options,
   value,
   onChange,
   disabled,
 }) => (
-  <Select disabled={disabled} onValueChange={onChange} value={value}>
+  <Select
+    disabled={disabled}
+    items={options}
+    onValueChange={onChange}
+    value={value}
+  >
     <SelectTrigger className="flex-1">
       <SelectValue placeholder="Select a provider" />
     </SelectTrigger>
@@ -38,5 +41,4 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
     </SelectContent>
   </Select>
 );
-
 ProviderSelect.displayName = "ProviderSelect";

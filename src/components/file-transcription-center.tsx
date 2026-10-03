@@ -1,3 +1,9 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@ctrl-ui/react/ui/popover";
 import {
   AlertCircle,
   Bell,
@@ -10,21 +16,14 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { TranscriptionProgress } from "@/features/file-transcription/transcription-progress";
 import { cn } from "@/lib/utils";
 import { useFileTranscriptionStore } from "@/stores/file-transcription-store";
-
 export function FileTranscriptionCenter() {
   const [open, setOpen] = useState(false);
   const transcriptions = useFileTranscriptionStore((s) => s.items);
   const removeTranscription = useFileTranscriptionStore((s) => s.removeItem);
   const clearCompleted = useFileTranscriptionStore((s) => s.clearCompleted);
-
   const processingCount = transcriptions.filter(
     (t) => t.status !== "complete" && t.status !== "error"
   ).length;
@@ -32,7 +31,6 @@ export function FileTranscriptionCenter() {
   const hasCompleted = transcriptions.some(
     (t) => t.status === "complete" || t.status === "error"
   );
-
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "extracting":
@@ -51,44 +49,42 @@ export function FileTranscriptionCenter() {
         return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
-
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60_000);
-
     if (diffMins < 1) {
       return "Just now";
     }
     if (diffMins < 60) {
       return `${diffMins}m ago`;
     }
-
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) {
       return `${diffHours}h ago`;
     }
-
     return date.toLocaleDateString();
   };
-
   return (
     <Popover onOpenChange={setOpen} open={open}>
-      <PopoverTrigger asChild>
-        <Button
-          className="relative"
-          size="icon-sm"
-          title="File transcriptions"
-          variant="ghost"
-        >
-          <Bell className="h-4 w-4" />
-          {processingCount > 0 && (
-            <span className="absolute -top-1 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
-              {processingCount}
-            </span>
-          )}
-        </Button>
+      <PopoverTrigger
+        render={
+          <Button
+            className="relative"
+            iconOnly
+            size="sm"
+            title="File transcriptions"
+            variant="ghost"
+          />
+        }
+      >
+        <Bell className="h-4 w-4" />
+        {processingCount > 0 && (
+          <span className="absolute -top-1 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
+            {processingCount}
+          </span>
+        )}
       </PopoverTrigger>
       <PopoverContent align="start" className="w-96 p-0" side="top">
         <div className="flex items-center justify-between border-foreground/10 border-b px-4 py-3">
@@ -131,8 +127,9 @@ export function FileTranscriptionCenter() {
                       {item.fileName}
                     </p>
                     <Button
+                      iconOnly
                       onClick={() => removeTranscription(item.id)}
-                      size="icon-xs"
+                      size="xs"
                       variant="ghost"
                     >
                       <X className="h-3 w-3" />
@@ -146,34 +143,11 @@ export function FileTranscriptionCenter() {
                   {(item.status === "extracting" ||
                     item.status === "transcribing" ||
                     item.status === "processing") && (
-                    <div className="mt-2">
-                      <div className="h-1 overflow-hidden rounded-full bg-foreground/10">
-                        {item.progress < 0 ? (
-                          <div
-                            className={cn(
-                              "h-full w-1/3 animate-pulse rounded-full",
-                              item.status === "extracting" && "bg-orange-500",
-                              item.status === "transcribing" && "bg-blue-500",
-                              item.status === "processing" && "bg-blue-500"
-                            )}
-                            style={{
-                              animation:
-                                "indeterminate 1.5s ease-in-out infinite",
-                            }}
-                          />
-                        ) : (
-                          <div
-                            className={cn(
-                              "h-full transition-all duration-300",
-                              item.status === "extracting" && "bg-orange-500",
-                              item.status === "transcribing" && "bg-blue-500",
-                              item.status === "processing" && "bg-blue-500"
-                            )}
-                            style={{ width: `${item.progress * 100}%` }}
-                          />
-                        )}
-                      </div>
-                    </div>
+                    <TranscriptionProgress
+                      className="mt-2"
+                      message={item.message}
+                      progress={item.progress}
+                    />
                   )}
 
                   {item.status === "error" && item.error && (

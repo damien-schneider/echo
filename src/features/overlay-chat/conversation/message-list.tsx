@@ -1,17 +1,15 @@
+import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import { lazy, Suspense } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { CHAT_ROLES, type ChatMessage } from "@/features/overlay-chat/chat";
 import { useStickToBottom } from "@/features/overlay-chat/conversation/use-stick-to-bottom";
 import { cn } from "@/lib/utils";
 
-/// Markdown and syntax highlighting stay out of the HUD's startup graph.
 const AssistantMarkdown = lazy(async () => ({
   default: (
     await import("@/features/overlay-chat/conversation/assistant-markdown")
   ).AssistantMarkdown,
 }));
-
 const PlainText = ({ text }: { text: string }) => (
   <span
     className="cursor-text select-text whitespace-pre-wrap"
@@ -20,19 +18,16 @@ const PlainText = ({ text }: { text: string }) => (
     {text}
   </span>
 );
-
 const PendingAnswer = () => (
   <span className="inline-flex items-center gap-2 text-white/58">
     <Loader2 aria-hidden="true" className="size-3 animate-spin" />
     Thinking
   </span>
 );
-
 interface MessageBodyProps {
   isStreaming: boolean;
   message: ChatMessage;
 }
-
 const MessageBody = ({ isStreaming, message }: MessageBodyProps) => {
   if (message.role === CHAT_ROLES.user) {
     return <PlainText text={message.content} />;
@@ -46,13 +41,11 @@ const MessageBody = ({ isStreaming, message }: MessageBodyProps) => {
     </Suspense>
   );
 };
-
 interface MessageListProps {
   error: string;
   isResponding: boolean;
   messages: ChatMessage[];
 }
-
 export const MessageList = ({
   error,
   isResponding,
@@ -66,9 +59,10 @@ export const MessageList = ({
   return (
     <ScrollArea
       className="min-h-0 flex-1"
-      classNameViewport="select-none pr-2"
-      scrollbars="vertical"
-      showMask={true}
+      lockAxis="x"
+      mask={true}
+      viewportClassName="select-none pr-2"
+      viewportProps={{ "data-slot": "scroll-area-viewport" }}
       viewportRef={viewportRef}
     >
       <div className="space-y-3" ref={contentRef}>

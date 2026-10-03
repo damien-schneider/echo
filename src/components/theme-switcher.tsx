@@ -1,19 +1,17 @@
-import { Monitor, Moon, Sun } from "lucide-react";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@ctrl-ui/react/ui/dropdown-menu";
+import { Monitor, Moon, Sun } from "lucide-react";
+import { useState } from "react";
 import { useTheme } from "@/providers/theme-provider";
-
 export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();
   const [open, setOpen] = useState(false);
-
   const getThemeIcon = () => {
     switch (theme) {
       case "light":
@@ -24,30 +22,33 @@ export function ThemeSwitcher() {
         return <Monitor className="h-4 w-4" />;
     }
   };
-
   return (
     <DropdownMenu onOpenChange={setOpen} open={open}>
-      <DropdownMenuTrigger asChild>
-        <Button size="icon-sm" title="Theme" variant="ghost">
-          {getThemeIcon()}
-        </Button>
+      <DropdownMenuTrigger
+        render={
+          <Button aria-label="Theme" iconOnly size="sm" variant="ghost" />
+        }
+      >
+        {getThemeIcon()}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top">
         <DropdownMenuRadioGroup
           onValueChange={(value) => {
-            setTheme(value as "light" | "dark" | "system");
+            if (value === "light" || value === "dark" || value === "system") {
+              setTheme(value);
+            }
           }}
           value={theme || "system"}
         >
-          <DropdownMenuRadioItem value="light">
+          <DropdownMenuRadioItem closeOnClick value="light">
             <Sun className="mr-2 h-4 w-4" />
             Light
           </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="dark">
+          <DropdownMenuRadioItem closeOnClick value="dark">
             <Moon className="mr-2 h-4 w-4" />
             Dark
           </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="system">
+          <DropdownMenuRadioItem closeOnClick value="system">
             <Monitor className="mr-2 h-4 w-4" />
             System
           </DropdownMenuRadioItem>

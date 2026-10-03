@@ -179,6 +179,12 @@
 }
 
 .echo-island .echo-island-action {
+  --cui-button-height: 20px;
+  --cui-button-radius: 6px;
+  --cui-button-icon: 12px;
+  --cui-button-shadow: none;
+  --cui-button-hover-shadow: none;
+  --cui-button-press-shadow: none;
   border-radius: 6px;
   scale: 1;
   transition:
@@ -319,16 +325,6 @@
   background: rgba(255, 255, 255, 0.22);
   border-radius: 999px;
   transform-origin: left center;
-  animation: echo-island-countdown linear forwards;
-}
-
-@keyframes echo-island-countdown {
-  from {
-    transform: scaleX(1);
-  }
-  to {
-    transform: scaleX(0);
-  }
 }
 
 .echo-island-progress progress::-webkit-progress-bar {

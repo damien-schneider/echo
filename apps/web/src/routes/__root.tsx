@@ -1,15 +1,14 @@
+import { EchoSkin } from "@echo/ui/skin";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
-
-import Navbar from "../components/landing/navbar";
-import SmoothScroll from "../components/smooth-scroll";
-
-import appCss from "../styles.css?url";
+import { MotionConfig } from "motion/react";
+import Navbar from "@/components/landing/navbar";
+import SmoothScroll from "@/components/smooth-scroll";
+import appCss from "@/styles.css?url";
 
 const SITE_URL: string =
   import.meta.env.VITE_SITE_URL ?? "https://echo-app.site";
-
 const schemaOrg = JSON.stringify({
   "@context": "https://schema.org",
   "@graph": [
@@ -55,7 +54,6 @@ const schemaOrg = JSON.stringify({
     },
   ],
 });
-
 export const Route = createRootRoute({
   head: () => ({
     links: [
@@ -140,10 +138,8 @@ export const Route = createRootRoute({
       },
     ],
   }),
-
   shellComponent: RootDocument,
 });
-
 function JsonLdScript() {
   return (
     <script
@@ -152,30 +148,33 @@ function JsonLdScript() {
     />
   );
 }
-
 function RootDocument({ children }: { children: React.ReactNode }) {
   return (
-    <html className="dark" lang="en">
+    <html className="dark" data-skin="echo" lang="en">
       <head>
         <JsonLdScript />
         <HeadContent />
       </head>
       <body>
-        <SmoothScroll>
-          <Navbar />
-          {children}
-          <TanStackDevtools
-            config={{
-              position: "bottom-right",
-            }}
-            plugins={[
-              {
-                name: "Tanstack Router",
-                render: <TanStackRouterDevtoolsPanel />,
-              },
-            ]}
-          />
-        </SmoothScroll>
+        <EchoSkin>
+          <MotionConfig reducedMotion="user">
+            <SmoothScroll>
+              <Navbar />
+              {children}
+              <TanStackDevtools
+                config={{
+                  position: "bottom-right",
+                }}
+                plugins={[
+                  {
+                    name: "Tanstack Router",
+                    render: <TanStackRouterDevtoolsPanel />,
+                  },
+                ]}
+              />
+            </SmoothScroll>
+          </MotionConfig>
+        </EchoSkin>
         <Scripts />
       </body>
     </html>

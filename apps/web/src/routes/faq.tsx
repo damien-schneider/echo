@@ -1,18 +1,17 @@
+import {
+  Accordion,
+  AccordionItem,
+  AccordionPanel,
+  AccordionTrigger,
+} from "@ctrl-ui/react/ui/accordion";
+import { Button } from "@ctrl-ui/react/ui/button";
 import { createFileRoute } from "@tanstack/react-router";
 import { Search, SearchSlash } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import EchoFooter from "@/components/landing/footer";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
 import { H1, P } from "@/components/ui/typography";
 import { cn } from "@/lib/utils";
-
 export const Route = createFileRoute("/faq")({
   component: FaqPage,
   head: () => ({
@@ -32,11 +31,9 @@ export const Route = createFileRoute("/faq")({
     ],
   }),
 });
-
 function FaqPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
-
   const categories = [
     { id: "all", label: "All" },
     { id: "general", label: "General" },
@@ -44,7 +41,6 @@ function FaqPage() {
     { id: "privacy", label: "Privacy & Security" },
     { id: "troubleshooting", label: "Troubleshooting" },
   ];
-
   const faqs = [
     {
       category: "general",
@@ -110,7 +106,6 @@ function FaqPage() {
       title: "Transcription is slow.",
     },
   ];
-
   const filtered = faqs.filter((faq) => {
     const matchesCategory =
       activeCategory === "all" || faq.category === activeCategory;
@@ -119,7 +114,6 @@ function FaqPage() {
       faq.content.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
-
   return (
     <div className="flex min-h-screen flex-col bg-background pt-24 font-sans text-foreground">
       <div className="flex-1">
@@ -187,9 +181,7 @@ function FaqPage() {
 
           <Accordion
             className="space-y-2 px-4 py-12 lg:px-6"
-            collapsible
-            defaultValue="gen-1"
-            type="single"
+            defaultValue={["gen-1"]}
           >
             {filtered.map((faq, index) => (
               <motion.div
@@ -205,9 +197,9 @@ function FaqPage() {
                   <AccordionTrigger className="px-4 hover:no-underline focus-visible:ring-0">
                     {faq.title}
                   </AccordionTrigger>
-                  <AccordionContent className="px-4 pt-2 pb-4 text-muted-foreground">
+                  <AccordionPanel className="px-4 pt-2 pb-4 text-muted-foreground">
                     {faq.content}
-                  </AccordionContent>
+                  </AccordionPanel>
                 </AccordionItem>
               </motion.div>
             ))}
@@ -222,7 +214,7 @@ function FaqPage() {
                 No FAQs found matching your search.
               </h3>
               <div className="mt-4">
-                <Button onClick={() => setSearchTerm("")} variant="outline">
+                <Button onClick={() => setSearchTerm("")} variant="surface">
                   <SearchSlash className="mr-2 h-4 w-4" />
                   Clear search
                 </Button>

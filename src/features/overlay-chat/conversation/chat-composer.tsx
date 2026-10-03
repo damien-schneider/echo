@@ -1,19 +1,17 @@
+import { Button } from "@ctrl-ui/react/ui/button";
+import { Input } from "@ctrl-ui/react/ui/input";
 import { ArrowUp, Mic, Square } from "lucide-react";
 import type { RefObject } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import type { ChatDictation } from "@/features/overlay-chat/use-chat-dictation";
 import { cn } from "@/lib/utils";
 
 const ACTION_BUTTON_CLASS =
   "size-8 rounded-full bg-white text-black hover:bg-white/88 focus-visible:ring-1 focus-visible:ring-white/60";
-
 const DICTATION_LABEL = {
   idle: "Dictate a message",
   recording: "Stop dictating",
   transcribing: "Transcribing…",
 } as const;
-
 const DictateButton = ({ state, toggle }: ChatDictation) => (
   <Button
     aria-label={DICTATION_LABEL[state]}
@@ -23,8 +21,9 @@ const DictateButton = ({ state, toggle }: ChatDictation) => (
       state === "recording" && "bg-white text-black hover:bg-white/88"
     )}
     disabled={state === "transcribing"}
+    iconOnly
     onClick={toggle}
-    size="icon-sm"
+    size="sm"
     title={DICTATION_LABEL[state]}
     type="button"
     variant="ghost"
@@ -32,7 +31,6 @@ const DictateButton = ({ state, toggle }: ChatDictation) => (
     <Mic className="size-4" />
   </Button>
 );
-
 interface ChatComposerProps {
   dictation: ChatDictation;
   input: string;
@@ -44,7 +42,6 @@ interface ChatComposerProps {
   onStop: () => void;
   placeholder: string;
 }
-
 export const ChatComposer = ({
   dictation,
   input,
@@ -63,16 +60,18 @@ export const ChatComposer = ({
       placeholder={placeholder}
       ref={inputRef}
       value={input}
-      variant="default"
     />
     <DictateButton {...dictation} />
     {isResponding ? (
       <Button
         aria-label="Stop"
         className={ACTION_BUTTON_CLASS}
+        iconOnly
         onClick={onStop}
-        size="icon-sm"
+        size="sm"
+        tone="primary"
         type="button"
+        variant="solid"
       >
         <Square className="size-3 fill-current" />
       </Button>
@@ -81,8 +80,11 @@ export const ChatComposer = ({
         aria-label="Send"
         className={ACTION_BUTTON_CLASS}
         disabled={isContextLoading || !isModelReady || !input.trim()}
-        size="icon-sm"
+        iconOnly
+        size="sm"
+        tone="primary"
         type="submit"
+        variant="solid"
       >
         <ArrowUp className="size-4" />
       </Button>

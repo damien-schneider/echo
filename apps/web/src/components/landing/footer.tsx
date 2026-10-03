@@ -1,6 +1,6 @@
+import { ButtonLink } from "@ctrl-ui/react/ui/button";
 import EchoLogo from "@/components/icons/echo-logo";
 import GithubIcon from "@/components/icons/github-icon";
-import { Button } from "@/components/ui/button";
 
 interface FooterProps {
   brandName: string;
@@ -24,7 +24,6 @@ interface FooterProps {
     label: string;
   }>;
 }
-
 export function Footer({
   logo,
   brandName,
@@ -61,21 +60,18 @@ export function Footer({
           >
             {socialLinks.map((link) => (
               <li key={link.label}>
-                <Button
-                  asChild
+                <ButtonLink
+                  aria-label={link.label}
                   className="h-10 w-10 rounded-full"
-                  size="icon"
-                  variant="secondary"
+                  href={link.href}
+                  iconOnly
+                  rel="noopener noreferrer"
+                  size="md"
+                  target="_blank"
+                  variant="surface"
                 >
-                  <a
-                    aria-label={link.label}
-                    href={link.href}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    {link.icon}
-                  </a>
-                </Button>
+                  {link.icon}
+                </ButtonLink>
               </li>
             ))}
           </ul>
@@ -118,7 +114,6 @@ export function Footer({
     </footer>
   );
 }
-
 export default function EchoFooter() {
   return (
     <Footer

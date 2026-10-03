@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Input } from "@/components/ui/input";
+import { Input } from "@ctrl-ui/react/ui/input";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 interface ApiKeyFieldProps {
@@ -10,30 +10,27 @@ interface ApiKeyFieldProps {
   value: string;
 }
 
-export const ApiKeyField: React.FC<ApiKeyFieldProps> = ({
+export function ApiKeyField(props: ApiKeyFieldProps) {
+  return <ApiKeyEditor key={props.value} {...props} />;
+}
+
+function ApiKeyEditor({
   value,
   onBlur,
   disabled,
   placeholder,
-  className = "",
-}) => {
-  const [localValue, setLocalValue] = useState(value);
-
-  React.useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
-
+  className,
+}: ApiKeyFieldProps) {
+  const [draftApiKey, setDraftApiKey] = useState(value);
   return (
     <Input
-      className={cn("min-w-[320px] flex-1", className)}
+      className={cn("min-w-0 flex-1", className)}
       disabled={disabled}
-      onBlur={() => onBlur(localValue)}
-      onChange={(event) => setLocalValue(event.target.value)}
+      onBlur={() => onBlur(draftApiKey)}
+      onChange={(event) => setDraftApiKey(event.target.value)}
       placeholder={placeholder}
       type="password"
-      value={localValue}
+      value={draftApiKey}
     />
   );
-};
-
-ApiKeyField.displayName = "ApiKeyField";
+}

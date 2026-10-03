@@ -1,7 +1,7 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { emit } from "@tauri-apps/api/event";
 import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import {
   MeetingSummaryError,
   SUMMARY_SETUP_LABELS,
@@ -14,19 +14,16 @@ interface MeetingSummaryProps {
   meetingId: number;
   summary: string | null | undefined;
 }
-
 interface SummaryFailure {
   message: string;
   section?: SummarySetupSection;
 }
-
 const toFailure = (error: unknown): SummaryFailure => {
   if (error instanceof MeetingSummaryError) {
     return { message: error.message, section: error.section };
   }
   return { message: errorMessage(error, "Failed to generate summary") };
 };
-
 export const MeetingSummary = ({ meetingId, summary }: MeetingSummaryProps) => {
   const [expanded, setExpanded] = useState(!!summary);
   const [generating, setGenerating] = useState(false);
@@ -34,7 +31,6 @@ export const MeetingSummary = ({ meetingId, summary }: MeetingSummaryProps) => {
   const generateSummary = useMeetingStore((s) => s.generateSummary);
   const idleLabel = summary ? "Regenerate" : "Generate summary";
   const actionLabel = generating ? "Generating..." : idleLabel;
-
   const handleGenerate = async () => {
     setGenerating(true);
     setFailure(undefined);
@@ -47,7 +43,6 @@ export const MeetingSummary = ({ meetingId, summary }: MeetingSummaryProps) => {
       setExpanded(true);
     }
   };
-
   return (
     <div className="rounded-lg border border-border/20">
       <button
@@ -84,7 +79,7 @@ export const MeetingSummary = ({ meetingId, summary }: MeetingSummaryProps) => {
                 <Button
                   onClick={() => emit("open-settings-section", failure.section)}
                   size="sm"
-                  variant="outline"
+                  variant="surface"
                 >
                   {SUMMARY_SETUP_LABELS[failure.section]}
                 </Button>
@@ -96,7 +91,7 @@ export const MeetingSummary = ({ meetingId, summary }: MeetingSummaryProps) => {
             disabled={generating}
             onClick={handleGenerate}
             size="sm"
-            variant={summary ? "ghost" : "outline"}
+            variant={summary ? "ghost" : "surface"}
           >
             <Sparkles className="mr-1.5 size-3.5" />
             {actionLabel}

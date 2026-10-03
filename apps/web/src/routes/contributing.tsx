@@ -1,9 +1,8 @@
+import { ButtonLink } from "@ctrl-ui/react/ui/button";
 import { createFileRoute } from "@tanstack/react-router";
 import GithubIcon from "@/components/icons/github-icon";
 import EchoFooter from "@/components/landing/footer";
-import { Button } from "@/components/ui/button";
 import { H1, H2, InlineCode, List, P } from "@/components/ui/typography";
-
 export const Route = createFileRoute("/contributing")({
   component: ContributingPage,
   head: () => ({
@@ -26,7 +25,6 @@ export const Route = createFileRoute("/contributing")({
     ],
   }),
 });
-
 function ContributingPage() {
   return (
     <div className="min-h-screen bg-background pt-24 font-sans text-foreground">
@@ -56,16 +54,18 @@ function ContributingPage() {
         </P>
 
         <div className="mt-8">
-          <Button asChild className="gap-2" size="lg">
-            <a
-              href="https://github.com/damien-schneider/Echo"
-              rel="noopener noreferrer"
-              target="_blank"
-            >
-              <GithubIcon className="h-5 w-5" />
-              Visit GitHub Repository
-            </a>
-          </Button>
+          <ButtonLink
+            className="gap-2"
+            href="https://github.com/damien-schneider/Echo"
+            rel="noopener noreferrer"
+            size="lg"
+            target="_blank"
+            tone="primary"
+            variant="solid"
+          >
+            <GithubIcon className="h-5 w-5" />
+            Visit GitHub Repository
+          </ButtonLink>
         </div>
       </div>
       <EchoFooter />

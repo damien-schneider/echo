@@ -1,35 +1,35 @@
-import { ChevronDown, Download } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@ctrl-ui/react/ui/dropdown-menu";
+import { ChevronDown, Download } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import type { ExportFormat } from "@/lib/types";
 import { useMeetingStore } from "@/stores/meeting-store";
 
-const FORMATS: { label: string; value: ExportFormat }[] = [
+const FORMATS: {
+  label: string;
+  value: ExportFormat;
+}[] = [
   { label: "SRT", value: "srt" },
   { label: "VTT", value: "vtt" },
   { label: "TXT", value: "txt" },
   { label: "Markdown", value: "markdown" },
 ];
-
 interface MeetingExportProps {
   meetingId: number;
   meetingTitle: string;
 }
-
 export const MeetingExport = ({
   meetingId,
   meetingTitle,
 }: MeetingExportProps) => {
   const [exporting, setExporting] = useState(false);
   const exportMeeting = useMeetingStore((s) => s.exportMeeting);
-
   const handleExport = async (format: ExportFormat) => {
     setExporting(true);
     try {
@@ -50,15 +50,14 @@ export const MeetingExport = ({
       setExporting(false);
     }
   };
-
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button disabled={exporting} size="sm" variant="outline">
-          <Download className="mr-1 size-3" />
-          Export
-          <ChevronDown className="ml-1 size-3" />
-        </Button>
+      <DropdownMenuTrigger
+        render={<Button disabled={exporting} size="sm" variant="surface" />}
+      >
+        <Download className="mr-1 size-3" />
+        Export
+        <ChevronDown className="ml-1 size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {FORMATS.map((f) => (

@@ -1,5 +1,5 @@
 import { Wand2 } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
+import { SettingSlider } from "@/features/settings/setting-slider";
 import type { PolishLevel } from "@/lib/types";
 import {
   useIsSettingUpdating,
@@ -8,22 +8,18 @@ import {
 } from "@/stores/settings-store";
 
 const LEVELS = ["correct", "natural", "clear"] as const;
-
 const LABELS: Record<PolishLevel, string> = {
   clear: "Clearer",
   correct: "Corrections only",
   natural: "Natural",
 };
-
 const levelAt = (index: number): PolishLevel => LEVELS[index] ?? "natural";
-
 export const PolishLevelSlider = () => {
   const level = useSetting("polish_level") ?? "natural";
   const updating = useIsSettingUpdating("polish_level");
   const updateSetting = useSettingsStore((state) => state.updateSetting);
-
   return (
-    <Slider
+    <SettingSlider
       description="How far Polish may go: fix mistakes only, make the wording sound native, or also restructure what reads badly."
       disabled={updating}
       formatValue={(value) => LABELS[levelAt(value)]}
@@ -31,7 +27,7 @@ export const PolishLevelSlider = () => {
       label="Polish level"
       max={LEVELS.length - 1}
       min={0}
-      onChange={(value) =>
+      onValueChange={(value) =>
         updateSetting("polish_level", LEVELS[value] ?? "natural")
       }
       step={1}

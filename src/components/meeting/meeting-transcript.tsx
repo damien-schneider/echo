@@ -1,17 +1,15 @@
+import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
 import { useEffect, useRef } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { MeetingSegment } from "@/lib/types";
 import type { InterimSegmentState } from "@/stores/meeting-store";
 import { MeetingSegmentItem } from "./meeting-segment";
 
 interface MeetingTranscriptProps {
   autoScroll?: boolean;
-  // Per-source interims shown after committed segments while recording.
   interimSegments?: (InterimSegmentState | null)[];
   onSeek?: (ms: number) => void;
   segments: MeetingSegment[];
 }
-
 export const MeetingTranscript = ({
   segments,
   autoScroll = false,
@@ -23,13 +21,11 @@ export const MeetingTranscript = ({
     (i): i is InterimSegmentState =>
       i !== null && (i.committedText !== "" || i.tentativeText !== "")
   );
-
   useEffect(() => {
     if (autoScroll && segments.length > 0) {
       bottomRef.current?.scrollIntoView({ behavior: "smooth" });
     }
   }, [autoScroll, segments.length]);
-
   if (segments.length === 0 && activeInterims.length === 0) {
     return (
       <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
@@ -37,10 +33,8 @@ export const MeetingTranscript = ({
       </div>
     );
   }
-
   const uniqueSpeakers = new Set(segments.map((s) => s.speaker_label));
   const hasDiarization = uniqueSpeakers.size > 1;
-
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-0.5 p-2">

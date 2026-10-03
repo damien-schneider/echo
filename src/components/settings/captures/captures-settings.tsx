@@ -1,10 +1,10 @@
+import { Switch } from "@ctrl-ui/react/ui/switch";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ClipboardList } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
-import { CollapsibleSettingsGroup } from "@/components/ui/collapsible-settings-group";
-import { SettingContainer } from "@/components/ui/setting-container";
-import { Switch } from "@/components/ui/switch";
+import { useEffect, useEffectEvent, useState } from "react";
+import { SettingRow } from "@/features/settings/setting-row";
+import { SettingsSection } from "@/features/settings/settings-section";
 import { type Capture, CapturesSchema } from "@/lib/types";
 import {
   useIsSettingUpdating,
@@ -17,12 +17,9 @@ const DoubleShiftToggle = () => {
   const enabled = useSetting("double_shift_capture_enabled") ?? true;
   const updating = useIsSettingUpdating("double_shift_capture_enabled");
   const updateSetting = useSettingsStore((state) => state.updateSetting);
-
   return (
-    <SettingContainer
+    <SettingRow
       description="Select text in any app, then tap Shift twice to save it here."
-      descriptionMode="inline"
-      grouped={true}
       icon={<ClipboardList className="h-4 w-4" />}
       title="Save selection with double Shift"
     >
@@ -33,15 +30,13 @@ const DoubleShiftToggle = () => {
           updateSetting("double_shift_capture_enabled", value)
         }
       />
-    </SettingContainer>
+    </SettingRow>
   );
 };
-
 const CapturesList = () => {
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [loading, setLoading] = useState(true);
-
-  const loadCaptures = useCallback(async () => {
+  const loadCaptures = async () => {
     try {
       setCaptures(CapturesSchema.parse(await invoke("get_captures")));
     } catch (error) {
@@ -49,28 +44,24 @@ const CapturesList = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
-
+  };
+  const refreshCaptures = useEffectEvent(loadCaptures);
   useEffect(() => {
-    loadCaptures();
-    const unlistenPromise = listen("captures-updated", loadCaptures);
-
+    refreshCaptures();
+    const unlistenPromise = listen("captures-updated", refreshCaptures);
     return () => {
       unlistenPromise.then((unlisten) => unlisten()).catch(() => undefined);
     };
-  }, [loadCaptures]);
-
+  }, []);
   const handleDelete = async (id: number) => {
     await invoke("delete_capture", { id });
     setCaptures((previous) => previous.filter((capture) => capture.id !== id));
   };
-
   if (loading) {
     return (
       <p className="px-4 py-3 text-center text-text/60">Loading captures…</p>
     );
   }
-
   if (captures.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-text/60">
@@ -84,7 +75,6 @@ const CapturesList = () => {
       </div>
     );
   }
-
   return (
     <div className="divide-y divide-border/10">
       {captures.map((capture) => (
@@ -97,15 +87,14 @@ const CapturesList = () => {
     </div>
   );
 };
-
 export const CapturesSettings = () => (
   <div className="mx-auto w-full max-w-3xl pb-20">
-    <CollapsibleSettingsGroup defaultOpen={true} title="Capture">
+    <SettingsSection defaultOpen={true} title="Capture">
       <DoubleShiftToggle />
-    </CollapsibleSettingsGroup>
+    </SettingsSection>
 
-    <CollapsibleSettingsGroup defaultOpen={true} title="Saved">
+    <SettingsSection defaultOpen={true} title="Saved">
       <CapturesList />
-    </CollapsibleSettingsGroup>
+    </SettingsSection>
   </div>
 );

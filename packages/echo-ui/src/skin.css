@@ -1,0 +1,96 @@
+:root,
+[data-skin="echo"] {
+  --background: #f8f6f2;
+  --foreground: #28211d;
+  --canvas: #eee9e2;
+  --card: #fffdfa;
+  --card-foreground: var(--foreground);
+  --popover: #fffdfa;
+  --popover-foreground: var(--foreground);
+  --primary: #934b22;
+  --primary-foreground: #ffffff;
+  --primary-text: #934b22;
+  --secondary: #eee8e0;
+  --secondary-foreground: var(--foreground);
+  --muted: #eee8e0;
+  --muted-foreground: #75685f;
+  --accent: #efe0d2;
+  --accent-foreground: var(--foreground);
+  --brand: var(--primary-text);
+  --destructive: #b52e36;
+  --destructive-foreground: #ffffff;
+  --destructive-text: #b52e36;
+  --border: #ded6cc;
+  --input: #938476;
+  --ring: #a65326;
+  --focus-ring: var(--ring);
+  --control-boundary: var(--input);
+  --control-fill: var(--card);
+  --control-rim: var(--input);
+  --hover-fill: #efe7dd;
+  --active-fill: #e8d6c4;
+  --shadow-color: #352518;
+  --scale-neutral-seed: oklch(0.5 0.018 65);
+  --scale-primary-seed: oklch(0.57 0.12 50);
+  --sidebar: var(--canvas);
+  --sidebar-foreground: var(--foreground);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+  --radius: 6px;
+  --radius-control: 10px;
+  --radius-panel: 16px;
+  --radius-popover: 14px;
+  --font-sans:
+    "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-body: var(--font-sans);
+  --font-display: "Syne", var(--font-sans);
+  --control-h: 36px;
+  --shadow-size: 0.65;
+  --shadow-opacity: 0.45;
+  --duration-fast: 120ms;
+  --duration-base: 180ms;
+  --duration-slow: 240ms;
+}
+
+.dark,
+.dark [data-skin="echo"],
+[data-skin="echo"].dark {
+  --background: #151312;
+  --foreground: #f2ede6;
+  --canvas: #100f0e;
+  --card: #201c19;
+  --popover: #25201c;
+  --primary: #dfa274;
+  --primary-foreground: #23170f;
+  --primary-text: #dfa274;
+  --secondary: #2b2520;
+  --muted: #2b2520;
+  --muted-foreground: #b4a79b;
+  --accent: #3d2c20;
+  --destructive: #ff9aa0;
+  --destructive-foreground: #3d0c14;
+  --destructive-text: #ff9aa0;
+  --border: #43382f;
+  --input: #9c8979;
+  --ring: #e6a679;
+  --hover-fill: #332a23;
+  --active-fill: #473324;
+  --shadow-color: #000000;
+}
+
+[data-skin="echo"] :where([data-control-family="button"][data-control="true"]) {
+  --cui-button-radius: var(--nest-radius, var(--radius-control));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  [data-skin="echo"] {
+    --duration-fast: 0ms;
+    --duration-base: 0ms;
+    --duration-slow: 0ms;
+  }
+}

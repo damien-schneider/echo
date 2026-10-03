@@ -1,11 +1,9 @@
 "use client";
-
+import { ButtonLink } from "@ctrl-ui/react/ui/button";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
 import EchoFooter from "@/components/landing/footer";
-import { Button } from "@/components/ui/button";
-
 export const Route = createFileRoute("/vs/")({
   component: VsIndexPage,
   head: () => ({
@@ -31,7 +29,6 @@ export const Route = createFileRoute("/vs/")({
     ],
   }),
 });
-
 type ComparisonSlug =
   | "/vs/wispr-flow"
   | "/vs/otter-ai"
@@ -43,7 +40,6 @@ type ComparisonSlug =
   | "/vs/buzz"
   | "/vs/macwhisper"
   | "/vs/apple-dictation";
-
 interface Comparison {
   badges: string[];
   competitor: string;
@@ -51,14 +47,12 @@ interface Comparison {
   headline: string;
   slug: ComparisonSlug;
 }
-
 interface ComparisonGroup {
   category: string;
   description: string;
   items: Comparison[];
   label: string;
 }
-
 const COMPARISON_GROUPS: ComparisonGroup[] = [
   {
     category: "cloud",
@@ -177,14 +171,12 @@ const COMPARISON_GROUPS: ComparisonGroup[] = [
     label: "Platform-Specific Tools",
   },
 ];
-
 const CATEGORY_CLASSES: Record<string, string> = {
   cloud: "bg-destructive/10 text-destructive border-destructive/25",
   foss: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/25",
   paid: "bg-brand/10 text-foreground border-brand/25",
   platform: "bg-muted text-muted-foreground border-border",
 };
-
 function ComparisonCard({ item }: { item: Comparison }) {
   return (
     <Link
@@ -218,11 +210,9 @@ function ComparisonCard({ item }: { item: Comparison }) {
     </Link>
   );
 }
-
 function ComparisonGroups() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-60px", once: true });
-
   return (
     <div className="space-y-16" ref={ref}>
       {COMPARISON_GROUPS.map((group, groupIndex) => (
@@ -258,15 +248,12 @@ function ComparisonGroups() {
     </div>
   );
 }
-
 function VsIndexPage() {
   const heroRef = useRef<HTMLDivElement>(null);
   const heroInView = useInView(heroRef, { once: true });
-
   return (
     <div className="min-h-screen bg-background font-body text-foreground">
       <main className="pt-24">
-        {/* Hero */}
         <div className="mx-auto max-w-5xl px-4 pt-12 pb-16">
           <motion.div
             animate={heroInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 24 }}
@@ -287,23 +274,23 @@ function VsIndexPage() {
               See how Echo compares to popular speech-to-text tools. Being free,
               offline, and open-source tends to win on privacy and price.
             </p>
-            <Button asChild size="lg">
-              <Link hash="download" to="/">
-                Download Echo Free
-              </Link>
-            </Button>
+            <ButtonLink
+              render={<Link hash="download" to="/" />}
+              size="lg"
+              tone="primary"
+              variant="solid"
+            >
+              Download Echo Free
+            </ButtonLink>
           </motion.div>
         </div>
 
-        {/* Divider */}
         <div className="mx-auto max-w-5xl border-border border-t px-4" />
 
-        {/* Grouped cards */}
         <div className="mx-auto max-w-5xl px-4 py-16">
           <ComparisonGroups />
         </div>
 
-        {/* Summary CTA */}
         <motion.div
           animate={{ opacity: 1, y: 0 }}
           className="mx-auto max-w-5xl px-4 pb-24"
@@ -319,11 +306,15 @@ function VsIndexPage() {
               account. No cloud. No tracking. No subscription. Just fast,
               accurate, private speech-to-text.
             </p>
-            <Button asChild className="mt-2" size="lg">
-              <Link hash="download" to="/">
-                Download Echo — it's free
-              </Link>
-            </Button>
+            <ButtonLink
+              className="mt-2"
+              render={<Link hash="download" to="/" />}
+              size="lg"
+              tone="primary"
+              variant="solid"
+            >
+              Download Echo — it's free
+            </ButtonLink>
             <p className="font-body text-muted-foreground text-xs">
               MIT License ·{" "}
               <a

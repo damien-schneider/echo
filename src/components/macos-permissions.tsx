@@ -1,3 +1,4 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import {
   type Dispatch,
   type SetStateAction,
@@ -7,12 +8,10 @@ import {
   useState,
 } from "react";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
 
 const CHECK_INTERVAL_MS = 500;
 const TRANSIENT_FAILURE_LIMIT = 2;
 const PermissionResultSchema = z.boolean();
-
 export type PermissionState =
   | "check_error"
   | "checking"
@@ -21,34 +20,32 @@ export type PermissionState =
   | "request_error"
   | "requesting"
   | "verifying";
-
 type PermissionStateSetter = Dispatch<SetStateAction<PermissionState>>;
-
 interface PermissionCheckOptions {
   deniedState: "denied" | "verifying";
   setState: PermissionStateSetter;
   tracker: PermissionCheckTracker;
 }
-
 interface PermissionCheckTracker {
   failureCount: number;
   requestId: number;
 }
-
 interface PermissionCheckTrackerRef {
   current: PermissionCheckTracker;
 }
-
 export interface MacosPermission {
   check: () => Promise<boolean>;
   copy: Record<
     Exclude<PermissionState, "granted">,
-    { button: string; description: string; title: string }
+    {
+      button: string;
+      description: string;
+      title: string;
+    }
   >;
   label: string;
   request: () => Promise<unknown>;
 }
-
 const nextCheckedState = (
   current: PermissionState,
   granted: boolean,
@@ -62,7 +59,6 @@ const nextCheckedState = (
   }
   return current === "verifying" ? "verifying" : deniedState;
 };
-
 const checkPermission = async (
   { deniedState, setState, tracker }: PermissionCheckOptions,
   permission: MacosPermission
@@ -98,7 +94,6 @@ const checkPermission = async (
     });
   }
 };
-
 const usePermissionRefresh = (
   permission: MacosPermission,
   state: PermissionState,
@@ -126,7 +121,6 @@ const usePermissionRefresh = (
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
-
   useEffect(() => {
     if (state !== "verifying") {
       return;
@@ -138,7 +132,6 @@ const usePermissionRefresh = (
     return () => window.clearInterval(interval);
   }, [state]);
 };
-
 const requestPermission = async (
   permission: MacosPermission,
   setState: PermissionStateSetter,
@@ -157,7 +150,6 @@ const requestPermission = async (
     setState((current) => (current === "granted" ? current : "request_error"));
   }
 };
-
 const runPermissionAction = async (
   permission: MacosPermission,
   state: PermissionState,
@@ -179,7 +171,6 @@ const runPermissionAction = async (
     await requestPermission(permission, setState, tracker);
   }
 };
-
 const usePermissionLifecycle = (permission: MacosPermission) => {
   const [state, setState] = useState<PermissionState>("checking");
   const tracker = useRef<PermissionCheckTracker>({
@@ -198,7 +189,6 @@ const usePermissionLifecycle = (permission: MacosPermission) => {
     );
   return { act, state };
 };
-
 export const PermissionGate = ({
   permission,
 }: {
@@ -223,7 +213,14 @@ export const PermissionGate = ({
           {copy.description}
         </p>
       </div>
-      <Button disabled={isBusy} onClick={act} size="sm" type="button">
+      <Button
+        disabled={isBusy}
+        onClick={act}
+        size="sm"
+        tone="primary"
+        type="button"
+        variant="solid"
+      >
         {copy.button}
       </Button>
     </section>

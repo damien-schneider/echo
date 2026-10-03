@@ -1,27 +1,16 @@
 "use client";
-
+import { ButtonLink } from "@ctrl-ui/react/ui/button";
 import { AppleIcon, Monitor, Terminal } from "lucide-react";
-import { motion, useInView, useScroll, useTransform } from "motion/react";
+import { motion, useInView } from "motion/react";
 import { useRef } from "react";
-
-import { Button } from "@/components/ui/button";
 import { useGithubData } from "@/hooks/use-github-data";
 
 const Download = () => {
   const { downloadLinks, stars } = useGithubData();
   const ref = useRef<HTMLDivElement>(null);
   const isInView = useInView(ref, { margin: "-100px", once: true });
-
-  const { scrollYProgress } = useScroll({
-    offset: ["start end", "end start"],
-    target: ref,
-  });
-
-  const glowY = useTransform(scrollYProgress, [0, 1], ["20%", "-20%"]);
-
   const fallbackUrl =
     "https://github.com/damien-schneider/Echo/releases/latest";
-
   const platforms = [
     {
       icon: AppleIcon,
@@ -44,19 +33,14 @@ const Download = () => {
       secondary: { href: downloadLinks.linuxDeb, label: ".deb" },
     },
   ];
-
   return (
     <section
       className="relative overflow-hidden bg-background py-24 text-foreground md:py-36"
       id="download"
       ref={ref}
     >
-      {/* Subtle glow */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <motion.div
-          className="absolute bottom-0 left-1/2 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-brand/[0.04] blur-[120px]"
-          style={{ y: glowY }}
-        />
+        <div className="absolute bottom-0 left-1/2 h-[400px] w-[600px] -translate-x-1/2 rounded-full bg-brand/[0.04] blur-[120px]" />
       </div>
 
       <div className="container relative z-10 mx-auto px-4">
@@ -105,17 +89,22 @@ const Download = () => {
               </div>
 
               <div className="mb-4 flex-1 space-y-2">
-                <Button asChild className="h-11 w-full">
-                  <a href={platform.primary.href || fallbackUrl}>
-                    {platform.primary.label}
-                  </a>
-                </Button>
+                <ButtonLink
+                  className="h-11 w-full"
+                  href={platform.primary.href || fallbackUrl}
+                  tone="primary"
+                  variant="solid"
+                >
+                  {platform.primary.label}
+                </ButtonLink>
                 {platform.secondary && (
-                  <Button asChild className="h-11 w-full" variant="outline">
-                    <a href={platform.secondary.href || fallbackUrl}>
-                      {platform.secondary.label}
-                    </a>
-                  </Button>
+                  <ButtonLink
+                    className="h-11 w-full"
+                    href={platform.secondary.href || fallbackUrl}
+                    variant="surface"
+                  >
+                    {platform.secondary.label}
+                  </ButtonLink>
                 )}
               </div>
 
@@ -144,5 +133,4 @@ const Download = () => {
     </section>
   );
 };
-
 export default Download;
