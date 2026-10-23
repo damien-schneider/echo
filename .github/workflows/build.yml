@@ -254,6 +254,24 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true
 
+      # ggml-vulkan needs SPIRV-Headers' CMake package, which neither Windows SDK install provides.
+      - name: Install SPIRV-Headers into the Vulkan SDK (Windows)
+        if: contains(inputs.platform, 'windows')
+        shell: pwsh
+        run: |
+          $src = Join-Path $env:RUNNER_TEMP "SPIRV-Headers"
+          git clone --depth 1 --branch vulkan-sdk-1.4.309.0 https://github.com/KhronosGroup/SPIRV-Headers.git $src
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake -S $src -B "$src\build" -DSPIRV_HEADERS_ENABLE_TESTS=OFF "-DCMAKE_INSTALL_PREFIX=$env:VULKAN_SDK"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build "$src\build" --config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --install "$src\build" --config Release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $config = Join-Path $env:VULKAN_SDK "share\cmake\SPIRV-Headers\SPIRV-HeadersConfig.cmake"
+          if (-not (Test-Path $config)) { throw "SPIRV-Headers config missing at $config" }
+          Write-Host "SPIRV-Headers installed under $env:VULKAN_SDK"
+
       - name: Configure clang-cl for transcribe.cpp (Windows ARM64)
         if: contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64')
         shell: pwsh
