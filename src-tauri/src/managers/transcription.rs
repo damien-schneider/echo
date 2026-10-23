@@ -1,8 +1,11 @@
 use crate::audio_toolkit::apply_custom_words;
+use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
 use crate::managers::model::transcription_profile_id;
 use crate::managers::model::{EngineType, ModelManager};
 use crate::managers::timeout::{run_with_timeout, TimedOut};
-use crate::managers::whisper_runtime::{WhisperDecodeOptions, WhisperRuntime};
+use crate::managers::whisper_runtime::{
+    Decoded, WhisperDecodeOptions, WhisperRuntime, WHISPER_LANGUAGE_CODES,
+};
 use crate::settings::get_settings;
 use anyhow::Result;
 use log::{debug, error, info, warn};
@@ -11,12 +14,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
+use transcribe_cpp::CancelToken;
 
 /// 16 kHz mono f32 — whisper + parakeet input format.
 pub const WHISPER_SAMPLE_RATE: usize = 16_000;
-const MIN_STREAMING_LANGUAGE_SPEECH_SAMPLES: usize = WHISPER_SAMPLE_RATE * 2;
-const MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES: usize = WHISPER_SAMPLE_RATE * 5;
-const MIN_STREAMING_LANGUAGE_CONFIDENCE: f32 = 0.6;
+/// A pin needs a window long enough for Whisper's pick to mean something.
+const PIN_MIN_WINDOW_SAMPLES: usize = 5 * WHISPER_SAMPLE_RATE;
 
 /// Prewarmed decode is ~1s, so this floor surfaces a hang fast; longer clips scale by the multiplier below.
 pub const MIN_TRANSCRIPTION_TIMEOUT_SECS: u64 = 8;
@@ -24,7 +27,7 @@ pub const MIN_TRANSCRIPTION_TIMEOUT_SECS: u64 = 8;
 /// 3x audio length — first decode after load can approach realtime.
 pub const TRANSCRIPTION_TIMEOUT_MULTIPLIER: u64 = 3;
 
-/// 1s silence to JIT-compile whisper.cpp Metal kernels before first real decode.
+/// 1s silence to warm the ggml Metal pipeline before first real decode.
 pub fn build_warmup_audio() -> Vec<f32> {
     vec![0.0_f32; WHISPER_SAMPLE_RATE]
 }
@@ -78,21 +81,32 @@ pub struct ModelStateEvent {
     pub error: Option<String>,
 }
 
+/// Two decodes in a row must agree before a language is pinned: one noisy window used to pin the
+/// wrong one for the whole meeting.
 #[derive(Default)]
 struct StreamingLanguageState {
     language: Option<String>,
-    speech_probe: Vec<f32>,
+    candidate: Option<String>,
 }
 
 impl StreamingLanguageState {
-    fn observe_audio(&mut self, samples: &[f32], is_speech: bool) {
-        if !is_speech || self.language.is_some() {
+    fn observe_decode(&mut self, window_samples: usize, decoded: &Decoded) {
+        if self.language.is_some() || window_samples < PIN_MIN_WINDOW_SAMPLES {
             return;
         }
-        let remaining =
-            MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES.saturating_sub(self.speech_probe.len());
-        self.speech_probe
-            .extend_from_slice(&samples[..samples.len().min(remaining)]);
+        if is_hallucination(&decoded.text, HallucinationFilter::Strict) {
+            self.candidate = None;
+            return;
+        }
+        if decoded.language.is_some() && decoded.language == self.candidate {
+            info!(
+                "Streaming language pinned to {}",
+                decoded.language.as_deref().unwrap_or_default()
+            );
+            self.language = decoded.language.clone();
+        } else {
+            self.candidate = decoded.language.clone();
+        }
     }
 }
 
@@ -108,58 +122,32 @@ impl StreamingTranscriber {
             manager,
             state: Mutex::new(StreamingLanguageState {
                 language,
-                speech_probe: Vec::with_capacity(MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES),
+                candidate: None,
             }),
         })
     }
 
-    pub fn observe_audio(&self, samples: &[f32], is_speech: bool) {
+    fn lock_state(&self) -> std::sync::MutexGuard<'_, StreamingLanguageState> {
         self.state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .observe_audio(samples, is_speech);
     }
 
     pub fn language_is_pinned(&self) -> bool {
-        self.state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .language
-            .is_some()
+        self.lock_state().language.is_some()
     }
 
     pub fn transcribe(&self, audio: Vec<f32>) -> Result<String> {
-        let language = {
-            let mut state = self
-                .state
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            match state.language.clone() {
-                Some(language) => Some(language),
-                None if state.speech_probe.len() < MIN_STREAMING_LANGUAGE_SPEECH_SAMPLES => None,
-                None => {
-                    let detection = self
-                        .manager
-                        .engine
-                        .detect_language(&state.speech_probe, preview_thread_count())?;
-                    let probe_is_full =
-                        state.speech_probe.len() == MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES;
-                    if detection.probability < MIN_STREAMING_LANGUAGE_CONFIDENCE && !probe_is_full {
-                        None
-                    } else {
-                        info!(
-                            "Streaming language pinned to {} ({:.0}% confidence)",
-                            detection.language,
-                            detection.probability * 100.0
-                        );
-                        state.language = Some(detection.language.clone());
-                        Some(detection.language)
-                    }
-                }
-            }
-        };
-        self.manager
-            .transcribe_inner(audio, preview_thread_count(), language.as_deref())
+        let language = self.lock_state().language.clone();
+        let window_samples = audio.len();
+        let decoded = self.manager.transcribe_inner(
+            audio,
+            preview_thread_count(),
+            language.as_deref(),
+            None,
+        )?;
+        self.lock_state().observe_decode(window_samples, &decoded);
+        Ok(decoded.text)
     }
 }
 
@@ -202,37 +190,15 @@ impl TranscriptionManager {
         }
         let model_path = self.model_manager.get_model_path(model_id)?;
         match model_info.engine_type {
-            EngineType::Whisper => {
-                // observability only — mirrors whisper.cpp's `<stem>-encoder.mlmodelc` lookup
-                #[cfg(target_os = "macos")]
-                {
-                    let stem = model_path
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("");
-                    let mlmodelc = model_path
-                        .parent()
-                        .map(|p| p.join(format!("{}-encoder.mlmodelc", stem)));
-                    match mlmodelc {
-                        Some(p) if p.exists() => info!(
-                            "Whisper model {}: CoreML encoder found at {} — Apple Neural Engine should activate",
-                            model_id,
-                            p.display()
-                        ),
-                        _ => debug!(
-                            "Whisper model {}: no sibling `*-encoder.mlmodelc` next to {} — falling back to Metal+CPU encoder",
-                            model_id,
-                            model_path.display()
-                        ),
-                    }
-                }
-                self.engine.load(model_id, &model_path)
-            }
+            EngineType::Whisper => self.engine.load(model_id, &model_path),
             EngineType::Diarization => Err(anyhow::anyhow!(
                 "Diarization models cannot be used for transcription"
             )),
             EngineType::Polish => Err(anyhow::anyhow!(
                 "Polish models cannot be used for transcription"
+            )),
+            EngineType::MeetingTranscription => Err(anyhow::anyhow!(
+                "Meeting transcription models cannot be used for dictation"
             )),
         }
     }
@@ -364,24 +330,51 @@ impl TranscriptionManager {
     }
 
     pub fn transcribe_for_streaming(&self, audio: Vec<f32>) -> Result<String> {
-        self.transcribe_inner(audio, preview_thread_count(), None)
+        Ok(self
+            .transcribe_inner(audio, preview_thread_count(), None, None)?
+            .text)
     }
 
     pub fn transcribe(&self, audio: Vec<f32>) -> Result<String> {
-        self.transcribe_inner(audio, available_thread_count(), None)
+        Ok(self
+            .transcribe_inner(audio, available_thread_count(), None, None)?
+            .text)
     }
 
-    /// Whisper FFI is non-cancellable: on timeout, worker keeps running until engine mutex released.
     pub fn transcribe_with_timeout(
         &self,
         audio: Vec<f32>,
         limit: Duration,
     ) -> Result<String, TranscribeError> {
+        self.decode_with_timeout(audio, limit, None)
+            .map(|decoded| decoded.text)
+    }
+
+    /// A timed-out decode is cancelled, so its worker stops instead of holding the model.
+    pub fn decode_with_timeout(
+        &self,
+        audio: Vec<f32>,
+        limit: Duration,
+        language: Option<String>,
+    ) -> Result<Decoded, TranscribeError> {
         let this = self.clone();
-        match run_with_timeout(move || this.transcribe(audio), limit) {
-            Ok(Ok(text)) => Ok(text),
+        let cancel = CancelToken::new();
+        let worker_cancel = cancel.clone();
+        let decode = move || {
+            this.transcribe_inner(
+                audio,
+                available_thread_count(),
+                language.as_deref(),
+                Some(worker_cancel),
+            )
+        };
+        match run_with_timeout(decode, limit) {
+            Ok(Ok(decoded)) => Ok(decoded),
             Ok(Err(e)) => Err(TranscribeError::Failed(e.to_string())),
-            Err(TimedOut) => Err(TranscribeError::TimedOut),
+            Err(TimedOut) => {
+                cancel.cancel();
+                Err(TranscribeError::TimedOut)
+            }
         }
     }
 
@@ -390,14 +383,15 @@ impl TranscriptionManager {
         audio: Vec<f32>,
         threads: i32,
         language_override: Option<&str>,
-    ) -> Result<String> {
+        cancel: Option<CancelToken>,
+    ) -> Result<Decoded> {
         let st = std::time::Instant::now();
 
         debug!("Audio vector length: {}", audio.len());
 
         if audio.is_empty() {
             debug!("Empty audio vector");
-            return Ok(String::new());
+            return Ok(Decoded::default());
         }
 
         {
@@ -420,17 +414,18 @@ impl TranscriptionManager {
             language,
             translate: settings.translate_to_english,
             threads,
+            cancel,
         };
-        let result = self.engine.transcribe(&audio, &options)?;
+        let decoded = self.engine.transcribe(&audio, &options)?;
 
-        let corrected_result = if !settings.custom_words.is_empty() {
+        let corrected_text = if !settings.custom_words.is_empty() {
             apply_custom_words(
-                &result,
+                &decoded.text,
                 &settings.custom_words,
                 settings.word_correction_threshold,
             )
         } else {
-            result
+            decoded.text
         };
 
         let et = std::time::Instant::now();
@@ -445,7 +440,10 @@ impl TranscriptionManager {
             translation_note
         );
 
-        Ok(corrected_result.trim().to_string())
+        Ok(Decoded {
+            text: corrected_text.trim().to_string(),
+            language: decoded.language,
+        })
     }
 }
 
@@ -469,7 +467,7 @@ pub(crate) fn whisper_language(selected_language: &str) -> Result<Option<String>
         "zh-Hans" | "zh-Hant" => "zh",
         language => language,
     };
-    if whisper_rs::get_lang_id(language).is_none() {
+    if !WHISPER_LANGUAGE_CODES.contains(&language) {
         anyhow::bail!("Unsupported transcription language: {selected_language}");
     }
     Ok(Some(language.to_string()))

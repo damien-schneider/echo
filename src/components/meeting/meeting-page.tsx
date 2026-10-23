@@ -1,4 +1,4 @@
-import { orderedTranscript } from "@/features/meeting/transcript-order";
+import { visibleTranscript } from "@/features/meeting/transcript-order";
 import { useMeetingStore } from "@/stores/meeting-store";
 import { MeetingBatchProgressView } from "./meeting-batch-progress";
 import { MeetingControls } from "./meeting-controls";
@@ -16,7 +16,11 @@ export const MeetingPage = () => {
   const selectedMeeting = useMeetingStore((s) => s.selectedMeeting);
   const selectMeeting = useMeetingStore((s) => s.selectMeeting);
 
-  const transcriptSegments = orderedTranscript(streamingFinals, liveSegments);
+  const transcriptSegments = visibleTranscript(
+    streamingFinals,
+    liveSegments,
+    batchProgress
+  );
 
   if (status === "viewing" && selectedMeeting) {
     return (
@@ -35,7 +39,7 @@ export const MeetingPage = () => {
         )}
         <div className="min-h-0 flex-1">
           <h3 className="mb-2 font-medium text-muted-foreground text-sm">
-            Live Transcript
+            {status === "recording" ? "Live Transcript" : "Transcript"}
           </h3>
           <MeetingTranscript
             autoScroll

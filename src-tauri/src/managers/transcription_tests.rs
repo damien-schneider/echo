@@ -173,22 +173,6 @@ mod timeout_tests {
     }
 }
 
-#[cfg(all(test, target_os = "macos"))]
-mod macos_backend_feature_tests {
-    #[test]
-    fn bundled_backend_does_not_probe_for_missing_coreml_artifacts() {
-        let manifest = include_str!("../../Cargo.toml");
-        let macos_dependency = manifest
-            .lines()
-            .skip_while(|line| !line.contains("cfg(target_os = \"macos\")"))
-            .find(|line| line.starts_with("whisper-rs"))
-            .expect("macOS Whisper dependency");
-
-        assert!(macos_dependency.contains("\"metal\""));
-        assert!(!macos_dependency.contains("\"coreml\""));
-    }
-}
-
 #[test]
 fn realtime_preview_uses_a_bounded_thread_budget() {
     let threads = preview_thread_count();
@@ -212,15 +196,73 @@ fn transcription_language_settings_map_to_whisper_codes() {
     assert!(whisper_language("not-a-language").is_err());
 }
 
-#[test]
-fn streaming_language_probe_collects_only_bounded_speech() {
-    let mut state = StreamingLanguageState::default();
-    state.observe_audio(&vec![0.1; WHISPER_SAMPLE_RATE], false);
-    assert!(state.speech_probe.is_empty());
+fn decoded(text: &str, language: &str) -> Decoded {
+    Decoded {
+        text: text.to_string(),
+        language: Some(language.to_string()),
+    }
+}
 
-    state.observe_audio(&vec![0.1; MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES * 2], true);
-    assert_eq!(
-        state.speech_probe.len(),
-        MAX_STREAMING_LANGUAGE_SPEECH_SAMPLES
+#[test]
+fn language_pins_after_two_agreeing_speech_decodes() {
+    let mut state = StreamingLanguageState::default();
+
+    state.observe_decode(
+        PIN_MIN_WINDOW_SAMPLES,
+        &decoded("on regarde le prompt", "fr"),
     );
+    assert_eq!(state.language, None);
+    state.observe_decode(
+        PIN_MIN_WINDOW_SAMPLES,
+        &decoded("et ensuite on le teste", "fr"),
+    );
+
+    assert_eq!(state.language.as_deref(), Some("fr"));
+}
+
+#[test]
+fn disagreeing_decodes_never_pin_a_language() {
+    let mut state = StreamingLanguageState::default();
+
+    state.observe_decode(
+        PIN_MIN_WINDOW_SAMPLES,
+        &decoded("on regarde le prompt", "fr"),
+    );
+    state.observe_decode(PIN_MIN_WINDOW_SAMPLES, &decoded("let's look at it", "en"));
+
+    assert_eq!(state.language, None);
+}
+
+#[test]
+fn short_windows_never_pin_a_language() {
+    let mut state = StreamingLanguageState::default();
+
+    for _ in 0..4 {
+        state.observe_decode(
+            PIN_MIN_WINDOW_SAMPLES - 1,
+            &decoded("on regarde le prompt", "fr"),
+        );
+    }
+
+    assert_eq!(state.language, None);
+}
+
+#[test]
+fn a_hallucinated_decode_resets_the_candidate() {
+    let mut state = StreamingLanguageState::default();
+
+    state.observe_decode(
+        PIN_MIN_WINDOW_SAMPLES,
+        &decoded("on regarde le prompt", "fr"),
+    );
+    state.observe_decode(
+        PIN_MIN_WINDOW_SAMPLES,
+        &decoded("Thanks for watching!", "en"),
+    );
+    state.observe_decode(
+        PIN_MIN_WINDOW_SAMPLES,
+        &decoded("et ensuite on le teste", "fr"),
+    );
+
+    assert_eq!(state.language, None);
 }

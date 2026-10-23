@@ -1,6 +1,7 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { Switch } from "@ctrl-ui/react/ui/switch";
 import {
+  AudioLines,
   Check,
   Cloud,
   Download,
@@ -16,6 +17,7 @@ import ProgressBar from "@/components/shared/progress-bar";
 import { useTranscriptionReadiness } from "@/features/meeting/use-transcription-readiness";
 import type { DownloadProgress } from "@/features/model-download/download-state";
 import { useDiarizationModel } from "@/features/model-download/use-diarization-model";
+import { useMeetingModel } from "@/features/model-download/use-meeting-model";
 import { SettingRow } from "@/features/settings/setting-row";
 import { useModelStore } from "@/stores/model-store";
 import {
@@ -102,6 +104,7 @@ export const MeetingSettings = () => {
   const updatingSummaryEngine = useIsSettingUpdating("meeting_summary_engine");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   const diarization = useDiarizationModel();
+  const meetingModel = useMeetingModel();
   const transcription = useTranscriptionReadiness();
   const transcriptionError = useModelStore((s) => s.error);
   return (
@@ -175,6 +178,19 @@ export const MeetingSettings = () => {
           onDownload={diarization.download}
           progress={diarization.progress}
           title="Speaker detection"
+        />
+      )}
+      {meetingModel.status?.supported && (
+        <ModelRow
+          description="Better accuracy and live text for meetings. 2.8 GB."
+          downloaded={meetingModel.status.downloaded}
+          downloading={meetingModel.status.downloading}
+          downloadLabel="Download"
+          error={meetingModel.error}
+          icon={<AudioLines className="h-4 w-4" />}
+          onDownload={meetingModel.download}
+          progress={meetingModel.progress}
+          title="Meeting transcription (Voxtral)"
         />
       )}
     </div>

@@ -1,5 +1,24 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Meetings can run on Voxtral Mini 4B Realtime, an optional 2.8 GB download in Meeting settings for Apple Silicon Macs with 16 GB of memory. Once downloaded, the microphone's live text comes from Voxtral and is kept as the transcript at stop; retranscribing runs every track through it.
+
+### Changed
+- Speech recognition runs on transcribe.cpp instead of whisper-rs, on the same Whisper model files. A decode that runs past its time limit is now cancelled instead of left running.
+- Live text stays on screen after stop until the final transcript replaces it, and the meeting opens by itself when it is done.
+- Speaker labels start at 1, and live lines use the same "Speaker" and "Guest" labels as the stored transcript.
+- Each track pins its own language, and short replies such as "OK" or "Merci" are kept in the transcript.
+
+### Fixed
+- A meeting interrupted by a crash, or stopped before the models were downloaded, is kept as a recording that can be transcribed later.
+- Retranscribing keeps the previous transcript until the new one is ready, restores it when the new pass fails, and blocks starting a meeting while it runs.
+- Without a transcription model, a meeting records without a live preview instead of logging a decode error five times a second.
+- A guest heard through the speakers is no longer transcribed a second time from the microphone.
+- A track with music and no speech no longer gets invented text.
+- Overlapping speaker turns are transcribed once.
+
 ## [0.7.2] - 2026-08-19
 
 ### Added

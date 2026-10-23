@@ -16,23 +16,19 @@ fn official_whisper_model_transcribes_real_speech() -> anyhow::Result<()> {
 
     let runtime = WhisperRuntime::new();
     runtime.load("small", std::path::Path::new(&model_path))?;
-    let detection = runtime.detect_language(&audio, 4)?;
-    assert_eq!(detection.language, "en", "detection: {detection:?}");
-    assert!(
-        detection.probability >= 0.6,
-        "detection confidence: {detection:?}"
-    );
     let transcript = runtime.transcribe(
         &audio,
         &WhisperDecodeOptions {
             language: None,
             translate: false,
             threads: 4,
+            cancel: None,
         },
     )?;
-    let normalized = transcript.to_lowercase();
+    let normalized = transcript.text.to_lowercase();
 
-    assert!(normalized.contains("fellow"), "transcript: {transcript}");
-    assert!(normalized.contains("country"), "transcript: {transcript}");
+    assert_eq!(transcript.language.as_deref(), Some("en"), "{transcript:?}");
+    assert!(normalized.contains("fellow"), "transcript: {transcript:?}");
+    assert!(normalized.contains("country"), "transcript: {transcript:?}");
     Ok(())
 }

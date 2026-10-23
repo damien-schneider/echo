@@ -123,8 +123,8 @@ jobs:
           # binaries restored over the real rustup, causing every subsequent
           # rustup invocation to fail with "unexpected argument" errors.
           cache-bin: false
-          # windows-11-arm builds whisper.cpp with clang-cl (whisper.cpp's
-          # CMakeLists.txt rejects MSVC on ARM). The toolchain bytes get
+          # windows-11-arm builds ggml (inside transcribe.cpp) with clang-cl
+          # (ggml's CMakeLists.txt rejects MSVC on ARM). The toolchain bytes get
           # baked into target/.../CMakeCache.txt, so cache must be partitioned
           # to avoid "toolset mismatch" errors when switching/replaying.
           key: ${{ inputs.platform }}-${{ inputs.target }}${{ contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64') && '-clangcl' || '' }}
@@ -203,7 +203,7 @@ jobs:
         if: contains(inputs.platform, 'windows')
         shell: pwsh
         run: |
-          # whisper.cpp builds its Vulkan shader generator as a nested CMake
+          # ggml builds its Vulkan shader generator as a nested CMake
           # ExternalProject, and its scratch files land 7 to 8 characters past
           # MAX_PATH under the default target directory. Neither rc.exe
           # ("fatal error RC1109") nor MSBuild's FileTracker ("error FTK1011")
@@ -254,11 +254,11 @@ jobs:
           vulkan-components: Vulkan-Headers, Vulkan-Loader
           vulkan-use-cache: true
 
-      - name: Configure clang-cl for whisper.cpp (Windows ARM64)
+      - name: Configure clang-cl for transcribe.cpp (Windows ARM64)
         if: contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64')
         shell: pwsh
         run: |
-          # whisper.cpp's CMakeLists.txt rejects MSVC on ARM and demands clang.
+          # ggml's CMakeLists.txt rejects MSVC on ARM and demands clang.
           # GitHub's windows-11-arm runner ships LLVM 18+ which provides clang-cl.
           $llvmBin = "C:\Program Files\LLVM\bin"
           if (-not (Test-Path "$llvmBin\clang-cl.exe")) {
@@ -266,12 +266,12 @@ jobs:
             exit 1
           }
           Add-Content -Path $env:GITHUB_PATH -Value $llvmBin
-          # Force whisper-rs-sys's build script (cmake-rs crate) to use clang-cl.
+          # Force transcribe-cpp-sys's build script (cmake-rs crate) to use clang-cl.
           # CC/CXX must be reachable by name, not absolute path — cmake-rs
           # passes them through to its `cmake -DCMAKE_C_COMPILER=...` invocation.
           Add-Content -Path $env:GITHUB_ENV -Value "CC=clang-cl"
           Add-Content -Path $env:GITHUB_ENV -Value "CXX=clang-cl"
-          # whisper.cpp/ggml uses try/catch (gguf.cpp). cmake-rs's default
+          # ggml uses try/catch (gguf.cpp). cmake-rs's default
           # CXX flags disable C++ exceptions on Windows + clang-cl, causing
           # `cannot use 'try' with exceptions disabled` errors. /EHsc enables
           # the standard C++ exception model. cmake-rs appends $env:CXXFLAGS
@@ -541,9 +541,8 @@ jobs:
           # here so they're never set to empty strings.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
-          # Disable AVX/AVX2 for Linux to ensure broad compatibility
-          WHISPER_NO_AVX: ${{ contains(inputs.platform, 'ubuntu') && 'ON' || '' }}
-          WHISPER_NO_AVX2: ${{ contains(inputs.platform, 'ubuntu') && 'ON' || '' }}
+          # ggml tunes to the runner's CPU unless told not to (macOS is pinned by the sys crate)
+          TRANSCRIBE_CMAKE_ARGS: ${{ !contains(inputs.platform, 'macos') && '-DGGML_NATIVE=OFF' || '' }}
           POLISH_RUNTIME_TARGET: ${{ inputs.target }}
         with:
           tagName: ${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}

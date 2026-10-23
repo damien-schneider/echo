@@ -6,6 +6,7 @@ import type {
   Meeting,
   MeetingBatchProgress,
   MeetingSegment,
+  MeetingStatus,
   StreamingFinal,
   StreamingInterim,
   StreamingSource,
@@ -39,7 +40,7 @@ interface MeetingStore {
     oldLabel: string,
     newLabel: string
   ) => Promise<void>;
-  retranscribeMeeting: (id: number) => Promise<void>;
+  retranscribeMeeting: (id: number) => Promise<MeetingStatus>;
   selectedMeeting: Meeting | null;
   selectedSegments: MeetingSegment[];
   selectMeeting: (id: number) => Promise<void>;
@@ -103,7 +104,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
             end_ms: event.end_ms,
             id: 0,
             meeting_id: event.meeting_id,
-            speaker_label: event.source === "system" ? "System" : "Speaker",
+            speaker_label: event.source === "system" ? "Guest" : "Speaker",
             start_ms: event.start_ms,
             text: event.text,
           },
@@ -183,8 +184,21 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   },
 
   retranscribeMeeting: async (id) => {
-    await invoke("retranscribe_meeting", { meetingId: id });
-    await get().selectMeeting(id);
+    set({
+      batchProgress: {},
+      currentMeetingId: id,
+      interimSegments: emptyInterimSegments(),
+      liveSegments: [],
+      streamingFinals: [],
+    });
+    try {
+      return await invoke<MeetingStatus>("retranscribe_meeting", {
+        meetingId: id,
+      });
+    } catch (error) {
+      set({ currentMeetingId: null });
+      throw error;
+    }
   },
   selectedMeeting: null,
   selectedSegments: [],
@@ -202,16 +216,12 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   },
   setElapsedMs: (ms) => set({ elapsedMs: ms }),
 
-  // Batch rows are canonical once processing starts: keeping the live preview would show every
-  // sentence twice, in two different timelines.
+  // An open live line is never finalized once capture stops; finished ones stay until the batch
+  // rows of their source replace them.
   setStatus: (status) =>
     set(
       status === "processing"
-        ? {
-            interimSegments: emptyInterimSegments(),
-            status,
-            streamingFinals: [],
-          }
+        ? { interimSegments: emptyInterimSegments(), status }
         : { status }
     ),
 

@@ -138,13 +138,14 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
             </SettingRow>
 
             <SettingRow
-              description="High-performance inference of OpenAI's Whisper automatic speech recognition model"
+              description="Speech-to-text inference library running Whisper and other models on ggml"
               layout="stacked"
-              title="Powered by Whisper.cpp"
+              title="Powered by transcribe.cpp"
             >
               <p className="text-muted-foreground text-xs">
-                Echo uses Whisper.cpp for fast, local speech-to-text processing.
-                Thanks to Georgi Gerganov and contributors.
+                Echo uses transcribe.cpp for fast, local speech-to-text
+                processing. Thanks to the transcribe.cpp, whisper.cpp and ggml
+                contributors.
               </p>
             </SettingRow>
           </SettingsSection>

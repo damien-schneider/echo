@@ -1,42 +1,42 @@
 //! Post-meeting pass: diarize each recorded stream, then transcribe utterance by utterance.
 
-use anyhow::Result;
-use log::{debug, error, info, warn};
+use anyhow::{Context, Result};
+use log::{error, info, warn};
 use rusqlite::params;
 use std::path::Path;
 use std::sync::Arc;
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
-use super::diarization::DiarizationManager;
-use super::meeting::{BatchPhase, MeetingManager, MeetingSegment, MeetingStatus};
+use super::diarization::{DiarizationManager, DiarizationSegment};
+use super::hallucination::HallucinationFilter;
+use super::meeting::{BatchPhase, MeetingManager, MeetingStatus};
 use super::meeting_batch_plan::{
-    chunk_plan, final_status, BatchFiles, BatchOutcome, BatchPass, ChunkOutcome, PassProgress,
-    PendingSegment,
+    chunk_plan, clip_overlaps, final_status, BatchFiles, BatchOutcome, BatchPass, ChunkOutcome,
+    PassProgress, PendingSegment, MIN_TRANSCRIBABLE_SAMPLES,
 };
 use super::meeting_mixdown::{mix_file_name, write_mixdown, MixSources};
-use super::meeting_streaming::is_whisper_hallucination;
 use super::meeting_types::{ms_to_samples, samples_to_ms, SAMPLE_RATE};
+use super::meeting_voxtral::SourceTranscript;
 use super::transcription::{transcription_timeout, TranscriptionManager};
 use crate::audio_toolkit::audio::{read_wav_range, WavWindows};
-use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
-use crate::managers::cleanup_apply::cleanup_or_filter;
 use crate::settings;
 
 const DIARIZATION_WINDOW_SAMPLES: usize = 30 * SAMPLE_RATE;
 const MERGED_SEGMENT_MAX_MS: i64 = 30_000;
-const MIN_TRANSCRIBABLE_SAMPLES: usize = 1600;
 
-/// Whisper decode is non-cancellable: a timed-out chunk keeps running on its own decode state, so
-/// queueing the next one stacks live states until the machine runs out of memory. Two failures in a
-/// row also mean a broken model load, where every remaining chunk would fail just as fast.
+/// Two failures in a row mean a broken model load, where every remaining chunk would fail just as
+/// fast.
 const MAX_CONSECUTIVE_DECODE_FAILURES: usize = 2;
 
 impl MeetingManager {
     /// Detached from `stop_meeting`; errors land in the returned status, never propagate.
+    /// Rows up to `min_segment_id` predate this pass and are left to the caller.
     pub(super) async fn run_batch_transcription(
         &self,
         meeting_id: i64,
         files: BatchFiles,
+        voxtral_transcripts: Vec<SourceTranscript>,
+        min_segment_id: i64,
     ) -> MeetingStatus {
         let mut outcome = BatchOutcome::default();
 
@@ -50,7 +50,14 @@ impl MeetingManager {
                         total_samples,
                         stream: &stream,
                     };
-                    outcome = outcome.merged(self.diarize_and_transcribe(&pass).await);
+                    let voxtral_text = voxtral_transcripts.iter().find(|transcript| {
+                        transcript.complete && transcript.source == stream.source
+                    });
+                    let pass_outcome = match voxtral_text {
+                        Some(transcript) => self.store_voxtral_text(&pass, &transcript.chunks),
+                        None => self.diarize_and_transcribe(&pass).await,
+                    };
+                    outcome = outcome.merged(pass_outcome);
                 }
                 Err(e) => {
                     error!("Failed to open meeting {} audio: {e:#}", stream.file_name);
@@ -59,6 +66,9 @@ impl MeetingManager {
             }
         }
 
+        if files.mic.is_some() && files.system.is_some() {
+            self.drop_echoed_mic_segments(meeting_id, min_segment_id);
+        }
         self.write_playback_mixdown(meeting_id, &files);
 
         let status = final_status(outcome);
@@ -113,38 +123,30 @@ impl MeetingManager {
 
     /// Falls back to fixed-size chunks when diarization cannot run.
     async fn diarize_and_transcribe(&self, pass: &BatchPass<'_>) -> BatchOutcome {
-        let Some(diarization_manager) = self.app_handle.try_state::<Arc<DiarizationManager>>()
-        else {
-            warn!("DiarizationManager not available, falling back to chunked transcription");
-            return self.transcribe_chunks(pass).await;
-        };
-        let diarization_manager = diarization_manager.inner().clone();
-
-        pass.emit_progress(
-            &self.app_handle,
-            PassProgress {
-                phase: BatchPhase::Diarizing,
-                done: 0,
-                total: 0,
-            },
-        );
-
-        let diarized = WavWindows::open(&pass.audio, DIARIZATION_WINDOW_SAMPLES)
-            .and_then(|windows| diarization_manager.diarize(windows));
-
-        let raw_segments = match diarized {
-            Ok(segments) if !segments.is_empty() => segments,
-            Ok(_) => {
-                warn!("Diarization returned no segments, falling back to chunked transcription");
-                return self.transcribe_chunks(pass).await;
+        let merged = match self.speaker_turns(pass) {
+            Ok(turns) if turns.is_empty() => {
+                info!(
+                    "No speech detected in the {} stream",
+                    pass.stream.source.as_str()
+                );
+                pass.emit_progress(
+                    &self.app_handle,
+                    PassProgress {
+                        phase: BatchPhase::Done,
+                        done: 0,
+                        total: 0,
+                    },
+                );
+                return BatchOutcome::default();
             }
+            Ok(turns) => turns,
             Err(e) => {
                 error!("Diarization failed, falling back to chunked transcription: {e:#}");
                 return self.transcribe_chunks(pass).await;
             }
         };
 
-        let merged = DiarizationManager::merge_consecutive(&raw_segments, MERGED_SEGMENT_MAX_MS);
+        let languages = self.speaker_languages(pass, &merged);
         let chunks_total = merged.len();
         self.prepare_transcription(pass, chunks_total);
 
@@ -160,9 +162,15 @@ impl MeetingManager {
                     outcome.errors += 1;
                     break;
                 };
-                let label = format!("{} {}", pass.stream.label_prefix, segment.speaker_id);
+                let label = format!("{} {}", pass.stream.label_prefix, segment.speaker_id + 1);
                 let pending = pass.segment_at(segment.start_ms, segment.end_ms, label);
-                match self.transcribe_into_segment(chunk, pending) {
+                let language = languages.get(&segment.speaker_id).cloned();
+                match self.transcribe_into_segment(
+                    chunk,
+                    pending,
+                    language,
+                    HallucinationFilter::KeepShortReplies,
+                ) {
                     ChunkOutcome::Inserted => {
                         outcome.inserted += 1;
                         consecutive_failures = 0;
@@ -197,12 +205,32 @@ impl MeetingManager {
                 total: chunks_total,
             },
         );
-        info!(
-            "Diarized {} utterances from {} raw segments",
-            chunks_total,
-            raw_segments.len()
-        );
+        info!("Diarized {chunks_total} utterances");
         outcome
+    }
+
+    /// Sortformer turns merged up to 30 s and without overlap; empty means no speech.
+    pub(super) fn speaker_turns(&self, pass: &BatchPass<'_>) -> Result<Vec<DiarizationSegment>> {
+        let diarization_manager = self
+            .app_handle
+            .try_state::<Arc<DiarizationManager>>()
+            .context("DiarizationManager not available")?
+            .inner()
+            .clone();
+        pass.emit_progress(
+            &self.app_handle,
+            PassProgress {
+                phase: BatchPhase::Diarizing,
+                done: 0,
+                total: 0,
+            },
+        );
+        let raw_segments = WavWindows::open(&pass.audio, DIARIZATION_WINDOW_SAMPLES)
+            .and_then(|windows| diarization_manager.diarize(windows))?;
+        Ok(clip_overlaps(DiarizationManager::merge_consecutive(
+            &raw_segments,
+            MERGED_SEGMENT_MAX_MS,
+        )))
     }
 
     /// Reads the recording chunk by chunk: batch passes must not scale with meeting length.
@@ -231,7 +259,7 @@ impl MeetingManager {
                 samples_to_ms(end),
                 pass.stream.label_prefix.to_string(),
             );
-            match self.transcribe_into_segment(chunk, pending) {
+            match self.transcribe_into_segment(chunk, pending, None, HallucinationFilter::Strict) {
                 ChunkOutcome::Inserted => {
                     outcome.inserted += 1;
                     consecutive_failures = 0;
@@ -284,11 +312,17 @@ impl MeetingManager {
         );
     }
 
-    fn transcribe_into_segment(&self, chunk: Vec<f32>, pending: PendingSegment) -> ChunkOutcome {
+    fn transcribe_into_segment(
+        &self,
+        chunk: Vec<f32>,
+        pending: PendingSegment,
+        language: Option<String>,
+        filter: HallucinationFilter,
+    ) -> ChunkOutcome {
         let transcription_manager = self.app_handle.state::<Arc<TranscriptionManager>>();
         let timeout = transcription_timeout(chunk.len());
-        let text = match transcription_manager.transcribe_with_timeout(chunk, timeout) {
-            Ok(text) => text,
+        let text = match transcription_manager.decode_with_timeout(chunk, timeout, language) {
+            Ok(decoded) => decoded.text,
             Err(e) => {
                 error!(
                     "Failed to transcribe meeting audio at {}ms: {e}",
@@ -297,73 +331,11 @@ impl MeetingManager {
                 return ChunkOutcome::Failed;
             }
         };
-
-        let cleaned = self.apply_cleanup_filter(text.trim());
-        if cleaned.is_empty() {
-            debug!(
-                "Skipped chunk at {}ms (empty or hallucination): {:?}",
-                pending.start_ms,
-                text.trim()
-            );
-            return ChunkOutcome::Skipped;
-        }
-
-        let segment = MeetingSegment {
-            id: 0,
-            meeting_id: pending.meeting_id,
-            speaker_label: pending.speaker_label,
-            start_ms: pending.start_ms,
-            end_ms: pending.end_ms,
-            text: cleaned,
-            confidence: None,
-            audio_source: pending.source.as_str().to_string(),
-        };
-        match self.insert_segment(&segment) {
-            Ok(()) => {
-                let _ = self.app_handle.emit("meeting-segment-added", &segment);
-                ChunkOutcome::Inserted
-            }
-            Err(e) => {
-                error!("Failed to insert meeting segment: {e:#}");
-                ChunkOutcome::Failed
-            }
-        }
-    }
-
-    fn insert_segment(&self, segment: &MeetingSegment) -> Result<()> {
-        let conn = self.get_connection()?;
-        conn.execute(
-            "INSERT INTO meeting_segments (meeting_id, speaker_label, start_ms, end_ms, text, confidence, audio_source) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                segment.meeting_id,
-                segment.speaker_label,
-                segment.start_ms,
-                segment.end_ms,
-                segment.text,
-                segment.confidence,
-                segment.audio_source,
-            ],
-        )?;
-        Ok(())
-    }
-
-    fn apply_cleanup_filter(&self, text: &str) -> String {
-        let settings = settings::get_settings(&self.app_handle);
-        let Some(cleanup_state) = self.app_handle.try_state::<CleanupState>() else {
-            // Test harness: hallucination filter only.
-            if is_whisper_hallucination(text) {
-                return String::new();
-            }
-            return text.to_string();
-        };
-        let cleanup_state = cleanup_state.inner().clone();
-        cleanup_or_filter(text, &cleanup_state, &settings, || {
-            build_context_from_app_settings(&settings)
-        })
+        self.store_segment_text(&text, pending, filter)
     }
 }
 
-fn read_range(audio: &Path, start: usize, end: usize) -> Result<Vec<f32>> {
+pub(super) fn read_range(audio: &Path, start: usize, end: usize) -> Result<Vec<f32>> {
     read_wav_range(audio, start, end).inspect_err(|e| {
         error!("Failed to read meeting audio at sample {start}: {e:#}");
     })

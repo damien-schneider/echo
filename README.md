@@ -65,7 +65,7 @@ Echo is built as a Tauri application combining:
 - **Frontend**: React + TypeScript with Tailwind CSS for the settings UI
 - **Backend**: Rust for system integration, audio processing, and ML inference
 - **Core Libraries**:
-  - `whisper-rs`: Local speech recognition with Whisper models
+  - `transcribe-cpp`: Local speech recognition on transcribe.cpp — Whisper models for dictation, Voxtral Realtime for meetings on Apple Silicon
   - `parakeet-rs`: Local speaker diarization with NVIDIA Sortformer
   - `cpal`: Cross-platform audio I/O
   - `vad-rs`: Voice Activity Detection
@@ -172,16 +172,18 @@ Download one or more of the exact model artifacts used by Echo:
 - Small (190 MB): `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin`
 - Medium (574 MB): `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin`
 - Large (1080 MB): `https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin`
+- Meeting transcription, Apple Silicon with 16 GB of memory (2831 MB): `https://huggingface.co/handy-computer/Voxtral-Mini-4B-Realtime-2602-gguf/resolve/7fd3d424fc558edca2c53808578b0541ef52a81a/Voxtral-Mini-4B-Realtime-2602-Q4_K_M.gguf`
 
 #### Step 4: Install Models
 
-Place each `.bin` file directly in the `models` directory without renaming it:
+Place each file directly in the `models` directory without renaming it:
 
 ```
 {app_data_dir}/models/
 ├── ggml-small-q5_1.bin
 ├── ggml-large-v3-turbo-q5_0.bin
-└── ggml-large-v3-q5_0.bin
+├── ggml-large-v3-q5_0.bin
+└── Voxtral-Mini-4B-Realtime-2602-Q4_K_M.gguf
 ```
 
 Restart Echo after placing the files.
@@ -210,7 +212,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 - **Handy** by [cjpais](https://github.com/cjpais/Handy) - Echo was built on top of this excellent foundation
 - **Whisper** by OpenAI for the speech recognition model
-- **whisper.cpp and ggml** for amazing cross-platform whisper inference/acceleration
+- **Voxtral Mini 4B Realtime** by Mistral AI for live meeting transcription
+- **transcribe.cpp, whisper.cpp and ggml** for cross-platform Whisper inference/acceleration and the Whisper model files
 - **Silero** for great lightweight VAD
 - **Tauri** team for the excellent Rust-based app framework
 - **Community contributors** helping make Echo better

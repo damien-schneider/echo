@@ -124,8 +124,10 @@ pub async fn retranscribe_meeting(
     _app: AppHandle,
     meeting_manager: State<'_, Arc<MeetingManager>>,
     meeting_id: i64,
-) -> Result<(), String> {
+) -> Result<MeetingStatus, String> {
     meeting_manager
+        .inner()
+        .clone()
         .retranscribe_meeting(meeting_id)
         .await
         .map_err(|e| e.to_string())

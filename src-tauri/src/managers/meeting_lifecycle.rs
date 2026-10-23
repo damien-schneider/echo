@@ -6,16 +6,14 @@ use chrono::Utc;
 use log::{error, info, warn};
 use rusqlite::params;
 use std::sync::Arc;
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 
 use super::meeting::{
     ActiveMeeting, AudioSource, ManagerState, MeetingManager, MeetingStatus, RecordingState,
 };
 use super::meeting_batch_plan::BatchFiles;
 use super::meeting_capture::{emit_audio_warning, MicCapture, SystemCapture};
-use super::meeting_streaming::StreamingWorker;
 use super::meeting_types::AudioWarningReason;
-use super::transcription::TranscriptionManager;
 use crate::audio_toolkit::audio::system_capture::is_system_audio_available;
 use crate::audio_toolkit::AudioRecorder;
 use crate::settings;
@@ -63,41 +61,24 @@ impl MeetingManager {
         let meeting_id = conn.last_insert_rowid();
         info!("Started meeting {} (id={})", meeting_title, meeting_id);
 
-        // Spawn BEFORE chunk_tx wire so first sample hits live worker.
         let app_settings = settings::get_settings(&self.app_handle);
-        // Without a model every decode fails, five times a second, for the whole meeting: the
-        // recording is what matters, and the batch pass transcribes it once the model is there.
-        let streaming_worker_arc = if self.transcription_ready() {
-            let tm = self.app_handle.state::<Arc<TranscriptionManager>>();
-            match StreamingWorker::spawn(self.app_handle.clone(), meeting_id, tm.inner().clone()) {
-                Ok((arc, handle)) => {
-                    *self.streaming_worker.lock().unwrap() = Some(arc.clone());
-                    *self.streaming_handle.lock().unwrap() = Some(handle);
-                    info!("Realtime streaming worker started for meeting {meeting_id}");
-                    Some(arc)
-                }
-                Err(e) => {
-                    warn!("Failed to spawn streaming worker: {e:#}");
-                    None
-                }
-            }
-        } else {
-            info!("Meeting {meeting_id} records without a live transcript: no transcription model");
-            None
-        };
+        let captures_system =
+            app_settings.meeting_system_audio_enabled && is_system_audio_available();
+        // Spawned before the captures so the first sample reaches a live worker.
+        let live_workers = self.spawn_live_workers(meeting_id, captures_system);
 
         self.stopping
             .store(false, std::sync::atomic::Ordering::Relaxed);
         let capture_epoch = self.start_mic_capture(MicCapture {
             meeting_id,
             recorder,
-            streaming_worker: streaming_worker_arc.clone(),
+            live_worker: live_workers.mic,
         })?;
 
-        if app_settings.meeting_system_audio_enabled && is_system_audio_available() {
+        if captures_system {
             self.start_system_capture(SystemCapture {
                 meeting_id,
-                streaming_worker: streaming_worker_arc,
+                live_worker: live_workers.system,
                 capture_epoch,
             })?;
         }
@@ -188,11 +169,7 @@ impl MeetingManager {
                 .and_then(|sink| sink.finish(&self.meetings_dir))
         };
 
-        // Drop shared Arc first so forwarder push_audio becomes no-op; then Shutdown + join.
-        let _ = self.streaming_worker.lock().unwrap().take();
-        if let Some(handle) = self.streaming_handle.lock().unwrap().take() {
-            handle.stop();
-        }
+        let live_transcripts = self.stop_live_workers();
 
         let now = Utc::now().timestamp();
         let duration_ms = (now - recording.start_time) * 1000;
@@ -219,20 +196,19 @@ impl MeetingManager {
             system_offset_ms: self.read_system_offset_ms(meeting_id),
         };
         tauri::async_runtime::spawn(async move {
-            let mut guard = BatchGuard {
-                manager: manager.clone(),
-                meeting_id,
-                finished: false,
-            };
+            let guard = BatchGuard::new(manager.clone(), meeting_id);
             let status = match manager.models_ready() {
-                Ok(()) => manager.run_batch_transcription(meeting_id, files).await,
+                Ok(()) => {
+                    manager
+                        .run_batch_transcription(meeting_id, files, live_transcripts, 0)
+                        .await
+                }
                 Err(reason) => {
                     info!("Meeting {meeting_id} saved without a transcript: {reason}");
                     manager.keep_audio_awaiting_models(meeting_id, &files)
                 }
             };
-            guard.finished = true;
-            drop(guard);
+            guard.finish();
 
             manager.emit_status_changed(status.clone());
             let transcribed = matches!(status, MeetingStatus::Complete | MeetingStatus::Partial);
@@ -250,10 +226,24 @@ impl MeetingManager {
 
 /// A panicking batch pass used to leave the manager stuck in `Processing`: every later meeting
 /// then failed to start until the app was restarted.
-struct BatchGuard {
+pub(super) struct BatchGuard {
     manager: Arc<MeetingManager>,
     meeting_id: i64,
     finished: bool,
+}
+
+impl BatchGuard {
+    pub(super) fn new(manager: Arc<MeetingManager>, meeting_id: i64) -> Self {
+        Self {
+            manager,
+            meeting_id,
+            finished: false,
+        }
+    }
+
+    pub(super) fn finish(mut self) {
+        self.finished = true;
+    }
 }
 
 impl Drop for BatchGuard {

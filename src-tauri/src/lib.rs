@@ -134,7 +134,7 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
                             "Realtime model '{}' resident for live preview",
                             realtime_model_id
                         );
-                        // cold first decode runs for seconds — pre-compile the Metal/CoreML kernels off-thread
+                        // cold first decode runs for seconds — pre-compile the Metal kernels off-thread
                         let tm_warm = tm.clone();
                         std::thread::spawn(move || {
                             let warm_start = std::time::Instant::now();
@@ -790,6 +790,8 @@ pub fn run() {
             shortcut::settings::meeting::change_meeting_chunk_duration_setting,
             shortcut::settings::meeting::get_diarization_status,
             shortcut::settings::meeting::download_diarization_model,
+            shortcut::settings::meeting::get_meeting_model_status,
+            shortcut::settings::meeting::download_meeting_model,
             shortcut::settings::polish::change_polish_level_setting,
             commands::meeting::start_meeting,
             commands::meeting::stop_meeting,

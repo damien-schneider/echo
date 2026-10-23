@@ -17,7 +17,7 @@ pub(super) fn samples_to_ms(samples: usize) -> i64 {
 pub enum MeetingStatus {
     Recording,
     Processing,
-    /// Audio saved without a transcript: the models were still missing when the meeting stopped.
+    /// Audio saved without a transcript: models were missing at stop, or the app quit mid-meeting.
     Recorded,
     Complete,
     /// Some of the recording was transcribed and some was lost: there is text to read and a

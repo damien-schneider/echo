@@ -1,10 +1,13 @@
-use super::model::{EngineType, ModelInfo, POLISH_MODEL_ID};
+use super::model::{EngineType, ModelInfo, POLISH_MODEL_ID, VOXTRAL_MODEL_ID};
 use super::transcription_profiles::{transcription_profiles, TranscriptionProfileSpec};
 use std::collections::HashMap;
 
 const POLISH_MODEL_URL: &str = "https://huggingface.co/lmstudio-community/Qwen3-4B-Instruct-2507-GGUF/resolve/4edb920b6f14e3b9284d4502a6485103d72cde05/Qwen3-4B-Instruct-2507-Q4_K_M.gguf";
 const POLISH_MODEL_SHA256: &str =
     "8cdb57cbb880d313736a9bc4e3d3d2485f145b5e19cf33783746e753e82641fc";
+const VOXTRAL_MODEL_URL: &str = "https://huggingface.co/handy-computer/Voxtral-Mini-4B-Realtime-2602-gguf/resolve/7fd3d424fc558edca2c53808578b0541ef52a81a/Voxtral-Mini-4B-Realtime-2602-Q4_K_M.gguf";
+const VOXTRAL_MODEL_SHA256: &str =
+    "39dc1f65539373a406edea7490505822d77c12edff521744678717eef4da4723";
 
 /// What the models directory holds for one artifact right now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -76,6 +79,24 @@ pub(super) fn available_model_catalog() -> HashMap<String, ModelInfo> {
             partial_size: 0,
             is_directory: false,
             engine_type: EngineType::Polish,
+        },
+    );
+    models.insert(
+        VOXTRAL_MODEL_ID.to_string(),
+        ModelInfo {
+            id: VOXTRAL_MODEL_ID.to_string(),
+            name: "Voxtral Mini 4B Realtime".to_string(),
+            description: "Live and post-meeting transcription for meetings".to_string(),
+            filename: "Voxtral-Mini-4B-Realtime-2602-Q4_K_M.gguf".to_string(),
+            url: Some(VOXTRAL_MODEL_URL.to_string()),
+            size_mb: 2_831,
+            size_bytes: 2_830_493_984,
+            sha256: Some(VOXTRAL_MODEL_SHA256.to_string()),
+            is_downloaded: false,
+            is_downloading: false,
+            partial_size: 0,
+            is_directory: false,
+            engine_type: EngineType::MeetingTranscription,
         },
     );
     models

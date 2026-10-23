@@ -3,14 +3,15 @@
 
 use anyhow::Result;
 use log::warn;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::Manager;
 
 use super::diarization::DiarizationManager;
 use super::meeting::MeetingManager;
 use super::meeting_types::SAMPLE_RATE;
-use super::model::ModelManager;
+use super::meeting_voxtral::voxtral_supported;
+use super::model::{ModelManager, VOXTRAL_MODEL_ID};
 use super::transcription_profiles::transcription_profile_id;
 use crate::settings;
 
@@ -32,8 +33,7 @@ impl MeetingManager {
         Ok(())
     }
 
-    /// Gates the passes that need both models: retranscribe would destroy the transcript it was
-    /// asked to rebuild, and the stop-time batch would fail every chunk.
+    /// Gates the passes that need both models: without them every chunk of the batch would fail.
     pub(super) fn models_ready(&self) -> Result<()> {
         if !self.diarization_ready() {
             anyhow::bail!("Download the speaker detection model in Meeting Settings.");
@@ -60,6 +60,18 @@ impl MeetingManager {
         models
             .get_model_info(transcription_profile_id(size))
             .is_some_and(|model| model.is_downloaded)
+    }
+
+    /// `None` on a Mac that cannot run Voxtral or before its model is downloaded.
+    pub(super) fn voxtral_model_path(&self) -> Option<PathBuf> {
+        if !voxtral_supported() {
+            return None;
+        }
+        let models = self.app_handle.try_state::<Arc<ModelManager>>()?;
+        models
+            .get_model_info(VOXTRAL_MODEL_ID)
+            .filter(|model| model.is_downloaded)?;
+        models.get_model_path(VOXTRAL_MODEL_ID).ok()
     }
 }
 

@@ -3,8 +3,11 @@
 use std::path::PathBuf;
 use tauri::Emitter;
 
+use super::diarization::DiarizationSegment;
 use super::meeting::{AudioSource, BatchPhase, MeetingBatchProgress, MeetingStatus};
-use super::meeting_types::SAMPLE_RATE;
+use super::meeting_types::{ms_to_samples, SAMPLE_RATE};
+
+pub(super) const MIN_TRANSCRIBABLE_SAMPLES: usize = 1600;
 
 /// Sortformer numbers speakers per file, so both streams would otherwise answer `Speaker 1`.
 pub(super) const MIC_LABEL_PREFIX: &str = "Speaker";
@@ -135,6 +138,22 @@ pub fn chunk_plan(samples_len: usize, chunk_secs: usize) -> ChunkPlan {
         chunk_size,
         chunks_total: samples_len.div_ceil(chunk_size),
     }
+}
+
+/// Sortformer pads each speaker's turns, so two speakers overlap and the overlap would be decoded
+/// once per speaker. Each turn starts where the previous kept one ends.
+pub(super) fn clip_overlaps(mut segments: Vec<DiarizationSegment>) -> Vec<DiarizationSegment> {
+    segments.sort_by_key(|segment| segment.start_ms);
+    let mut kept: Vec<DiarizationSegment> = Vec::with_capacity(segments.len());
+    for mut segment in segments {
+        if let Some(previous) = kept.last() {
+            segment.start_ms = segment.start_ms.max(previous.end_ms);
+        }
+        if ms_to_samples(segment.end_ms - segment.start_ms) >= MIN_TRANSCRIBABLE_SAMPLES {
+            kept.push(segment);
+        }
+    }
+    kept
 }
 
 #[cfg(test)]

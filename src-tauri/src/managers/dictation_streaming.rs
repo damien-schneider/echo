@@ -14,7 +14,7 @@ use tauri::AppHandle;
 const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 const WORKER_FINISH_BUDGET: Duration = Duration::from_secs(8);
 
-use crate::managers::meeting_streaming::is_whisper_hallucination;
+use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
 use crate::managers::model::transcription_profile_id;
 use crate::managers::streaming::{
     PipelineEvent, StreamingConfig, StreamingPipeline, MAX_BACKLOG_SAMPLES,
@@ -100,7 +100,6 @@ fn trim_frame_backlog(frames: &mut Vec<CapturedAudioFrame>) -> usize {
 /// Seam so tests can script decodes without a real model file.
 pub trait DictationDecoder: Send + Sync + 'static {
     fn transcribe_chunk(&self, audio: Vec<f32>) -> anyhow::Result<String>;
-    fn observe_audio(&self, _samples: &[f32], _is_speech: bool) {}
     fn language_is_pinned(&self) -> bool {
         true
     }
@@ -136,10 +135,6 @@ impl DictationDecoder for NoOpDecoder {
 }
 
 impl DictationDecoder for StreamingTranscriber {
-    fn observe_audio(&self, samples: &[f32], is_speech: bool) {
-        StreamingTranscriber::observe_audio(self, samples, is_speech);
-    }
-
     fn language_is_pinned(&self) -> bool {
         StreamingTranscriber::language_is_pinned(self)
     }
@@ -371,7 +366,7 @@ where
     }
     match f(samples) {
         Ok(text) => {
-            if is_whisper_hallucination(&text) {
+            if is_hallucination(&text, HallucinationFilter::Strict) {
                 String::new()
             } else {
                 text
@@ -424,7 +419,6 @@ fn run_worker(
             if shutdown_flag.load(Ordering::Relaxed) {
                 break;
             }
-            decoder.observe_audio(&frame.samples, frame.is_speech);
             let is_speech = frame.is_speech || !decoder.language_is_pinned();
             let events = pipeline.push(&frame.samples, is_speech, &mut decode);
             emit_events(events, &mut accumulator, &sink);

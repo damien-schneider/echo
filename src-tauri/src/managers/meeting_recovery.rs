@@ -33,6 +33,14 @@ pub(super) fn recovery_action(status: &str, recorded_samples: usize) -> Recovery
     }
 }
 
+pub(super) fn interrupted_status(segment_count: i64) -> MeetingStatus {
+    if segment_count == 0 {
+        MeetingStatus::Recorded
+    } else {
+        MeetingStatus::Partial
+    }
+}
+
 pub(super) fn sweep(app: &AppHandle, db_path: &Path, meetings_dir: &Path) {
     if let Err(e) = close_interrupted_meetings(db_path, meetings_dir) {
         error!("Failed to recover interrupted meetings: {e:#}");
@@ -71,10 +79,15 @@ fn close_interrupted_meetings(db_path: &Path, meetings_dir: &Path) -> Result<()>
             continue;
         };
 
+        let segment_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM meeting_segments WHERE meeting_id = ?1",
+            params![meeting.id],
+            |row| row.get(0),
+        )?;
         conn.execute(
             "UPDATE meetings SET status = ?1, duration_ms = ?2, end_time = ?3 WHERE id = ?4",
             params![
-                MeetingStatus::Error.as_str(),
+                interrupted_status(segment_count).as_str(),
                 duration_ms,
                 meeting.start_time + duration_ms / 1000,
                 meeting.id,
@@ -214,7 +227,7 @@ mod tests {
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .unwrap();
-        assert_eq!(status, "error");
+        assert_eq!(status, "recorded");
         assert_eq!(duration, 3_000);
         assert_eq!(end_time, 1_700_000_003);
 
@@ -226,6 +239,44 @@ mod tests {
             )
             .unwrap();
         assert_eq!(untouched, "complete");
+    }
+
+    #[test]
+    fn a_crash_after_some_segments_keeps_them_as_partial() {
+        let dir = TempDir::new().unwrap();
+        let db_path = dir.path().join("history.db");
+        database::initialize_database(&db_path).unwrap();
+        save_wav_file(dir.path().join("meeting-1-mic.wav"), &vec![0.1; 48_000]).unwrap();
+
+        let conn = Connection::open(&db_path).unwrap();
+        let crashed = meeting_row(&conn, "processing", Some("meeting-1-mic.wav"));
+        for start_ms in [0_i64, 1_000] {
+            conn.execute(
+                "INSERT INTO meeting_segments (meeting_id, speaker_label, start_ms, end_ms, text, audio_source) \
+                 VALUES (?1, 'Speaker 1', ?2, ?3, 'hello', 'mic')",
+                params![crashed, start_ms, start_ms + 1_000],
+            )
+            .unwrap();
+        }
+
+        close_interrupted_meetings(&db_path, dir.path()).unwrap();
+
+        let status: String = conn
+            .query_row(
+                "SELECT status FROM meetings WHERE id = ?1",
+                params![crashed],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let kept: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM meeting_segments WHERE meeting_id = ?1",
+                params![crashed],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(status, "partial");
+        assert_eq!(kept, 2);
     }
 
     /// File names are written when recording starts, so the WAV is reachable even after a kill.

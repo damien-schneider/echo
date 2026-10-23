@@ -1,4 +1,4 @@
-//! Worker detached on timeout (whisper FFI is non-cancellable).
+//! Worker detached on timeout; a caller that can abort the work cancels it itself.
 
 use std::sync::mpsc;
 use std::thread;

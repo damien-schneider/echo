@@ -11,8 +11,9 @@ use tauri::{AppHandle, Emitter, Manager};
 use super::database;
 use super::meeting_audio_sink::MeetingAudioSink;
 use super::meeting_batch_plan::BatchFiles;
+use super::meeting_lifecycle::BatchGuard;
+use super::meeting_live::LiveWorkerHandle;
 use super::meeting_recovery;
-use super::meeting_streaming::{StreamingWorker, StreamingWorkerHandle};
 pub use super::meeting_types::*;
 use crate::audio_toolkit::audio::system_capture::SystemAudioCapture;
 use crate::audio_toolkit::{list_input_devices, AudioRecorder};
@@ -42,9 +43,8 @@ pub struct MeetingManager {
     pub(super) mic_collector: Arc<std::sync::Mutex<Option<std::thread::JoinHandle<()>>>>,
     pub(super) system_sink: Arc<std::sync::Mutex<Option<MeetingAudioSink>>>,
     pub(super) system_collector: Arc<std::sync::Mutex<Option<std::thread::JoinHandle<()>>>>,
-    pub(super) streaming_worker: Arc<std::sync::Mutex<Option<Arc<StreamingWorker>>>>,
-    /// Owned separately so we can join even when forwarders still hold Arc clones.
-    pub(super) streaming_handle: Arc<std::sync::Mutex<Option<StreamingWorkerHandle>>>,
+    /// Owned apart from the workers so a stop can join them while forwarders still hold clones.
+    pub(super) live_handles: std::sync::Mutex<Vec<LiveWorkerHandle>>,
     /// A capture channel also closes on a normal stop; only an unasked-for close is a warning.
     pub(super) stopping: Arc<std::sync::atomic::AtomicBool>,
 }
@@ -77,8 +77,7 @@ impl MeetingManager {
             mic_collector: Arc::new(std::sync::Mutex::new(None)),
             system_sink: Arc::new(std::sync::Mutex::new(None)),
             system_collector: Arc::new(std::sync::Mutex::new(None)),
-            streaming_worker: Arc::new(std::sync::Mutex::new(None)),
-            streaming_handle: Arc::new(std::sync::Mutex::new(None)),
+            live_handles: std::sync::Mutex::new(Vec::new()),
             stopping: Arc::new(std::sync::atomic::AtomicBool::new(false)),
         })
     }
@@ -142,10 +141,7 @@ impl MeetingManager {
                 sink.finish(&self.meetings_dir);
             }
         }
-        let _ = self.streaming_worker.lock().unwrap().take();
-        if let Some(handle) = self.streaming_handle.lock().unwrap().take() {
-            handle.stop();
-        }
+        self.stop_live_workers();
         if let Err(e) = self.get_connection().and_then(|conn| {
             Ok(conn.execute("DELETE FROM meetings WHERE id = ?1", params![meeting_id])?)
         }) {
@@ -219,11 +215,8 @@ impl MeetingManager {
     }
 
     /// Rebuilds every stream from the recordings on disk — the same pass a live meeting ends with.
-    pub async fn retranscribe_meeting(&self, meeting_id: i64) -> Result<()> {
-        if !matches!(*self.lock_state(), ManagerState::Idle) {
-            anyhow::bail!("Finish the meeting in progress before retranscribing another one");
-        }
-
+    /// The previous transcript stays until the new pass has produced its replacement.
+    pub async fn retranscribe_meeting(self: Arc<Self>, meeting_id: i64) -> Result<MeetingStatus> {
         self.models_ready()?;
 
         let meeting = self.get_meeting(meeting_id)?;
@@ -236,23 +229,83 @@ impl MeetingManager {
             anyhow::bail!("No audio file found for meeting {meeting_id}");
         }
 
+        {
+            let mut state = self.lock_state();
+            if !matches!(*state, ManagerState::Idle) {
+                anyhow::bail!("Finish the meeting in progress before retranscribing another one");
+            }
+            *state = ManagerState::Processing;
+        }
+        let guard = BatchGuard::new(self.clone(), meeting_id);
+        self.emit_active_meeting(Some(ActiveMeeting::Processing));
+
+        let previous = PreviousTranscript {
+            status: meeting.status,
+            max_segment_id: self.max_segment_id(meeting_id)?,
+        };
         self.set_meeting_status(meeting_id, &MeetingStatus::Processing);
         self.emit_status_changed(MeetingStatus::Processing);
 
-        self.get_connection()?.execute(
-            "DELETE FROM meeting_segments WHERE meeting_id = ?1",
-            params![meeting_id],
-        )?;
+        let voxtral_transcripts = self.voxtral_file_transcripts(meeting_id, &files);
+        let status = self
+            .run_batch_transcription(
+                meeting_id,
+                files,
+                voxtral_transcripts,
+                previous.max_segment_id,
+            )
+            .await;
+        self.keep_one_transcript(meeting_id, &previous, &status)?;
+        guard.finish();
 
-        let status = self.run_batch_transcription(meeting_id, files).await;
         self.emit_status_changed(status.clone());
         info!("Meeting {meeting_id} retranscribed as {}", status.as_str());
+        Ok(status)
+    }
+
+    fn max_segment_id(&self, meeting_id: i64) -> Result<i64> {
+        Ok(self.get_connection()?.query_row(
+            "SELECT COALESCE(MAX(id), 0) FROM meeting_segments WHERE meeting_id = ?1",
+            params![meeting_id],
+            |row| row.get(0),
+        )?)
+    }
+
+    /// A pass that produced a transcript replaces the old one; a failed pass is undone instead.
+    fn keep_one_transcript(
+        &self,
+        meeting_id: i64,
+        previous: &PreviousTranscript,
+        status: &MeetingStatus,
+    ) -> Result<()> {
+        let conn = self.get_connection()?;
+        match status {
+            MeetingStatus::Complete | MeetingStatus::Partial => {
+                conn.execute(
+                    "DELETE FROM meeting_segments WHERE meeting_id = ?1 AND id <= ?2",
+                    params![meeting_id, previous.max_segment_id],
+                )?;
+            }
+            MeetingStatus::Error if previous.max_segment_id > 0 => {
+                conn.execute(
+                    "DELETE FROM meeting_segments WHERE meeting_id = ?1 AND id > ?2",
+                    params![meeting_id, previous.max_segment_id],
+                )?;
+                self.set_meeting_status(meeting_id, &previous.status);
+            }
+            _ => {}
+        }
         Ok(())
     }
 
     fn existing_recording(&self, file_name: Option<String>) -> Option<String> {
         file_name.filter(|name| self.meetings_dir.join(name).exists())
     }
+}
+
+struct PreviousTranscript {
+    status: MeetingStatus,
+    max_segment_id: i64,
 }
 
 #[cfg(test)]

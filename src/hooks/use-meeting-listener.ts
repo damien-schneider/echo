@@ -30,14 +30,14 @@ const idleState = () => ({
   streamingFinals: [],
 });
 
-const onStatusChanged = (status: MeetingStatus) => {
+const onStatusChanged = async (status: MeetingStatus) => {
   if (status === "recording" || status === "processing") {
     store.getState().setStatus(status);
     return;
   }
-  // Reset live state for clean next start_meeting; refresh list.
+  const finishedMeetingId = store.getState().currentMeetingId;
+  // Reset live state for clean next start_meeting.
   useMeetingStore.setState(idleState());
-  store.getState().loadMeetings();
   if (status === "error") {
     toast.error(
       "Transcription failed — the recording is kept, try Retranscribe"
@@ -57,6 +57,10 @@ const onStatusChanged = (status: MeetingStatus) => {
         },
       },
     });
+  }
+  await store.getState().loadMeetings();
+  if (finishedMeetingId !== null) {
+    await store.getState().selectMeeting(finishedMeetingId);
   }
 };
 
@@ -155,9 +159,9 @@ export function useMeetingListener() {
       listen<MeetingBatchProgress>("meeting-batch-progress", (e) =>
         store.getState().applyBatchProgress(e.payload)
       ),
-      listen<MeetingStatus>("meeting-status-changed", (e) =>
-        onStatusChanged(e.payload)
-      ),
+      listen<MeetingStatus>("meeting-status-changed", (e) => {
+        onStatusChanged(e.payload).catch(() => undefined);
+      }),
       listen<unknown>("meeting-active", (e) => onActiveMeeting(e.payload)),
       listen<MeetingAudioWarning>("meeting-audio-warning", (e) =>
         onAudioWarning(e.payload)

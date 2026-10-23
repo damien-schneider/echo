@@ -31,8 +31,10 @@ export const MeetingDetail = () => {
     }
     setRetranscribing(true);
     try {
-      await retranscribeMeeting(meeting.id);
-      toast.success("Meeting retranscribed successfully");
+      const status = await retranscribeMeeting(meeting.id);
+      if (status === "complete") {
+        toast.success("Meeting retranscribed successfully");
+      }
     } catch (error) {
       toast.error(errorMessage(error, "Failed to retranscribe meeting"));
     } finally {

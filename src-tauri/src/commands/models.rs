@@ -20,8 +20,13 @@ pub async fn download_configured_transcription_model(
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
 ) -> Result<(), String> {
     let size = settings::get_settings(&app_handle).transcription_model_size;
-    select_transcription_model_size(app_handle.clone(), model_manager, transcription_manager, size)
-        .await
+    select_transcription_model_size(
+        app_handle.clone(),
+        model_manager,
+        transcription_manager,
+        size,
+    )
+    .await
 }
 
 #[tauri::command]

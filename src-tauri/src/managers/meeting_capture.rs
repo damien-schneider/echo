@@ -4,13 +4,13 @@ use anyhow::Result;
 use log::{error, info, warn};
 use rusqlite::{params, Connection};
 use std::path::Path;
-use std::sync::Arc;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
 use super::meeting::MeetingManager;
 use super::meeting_audio_sink::{write_to_sink, MeetingAudioSink};
-use super::meeting_streaming::{StreamingSource, StreamingWorker};
+use super::meeting_live::LiveWorker;
+use super::meeting_streaming::StreamingSource;
 use super::meeting_types::{AudioSource, AudioWarningReason, MeetingAudioWarning};
 use crate::audio_toolkit::audio::system_capture::create_system_capture;
 use crate::audio_toolkit::AudioRecorder;
@@ -18,12 +18,12 @@ use crate::audio_toolkit::AudioRecorder;
 pub(super) struct MicCapture {
     pub(super) meeting_id: i64,
     pub(super) recorder: AudioRecorder,
-    pub(super) streaming_worker: Option<Arc<StreamingWorker>>,
+    pub(super) live_worker: Option<LiveWorker>,
 }
 
 pub(super) struct SystemCapture {
     pub(super) meeting_id: i64,
-    pub(super) streaming_worker: Option<Arc<StreamingWorker>>,
+    pub(super) live_worker: Option<LiveWorker>,
     pub(super) capture_epoch: Instant,
 }
 
@@ -33,7 +33,7 @@ impl MeetingManager {
         let MicCapture {
             meeting_id,
             recorder,
-            streaming_worker,
+            live_worker,
         } = capture;
         let (mic_tx, mic_rx) =
             std::sync::mpsc::channel::<crate::audio_toolkit::CapturedAudioFrame>();
@@ -53,7 +53,7 @@ impl MeetingManager {
                     if write_to_sink(&sink, &frame.samples) {
                         emit_write_failure(&warn_handle, AudioSource::Mic);
                     }
-                    if let Some(ref worker) = streaming_worker {
+                    if let Some(worker) = &live_worker {
                         worker.push_audio(StreamingSource::Mic, frame.samples);
                     }
                 }
@@ -79,7 +79,7 @@ impl MeetingManager {
     pub(super) fn start_system_capture(&self, capture: SystemCapture) -> Result<()> {
         let SystemCapture {
             meeting_id,
-            streaming_worker,
+            live_worker,
             capture_epoch,
         } = capture;
         let mut system_capture = match create_system_capture() {
@@ -126,7 +126,7 @@ impl MeetingManager {
                     if write_to_sink(&sink, &chunk) {
                         emit_write_failure(&warn_handle, AudioSource::System);
                     }
-                    if let Some(ref worker) = streaming_worker {
+                    if let Some(worker) = &live_worker {
                         worker.push_audio(StreamingSource::System, chunk);
                     }
                 }

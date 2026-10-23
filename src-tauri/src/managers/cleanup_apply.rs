@@ -5,7 +5,7 @@ use std::sync::OnceLock;
 
 use crate::commands::cleanup::CleanupState;
 use crate::managers::cleanup_prompt::{apply_dictionary_prepass, CleanupContext};
-use crate::managers::meeting_streaming::is_whisper_hallucination;
+use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
 use crate::settings::AppSettings;
 
 static WARNED_NOT_LOADED: OnceLock<()> = OnceLock::new();
@@ -13,6 +13,7 @@ static WARNED_NOT_LOADED: OnceLock<()> = OnceLock::new();
 /// build_ctx lazy so AppHandle::state lookup skipped on every decode.
 pub fn cleanup_or_filter<F>(
     text: &str,
+    filter: HallucinationFilter,
     cleanup_state: &CleanupState,
     settings: &AppSettings,
     build_ctx: F,
@@ -20,10 +21,7 @@ pub fn cleanup_or_filter<F>(
 where
     F: FnOnce() -> CleanupContext,
 {
-    if text.is_empty() {
-        return String::new();
-    }
-    if is_whisper_hallucination(text) {
+    if is_hallucination(text, filter) {
         return String::new();
     }
     if !settings.cleanup_enabled {
@@ -78,6 +76,7 @@ mod tests {
     use crate::settings::get_default_settings;
     use std::sync::Arc;
     use tokio::sync::RwLock;
+    use HallucinationFilter::Strict;
 
     fn settings_with_cleanup(enabled: bool) -> AppSettings {
         let mut s = get_default_settings();
@@ -97,7 +96,7 @@ mod tests {
     fn passes_through_empty_input() {
         let state = empty_state();
         let settings = settings_with_cleanup(false);
-        let out = cleanup_or_filter("", &state, &settings, default_ctx);
+        let out = cleanup_or_filter("", Strict, &state, &settings, default_ctx);
         assert_eq!(out, "");
     }
 
@@ -107,6 +106,7 @@ mod tests {
         let settings = settings_with_cleanup(false);
         let out = cleanup_or_filter(
             "Hello world, this is real speech",
+            Strict,
             &state,
             &settings,
             default_ctx,
@@ -118,7 +118,13 @@ mod tests {
     fn returns_empty_on_hallucination_when_disabled() {
         let state = empty_state();
         let settings = settings_with_cleanup(false);
-        let out = cleanup_or_filter("Thanks for watching!", &state, &settings, default_ctx);
+        let out = cleanup_or_filter(
+            "Thanks for watching!",
+            Strict,
+            &state,
+            &settings,
+            default_ctx,
+        );
         assert_eq!(out, "");
     }
 
@@ -127,7 +133,13 @@ mod tests {
         // Model must never see attractor string.
         let state = empty_state();
         let settings = settings_with_cleanup(true);
-        let out = cleanup_or_filter("Thank you for watching.", &state, &settings, default_ctx);
+        let out = cleanup_or_filter(
+            "Thank you for watching.",
+            Strict,
+            &state,
+            &settings,
+            default_ctx,
+        );
         assert_eq!(out, "");
     }
 
@@ -137,6 +149,7 @@ mod tests {
         let settings = settings_with_cleanup(true);
         let out = cleanup_or_filter(
             "Let's talk about the deadline next week",
+            Strict,
             &state,
             &settings,
             default_ctx,
@@ -155,7 +168,7 @@ mod tests {
             .unwrap();
         let _guard = rt.block_on(async { state.write().await });
         let settings = settings_with_cleanup(false);
-        let out = cleanup_or_filter("plain text", &state, &settings, default_ctx);
+        let out = cleanup_or_filter("plain text", Strict, &state, &settings, default_ctx);
         assert_eq!(out, "plain text");
     }
 
@@ -171,6 +184,7 @@ mod tests {
         let settings = settings_with_cleanup(true);
         let out = cleanup_or_filter(
             "real speech that should not be lost",
+            Strict,
             &state,
             &settings,
             default_ctx,
@@ -193,7 +207,7 @@ mod tests {
     fn prepass_applies_when_manager_not_loaded_and_enabled() {
         let state = empty_state();
         let settings = settings_with_cleanup(true);
-        let out = cleanup_or_filter("I met Damian today", &state, &settings, || {
+        let out = cleanup_or_filter("I met Damian today", Strict, &state, &settings, || {
             ctx_with_dict("Damien", &["Damian"])
         });
         assert_eq!(out, "I met Damien today");
@@ -208,7 +222,7 @@ mod tests {
             .unwrap();
         let _guard = rt.block_on(async { state.write().await });
         let settings = settings_with_cleanup(true);
-        let out = cleanup_or_filter("talked with Damian", &state, &settings, || {
+        let out = cleanup_or_filter("talked with Damian", Strict, &state, &settings, || {
             ctx_with_dict("Damien", &["Damian"])
         });
         assert_eq!(out, "talked with Damien");
@@ -219,7 +233,7 @@ mod tests {
     fn prepass_does_not_run_when_cleanup_disabled() {
         let state = empty_state();
         let settings = settings_with_cleanup(false);
-        let out = cleanup_or_filter("I met Damian today", &state, &settings, || {
+        let out = cleanup_or_filter("I met Damian today", Strict, &state, &settings, || {
             ctx_with_dict("Damien", &["Damian"])
         });
         assert_eq!(

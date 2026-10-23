@@ -453,21 +453,26 @@ async fn maybe_convert_chinese_variant(
 fn apply_dictation_cleanup(app: &AppHandle, raw: &str, settings: &AppSettings) -> String {
     use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
     use crate::managers::cleanup_apply::cleanup_or_filter;
+    use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
 
     let cleanup_state = match app.try_state::<CleanupState>() {
         Some(s) => s.inner().clone(),
         None => {
             // Test harness / early boot: pass through but still filter hallucinations.
-            return if crate::managers::meeting_streaming::is_whisper_hallucination(raw) {
+            return if is_hallucination(raw, HallucinationFilter::Strict) {
                 String::new()
             } else {
                 raw.to_string()
             };
         }
     };
-    cleanup_or_filter(raw, &cleanup_state, settings, || {
-        build_context_from_app_settings(settings)
-    })
+    cleanup_or_filter(
+        raw,
+        HallucinationFilter::Strict,
+        &cleanup_state,
+        settings,
+        || build_context_from_app_settings(settings),
+    )
 }
 
 /// Outcome of the pre-flight model check run before a dictation starts.

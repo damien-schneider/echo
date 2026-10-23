@@ -1,12 +1,24 @@
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use log::{info, warn};
 use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
-use whisper_rs::{
-    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState,
+use transcribe_cpp::{
+    CancelToken, Error as EngineError, Model, ModelOptions, RunOptions, Session, SessionOptions,
+    Task, Transcript,
 };
 
 const MAX_RETAINED_DECODE_STATES: usize = 2;
+
+/// Whisper's language table, in token order (transcribe.cpp `arch/whisper/bin_load.cpp`).
+pub const WHISPER_LANGUAGE_CODES: [&str; 100] = [
+    "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar", "sv", "it",
+    "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta", "no", "th", "ur",
+    "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa", "lv", "bn", "sr", "az", "sl", "kn",
+    "et", "mk", "br", "eu", "is", "hy", "ne", "mn", "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si",
+    "km", "sn", "yo", "so", "af", "oc", "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo",
+    "ht", "ps", "tk", "nn", "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln",
+    "ha", "ba", "jw", "su", "yue",
+];
 
 struct ModelLease<T> {
     pub model_id: String,
@@ -50,14 +62,6 @@ impl<T> SharedModelSlot<T> {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
-
-    fn unload(&self) {
-        let mut loaded = self
-            .loaded
-            .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        *loaded = None;
-    }
 }
 
 impl<T> Default for SharedModelSlot<T> {
@@ -67,7 +71,7 @@ impl<T> Default for SharedModelSlot<T> {
 }
 
 struct PooledDecodeState<T> {
-    model_id: String,
+    key: String,
     state: T,
 }
 
@@ -84,25 +88,23 @@ impl<T> DecodeStatePool<T> {
         }
     }
 
-    fn acquire(&self, model_id: &str) -> Option<T> {
+    fn acquire(&self, key: &str) -> Option<T> {
         let mut states = self
             .states
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let index = states
-            .iter()
-            .rposition(|entry| entry.model_id == model_id)?;
+        let index = states.iter().rposition(|entry| entry.key == key)?;
         Some(states.swap_remove(index).state)
     }
 
-    fn release(&self, model_id: &str, state: T) {
+    fn release(&self, key: &str, state: T) {
         let mut states = self
             .states
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         if states.len() < self.capacity {
             states.push(PooledDecodeState {
-                model_id: model_id.to_string(),
+                key: key.to_string(),
                 state,
             });
         }
@@ -121,18 +123,20 @@ pub struct WhisperDecodeOptions {
     pub language: Option<String>,
     pub translate: bool,
     pub threads: i32,
+    pub cancel: Option<CancelToken>,
 }
 
-#[derive(Clone, Debug)]
-pub struct LanguageDetection {
-    pub language: String,
-    pub probability: f32,
+/// The language is the one the decode ran in: the hint when one was given, else Whisper's pick.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Decoded {
+    pub text: String,
+    pub language: Option<String>,
 }
 
 pub struct WhisperRuntime {
     load_lock: Mutex<()>,
-    models: SharedModelSlot<WhisperContext>,
-    states: DecodeStatePool<WhisperState>,
+    models: SharedModelSlot<Model>,
+    sessions: DecodeStatePool<Session>,
 }
 
 impl WhisperRuntime {
@@ -140,7 +144,7 @@ impl WhisperRuntime {
         Self {
             load_lock: Mutex::new(()),
             models: SharedModelSlot::new(),
-            states: DecodeStatePool::new(MAX_RETAINED_DECODE_STATES),
+            sessions: DecodeStatePool::new(MAX_RETAINED_DECODE_STATES),
         }
     }
 
@@ -152,16 +156,15 @@ impl WhisperRuntime {
         if self.current_model_id().as_deref() == Some(model_id) {
             return Ok(());
         }
-        let context = load_context_with_gpu_fallback(path)?;
-        self.states.clear();
-        self.models.install(model_id, context);
-        info!("Loaded shared Whisper context for {model_id}");
+        let model = Model::load_with(path, &ModelOptions::default())
+            .with_context(|| format!("load Whisper model {}", path.display()))?;
+        info!(
+            "Loaded shared Whisper model {model_id} on {}",
+            model.backend()
+        );
+        self.sessions.clear();
+        self.models.install(model_id, model);
         Ok(())
-    }
-
-    pub fn unload(&self) {
-        self.states.clear();
-        self.models.unload();
     }
 
     pub fn current_model_id(&self) -> Option<String> {
@@ -172,71 +175,47 @@ impl WhisperRuntime {
         self.models.current().is_some()
     }
 
-    pub fn detect_language(&self, audio: &[f32], threads: i32) -> Result<LanguageDetection> {
+    pub fn transcribe(&self, audio: &[f32], options: &WhisperDecodeOptions) -> Result<Decoded> {
         if audio.is_empty() {
-            anyhow::bail!("Cannot detect a language from empty audio");
+            return Ok(Decoded::default());
         }
         let lease = self
             .models
             .current()
             .context("Whisper model is not loaded")?;
-        let mut state = match self.states.acquire(&lease.model_id) {
-            Some(state) => state,
+        let session_key = format!("{}@{}", lease.model_id, options.threads);
+        let mut session = match self.sessions.acquire(&session_key) {
+            Some(session) => session,
             None => lease
                 .model
-                .create_state()
-                .context("create Whisper language detection state")?,
+                .session_with(&SessionOptions {
+                    n_threads: options.threads,
+                    ..Default::default()
+                })
+                .context("create Whisper decode session")?,
         };
-        let threads = threads.max(1) as usize;
-        state
-            .pcm_to_mel(audio, threads)
-            .context("prepare audio for Whisper language detection")?;
-        let (language_id, probabilities) = state
-            .lang_detect(0, threads)
-            .context("detect Whisper language")?;
-        let language = whisper_rs::get_lang_str(language_id)
-            .context("resolve detected Whisper language")?
-            .to_string();
-        let probability = probabilities
-            .get(language_id as usize)
-            .copied()
-            .context("read detected Whisper language probability")?;
-        if self.current_model_id().as_deref() == Some(lease.model_id.as_str()) {
-            self.states.release(&lease.model_id, state);
+        if let Some(cancel) = &options.cancel {
+            session.set_cancel_token(cancel);
         }
-        Ok(LanguageDetection {
-            language,
-            probability,
+        let run_options = RunOptions {
+            language: options.language.clone(),
+            task: if options.translate {
+                Task::Translate
+            } else {
+                Task::Transcribe
+            },
+            ..Default::default()
+        };
+        let outcome = session.run(audio, &run_options);
+        session.clear_cancel_token();
+        if self.current_model_id().as_deref() == Some(lease.model_id.as_str()) {
+            self.sessions.release(&session_key, session);
+        }
+        let transcript = finished_transcript(outcome)?;
+        Ok(Decoded {
+            text: transcript.text,
+            language: options.language.clone().or(transcript.language),
         })
-    }
-
-    pub fn transcribe(&self, audio: &[f32], options: &WhisperDecodeOptions) -> Result<String> {
-        if audio.is_empty() {
-            return Ok(String::new());
-        }
-        let lease = self
-            .models
-            .current()
-            .context("Whisper model is not loaded")?;
-        let mut state = match self.states.acquire(&lease.model_id) {
-            Some(state) => state,
-            None => lease
-                .model
-                .create_state()
-                .context("create Whisper decode state")?,
-        };
-        let params = build_params(options);
-        if let Err(error) = state.full(params, audio) {
-            return Err(error).context("run Whisper transcription");
-        }
-        let text = state
-            .as_iter()
-            .map(|segment| segment.to_string())
-            .collect::<String>();
-        if self.current_model_id().as_deref() == Some(lease.model_id.as_str()) {
-            self.states.release(&lease.model_id, state);
-        }
-        Ok(text)
     }
 }
 
@@ -246,32 +225,26 @@ impl Default for WhisperRuntime {
     }
 }
 
-fn load_context_with_gpu_fallback(path: &Path) -> Result<WhisperContext> {
-    let mut gpu = WhisperContextParameters::default();
-    gpu.use_gpu(true).flash_attn(true);
-    match WhisperContext::new_with_params(path, gpu) {
-        Ok(context) => Ok(context),
-        Err(error) => {
-            warn!("GPU Whisper load failed ({error}); retrying on CPU");
-            let mut cpu = WhisperContextParameters::default();
-            cpu.use_gpu(false).flash_attn(false);
-            WhisperContext::new_with_params(path, cpu).context("load Whisper model on CPU")
+/// A decode stopped at the token budget or on a repetition loop still returns the text before it.
+fn finished_transcript(outcome: transcribe_cpp::Result<Transcript>) -> Result<Transcript> {
+    match outcome {
+        Ok(transcript) => Ok(transcript),
+        Err(EngineError::Aborted { .. }) => Err(anyhow!("transcription cancelled")),
+        Err(
+            EngineError::OutputTruncated {
+                message,
+                partial: Some(partial),
+            }
+            | EngineError::OutputRepetition {
+                message,
+                partial: Some(partial),
+            },
+        ) => {
+            warn!("Whisper decode stopped early, keeping its partial text: {message}");
+            Ok(*partial)
         }
+        Err(error) => Err(error).context("run Whisper transcription"),
     }
-}
-
-fn build_params(options: &WhisperDecodeOptions) -> FullParams<'_, '_> {
-    let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-    params.set_language(options.language.as_deref());
-    params.set_translate(options.translate);
-    params.set_n_threads(options.threads);
-    params.set_no_context(true);
-    params.set_print_progress(false);
-    params.set_print_realtime(false);
-    params.set_print_special(false);
-    params.set_print_timestamps(false);
-    params.set_suppress_blank(true);
-    params
 }
 
 #[cfg(test)]
@@ -308,17 +281,17 @@ mod tests {
     #[test]
     fn decode_state_pool_reuses_state_for_the_same_model() {
         let pool = DecodeStatePool::new(2);
-        pool.release("small", String::from("state"));
+        pool.release("small@4", String::from("state"));
 
-        assert_eq!(pool.acquire("small"), Some(String::from("state")));
-        assert_eq!(pool.acquire("small"), None);
+        assert_eq!(pool.acquire("small@4"), Some(String::from("state")));
+        assert_eq!(pool.acquire("small@4"), None);
     }
 
     #[test]
     fn decode_state_pool_never_reuses_state_across_models() {
         let pool = DecodeStatePool::new(2);
-        pool.release("small", String::from("small state"));
+        pool.release("small@4", String::from("small state"));
 
-        assert_eq!(pool.acquire("medium"), None);
+        assert_eq!(pool.acquire("medium@4"), None);
     }
 }

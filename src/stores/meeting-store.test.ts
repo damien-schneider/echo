@@ -32,23 +32,6 @@ beforeEach(() => {
 });
 
 describe("meeting store", () => {
-  // Batch rows are canonical: keeping the live preview showed every sentence twice.
-  it("drops the live preview once the batch pass takes over", () => {
-    useMeetingStore.getState().applyStreamingFinal(streamingFinal(7));
-    useMeetingStore.getState().applyStreamingInterim({
-      committed_text: "half a ",
-      meeting_id: 7,
-      segment_start_ms: 1000,
-      source: "mic",
-      tentative_text: "sentence",
-    });
-
-    useMeetingStore.getState().setStatus("processing");
-
-    expect(useMeetingStore.getState().streamingFinals).toEqual([]);
-    expect(useMeetingStore.getState().interimSegments.mic).toBeNull();
-  });
-
   // A retranscribe of an old meeting emits segments while another meeting records.
   it("ignores segments belonging to another meeting", () => {
     useMeetingStore.getState().addLiveSegment(segment(99));

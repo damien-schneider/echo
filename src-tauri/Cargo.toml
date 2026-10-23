@@ -69,7 +69,7 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 tar = "0.4"
 flate2 = "1"
 bzip2 = "0.5"
-whisper-rs = { version = "=0.16.0", default-features = false }
+transcribe-cpp = { version = "=0.4.1", default-features = false }
 # Direct dep for sortformer feature (used by managers::diarization).
 # transcribe-rs re-exports parakeet's onnx::* but not sortformer::*.
 parakeet-rs = { version = "0.3.5", default-features = false, features = ["sortformer", "ort-defaults"] }
@@ -99,7 +99,7 @@ gtk-layer-shell = { version = "0.8", features = ["v0_5"] }
 x11rb = "0.13"
 
 [target.'cfg(windows)'.dependencies]
-whisper-rs = { version = "=0.16.0", default-features = false, features = ["vulkan"] }
+transcribe-cpp = { version = "=0.4.1", default-features = false, features = ["vulkan"] }
 windows = { version = "0.61.3", features = [
     "Win32_Graphics_Gdi",
     "Win32_Media_Audio_Endpoints",
@@ -127,14 +127,14 @@ objc2-foundation = "0.3.2"
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel.git", rev = "a3122e894383aa068ec5365a42994e3ac94ba1b6" }
 # ScreenCaptureKit bindings for system audio capture (audio capture lives behind the macos_13_0 feature).
 screencapturekit = { version = "2.1", features = ["macos_13_0"] }
-whisper-rs = { version = "=0.16.0", default-features = false, features = ["metal"] }
+transcribe-cpp = { version = "=0.4.1", default-features = false, features = ["metal"] }
 
 [target.'cfg(target_os = "linux")'.dependencies.libpulse-binding]
 version = "2.30"
 default-features = false
 
-[target.'cfg(target_os = "linux")'.dependencies.whisper-rs]
-version = "=0.16.0"
+[target.'cfg(target_os = "linux")'.dependencies.transcribe-cpp]
+version = "=0.4.1"
 default-features = false
 features = ["vulkan"]
 

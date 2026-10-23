@@ -123,4 +123,37 @@ mod tests {
         assert_eq!(streams.len(), 1);
         assert_eq!(streams[0].source, AudioSource::Mic);
     }
+
+    fn turn(start_ms: i64, end_ms: i64, speaker_id: i32) -> DiarizationSegment {
+        DiarizationSegment {
+            start_ms,
+            end_ms,
+            speaker_id,
+        }
+    }
+
+    fn spans(segments: &[DiarizationSegment]) -> Vec<(i64, i64, i32)> {
+        segments
+            .iter()
+            .map(|segment| (segment.start_ms, segment.end_ms, segment.speaker_id))
+            .collect()
+    }
+
+    #[test]
+    fn a_turn_inside_a_longer_turn_is_dropped() {
+        let clipped = clip_overlaps(vec![turn(0, 10_000, 0), turn(2_000, 4_000, 1)]);
+
+        assert_eq!(spans(&clipped), vec![(0, 10_000, 0)]);
+    }
+
+    #[test]
+    fn a_partially_overlapping_turn_starts_where_the_previous_ends() {
+        let clipped = clip_overlaps(vec![
+            turn(0, 5_000, 0),
+            turn(4_000, 9_000, 1),
+            turn(8_950, 9_020, 0),
+        ]);
+
+        assert_eq!(spans(&clipped), vec![(0, 5_000, 0), (5_000, 9_000, 1)]);
+    }
 }

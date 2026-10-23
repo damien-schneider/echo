@@ -1,5 +1,6 @@
 use crate::managers::diarization::DIARIZATION_MODEL_ID;
-use crate::managers::model::ModelManager;
+use crate::managers::meeting_voxtral::voxtral_supported;
+use crate::managers::model::{ModelManager, VOXTRAL_MODEL_ID};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
@@ -74,6 +75,44 @@ pub async fn download_diarization_model(app: AppHandle) -> Result<(), String> {
 
 #[derive(serde::Serialize)]
 pub struct DiarizationStatus {
+    pub downloaded: bool,
+    pub downloading: bool,
+}
+
+#[tauri::command]
+pub fn get_meeting_model_status(app: AppHandle) -> Result<MeetingModelStatus, String> {
+    let model = app
+        .state::<Arc<ModelManager>>()
+        .get_model_info(VOXTRAL_MODEL_ID);
+
+    Ok(MeetingModelStatus {
+        supported: voxtral_supported(),
+        downloaded: model.as_ref().is_some_and(|m| m.is_downloaded),
+        downloading: model.as_ref().is_some_and(|m| m.is_downloading),
+    })
+}
+
+#[tauri::command]
+pub async fn download_meeting_model(app: AppHandle) -> Result<(), String> {
+    if !voxtral_supported() {
+        return Err("Voxtral needs an Apple Silicon Mac with 16 GB of memory".to_string());
+    }
+    let model_manager = app.state::<Arc<ModelManager>>().inner().clone();
+    let needs_download = model_manager
+        .get_model_info(VOXTRAL_MODEL_ID)
+        .is_some_and(|m| !m.is_downloaded && !m.is_downloading);
+    if needs_download {
+        model_manager
+            .download_model(VOXTRAL_MODEL_ID)
+            .await
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[derive(serde::Serialize)]
+pub struct MeetingModelStatus {
+    pub supported: bool,
     pub downloaded: bool,
     pub downloading: bool,
 }

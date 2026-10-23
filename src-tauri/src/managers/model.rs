@@ -20,9 +20,11 @@ pub enum EngineType {
     Whisper,
     Diarization,
     Polish,
+    MeetingTranscription,
 }
 
 pub const POLISH_MODEL_ID: &str = "polish-qwen3-4b-instruct-2507";
+pub const VOXTRAL_MODEL_ID: &str = "meeting-voxtral-realtime";
 
 const SHARED_MODELS_APP_ID: &str = "com.damien-schneider.echo";
 

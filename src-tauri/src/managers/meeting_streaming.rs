@@ -9,71 +9,20 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
-/// Whisper FFI decode is non-cancellable — past this budget the worker thread is detached, not joined.
+/// A live decode in flight runs to its end — past this budget the worker thread is detached, not joined.
 const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 
 use super::streaming::{trim_backlog, PipelineEvent, StreamingConfig, StreamingPipeline};
 use super::transcription::{StreamingTranscriber, TranscriptionManager};
 use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
 use crate::managers::cleanup_apply::cleanup_or_filter;
+use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
 use crate::managers::model::transcription_profile_id;
 use crate::settings;
 use tauri::Manager as _;
 
-/// USB-mic noise floor (~-40 dBFS); below this whisper.cpp hallucinates YouTube attractors.
+/// USB-mic noise floor (~-40 dBFS); below this Whisper hallucinates YouTube attractors.
 pub(crate) const SILENCE_RMS_THRESHOLD: f32 = 0.01;
-
-/// Filters whisper attractor strings (YouTube auto-captions) — LA-2 would commit them as "agreed".
-pub fn is_whisper_hallucination(text: &str) -> bool {
-    let normalized = normalize_for_hallucination_check(text);
-    matches!(
-        normalized.as_str(),
-        "" | "thank you"
-            | "thanks"
-            | "thank you very much"
-            | "thanks for watching"
-            | "thank you for watching"
-            | "thanks for listening"
-            | "thank you for listening"
-            | "you"
-            | "bye"
-            | "okay"
-            | "ok"
-            | "uh"
-            | "um"
-            | "ah"
-            | "hmm"
-            | "merci"
-            | "merci d avoir regardé"
-            | "merci à tous"
-            | "sous titres réalisés par la communauté d amara org"
-            | "sous titres réalisés par"
-            | "music"
-            | "applause"
-            | "laughter"
-    )
-}
-
-fn normalize_for_hallucination_check(text: &str) -> String {
-    let lowered = text.trim().to_lowercase();
-    // Punct→space so "Sous-titres"→"sous titres", "[Music]"→" music ".
-    let spaced: String = lowered
-        .chars()
-        .map(|c| {
-            if c.is_ascii_punctuation()
-                || matches!(
-                    c,
-                    '…' | '«' | '»' | '\u{201C}' | '\u{201D}' | '\u{2018}' | '\u{2019}'
-                )
-            {
-                ' '
-            } else {
-                c
-            }
-        })
-        .collect();
-    spaced.split_whitespace().collect::<Vec<_>>().join(" ")
-}
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -129,19 +78,21 @@ impl StreamingWorker {
         let settings_snapshot = settings::get_settings(&app_handle);
         let realtime_model =
             transcription_profile_id(settings_snapshot.transcription_model_size).to_string();
-        if let Err(e) = transcription_manager.load_streaming_model(&realtime_model) {
-            warn!(
-                "Failed to load realtime model '{realtime_model}', falling back to main engine: {e:#}"
-            );
-        }
-        let transcriber =
-            StreamingTranscriber::new(transcription_manager, &settings_snapshot.selected_language)
-                .map_err(std::io::Error::other)?;
+        transcription_manager
+            .load_streaming_model(&realtime_model)
+            .map_err(|e| std::io::Error::other(format!("{e:#}")))?;
+        let transcriber_for = |manager: Arc<TranscriptionManager>| {
+            StreamingTranscriber::new(manager, &settings_snapshot.selected_language)
+                .map_err(std::io::Error::other)
+        };
+        let transcribers = SourceTranscribers {
+            mic: transcriber_for(transcription_manager.clone())?,
+            system: transcriber_for(transcription_manager)?,
+        };
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
         let cfg = StreamingConfig::default();
         let shutdown_flag = Arc::new(AtomicBool::new(false));
-        let transcriber_for_thread = transcriber;
         let shutdown_flag_for_thread = shutdown_flag.clone();
         let join = thread::Builder::new()
             .name(format!("meeting-streaming-{meeting_id}"))
@@ -149,7 +100,7 @@ impl StreamingWorker {
                 run_worker(
                     app_handle,
                     meeting_id,
-                    transcriber_for_thread,
+                    transcribers,
                     cmd_rx,
                     shutdown_flag_for_thread,
                     cfg,
@@ -268,10 +219,16 @@ fn classify_cmd(cmd: Cmd, mic: &mut Vec<f32>, sys: &mut Vec<f32>, shutdown: &mut
     }
 }
 
+/// Each source pins its own language: mic noise must not decide what the guest speaks.
+struct SourceTranscribers {
+    mic: StreamingTranscriber,
+    system: StreamingTranscriber,
+}
+
 fn run_worker(
     app_handle: AppHandle,
     meeting_id: i64,
-    transcriber: StreamingTranscriber,
+    transcribers: SourceTranscribers,
     cmd_rx: mpsc::Receiver<Cmd>,
     shutdown_flag: Arc<AtomicBool>,
     cfg: StreamingConfig,
@@ -290,17 +247,21 @@ fn run_worker(
         .try_state::<CleanupState>()
         .map(|s| s.inner().clone());
     let app_handle_for_decode = app_handle.clone();
-    let mut decode_for = |samples: &[f32]| -> String {
+    let mut decode_with = |transcriber: &StreamingTranscriber, samples: &[f32]| -> String {
         match transcriber.transcribe(samples.to_vec()) {
             Ok(text) => {
                 decode_oks += 1;
                 // Re-read so mid-meeting cleanup toggle takes effect.
                 let settings_snapshot = settings::get_settings(&app_handle_for_decode);
                 let cleaned = if let Some(state) = cleanup_state.as_ref() {
-                    cleanup_or_filter(&text, state, &settings_snapshot, || {
-                        build_context_from_app_settings(&settings_snapshot)
-                    })
-                } else if is_whisper_hallucination(&text) {
+                    cleanup_or_filter(
+                        &text,
+                        HallucinationFilter::Strict,
+                        state,
+                        &settings_snapshot,
+                        || build_context_from_app_settings(&settings_snapshot),
+                    )
+                } else if is_hallucination(&text, HallucinationFilter::Strict) {
                     String::new()
                 } else {
                     text.clone()
@@ -333,17 +294,17 @@ fn run_worker(
         if !mic_buf.is_empty() {
             mic_chunks += 1;
             let is_speech = rms(&mic_buf) > SILENCE_RMS_THRESHOLD;
-            transcriber.observe_audio(&mic_buf, is_speech);
-            let is_speech = is_speech || !transcriber.language_is_pinned();
-            let events = mic_pipeline.push(&mic_buf, is_speech, &mut decode_for);
+            let events = mic_pipeline.push(&mic_buf, is_speech, &mut |samples| {
+                decode_with(&transcribers.mic, samples)
+            });
             emit_events(&app_handle, meeting_id, StreamingSource::Mic, events);
         }
         if !sys_buf.is_empty() {
             sys_chunks += 1;
             let is_speech = rms(&sys_buf) > SILENCE_RMS_THRESHOLD;
-            transcriber.observe_audio(&sys_buf, is_speech);
-            let is_speech = is_speech || !transcriber.language_is_pinned();
-            let events = sys_pipeline.push(&sys_buf, is_speech, &mut decode_for);
+            let events = sys_pipeline.push(&sys_buf, is_speech, &mut |samples| {
+                decode_with(&transcribers.system, samples)
+            });
             emit_events(&app_handle, meeting_id, StreamingSource::System, events);
         }
     }
@@ -355,7 +316,7 @@ fn run_worker(
     );
 }
 
-fn emit_events(
+pub(super) fn emit_events(
     app_handle: &AppHandle,
     meeting_id: i64,
     source: StreamingSource,
@@ -442,53 +403,6 @@ mod tests {
         // -45 dBFS USB-mic noise floor — else whisper hallucinates.
         let s = vec![0.0056f32; 1000];
         assert!(rms(&s) < SILENCE_RMS_THRESHOLD);
-    }
-
-    #[test]
-    fn hallucination_matches_thank_you_variants() {
-        assert!(is_whisper_hallucination("Thank you."));
-        assert!(is_whisper_hallucination(" thank you "));
-        assert!(is_whisper_hallucination("THANK YOU"));
-        assert!(is_whisper_hallucination("Thanks for watching!"));
-        assert!(is_whisper_hallucination("Thank you for watching."));
-    }
-
-    #[test]
-    fn hallucination_matches_amara_subtitle_credit() {
-        assert!(is_whisper_hallucination(
-            "Sous-titres réalisés par la communauté d'Amara.org"
-        ));
-        assert!(is_whisper_hallucination("Sous-titres réalisés par"));
-    }
-
-    #[test]
-    fn hallucination_matches_lone_filler_words() {
-        assert!(is_whisper_hallucination("you"));
-        assert!(is_whisper_hallucination(" you. "));
-        assert!(is_whisper_hallucination("um"));
-        assert!(is_whisper_hallucination("uh"));
-        assert!(is_whisper_hallucination("..."));
-        assert!(is_whisper_hallucination(""));
-    }
-
-    #[test]
-    fn hallucination_does_not_match_real_speech() {
-        // Substrings of attractors inside real sentences must NOT match.
-        assert!(!is_whisper_hallucination(
-            "Thanks for joining the call everyone, let's get started"
-        ));
-        assert!(!is_whisper_hallucination("You said the deadline is Friday"));
-        assert!(!is_whisper_hallucination(
-            "I think we should review the design"
-        ));
-        assert!(!is_whisper_hallucination("Merci de partager le document"));
-    }
-
-    #[test]
-    fn hallucination_check_strips_brackets_and_punctuation() {
-        assert!(is_whisper_hallucination("[Music]"));
-        assert!(is_whisper_hallucination("[ Applause ]"));
-        assert!(is_whisper_hallucination("(laughter)"));
     }
 
     #[test]

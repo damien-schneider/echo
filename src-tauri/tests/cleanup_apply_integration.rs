@@ -15,6 +15,7 @@ use tokio::sync::RwLock;
 use echo_app_lib::commands::cleanup::CleanupState;
 use echo_app_lib::managers::cleanup_apply::cleanup_or_filter;
 use echo_app_lib::managers::cleanup_prompt::CleanupContext;
+use echo_app_lib::managers::hallucination::HallucinationFilter::Strict;
 use echo_app_lib::settings::get_default_settings;
 
 #[test]
@@ -29,6 +30,7 @@ fn cleanup_disabled_in_settings_preserves_existing_behavior() {
 
     let real = cleanup_or_filter(
         "Let's ship the cleanup helper this week",
+        Strict,
         &state,
         &settings,
         CleanupContext::default,
@@ -37,13 +39,14 @@ fn cleanup_disabled_in_settings_preserves_existing_behavior() {
 
     let hallucination = cleanup_or_filter(
         "Thanks for watching!",
+        Strict,
         &state,
         &settings,
         CleanupContext::default,
     );
     assert_eq!(hallucination, "");
 
-    let empty = cleanup_or_filter("", &state, &settings, CleanupContext::default);
+    let empty = cleanup_or_filter("", Strict, &state, &settings, CleanupContext::default);
     assert_eq!(empty, "");
 }
 
@@ -60,6 +63,7 @@ fn cleanup_enabled_without_loaded_model_falls_back_to_raw() {
 
     let real = cleanup_or_filter(
         "Push the branch and open a PR",
+        Strict,
         &state,
         &settings,
         CleanupContext::default,
@@ -68,6 +72,7 @@ fn cleanup_enabled_without_loaded_model_falls_back_to_raw() {
 
     let hallucination = cleanup_or_filter(
         "Thank you for watching.",
+        Strict,
         &state,
         &settings,
         CleanupContext::default,
@@ -93,6 +98,7 @@ fn cleanup_enabled_with_write_lock_contended_falls_back_to_raw() {
 
     let out = cleanup_or_filter(
         "decode happens during init",
+        Strict,
         &state,
         &settings,
         CleanupContext::default,
@@ -145,7 +151,7 @@ async fn cleanup_enabled_with_loaded_model_returns_cleaned_text() {
     // inner `clean_blocking` uses `tauri::async_runtime::block_on`.
     let out = tokio::task::spawn_blocking({
         let state = state.clone();
-        move || cleanup_or_filter(raw, &state, &settings, CleanupContext::default)
+        move || cleanup_or_filter(raw, Strict, &state, &settings, CleanupContext::default)
     })
     .await
     .expect("spawn_blocking should join");
