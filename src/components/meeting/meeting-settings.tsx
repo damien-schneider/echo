@@ -51,7 +51,7 @@ const ModelRow = ({
   progress,
   title,
 }: ModelRowProps) => (
-  <div>
+  <div className="flex flex-col gap-2">
     <SettingRow description={description} icon={icon} title={title}>
       {downloaded ? (
         <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
@@ -75,7 +75,7 @@ const ModelRow = ({
       )}
     </SettingRow>
     {progress && !downloaded ? (
-      <div className="px-4 pb-2">
+      <div>
         <ProgressBar
           fullWidth={true}
           progress={[
@@ -90,9 +90,7 @@ const ModelRow = ({
         />
       </div>
     ) : null}
-    {error ? (
-      <p className="px-4 pb-2 text-caption text-destructive">{error}</p>
-    ) : null}
+    {error ? <p className="text-caption text-destructive">{error}</p> : null}
   </div>
 );
 const RecordingSettings = () => {

@@ -22,7 +22,6 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
 import { SettingRow } from "@/features/settings/setting-row";
-import { cn } from "@/lib/utils";
 import {
   useIsSettingUpdating,
   useSetting,
@@ -98,7 +97,7 @@ export const InputTrackingExcludedApps = () => {
             <PlusIcon className="mr-1.5 h-4 w-4" />
             Add App
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-[300px] p-0">
+          <PopoverContent align="end" className="w-[300px]" padding="none">
             <Command>
               <CommandInput placeholder="Search applications..." />
               <CommandList>
@@ -140,14 +139,10 @@ export const InputTrackingExcludedApps = () => {
         </Popover>
       </SettingRow>
       {excludedApps.length > 0 && (
-        <div className={cn("p-2 px-4", false)}>
+        <div>
           <div className="flex flex-wrap gap-1.5">
             {excludedApps.map((bundleId) => (
-              <Badge
-                className="flex items-center gap-1 pr-1"
-                key={bundleId}
-                variant="default"
-              >
+              <Badge className="gap-1" key={bundleId} variant="default">
                 <span className="max-w-[150px] truncate">
                   {getAppName(bundleId)}
                 </span>

@@ -105,6 +105,37 @@
   transition: none;
 }
 
+[data-skin="echo"]
+  :where([data-control-family="sidebar"][data-slot="wrapper"]) {
+  --cui-sidebar-inset-background: var(--card);
+  --cui-sidebar-inset-radius: var(--radius-panel);
+  --cui-sidebar-inset-shadow: var(--panel-shadow);
+}
+
+[data-skin="echo"]
+  :where(
+    [data-control-family="field"][data-field-kind="field"][data-slot="group"][data-variant="card"]
+  ) {
+  --cui-field-group-background: var(--surface-group);
+  --cui-field-group-border-width: 0px;
+  --cui-field-group-radius: var(--radius-panel);
+  --cui-field-group-separator-color: var(--surface-divider);
+}
+
+[data-skin="echo"]
+  :where(
+    [data-control-family="field"][data-slot="group"][data-variant="card"]
+      > [data-control-family="field"][data-slot="root"]
+      > [data-control-family="field"][data-slot="content"]
+      > [data-control-family="field"][data-slot="label"]
+  ) {
+  --cui-field-label-font-weight: 400;
+}
+
+[data-skin="echo"] :where([data-control-ui="sidebar"][data-slot="trigger"]) {
+  --cui-button-foreground: var(--muted-foreground);
+}
+
 [data-skin="echo"] :where([data-control-family="sidebar"][data-slot="root"]) {
   --cui-sidebar-menu-button-radius: var(--radius-control);
   --cui-sidebar-menu-button-font-size: 13px;

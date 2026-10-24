@@ -45,11 +45,10 @@ const CheckButton = ({
       <TooltipTrigger
         render={
           <Button
-            className="text-muted-foreground hover:text-foreground"
             disabled={isChecking}
             onClick={onCheck}
             size="xs"
-            variant="ghost"
+            variant="quiet"
           />
         }
       >
@@ -72,6 +71,11 @@ interface StatusButtonProps {
   onAction: () => void;
   tone: "brand" | "error" | "muted";
 }
+const buttonToneByStatus = {
+  brand: "primary",
+  error: "danger",
+  muted: "neutral",
+} as const;
 const StatusButton = ({
   isActionable,
   label,
@@ -79,17 +83,13 @@ const StatusButton = ({
   tone,
 }: StatusButtonProps) => (
   <Button
-    className={cn(
-      "max-w-56 items-center gap-2 truncate",
-      tone === "brand" && "text-brand hover:text-brand/80",
-      tone === "error" && "text-destructive hover:text-destructive/80",
-      tone === "muted" && "text-muted-foreground"
-    )}
+    className="max-w-56 items-center gap-2 truncate"
     disabled={!isActionable}
     onClick={onAction}
     size="xs"
     title={label}
-    variant="ghost"
+    tone={buttonToneByStatus[tone]}
+    variant="quiet"
   >
     {label}
   </Button>

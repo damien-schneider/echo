@@ -26,13 +26,14 @@ export function SettingRow({
 }: SettingRowProps) {
   return (
     <Field
-      className="gap-3 px-4 py-3"
       disabled={disabled}
       orientation={layout === "stacked" ? "vertical" : "responsive"}
     >
       <FieldContent>
-        <FieldLabel className="flex items-center gap-2 font-normal [&>svg]:shrink-0 [&>svg]:text-muted-foreground">
-          {icon}
+        <FieldLabel className="flex items-center gap-2">
+          {icon && (
+            <span className="flex shrink-0 text-muted-foreground">{icon}</span>
+          )}
           {title}
         </FieldLabel>
         {description && <FieldDescription>{description}</FieldDescription>}

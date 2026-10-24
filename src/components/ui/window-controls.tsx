@@ -18,35 +18,33 @@ export function WindowControls() {
     <div className="flex items-center gap-0.5">
       <Button
         aria-label="Minimize"
-        className="text-muted-foreground"
         iconOnly
         onClick={() =>
           runWindowAction("minimize", () => currentWindow.minimize())
         }
         size="sm"
-        variant="ghost"
+        variant="quiet"
       >
         <MinusIcon className="size-3.5" />
       </Button>
       <Button
         aria-label="Maximize"
-        className="text-muted-foreground"
         iconOnly
         onClick={() =>
           runWindowAction("maximize", () => currentWindow.toggleMaximize())
         }
         size="sm"
-        variant="ghost"
+        variant="quiet"
       >
         <SquareIcon className="size-3" />
       </Button>
       <Button
         aria-label="Close"
-        className="text-muted-foreground hover:bg-destructive hover:text-destructive-foreground"
+        className="[--cui-button-hover-background:var(--destructive)] [--cui-button-hover-foreground:var(--destructive-foreground)]"
         iconOnly
         onClick={() => runWindowAction("close", () => currentWindow.close())}
         size="sm"
-        variant="ghost"
+        variant="quiet"
       >
         <XIcon className="size-3.5" />
       </Button>

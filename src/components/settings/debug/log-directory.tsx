@@ -55,7 +55,6 @@ export const LogDirectory: React.FC = () => {
           {logDir}
         </div>
         <Button
-          className="px-3 py-2"
           disabled={!logDir}
           onClick={handleOpen}
           size="sm"
