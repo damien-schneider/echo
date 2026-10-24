@@ -67,7 +67,7 @@ export const ModelsSettings = () => {
           />
         ))}
         {error ? (
-          <p className="px-4 py-3 text-caption text-destructive" role="alert">
+          <p className="text-caption text-destructive" role="alert">
             {error}
           </p>
         ) : null}

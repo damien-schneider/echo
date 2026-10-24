@@ -69,7 +69,7 @@ export const ModelRow = ({
   return (
     <article
       aria-labelledby={headingId}
-      className={cn("flex flex-col gap-3 px-4 py-3", className)}
+      className={cn("flex flex-col gap-3", className)}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
