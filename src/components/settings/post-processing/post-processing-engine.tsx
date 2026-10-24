@@ -1,6 +1,7 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { Download, Loader2 } from "lucide-react";
+import { CircleNotchIcon, DownloadSimpleIcon } from "@phosphor-icons/react";
+import { AiProviderSettings } from "@/components/settings/post-processing-settings-api/ai-provider-settings";
 import { usePolishModel } from "@/features/polish/use-polish-model";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
@@ -24,7 +25,7 @@ const LocalModelRow = () => {
           tone="primary"
           variant="solid"
         >
-          <Download aria-hidden="true" className="mr-1 h-4 w-4" />
+          <DownloadSimpleIcon aria-hidden="true" className="mr-1 h-4 w-4" />
           Download
         </Button>
       </SettingRow>
@@ -46,8 +47,11 @@ const LocalModelRow = () => {
     const percentage = Math.round(polish.progress?.percentage ?? 0);
     return (
       <SettingRow description="One-time 2.5 GB download." title="Echo 4B">
-        <span className="flex items-center gap-1.5 text-muted-foreground text-xs tabular-nums">
-          <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />
+        <span className="flex items-center gap-1.5 text-caption text-muted-foreground tabular-nums">
+          <CircleNotchIcon
+            aria-hidden="true"
+            className="h-3.5 w-3.5 animate-spin"
+          />
           {percentage}%
         </span>
       </SettingRow>
@@ -58,7 +62,7 @@ const LocalModelRow = () => {
       description="Runs on this computer. Nothing you dictate leaves it."
       title="Echo 4B"
     >
-      <span className="text-muted-foreground text-xs">
+      <span className="text-caption text-muted-foreground">
         {state === "ready" ? "Ready" : "Preparing…"}
       </span>
     </SettingRow>
@@ -72,7 +76,7 @@ export const PostProcessingEngineSettings = () => {
   return (
     <>
       <SettingRow
-        description="Post-processing runs on Echo 4B on this computer by default. Turn this on to use the AI provider below."
+        description="Post-processing runs on Echo 4B on this computer. Turn this on to send transcripts to an AI provider instead."
         title="Post-process in the cloud"
       >
         <Switch
@@ -83,7 +87,7 @@ export const PostProcessingEngineSettings = () => {
           }
         />
       </SettingRow>
-      {engine === "local" ? <LocalModelRow /> : null}
+      {engine === "cloud" ? <AiProviderSettings /> : <LocalModelRow />}
     </>
   );
 };

@@ -1,5 +1,5 @@
+import { MinusIcon, PlusIcon } from "@phosphor-icons/react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { MinusIcon, PlusIcon } from "lucide-react";
 import type * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

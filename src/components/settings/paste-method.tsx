@@ -5,9 +5,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@ctrl-ui/react/ui/select";
+import { ClipboardIcon, InfoIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { type as getOsType } from "@tauri-apps/plugin-os";
-import { Clipboard, Info } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SettingRow } from "@/features/settings/setting-row";
 import type { PasteMethod } from "@/lib/types";
@@ -65,7 +65,7 @@ export const PasteMethodSetting = () => {
   return (
     <SettingRow
       description={description}
-      icon={<Clipboard className="h-4 w-4" />}
+      icon={<ClipboardIcon className="h-4 w-4" />}
       title="Paste method"
     >
       <div className="flex items-center gap-2">
@@ -87,7 +87,7 @@ export const PasteMethodSetting = () => {
           </SelectContent>
         </Select>
         {isWayland && (
-          <Info className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <InfoIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
         )}
       </div>
     </SettingRow>

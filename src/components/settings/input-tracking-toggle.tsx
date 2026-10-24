@@ -1,5 +1,5 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { Keyboard } from "lucide-react";
+import { KeyboardIcon } from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
@@ -13,7 +13,7 @@ export const InputTrackingToggle = () => {
   return (
     <SettingRow
       description="Save text as you type across apps. Requires Accessibility access."
-      icon={<Keyboard className="h-4 w-4" />}
+      icon={<KeyboardIcon className="h-4 w-4" />}
       title="Track typed text"
     >
       <Switch

@@ -1,5 +1,9 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { MessageSquareText, Mic, WandSparkles } from "lucide-react";
+import {
+  ChatTextIcon,
+  MagicWandIcon,
+  MicrophoneIcon,
+} from "@phosphor-icons/react";
 import { m, useReducedMotion } from "motion/react";
 import type { ReactNode } from "react";
 import type { IslandActionState } from "@/features/overlay-controls/recording-overlay-state";
@@ -93,7 +97,7 @@ export const IslandActions = ({
     >
       <IslandActionButton
         disabled={actionState === "busy"}
-        icon={<Mic aria-hidden="true" />}
+        icon={<MicrophoneIcon aria-hidden="true" />}
         isActive={actionState === "recording"}
         label={
           actionState === "recording" ? "Stop recording" : "Start recording"
@@ -105,14 +109,14 @@ export const IslandActions = ({
       />
       <IslandActionButton
         disabled={actionState !== "idle"}
-        icon={<MessageSquareText aria-hidden="true" />}
+        icon={<ChatTextIcon aria-hidden="true" />}
         label="Open Echo chat"
         onAction={onChat}
         title="Open Echo chat"
       />
       <IslandActionButton
         disabled={actionState !== "idle"}
-        icon={<WandSparkles aria-hidden="true" />}
+        icon={<MagicWandIcon aria-hidden="true" />}
         label="Polish selected text"
         onAction={onPolish}
         title="Polish selected text (Option/Alt+1)"

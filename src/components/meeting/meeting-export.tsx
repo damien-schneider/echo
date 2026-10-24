@@ -5,7 +5,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@ctrl-ui/react/ui/dropdown-menu";
-import { ChevronDown, Download } from "lucide-react";
+import { CaretDownIcon, DownloadSimpleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { ExportFormat } from "@/lib/types";
@@ -55,9 +55,9 @@ export const MeetingExport = ({
       <DropdownMenuTrigger
         render={<Button disabled={exporting} size="sm" variant="surface" />}
       >
-        <Download className="mr-1 size-3" />
+        <DownloadSimpleIcon className="mr-1 size-3" />
         Export
-        <ChevronDown className="ml-1 size-3" />
+        <CaretDownIcon className="ml-1 size-3" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {FORMATS.map((f) => (

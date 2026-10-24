@@ -1,5 +1,5 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { Bell } from "lucide-react";
+import { BellIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
@@ -14,7 +14,7 @@ export const AudioFeedback: React.FC = () => {
   return (
     <SettingRow
       description="Play a sound when recording starts and stops."
-      icon={<Bell className="h-4 w-4" />}
+      icon={<BellIcon className="h-4 w-4" />}
       title="Recording sounds"
     >
       <Switch

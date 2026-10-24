@@ -3,11 +3,11 @@ import { generateText } from "ai";
 import { PolishStatusSchema, type Settings } from "@/lib/types";
 import { createLlmModel } from "./providers";
 
-export type SummarySetupSection = "models" | "post-processing";
+export type SummarySetupSection = "models" | "meeting";
 
 export const SUMMARY_SETUP_LABELS: Record<SummarySetupSection, string> = {
+  meeting: "Open meeting settings",
   models: "Open Models",
-  "post-processing": "Open AI settings",
 };
 
 // A summary that cannot run yet, carrying the settings section that fixes it.
@@ -104,7 +104,7 @@ function cloudEngine(settings: Settings): SummaryEngine {
   if (!provider) {
     throw new MeetingSummaryError(
       "Cloud summaries need an AI provider, or switch the meeting summary back to on-device.",
-      "post-processing"
+      "meeting"
     );
   }
 
@@ -112,7 +112,7 @@ function cloudEngine(settings: Settings): SummaryEngine {
   if (!modelId.trim()) {
     throw new MeetingSummaryError(
       `Cloud summaries need a ${provider.label} model, or switch the meeting summary back to on-device.`,
-      "post-processing"
+      "meeting"
     );
   }
 

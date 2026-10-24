@@ -21,6 +21,9 @@
 
 @theme inline {
   --color-brand: var(--brand);
+  --color-surface-group: var(--surface-group);
+  --color-surface-divider: var(--surface-divider);
+  --shadow-panel: var(--panel-shadow);
 }
 
 @layer base {
@@ -47,4 +50,10 @@
     -webkit-app-region: no-drag;
     app-region: no-drag;
   }
+}
+
+[data-control-family="sidebar"][data-slot="skip-link"] {
+  inset-block-start: calc(var(--spacing) * 3);
+  inset-inline-start: calc(50% + var(--sidebar-width) / 2);
+  translate: -50% 0;
 }

@@ -6,8 +6,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
-import { AppWindow, FileText, Music, Zap, ZapOff } from "lucide-react";
+import {
+  AppWindowIcon,
+  FileTextIcon,
+  LightningIcon,
+  LightningSlashIcon,
+  MusicNotesIcon,
+} from "@phosphor-icons/react";
+import {
+  useModelToolSupport,
+  usePostProcessProviderState,
+} from "@/components/settings/post-processing-settings-api/use-post-process-provider-state";
 import { SettingRow } from "@/features/settings/setting-row";
+import { SettingsSection } from "@/features/settings/settings-section";
 import { cn } from "@/lib/utils";
 import {
   useIsSettingUpdating,
@@ -18,96 +29,87 @@ import {
 const VOICE_COMMANDS = [
   {
     example: '"Open Safari"',
-    icon: AppWindow,
+    icon: AppWindowIcon,
     name: "Open Application",
   },
   {
     example: '"Create a note called grocery list with milk and eggs"',
-    icon: FileText,
+    icon: FileTextIcon,
     name: "Create Note",
   },
   {
     example: '"Change the sound theme"',
-    icon: Music,
+    icon: MusicNotesIcon,
     name: "Change Sound Theme",
   },
 ] as const;
+
+const UnavailableBadge = ({
+  explanation,
+  label,
+}: {
+  explanation: string;
+  label: string;
+}) => (
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger
+        render={<Badge className="cursor-default gap-1" size="sm" />}
+      >
+        <LightningSlashIcon className="size-2.5" />
+        {label}
+      </TooltipTrigger>
+      <TooltipContent className="max-w-56">{explanation}</TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+);
+
 const ToolSupportBadge = ({ toolSupport }: { toolSupport: boolean | null }) => {
   if (toolSupport === true) {
     return (
-      <Badge
-        className="gap-1 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-        size="sm"
-        variant="outline"
-      >
-        <Zap className="size-2.5" />
+      <Badge className="gap-1" color="green" size="sm">
+        <LightningIcon className="size-2.5" />
         Active
       </Badge>
     );
   }
   if (toolSupport === false) {
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <Badge
-                className="cursor-default gap-1 border-border/30 bg-muted/20 text-muted-foreground/60"
-                size="sm"
-                variant="outline"
-              />
-            }
-          >
-            <ZapOff className="size-2.5" />
-            Not supported
-          </TooltipTrigger>
-          <TooltipContent className="max-w-56">
-            <p>
-              This model does not support tool calling. Voice commands will fall
-              back to text correction.
-            </p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <UnavailableBadge
+        explanation="This model does not support tool calling. Voice commands will fall back to text correction."
+        label="Not supported"
+      />
     );
   }
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Badge
-              className="cursor-default gap-1 border-border/30 bg-muted/20 text-muted-foreground/60"
-              size="sm"
-              variant="outline"
-            />
-          }
-        >
-          <ZapOff className="size-2.5" />
-          May fall back
-        </TooltipTrigger>
-        <TooltipContent className="max-w-56">
-          <p>
-            Tool support could not be determined. Echo will automatically fall
-            back to text correction if needed.
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <UnavailableBadge
+      explanation="Tool support could not be determined. Echo will automatically fall back to text correction if needed."
+      label="May fall back"
+    />
   );
 };
-export const VoiceCommandsToggle = () => {
+
+const VoiceCommandsToggle = ({
+  postProcessEnabled,
+}: {
+  postProcessEnabled: boolean;
+}) => {
   const voiceCommandsEnabled = useSetting("voice_commands_enabled") ?? true;
   const isUpdating = useIsSettingUpdating("voice_commands_enabled");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="Let AI open apps, create notes, and change settings by voice."
+      description={
+        postProcessEnabled
+          ? "Let AI open apps, create notes, and change settings by voice."
+          : "Voice commands run with post-processing. Turn on Post-process transcriptions to use them."
+      }
+      disabled={!postProcessEnabled}
       title="Voice commands"
     >
       <Switch
         checked={voiceCommandsEnabled}
-        disabled={isUpdating}
+        disabled={isUpdating || !postProcessEnabled}
         onCheckedChange={(value) =>
           updateSetting("voice_commands_enabled", value)
         }
@@ -115,29 +117,27 @@ export const VoiceCommandsToggle = () => {
     </SettingRow>
   );
 };
-export const ToolCallingSection = ({
+
+const AvailableCommands = ({
+  postProcessEnabled,
   toolSupport,
 }: {
+  postProcessEnabled: boolean;
   toolSupport: boolean | null;
 }) => {
   const voiceCommandsEnabled = useSetting("voice_commands_enabled") ?? true;
-  const isActive = voiceCommandsEnabled && toolSupport === true;
-  const isDisabledByUser = !voiceCommandsEnabled;
+  const commandsRun = postProcessEnabled && voiceCommandsEnabled;
+  const isActive = commandsRun && toolSupport === true;
   return (
     <SettingRow
       description="Available voice commands when the feature is enabled and the model supports tool calling."
       layout="stacked"
       title="Available Commands"
     >
-      <div className="flex flex-col gap-1.5">
+      <ul className="flex flex-col gap-1">
         {VOICE_COMMANDS.map(({ icon: Icon, name, example }) => (
-          <div
-            className={cn(
-              "flex items-center gap-3 rounded-md border px-3 py-2 text-sm",
-              isActive
-                ? "border-emerald-500/20 bg-emerald-500/5"
-                : "border-border/20 bg-muted/5"
-            )}
+          <li
+            className="flex items-center gap-3 rounded-md bg-muted/40 px-3 py-2 text-label"
             key={name}
           >
             <Icon
@@ -150,34 +150,60 @@ export const ToolCallingSection = ({
             />
             <div className="min-w-0 flex-1">
               <span
-                className={cn(
-                  "font-medium",
+                className={
                   isActive ? "text-foreground" : "text-muted-foreground"
-                )}
+                }
               >
                 {name}
               </span>
-              <span className="ml-2 text-muted-foreground/60 text-xs">
+              <span className="ml-2 text-caption text-muted-foreground/60">
                 e.g. {example}
               </span>
             </div>
-            <div className="flex shrink-0 items-center gap-1">
-              {isDisabledByUser ? (
-                <Badge
-                  className="gap-1 border-border/30 bg-muted/20 text-muted-foreground/60"
-                  size="sm"
-                  variant="outline"
-                >
-                  <ZapOff className="size-2.5" />
-                  Off
-                </Badge>
-              ) : (
-                <ToolSupportBadge toolSupport={toolSupport} />
-              )}
-            </div>
-          </div>
+            {commandsRun ? (
+              <ToolSupportBadge toolSupport={toolSupport} />
+            ) : (
+              <Badge className="gap-1" size="sm">
+                <LightningSlashIcon className="size-2.5" />
+                Off
+              </Badge>
+            )}
+          </li>
         ))}
-      </div>
+      </ul>
     </SettingRow>
+  );
+};
+
+const CloudAvailableCommands = ({
+  postProcessEnabled,
+}: {
+  postProcessEnabled: boolean;
+}) => {
+  const { selectedProviderId, model } = usePostProcessProviderState();
+  const toolSupport = useModelToolSupport(selectedProviderId, model);
+  return (
+    <AvailableCommands
+      postProcessEnabled={postProcessEnabled}
+      toolSupport={toolSupport}
+    />
+  );
+};
+
+export const VoiceCommandsSettings = () => {
+  const engine = useSetting("post_process_engine") ?? "local";
+  const postProcessEnabled = useSetting("post_process_enabled") ?? false;
+  return (
+    <SettingsSection title="Voice commands">
+      <VoiceCommandsToggle postProcessEnabled={postProcessEnabled} />
+      {engine === "cloud" ? (
+        <CloudAvailableCommands postProcessEnabled={postProcessEnabled} />
+      ) : (
+        <AvailableCommands
+          postProcessEnabled={postProcessEnabled}
+          toolSupport
+        />
+      )}
+    </SettingsSection>
   );
 };

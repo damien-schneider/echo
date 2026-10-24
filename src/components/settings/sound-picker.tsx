@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@ctrl-ui/react/ui/select";
-import { PlayIcon } from "lucide-react";
+import { PlayIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { SettingRow } from "@/features/settings/setting-row";
 import type { Settings } from "@/lib/types";

@@ -1,6 +1,6 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { Input } from "@ctrl-ui/react/ui/input";
-import { ArrowUp, Mic, Square } from "lucide-react";
+import { ArrowUpIcon, MicrophoneIcon, SquareIcon } from "@phosphor-icons/react";
 import type { RefObject } from "react";
 import type { ChatDictation } from "@/features/overlay-chat/use-chat-dictation";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,7 @@ const DictateButton = ({ state, toggle }: ChatDictation) => (
     type="button"
     variant="ghost"
   >
-    <Mic className="size-4" />
+    <MicrophoneIcon className="size-4" />
   </Button>
 );
 interface ChatComposerProps {
@@ -73,7 +73,7 @@ export const ChatComposer = ({
         type="button"
         variant="solid"
       >
-        <Square className="size-3 fill-current" />
+        <SquareIcon className="size-3" weight="fill" />
       </Button>
     ) : (
       <Button
@@ -86,7 +86,7 @@ export const ChatComposer = ({
         type="submit"
         variant="solid"
       >
-        <ArrowUp className="size-4" />
+        <ArrowUpIcon className="size-4" />
       </Button>
     )}
   </div>

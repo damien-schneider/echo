@@ -4,7 +4,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
-import { AlertTriangle, RotateCcw } from "lucide-react";
+import { ArrowCounterClockwiseIcon, WarningIcon } from "@phosphor-icons/react";
 import type { ShortcutBinding } from "@/lib/types";
 import { formatKeyCombination, type OSType } from "@/lib/utils/keyboard";
 
@@ -32,8 +32,8 @@ export const ShortcutBindingRow = ({
 }: ShortcutBindingRowProps) => (
   <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2 first:pt-0 last:pb-0">
     <div className="min-w-0 flex-1 basis-32">
-      <p className="font-medium text-sm">{binding.name}</p>
-      <p className="text-pretty text-muted-foreground text-xs">
+      <p className="text-label">{binding.name}</p>
+      <p className="text-pretty text-caption text-muted-foreground">
         {binding.description}
       </p>
     </div>
@@ -64,15 +64,15 @@ export const ShortcutBindingRow = ({
         size="md"
         variant="ghost"
       >
-        <RotateCcw className="h-5 w-5" />
+        <ArrowCounterClockwiseIcon className="h-5 w-5" />
       </Button>
       {showWaylandWarning ? (
         <Tooltip>
           <TooltipTrigger
-            render={<AlertTriangle className="h-4 w-4 text-orange-500" />}
+            render={<WarningIcon className="h-4 w-4 text-orange-500" />}
           />
           <TooltipContent className="max-w-xs" side="bottom">
-            <p className="text-xs">
+            <p>
               This shortcut may type a character when activated on Wayland.
               Consider a shortcut without printable keys.
             </p>

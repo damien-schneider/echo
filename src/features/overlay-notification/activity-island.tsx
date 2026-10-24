@@ -1,5 +1,5 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { X } from "lucide-react";
+import { XIcon } from "@phosphor-icons/react";
 import { type ReactNode, type RefObject, useLayoutEffect } from "react";
 import { IslandHud } from "@/features/overlay-controls/island-hud";
 import {
@@ -67,7 +67,7 @@ const ActivityDismissButton = ({
     title={label}
     variant="ghost"
   >
-    <X aria-hidden="true" />
+    <XIcon aria-hidden="true" />
   </Button>
 );
 const ActivityActionButton = ({

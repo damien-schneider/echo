@@ -1,11 +1,11 @@
-import type { LucideProps } from "lucide-react";
-import { Loader2Icon } from "lucide-react";
+import type { IconProps } from "@phosphor-icons/react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
 
 import { cn } from "@/lib/utils";
 
-function Spinner({ className, ...props }: Omit<LucideProps, "ref">) {
+function Spinner({ className, ...props }: Omit<IconProps, "ref">) {
   return (
-    <Loader2Icon
+    <CircleNotchIcon
       aria-label="Loading"
       className={cn("size-4 animate-spin", className)}
       role="status"

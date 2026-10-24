@@ -6,7 +6,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@ctrl-ui/react/ui/select";
-import { Settings2 } from "lucide-react";
+import { SlidersHorizontalIcon } from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import {
   CHAT_MODEL_MODES,
@@ -73,7 +73,7 @@ const ModelSelect = ({
         type="button"
         variant="ghost"
       >
-        <Settings2 aria-hidden="true" className="size-3 shrink-0" />
+        <SlidersHorizontalIcon aria-hidden="true" className="size-3 shrink-0" />
         <span className="truncate">Set up {mode} model</span>
       </Button>
     );
@@ -168,7 +168,7 @@ export const ChatModelPicker = ({
         type="button"
         variant="ghost"
       >
-        <Settings2 aria-hidden="true" className="size-3.5" />
+        <SlidersHorizontalIcon aria-hidden="true" className="size-3.5" />
       </Button>
     ) : null}
   </div>

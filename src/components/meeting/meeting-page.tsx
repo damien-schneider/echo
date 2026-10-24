@@ -1,4 +1,5 @@
 import { visibleTranscript } from "@/features/meeting/transcript-order";
+import { SettingsSection } from "@/features/settings/settings-section";
 import { useMeetingStore } from "@/stores/meeting-store";
 import { MeetingBatchProgressView } from "./meeting-batch-progress";
 import { MeetingControls } from "./meeting-controls";
@@ -38,7 +39,7 @@ export const MeetingPage = () => {
           <MeetingBatchProgressView progress={batchProgress} />
         )}
         <div className="min-h-0 flex-1">
-          <h3 className="mb-2 font-medium text-muted-foreground text-sm">
+          <h3 className="mb-2 font-medium text-label text-muted-foreground">
             {status === "recording" ? "Live Transcript" : "Transcript"}
           </h3>
           <MeetingTranscript
@@ -52,31 +53,20 @@ export const MeetingPage = () => {
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl pb-20">
-      <div className="flex flex-col gap-6">
-        <div className="flex flex-col gap-3">
-          <h2 className="font-semibold text-lg">Meeting Recording</h2>
-          <MeetingControls />
-        </div>
-
-        <div>
-          <h3 className="mb-2 font-medium text-muted-foreground text-sm">
-            Settings
-          </h3>
-          <MeetingSettings />
-        </div>
-
-        <div>
-          <h3 className="mb-2 font-medium text-muted-foreground text-sm">
-            Past Meetings
-          </h3>
+    <div className="space-y-5">
+      <div className="px-1 pt-3">
+        <MeetingControls />
+      </div>
+      <MeetingSettings />
+      <SettingsSection title="Past meetings">
+        <div className="p-1">
           <MeetingList
             onSelect={(id) => {
               selectMeeting(id);
             }}
           />
         </div>
-      </div>
+      </SettingsSection>
     </div>
   );
 };

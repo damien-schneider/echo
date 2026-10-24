@@ -1,79 +1,39 @@
-"use client";
-
+import { InputGroup } from "@ctrl-ui/react/ui/input-group";
 import { Plate, PlateContent } from "platejs/react";
-import { cn } from "@/lib/utils";
 import { EditorToolbar } from "./toolbar";
 import { useMarkdownEditor } from "./use-markdown-editor";
 import "./editor.css";
 
 interface MarkdownEditorProps {
-  autoFocus?: boolean;
-  className?: string;
-  editable?: boolean;
-  editorClassName?: string;
-  onChange?: (markdown: string) => void;
-  placeholder?: string;
-  showMentionMenu?: boolean;
-  showToolbar?: boolean;
-  value?: string;
+  labelledBy: string;
+  onChange: (markdown: string) => void;
+  placeholder: string;
+  value: string;
 }
 
 export function MarkdownEditor({
-  value = "",
+  labelledBy,
   onChange,
-  placeholder = "Start typing or press '/' for commands...",
-  className,
-  editorClassName,
-  autoFocus = false,
-  editable = true,
-  showToolbar = true,
-  showMentionMenu = false,
+  placeholder,
+  value,
 }: MarkdownEditorProps) {
   const { editor, handleChange } = useMarkdownEditor({
-    autoFocus,
     content: value,
-    editable,
-    enableMentions: showMentionMenu,
     onUpdate: onChange,
-    placeholder,
   });
 
-  if (!editor) {
-    return (
-      <div
-        className={cn("h-64 animate-pulse rounded-lg bg-muted", className)}
-      />
-    );
-  }
-
   return (
-    <div
-      className={cn(
-        "relative flex flex-col",
-        "**:selection:bg-blue-500/35! dark:**:selection:bg-blue-400/45!",
-
-        className
-      )}
-    >
+    <InputGroup className="h-auto flex-col items-stretch px-0">
       <Plate editor={editor} onChange={handleChange}>
-        {showToolbar && editable && (
-          <div className="w-fit px-3">
-            <EditorToolbar className="w-fit" />
-          </div>
-        )}
+        <div className="px-1.5 pt-1.5">
+          <EditorToolbar />
+        </div>
         <PlateContent
-          autoFocus={autoFocus}
-          className={cn(
-            "prose prose-sm dark:prose-invert max-w-none",
-            "min-h-[200px] w-full rounded-lg border border-input bg-background px-4 py-3",
-            "focus:outline-none",
-            "**:data-slate-placeholder:text-muted-foreground **:data-slate-placeholder:opacity-100",
-            editorClassName
-          )}
+          aria-labelledby={labelledBy}
+          className="w-full px-3 py-2 **:selection:bg-blue-500/35! focus:outline-none **:data-slate-placeholder:text-muted-foreground **:data-slate-placeholder:opacity-100 dark:**:selection:bg-blue-400/45!"
           placeholder={placeholder}
-          readOnly={!editable}
         />
       </Plate>
-    </div>
+    </InputGroup>
   );
 }

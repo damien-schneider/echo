@@ -1,5 +1,5 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { Sparkles } from "lucide-react";
+import { SparkleIcon } from "@phosphor-icons/react";
 import { DictionaryEditor } from "@/components/settings/cleanup/dictionary-editor";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
@@ -16,7 +16,7 @@ const CleanupEnabledToggle = () => {
   return (
     <SettingRow
       description="Remove stray phrases and apply your dictionary on this device."
-      icon={<Sparkles className="h-4 w-4" />}
+      icon={<SparkleIcon className="h-4 w-4" />}
       title="Clean up transcriptions"
     >
       <Switch

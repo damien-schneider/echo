@@ -12,7 +12,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@ctrl-ui/react/ui/popover";
-import { ChevronsUpDown, Globe, RotateCcw } from "lucide-react";
+import {
+  ArrowCounterClockwiseIcon,
+  CaretUpDownIcon,
+  GlobeIcon,
+} from "@phosphor-icons/react";
 import { useId, useState } from "react";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
@@ -45,7 +49,7 @@ export const LanguageSelector = () => {
   return (
     <SettingRow
       description="Choose a language for better accuracy, or let Echo detect it."
-      icon={<Globe className="h-4 w-4" />}
+      icon={<GlobeIcon className="h-4 w-4" />}
       title="Language"
     >
       <div className="flex items-center space-x-1">
@@ -65,13 +69,13 @@ export const LanguageSelector = () => {
           >
             {selectedLanguage ? (
               <span className="flex min-w-0 items-center gap-2">
-                <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <GlobeIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="truncate">{selectedLanguageName}</span>
               </span>
             ) : (
               <span className="text-muted-foreground">Select language</span>
             )}
-            <ChevronsUpDown
+            <CaretUpDownIcon
               aria-hidden="true"
               className="shrink-0 text-muted-foreground/80"
               size={16}
@@ -91,7 +95,7 @@ export const LanguageSelector = () => {
                       value={language.value}
                     >
                       <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <GlobeIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                         {language.label}
                       </div>
                     </CommandItem>
@@ -109,7 +113,7 @@ export const LanguageSelector = () => {
           size="md"
           variant="ghost"
         >
-          <RotateCcw className="h-5 w-5" />
+          <ArrowCounterClockwiseIcon className="h-5 w-5" />
         </Button>
       </div>
     </SettingRow>

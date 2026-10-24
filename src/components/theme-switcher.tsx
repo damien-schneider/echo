@@ -5,7 +5,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@ctrl-ui/react/ui/dropdown-menu";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { useTheme } from "@/providers/theme-provider";
 export function ThemeSwitcher() {
@@ -14,11 +14,11 @@ export function ThemeSwitcher() {
   const getThemeIcon = () => {
     switch (theme) {
       case "light":
-        return <Sun className="h-4 w-4" />;
+        return <SunIcon className="h-4 w-4" />;
       case "dark":
-        return <Moon className="h-4 w-4" />;
+        return <MoonIcon className="h-4 w-4" />;
       default:
-        return <Monitor className="h-4 w-4" />;
+        return <MonitorIcon className="h-4 w-4" />;
     }
   };
   return (
@@ -41,15 +41,15 @@ export function ThemeSwitcher() {
           value={theme || "system"}
         >
           <DropdownMenuRadioItem closeOnClick value="light">
-            <Sun className="size-4" />
+            <SunIcon className="size-4" />
             Light
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem closeOnClick value="dark">
-            <Moon className="size-4" />
+            <MoonIcon className="size-4" />
             Dark
           </DropdownMenuRadioItem>
           <DropdownMenuRadioItem closeOnClick value="system">
-            <Monitor className="size-4" />
+            <MonitorIcon className="size-4" />
             System
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>

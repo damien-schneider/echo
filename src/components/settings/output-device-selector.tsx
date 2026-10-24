@@ -6,7 +6,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@ctrl-ui/react/ui/select";
-import { RotateCcw, Speaker } from "lucide-react";
+import {
+  ArrowCounterClockwiseIcon,
+  SpeakerHifiIcon,
+} from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
@@ -39,7 +42,7 @@ export const OutputDeviceSelector = ({
   return (
     <SettingRow
       disabled={disabled}
-      icon={<Speaker className="h-4 w-4" />}
+      icon={<SpeakerHifiIcon className="h-4 w-4" />}
       title="Output device"
     >
       <div className="flex items-center gap-1">
@@ -78,7 +81,7 @@ export const OutputDeviceSelector = ({
           size="md"
           variant="ghost"
         >
-          <RotateCcw className="h-5 w-5" />
+          <ArrowCounterClockwiseIcon className="h-5 w-5" />
         </Button>
       </div>
     </SettingRow>

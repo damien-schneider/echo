@@ -1,5 +1,5 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { PlayCircle } from "lucide-react";
+import { PlayCircleIcon } from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
@@ -12,7 +12,7 @@ export const AutostartToggle = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      icon={<PlayCircle className="h-4 w-4" />}
+      icon={<PlayCircleIcon className="h-4 w-4" />}
       title="Launch at login"
     >
       <Switch

@@ -10,9 +10,9 @@ const ToolResultSchema = z.object({
 type ToolResultPayload = z.infer<typeof ToolResultSchema>;
 
 export const voiceTools = {
-  change_sound_theme: tool({
+  cycle_feedback_sounds: tool({
     description:
-      "Cycle the audio feedback sound theme to the next option (Marimba -> Pop -> Custom -> Marimba).",
+      "Switch Echo's feedback sounds to the next sound theme, thème sonore (Marimba -> Pop -> Custom -> Marimba).",
     inputSchema: z.object({}),
   }),
 
@@ -36,7 +36,7 @@ export type VoiceToolCall = StaticToolCall<typeof voiceTools>;
 
 const invokeVoiceTool = (call: VoiceToolCall): Promise<unknown> => {
   switch (call.toolName) {
-    case "change_sound_theme":
+    case "cycle_feedback_sounds":
       return invoke("execute_change_sound_theme");
     case "create_note":
       return invoke("execute_create_note", {

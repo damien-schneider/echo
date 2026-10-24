@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { openSummarySetup } from "@/features/meeting/open-summary-setup";
 import {
   MeetingSummaryError,
   SUMMARY_SETUP_LABELS,
@@ -122,9 +123,7 @@ const onAutoSummaryRequested = (meetingId: number) => {
         toast.error(error.message, {
           action: {
             label: SUMMARY_SETUP_LABELS[error.section],
-            onClick: () => {
-              emit("open-settings-section", error.section);
-            },
+            onClick: () => openSummarySetup(error.section),
           },
         });
         return;

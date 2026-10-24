@@ -6,8 +6,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
+import { CheckIcon, CopyIcon, TrashIcon } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
-import { Check, Copy, Trash2 } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 export interface InputEntry {
@@ -95,9 +95,9 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
                 }
               >
                 {showCopied ? (
-                  <Check height={16} width={16} />
+                  <CheckIcon height={16} width={16} />
                 ) : (
-                  <Copy height={16} width={16} />
+                  <CopyIcon height={16} width={16} />
                 )}
               </TooltipTrigger>
               <TooltipContent>
@@ -117,9 +117,9 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
                 }
               >
                 {confirmDelete ? (
-                  <Check height={16} width={16} />
+                  <CheckIcon height={16} width={16} />
                 ) : (
-                  <Trash2 height={16} width={16} />
+                  <TrashIcon height={16} width={16} />
                 )}
               </TooltipTrigger>
               <TooltipContent>

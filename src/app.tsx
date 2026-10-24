@@ -1,10 +1,9 @@
+import { UploadSimpleIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
 import "./app.css";
-import { AppHeader } from "@/components/app-header";
 import { GlassWindow } from "@/components/ui/glass-window";
 import { Spinner } from "@/components/ui/spinner";
 import { useShortcutFailureToasts } from "@/features/shortcuts/use-shortcut-failure-toasts";
@@ -18,7 +17,6 @@ import {
   type SidebarSection,
 } from "./components/sidemenu";
 import { TranscriptionResultDialog } from "./components/transcription-result-dialog";
-import { TitleBar } from "./components/ui/title-bar";
 import { useFileTranscriptionListener } from "./hooks/use-file-transcription-listener";
 import { useMeetingListener } from "./hooks/use-meeting-listener";
 import { mountTranscriptionBridge } from "./lib/llm/transcription-bridge";
@@ -198,9 +196,7 @@ function App() {
 
   return (
     <GlassWindow data-model-state={modelState}>
-      <TitleBar />
       <Toaster />
-      <AppHeader />
       <SidebarLayout
         activeSection={currentSection}
         onSectionChange={setCurrentSection}
@@ -216,7 +212,7 @@ function App() {
       {isDragging && (
         <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-background/40 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-3">
-            <Upload className="h-12 w-12 text-muted-foreground" />
+            <UploadSimpleIcon className="h-12 w-12 text-muted-foreground" />
             <p className="font-medium text-muted-foreground text-sm">
               Drop audio or video to transcribe
             </p>

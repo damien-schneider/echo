@@ -1,5 +1,3 @@
-"use client";
-
 import {
   BlockquotePlugin,
   BoldPlugin,
@@ -26,18 +24,19 @@ import {
   NumberedListPlugin,
   TaskListPlugin,
 } from "@platejs/list-classic/react";
-import { MarkdownPlugin, remarkMdx, remarkMention } from "@platejs/markdown";
+import { MarkdownPlugin, remarkMention } from "@platejs/markdown";
 import { MentionInputPlugin, MentionPlugin } from "@platejs/mention/react";
-import type { Value } from "platejs";
+import type { SlateEditor, Value } from "platejs";
 import { usePlateEditor } from "platejs/react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import remarkGfm from "remark-gfm";
-
+import { replaceMentionOutputInMarkdown } from "@/lib/utils/replace-mention-output";
 import { MentionElement, MentionInputElement } from "./mention-node";
 
 const MENTION_TRIGGER_PATTERN = /^$|^[\s"']$/;
+const OUTPUT_MENTION_MARKDOWN = "[output](mention:output)";
 
-const BASE_PLUGINS = [
+const PROMPT_PLUGINS = [
   BoldPlugin,
   ItalicPlugin,
   UnderlinePlugin,
@@ -64,39 +63,7 @@ const BASE_PLUGINS = [
 
   MarkdownPlugin.configure({
     options: {
-      remarkPlugins: [remarkGfm, remarkMdx],
-    },
-  }),
-];
-
-const MENTION_PLUGINS = [
-  BoldPlugin,
-  ItalicPlugin,
-  UnderlinePlugin,
-  StrikethroughPlugin,
-  CodePlugin,
-
-  H1Plugin,
-  H2Plugin,
-  H3Plugin,
-  H4Plugin,
-  H5Plugin,
-  H6Plugin,
-  BlockquotePlugin,
-
-  CodeBlockPlugin,
-  CodeLinePlugin,
-  CodeSyntaxPlugin,
-
-  ListPlugin,
-  BulletedListPlugin,
-  NumberedListPlugin,
-  ListItemPlugin,
-  TaskListPlugin,
-
-  MarkdownPlugin.configure({
-    options: {
-      remarkPlugins: [remarkGfm, remarkMdx, remarkMention],
+      remarkPlugins: [remarkGfm, remarkMention],
     },
   }),
 
@@ -110,87 +77,69 @@ const MENTION_PLUGINS = [
   MentionInputPlugin.withComponent(MentionInputElement),
 ];
 
-interface UseMarkdownEditorOptions {
-  autoFocus?: boolean;
-  content?: string;
-  editable?: boolean;
-  enableMentions?: boolean;
-  onUpdate?: (markdown: string) => void;
-  placeholder?: string;
+const emptyValue = (): Value => [{ children: [{ text: "" }], type: "p" }];
+
+const deserializePrompt = (editor: SlateEditor, markdown: string): Value => {
+  if (!markdown) {
+    return emptyValue();
+  }
+  return editor
+    .getApi(MarkdownPlugin)
+    .markdown.deserialize(
+      replaceMentionOutputInMarkdown(markdown, OUTPUT_MENTION_MARKDOWN)
+    );
+};
+
+const serializePrompt = (editor: SlateEditor, value?: Value): string =>
+  editor
+    .getApi(MarkdownPlugin)
+    .markdown.serialize({ preserveEmptyParagraphs: false, value });
+
+interface LoadedPrompt {
+  content: string;
+  markdown: string;
 }
 
 export function useMarkdownEditor({
-  content = "",
+  content,
   onUpdate,
-  autoFocus = false,
-  editable = true,
-  enableMentions = false,
-}: UseMarkdownEditorOptions) {
-  const isInitialMount = useRef(true);
-  // Track last content set to avoid sync loops.
-  const lastSetContent = useRef(content);
-  // Ref onUpdate so handleChange identity stays stable.
-  const onUpdateRef = useRef(onUpdate);
-  onUpdateRef.current = onUpdate;
-
-  const plugins = enableMentions ? MENTION_PLUGINS : BASE_PLUGINS;
-
-  // Mount-only; deserialization happens in value factory.
-  const initialValue = (() => {
-    if (content) {
-      return content;
-    }
-    return "";
-  })();
-
-  const editor = usePlateEditor(
-    {
-      plugins,
-      value: (plateEditor) => {
-        if (initialValue) {
-          const markdownApi = plateEditor.getApi(MarkdownPlugin).markdown;
-          return markdownApi.deserialize(initialValue) as Value;
-        }
-        return [{ children: [{ text: "" }], type: "p" }] as Value;
-      },
-    },
-    [enableMentions]
-  );
+}: {
+  content: string;
+  onUpdate: (markdown: string) => void;
+}) {
+  const lastEmittedContent = useRef(content);
+  const editor = usePlateEditor({
+    plugins: PROMPT_PLUGINS,
+    value: (plateEditor) => deserializePrompt(plateEditor, content),
+  });
+  const [initialPrompt] = useState<LoadedPrompt>(() => ({
+    content,
+    markdown: serializePrompt(editor),
+  }));
+  const loadedPrompt = useRef(initialPrompt);
 
   const handleChange = () => {
-    if (editor && onUpdateRef.current) {
-      const markdownApi = editor.getApi(MarkdownPlugin).markdown;
-      const markdown = markdownApi.serialize();
-      lastSetContent.current = markdown;
-      onUpdateRef.current(markdown);
-    }
+    const markdown = serializePrompt(editor);
+    const promptText =
+      markdown === loadedPrompt.current.markdown
+        ? loadedPrompt.current.content
+        : markdown;
+    lastEmittedContent.current = promptText;
+    onUpdate(promptText);
   };
 
-  // Sync editor when external content changes (parent reset).
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
+    if (lastEmittedContent.current === content) {
       return;
     }
-
-    if (!editor) {
-      return;
-    }
-
-    // Skip self-emitted content to avoid sync loop.
-    if (lastSetContent.current === content) {
-      return;
-    }
-
-    lastSetContent.current = content;
-
-    const markdownApi = editor.getApi(MarkdownPlugin).markdown;
-    const value = content
-      ? (markdownApi.deserialize(content) as Value)
-      : ([{ children: [{ text: "" }], type: "p" }] as Value);
-
+    const value = deserializePrompt(editor, content);
+    loadedPrompt.current = {
+      content,
+      markdown: serializePrompt(editor, value),
+    };
+    lastEmittedContent.current = content;
     editor.tf.setValue(value);
   }, [editor, content]);
 
-  return { autoFocus, editable, editor, handleChange };
+  return { editor, handleChange };
 }

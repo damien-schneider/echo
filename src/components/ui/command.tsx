@@ -1,5 +1,5 @@
+import { MagnifyingGlassIcon } from "@phosphor-icons/react";
 import { Command as CommandPrimitive } from "cmdk";
-import { Search } from "lucide-react";
 import type { Dialog } from "radix-ui";
 import type * as React from "react";
 import { DialogContent, Dialog as DialogUI } from "@/components/ui/dialog";
@@ -40,7 +40,7 @@ const CommandInput = ({
     className="flex items-center border-foreground/10 border-b px-3"
     cmdk-input-wrapper=""
   >
-    <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+    <MagnifyingGlassIcon className="mr-2 h-4 w-4 shrink-0 opacity-50" />
     <CommandPrimitive.Input
       className={cn(
         "flex h-10 w-full bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50",

@@ -15,18 +15,19 @@ import {
   useSidebar,
 } from "@ctrl-ui/react/ui/sidebar";
 import {
-  AudioLines,
-  BookText,
-  Box,
-  ClipboardList,
-  History,
-  Keyboard,
-  Settings2,
-  Sparkles,
-  Speech,
-  Users,
-} from "lucide-react";
+  BookOpenTextIcon,
+  ClockCounterClockwiseIcon,
+  CubeIcon,
+  KeyboardIcon,
+  ListChecksIcon,
+  SlidersHorizontalIcon,
+  SparkleIcon,
+  SpeakerHighIcon,
+  UsersIcon,
+  WaveformIcon,
+} from "@phosphor-icons/react";
 import type { ComponentType, ReactNode } from "react";
+import { AppVersion } from "@/components/app-version";
 import { FileTranscriptionCenter } from "@/components/file-transcription-center";
 import EchoLogo from "@/components/icons/echo-logo";
 import { MeetingPage } from "@/components/meeting/meeting-page";
@@ -41,6 +42,11 @@ import { PostProcessingSettings } from "@/components/settings/post-processing/po
 import { TranscriptionSettings } from "@/components/settings/transcription/transcription-settings";
 import { TtsSettingsPage } from "@/components/settings/tts-settings-page";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import {
+  usesNativeTrafficLights,
+  WindowControls,
+} from "@/components/ui/window-controls";
+import { cn } from "@/lib/utils";
 export type SidebarSection = keyof typeof SECTIONS_CONFIG;
 interface IconProps {
   className?: string;
@@ -53,52 +59,52 @@ interface SectionConfig {
 export const SECTIONS_CONFIG = {
   app: {
     component: AppSettings,
-    icon: Settings2,
+    icon: SlidersHorizontalIcon,
     label: "General",
   },
   captures: {
     component: CapturesSettings,
-    icon: ClipboardList,
+    icon: ListChecksIcon,
     label: "Captures",
   },
   cleanup: {
     component: CleanupSettings,
-    icon: BookText,
+    icon: BookOpenTextIcon,
     label: "On-device cleanup",
   },
   history: {
     component: HistorySettings,
-    icon: History,
+    icon: ClockCounterClockwiseIcon,
     label: "History",
   },
   "keyboard-tracking": {
     component: KeyboardTrackingSettings,
-    icon: Keyboard,
+    icon: KeyboardIcon,
     label: "Keyboard",
   },
   meeting: {
     component: MeetingPage,
-    icon: Users,
+    icon: UsersIcon,
     label: "Meeting",
   },
   models: {
     component: ModelsSettings,
-    icon: Box,
+    icon: CubeIcon,
     label: "Models",
   },
   "post-processing": {
     component: PostProcessingSettings,
-    icon: Sparkles,
+    icon: SparkleIcon,
     label: "Post-processing",
   },
   "text-to-speech": {
     component: TtsSettingsPage,
-    icon: Speech,
+    icon: SpeakerHighIcon,
     label: "Text to speech",
   },
   transcription: {
     component: TranscriptionSettings,
-    icon: AudioLines,
+    icon: WaveformIcon,
     label: "Transcription",
   },
 } as const satisfies Record<string, SectionConfig>;
@@ -144,26 +150,75 @@ function SettingsNavigation({
 
 function AppSidebar(props: SettingsNavigationProps) {
   return (
-    <Sidebar label="Settings">
+    <Sidebar label="Settings" variant="inset">
       <SidebarHeader
-        className="h-14 flex-row items-center gap-2.5 px-4"
+        className="h-12 flex-row items-center gap-2 px-4"
         data-tauri-drag-region
       >
-        <EchoLogo className="size-5" />
-        <span className="font-semibold text-sm">Echo</span>
+        {!usesNativeTrafficLights && (
+          <>
+            <EchoLogo className="size-4" />
+            <span className="font-semibold text-body">Echo</span>
+          </>
+        )}
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SettingsNavigation {...props} />
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="flex-row items-center border-sidebar-border border-t px-3 py-2">
+      <SidebarFooter className="flex-row items-center gap-0.5 px-2 pb-2">
         <ThemeSwitcher />
         <FileTranscriptionCenter />
         <AboutDialog />
+        <AppVersion className="ml-auto" />
       </SidebarFooter>
       <SidebarRail resizable />
     </Sidebar>
+  );
+}
+
+function SettingsPanel({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  const { state } = useSidebar();
+  const sidebarIsCollapsed = state === "collapsed";
+  return (
+    <SidebarInset
+      className={cn(
+        "m-2 min-h-0 overflow-hidden rounded-panel bg-card shadow-panel",
+        !sidebarIsCollapsed && "ml-0"
+      )}
+      render={<main />}
+    >
+      <header
+        className={cn(
+          "flex h-10 shrink-0 items-center gap-1.5 px-2",
+          sidebarIsCollapsed && usesNativeTrafficLights && "pl-[84px]"
+        )}
+        data-tauri-drag-region
+      >
+        <SidebarTrigger className="text-muted-foreground" />
+        <h1
+          className="min-w-0 flex-1 truncate font-semibold text-body"
+          data-tauri-drag-region
+        >
+          {title}
+        </h1>
+        <WindowControls />
+      </header>
+      <ScrollArea
+        className="min-h-0 flex-1"
+        mask={false}
+        viewportClassName="px-4 pt-2 pb-10 sm:px-8"
+      >
+        <div className="mx-auto w-full max-w-2xl">{children}</div>
+      </ScrollArea>
+    </SidebarInset>
   );
 }
 
@@ -174,7 +229,7 @@ export function SidebarLayout({
 }: SettingsNavigationProps & { children: ReactNode }) {
   return (
     <SidebarProvider
-      className="h-[calc(100dvh-2rem)]"
+      className="h-dvh"
       defaultWidth={216}
       layout="contained"
       maxWidth={280}
@@ -185,24 +240,9 @@ export function SidebarLayout({
         activeSection={activeSection}
         onSectionChange={onSectionChange}
       />
-      <SidebarInset className="min-h-0" render={<main />}>
-        <header
-          className="flex h-14 shrink-0 items-center gap-3 px-4"
-          data-tauri-drag-region
-        >
-          <SidebarTrigger />
-          <h1 className="font-semibold text-base">
-            {SECTIONS_CONFIG[activeSection].label}
-          </h1>
-        </header>
-        <ScrollArea
-          className="min-h-0 flex-1"
-          mask={false}
-          viewportClassName="px-4 pb-8 sm:px-6"
-        >
-          <div className="mx-auto w-full max-w-2xl">{children}</div>
-        </ScrollArea>
-      </SidebarInset>
+      <SettingsPanel title={SECTIONS_CONFIG[activeSection].label}>
+        {children}
+      </SettingsPanel>
     </SidebarProvider>
   );
 }

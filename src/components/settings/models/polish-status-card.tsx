@@ -1,11 +1,11 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import {
-  AlertCircle,
-  CircleCheck,
-  CircleDashed,
-  Download,
-  Loader2,
-} from "lucide-react";
+  CheckCircleIcon,
+  CircleDashedIcon,
+  CircleNotchIcon,
+  DownloadSimpleIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react";
 import ProgressBar from "@/components/shared/progress-bar";
 import { polishStatusCopy } from "@/features/polish/polish-status-copy";
 import type { PolishStatus } from "@/lib/types";
@@ -18,16 +18,16 @@ interface PolishStatusCardProps {
 }
 const StatusIcon = ({ state }: Pick<PolishStatus, "state">) => {
   if (state === "ready") {
-    return <CircleCheck className="h-4 w-4 text-emerald-500" />;
+    return <CheckCircleIcon className="h-4 w-4 text-emerald-500" />;
   }
   if (state === "repair") {
-    return <AlertCircle className="h-4 w-4 text-destructive" />;
+    return <WarningCircleIcon className="h-4 w-4 text-destructive" />;
   }
   if (state === "not_downloaded") {
-    return <Download className="h-4 w-4 text-muted-foreground" />;
+    return <DownloadSimpleIcon className="h-4 w-4 text-muted-foreground" />;
   }
   return (
-    <CircleDashed className="h-4 w-4 animate-pulse text-muted-foreground" />
+    <CircleDashedIcon className="h-4 w-4 animate-pulse text-muted-foreground" />
   );
 };
 export const PolishStatusCard = ({
@@ -47,15 +47,17 @@ export const PolishStatusCard = ({
         <div className="flex items-start gap-3">
           <StatusIcon state={status.state} />
           <div>
-            <p className="font-medium text-sm">
+            <p className="font-medium text-label">
               {copy.title}
               {progressLabel}
             </p>
-            <p className="mt-0.5 text-muted-foreground text-xs">
+            <p className="mt-0.5 text-caption text-muted-foreground">
               {copy.description}
             </p>
             {status.state === "repair" ? (
-              <p className="mt-1 text-destructive text-xs">{status.message}</p>
+              <p className="mt-1 text-caption text-destructive">
+                {status.message}
+              </p>
             ) : null}
           </div>
         </div>
@@ -66,13 +68,16 @@ export const PolishStatusCard = ({
         ) : null}
         {status.state === "not_downloaded" ? (
           <Button onClick={onDownload} size="sm" tone="primary" variant="solid">
-            <Download aria-hidden="true" className="mr-1 h-4 w-4" />
+            <DownloadSimpleIcon aria-hidden="true" className="mr-1 h-4 w-4" />
             {polishStatusCopy.not_downloaded.action}
           </Button>
         ) : null}
         {status.state === "downloading" ? (
           <Button disabled={true} size="sm" variant="surface">
-            <Loader2 aria-hidden="true" className="mr-1 h-4 w-4 animate-spin" />
+            <CircleNotchIcon
+              aria-hidden="true"
+              className="mr-1 h-4 w-4 animate-spin"
+            />
             Downloading
           </Button>
         ) : null}

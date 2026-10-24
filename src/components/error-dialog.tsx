@@ -7,8 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@ctrl-ui/react/ui/dialog";
+import { WarningCircleIcon } from "@phosphor-icons/react";
 import { listen } from "@tauri-apps/api/event";
-import { AlertCircle } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 
@@ -53,7 +53,7 @@ export const ErrorDialog: React.FC = () => {
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-destructive" />
+            <WarningCircleIcon className="h-5 w-5 text-destructive" />
             {errorData.title}
           </DialogTitle>
           <DialogDescription>{errorData.message}</DialogDescription>

@@ -1,4 +1,4 @@
-import { ChevronDown } from "lucide-react";
+import { CaretDownIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -36,7 +36,7 @@ export const CollapsibleSettingsGroup: React.FC<
               </p>
             )}
           </div>
-          <ChevronDown
+          <CaretDownIcon
             className={cn(
               "h-4 w-4 text-muted-foreground transition-transform duration-200",
               isOpen && "rotate-180"

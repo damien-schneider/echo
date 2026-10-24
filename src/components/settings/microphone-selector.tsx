@@ -6,7 +6,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@ctrl-ui/react/ui/select";
-import { Mic, RotateCcw } from "lucide-react";
+import {
+  ArrowCounterClockwiseIcon,
+  MicrophoneIcon,
+} from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
@@ -31,7 +34,10 @@ export const MicrophoneSelector = () => {
     await resetSetting("selected_microphone");
   };
   return (
-    <SettingRow icon={<Mic className="h-4 w-4" />} title="Microphone">
+    <SettingRow
+      icon={<MicrophoneIcon className="h-4 w-4" />}
+      title="Microphone"
+    >
       <div className="flex items-center gap-1">
         <Select
           disabled={isUpdatingMic || isLoading || audioDevices.length === 0}
@@ -63,7 +69,7 @@ export const MicrophoneSelector = () => {
           size="md"
           variant="ghost"
         >
-          <RotateCcw className="h-5 w-5" />
+          <ArrowCounterClockwiseIcon className="h-5 w-5" />
         </Button>
       </div>
     </SettingRow>

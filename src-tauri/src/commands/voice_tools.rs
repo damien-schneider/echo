@@ -98,8 +98,8 @@ pub fn execute_create_note(app: AppHandle, title: String, content: String) -> To
 }
 
 #[tauri::command]
-pub fn execute_open_application(app_name: String) -> ToolResult {
-    let app_name = app_name.trim();
+pub async fn execute_open_application(app_name: String) -> ToolResult {
+    let app_name = app_name.trim().to_string();
     if app_name.is_empty() {
         return ToolResult {
             display_message: "Application name cannot be empty".to_string(),
@@ -108,93 +108,98 @@ pub fn execute_open_application(app_name: String) -> ToolResult {
     }
 
     debug!("[Tools] Attempting to open application: {}", app_name);
+    let launch_name = app_name.clone();
+    tauri::async_runtime::spawn_blocking(move || launch_application(&launch_name))
+        .await
+        .unwrap_or_else(|error| launch_failed(&app_name, &error.to_string()))
+}
 
-    #[cfg(target_os = "macos")]
-    {
-        match std::process::Command::new("open")
-            .arg("-a")
-            .arg(app_name)
-            .spawn()
-        {
-            Ok(_) => {
-                info!("[Tools] Opened application: {}", app_name);
-                return ToolResult {
-                    display_message: format!("Opened {}", app_name),
-                    success: true,
-                };
-            }
-            Err(e) => {
-                error!("[Tools] Failed to open '{}': {}", app_name, e);
-                return ToolResult {
-                    display_message: format!("Failed to open {}: {}", app_name, e),
-                    success: false,
-                };
-            }
+#[cfg(target_os = "macos")]
+fn launch_application(app_name: &str) -> ToolResult {
+    let output = std::process::Command::new("open")
+        .arg("-a")
+        .arg(app_name)
+        .output();
+    launcher_result(app_name, output)
+}
+
+/// Start-Process never raises the blocking "Windows cannot find" dialog that `cmd /C start` does.
+#[cfg(target_os = "windows")]
+fn launch_application(app_name: &str) -> ToolResult {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let output = std::process::Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Start-Process -FilePath $env:ECHO_APP_NAME -ErrorAction Stop",
+        ])
+        .env("ECHO_APP_NAME", app_name)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+    launcher_result(app_name, output)
+}
+
+/// Null stdio: a launched app inheriting a captured pipe would hold `output()` open until it quits.
+#[cfg(target_os = "linux")]
+fn launch_application(app_name: &str) -> ToolResult {
+    use std::process::{Command, Stdio};
+    let desktop_id = app_name.to_lowercase();
+    let desktop_launch = Command::new("gtk-launch")
+        .arg(&desktop_id)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    if matches!(desktop_launch, Ok(status) if status.success()) {
+        return launched(app_name);
+    }
+    match Command::new(&desktop_id).spawn() {
+        Ok(_) => launched(app_name),
+        Err(error) => {
+            error!("[Tools] Could not open '{}': {}", app_name, error);
+            not_found(app_name)
         }
     }
+}
 
-    #[cfg(target_os = "windows")]
-    {
-        match std::process::Command::new("cmd")
-            .args(["/C", "start", "", app_name])
-            .spawn()
-        {
-            Ok(_) => {
-                info!("[Tools] Opened application: {}", app_name);
-                return ToolResult {
-                    display_message: format!("Opened {}", app_name),
-                    success: true,
-                };
-            }
-            Err(e) => {
-                error!("[Tools] Failed to open '{}': {}", app_name, e);
-                return ToolResult {
-                    display_message: format!("Failed to open {}: {}", app_name, e),
-                    success: false,
-                };
-            }
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+fn launcher_result(app_name: &str, output: std::io::Result<std::process::Output>) -> ToolResult {
+    match output {
+        Ok(output) if output.status.success() => launched(app_name),
+        Ok(output) => {
+            error!(
+                "[Tools] Could not open '{}': {}",
+                app_name,
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+            not_found(app_name)
         }
+        Err(error) => launch_failed(app_name, &error.to_string()),
     }
+}
 
-    #[cfg(target_os = "linux")]
-    {
-        let lowercase_name = app_name.to_lowercase();
+fn not_found(app_name: &str) -> ToolResult {
+    ToolResult {
+        display_message: format!("Couldn't find an app named {}", app_name),
+        success: false,
+    }
+}
 
-        if let Ok(_) = std::process::Command::new("gtk-launch")
-            .arg(&lowercase_name)
-            .spawn()
-        {
-            info!("[Tools] Opened application via gtk-launch: {}", app_name);
-            return ToolResult {
-                display_message: format!("Opened {}", app_name),
-                success: true,
-            };
-        }
+fn launched(app_name: &str) -> ToolResult {
+    info!("[Tools] Opened application: {}", app_name);
+    ToolResult {
+        display_message: format!("Opened {}", app_name),
+        success: true,
+    }
+}
 
-        if let Ok(_) = std::process::Command::new("xdg-open").arg(app_name).spawn() {
-            info!("[Tools] Opened application via xdg-open: {}", app_name);
-            return ToolResult {
-                display_message: format!("Opened {}", app_name),
-                success: true,
-            };
-        }
-
-        match std::process::Command::new(&lowercase_name).spawn() {
-            Ok(_) => {
-                info!("[Tools] Opened application via direct exec: {}", app_name);
-                ToolResult {
-                    display_message: format!("Opened {}", app_name),
-                    success: true,
-                }
-            }
-            Err(e) => {
-                error!("[Tools] Failed to open '{}': {}", app_name, e);
-                ToolResult {
-                    display_message: format!("Failed to open {}: {}", app_name, e),
-                    success: false,
-                }
-            }
-        }
+fn launch_failed(app_name: &str, reason: &str) -> ToolResult {
+    error!("[Tools] Failed to open '{}': {}", app_name, reason);
+    ToolResult {
+        display_message: format!("Failed to open {}: {}", app_name, reason),
+        success: false,
     }
 }
 

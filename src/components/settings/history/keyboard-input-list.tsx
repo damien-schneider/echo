@@ -1,7 +1,7 @@
 import { Button } from "@ctrl-ui/react/ui/button";
+import { KeyboardIcon, TrashIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Keyboard, Trash2 } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 import { type InputEntry, KeyboardInputEntry } from "./keyboard-input-entry";
 export const KeyboardInputList = () => {
@@ -72,7 +72,7 @@ export const KeyboardInputList = () => {
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-text/60">
-        <Keyboard className="h-10 w-10 opacity-40" />
+        <KeyboardIcon className="h-10 w-10 opacity-40" />
         <div>
           <p className="font-medium">No keyboard inputs recorded yet</p>
           <p className="mt-1 text-sm">
@@ -93,7 +93,7 @@ export const KeyboardInputList = () => {
           size="sm"
           variant={confirmClearAll ? "ghost" : "ghost"}
         >
-          <Trash2 className="mr-1 h-3 w-3" />
+          <TrashIcon className="mr-1 h-3 w-3" />
           {confirmClearAll ? "Click to confirm" : "Clear All"}
         </Button>
       </div>

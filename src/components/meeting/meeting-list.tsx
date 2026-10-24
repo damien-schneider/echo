@@ -1,6 +1,6 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
-import { Clock, Trash2 } from "lucide-react";
+import { ClockIcon, TrashIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
 import type { Meeting } from "@/lib/types";
 import { useMeetingStore } from "@/stores/meeting-store";
@@ -77,7 +77,7 @@ function MeetingListItem({
         <div className="flex items-center gap-2 text-muted-foreground text-xs">
           <span>{formatDate(meeting.start_time)}</span>
           <span className="flex items-center gap-1">
-            <Clock className="size-3" />
+            <ClockIcon className="size-3" />
             {formatDuration(meeting.duration_ms)}
           </span>
           {meeting.status === "recording" && (
@@ -110,7 +110,7 @@ function MeetingListItem({
         size="md"
         variant="ghost"
       >
-        <Trash2 className="size-3.5 text-muted-foreground" />
+        <TrashIcon className="size-3.5 text-muted-foreground" />
       </Button>
     </div>
   );

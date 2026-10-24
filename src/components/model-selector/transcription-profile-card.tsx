@@ -1,6 +1,11 @@
 import { Badge } from "@ctrl-ui/react/ui/badge";
 import { Button } from "@ctrl-ui/react/ui/button";
-import { Check, Download, Loader2, Trash2 } from "lucide-react";
+import {
+  CheckIcon,
+  CircleNotchIcon,
+  DownloadSimpleIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import ProgressBar from "@/components/shared/progress-bar";
 import { modelActionPresentation } from "@/features/model-download/download-state";
 import type { TranscriptionProfileStatus } from "@/lib/types";
@@ -43,7 +48,7 @@ export const TranscriptionProfileCard = ({
             ) : null}
             {profile.is_active ? (
               <Badge className="gap-1" variant="default">
-                <Check aria-hidden="true" className="h-3 w-3" />
+                <CheckIcon aria-hidden="true" className="h-3 w-3" />
                 Active
               </Badge>
             ) : null}
@@ -64,7 +69,7 @@ export const TranscriptionProfileCard = ({
               tone="danger"
               variant="ghost"
             >
-              <Trash2 aria-hidden="true" className="h-4 w-4" />
+              <TrashIcon aria-hidden="true" className="h-4 w-4" />
             </Button>
           ) : null}
           {action.show ? (
@@ -76,12 +81,15 @@ export const TranscriptionProfileCard = ({
               variant="solid"
             >
               {action.showSpinner ? (
-                <Loader2
+                <CircleNotchIcon
                   aria-hidden="true"
                   className="mr-1 h-4 w-4 animate-spin"
                 />
               ) : (
-                <Download aria-hidden="true" className="mr-1 h-4 w-4" />
+                <DownloadSimpleIcon
+                  aria-hidden="true"
+                  className="mr-1 h-4 w-4"
+                />
               )}
               {action.label}
             </Button>

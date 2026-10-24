@@ -1,7 +1,7 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
+import { ListChecksIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { ClipboardList } from "lucide-react";
 import { useEffect, useEffectEvent, useState } from "react";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
@@ -20,7 +20,7 @@ const DoubleShiftToggle = () => {
   return (
     <SettingRow
       description="Select text in any app, then tap Shift twice to save it here."
-      icon={<ClipboardList className="h-4 w-4" />}
+      icon={<ListChecksIcon className="h-4 w-4" />}
       title="Save selection with double Shift"
     >
       <Switch
@@ -65,7 +65,7 @@ const CapturesList = () => {
   if (captures.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-text/60">
-        <ClipboardList className="h-10 w-10 opacity-40" />
+        <ListChecksIcon className="h-10 w-10 opacity-40" />
         <div>
           <p className="font-medium">Nothing captured yet</p>
           <p className="mt-1 text-sm">

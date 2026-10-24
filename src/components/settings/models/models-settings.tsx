@@ -1,4 +1,8 @@
-import { AlertCircle, CircleCheck, CircleDashed } from "lucide-react";
+import {
+  CheckCircleIcon,
+  CircleDashedIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react";
 import { useEffect } from "react";
 import { TranscriptionProfileCard } from "@/components/model-selector/transcription-profile-card";
 import { PolishLevelSlider } from "@/components/settings/models/polish-level-slider";
@@ -19,7 +23,7 @@ const statusCopy = {
 const renderStatusIcon = (modelStatus: keyof typeof statusCopy) => {
   if (modelStatus === "ready") {
     return (
-      <CircleCheck
+      <CheckCircleIcon
         aria-hidden="true"
         className="h-4 w-4 text-muted-foreground"
       />
@@ -27,14 +31,14 @@ const renderStatusIcon = (modelStatus: keyof typeof statusCopy) => {
   }
   if (modelStatus === "error") {
     return (
-      <AlertCircle
+      <WarningCircleIcon
         aria-hidden="true"
         className="h-4 w-4 text-muted-foreground"
       />
     );
   }
   return (
-    <CircleDashed
+    <CircleDashedIcon
       aria-hidden="true"
       className="h-4 w-4 text-muted-foreground"
     />
@@ -93,8 +97,8 @@ export const ModelsSettings = () => {
         <div className="flex items-center gap-3">
           {renderStatusIcon(modelStatus)}
           <div>
-            <p className="font-medium text-sm">{statusCopy[modelStatus]}</p>
-            <p className="text-muted-foreground text-xs">
+            <p className="font-medium text-label">{statusCopy[modelStatus]}</p>
+            <p className="text-caption text-muted-foreground">
               Audio is transcribed on this computer.
             </p>
           </div>

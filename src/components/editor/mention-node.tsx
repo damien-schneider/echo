@@ -49,7 +49,7 @@ export function MentionElement(
         "data-slate-value": element.value,
       }}
       className={cn(
-        "inline-block rounded-md bg-primary/10 px-1.5 py-0.5 align-baseline font-medium text-primary text-sm",
+        "inline-block rounded-md bg-primary/10 px-1.5 py-0.5 align-baseline font-medium text-body text-primary",
         !readOnly && "cursor-pointer",
         selected && focused && "ring-2 ring-ring",
         className
@@ -83,7 +83,7 @@ export function MentionInputElement(
         trigger="@"
         value={search}
       >
-        <span className="inline-block rounded-md bg-muted px-1.5 py-0.5 align-baseline text-sm ring-ring focus-within:ring-2">
+        <span className="inline-block rounded-md bg-muted px-1.5 py-0.5 align-baseline text-body ring-ring focus-within:ring-2">
           <InlineComboboxInput />
         </span>
 
@@ -99,7 +99,7 @@ export function MentionInputElement(
               >
                 <span className="flex items-center gap-2">
                   <span className="font-medium">@{item.text}</span>
-                  <span className="text-muted-foreground text-xs">
+                  <span className="text-caption text-muted-foreground">
                     {item.description}
                   </span>
                 </span>

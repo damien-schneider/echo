@@ -1,4 +1,4 @@
-import { Volume2 } from "lucide-react";
+import { SpeakerHighIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { SettingSlider } from "@/features/settings/setting-slider";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
@@ -11,7 +11,7 @@ export const VolumeSlider: React.FC<{
     <SettingSlider
       disabled={disabled}
       formatValue={(value) => `${Math.round(value * 100)}%`}
-      icon={<Volume2 className="h-4 w-4" />}
+      icon={<SpeakerHighIcon className="h-4 w-4" />}
       label="Volume"
       max={1}
       min={0}

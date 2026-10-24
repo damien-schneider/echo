@@ -7,3 +7,7 @@ export function replaceMentionOutputInMarkdown(
 ): string {
   return markdown.replace(TRANSCRIPT_PLACEHOLDER, () => transcript);
 }
+
+export function hasTranscriptPlaceholder(markdown: string): boolean {
+  return markdown.search(TRANSCRIPT_PLACEHOLDER) !== -1;
+}

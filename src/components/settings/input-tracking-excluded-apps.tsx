@@ -13,8 +13,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@ctrl-ui/react/ui/popover";
+import {
+  CircleNotchIcon,
+  PlusIcon,
+  ProhibitIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
-import { Ban, Loader2, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { SettingRow } from "@/features/settings/setting-row";
 import { cn } from "@/lib/utils";
@@ -83,14 +88,14 @@ export const InputTrackingExcludedApps = () => {
     <>
       <SettingRow
         description="Select applications where input tracking should be disabled (e.g., code editors, password managers)"
-        icon={<Ban className="h-4 w-4" />}
+        icon={<ProhibitIcon className="h-4 w-4" />}
         title="Excluded Applications"
       >
         <Popover onOpenChange={handleOpenChange} open={open}>
           <PopoverTrigger
             render={<Button disabled={isUpdatingExcluded} variant="surface" />}
           >
-            <Plus className="mr-1.5 h-4 w-4" />
+            <PlusIcon className="mr-1.5 h-4 w-4" />
             Add App
           </PopoverTrigger>
           <PopoverContent align="end" className="w-[300px] p-0">
@@ -99,7 +104,7 @@ export const InputTrackingExcludedApps = () => {
               <CommandList>
                 {loadingApps ? (
                   <div className="flex items-center justify-center py-6">
-                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                    <CircleNotchIcon className="h-4 w-4 animate-spin text-muted-foreground" />
                     <span className="ml-2 text-muted-foreground text-sm">
                       Loading apps...
                     </span>
@@ -153,7 +158,7 @@ export const InputTrackingExcludedApps = () => {
                   onClick={() => removeApp(bundleId)}
                   type="button"
                 >
-                  <X className="h-3 w-3" />
+                  <XIcon className="h-3 w-3" />
                 </button>
               </Badge>
             ))}

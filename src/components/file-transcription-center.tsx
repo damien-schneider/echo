@@ -5,16 +5,16 @@ import {
   PopoverTrigger,
 } from "@ctrl-ui/react/ui/popover";
 import {
-  AlertCircle,
-  Bell,
-  CheckCircle,
-  Clock,
-  FileAudio,
-  Loader2,
-  MessageSquareText,
-  Trash2,
-  X,
-} from "lucide-react";
+  BellIcon,
+  ChatTextIcon,
+  CheckCircleIcon,
+  CircleNotchIcon,
+  ClockIcon,
+  FileAudioIcon,
+  TrashIcon,
+  WarningCircleIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { useState } from "react";
 import { TranscriptionProgress } from "@/features/file-transcription/transcription-progress";
 import { cn } from "@/lib/utils";
@@ -34,19 +34,21 @@ export function FileTranscriptionCenter() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "extracting":
-        return <FileAudio className="h-4 w-4 animate-pulse text-orange-500" />;
-      case "transcribing":
         return (
-          <MessageSquareText className="h-4 w-4 animate-pulse text-blue-500" />
+          <FileAudioIcon className="h-4 w-4 animate-pulse text-orange-500" />
         );
+      case "transcribing":
+        return <ChatTextIcon className="h-4 w-4 animate-pulse text-blue-500" />;
       case "processing":
-        return <Loader2 className="h-4 w-4 animate-spin text-blue-500" />;
+        return (
+          <CircleNotchIcon className="h-4 w-4 animate-spin text-blue-500" />
+        );
       case "complete":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircleIcon className="h-4 w-4 text-green-500" />;
       case "error":
-        return <AlertCircle className="h-4 w-4 text-destructive" />;
+        return <WarningCircleIcon className="h-4 w-4 text-destructive" />;
       default:
-        return <Clock className="h-4 w-4 text-muted-foreground" />;
+        return <ClockIcon className="h-4 w-4 text-muted-foreground" />;
     }
   };
   const formatTimestamp = (timestamp: number) => {
@@ -79,7 +81,7 @@ export function FileTranscriptionCenter() {
           />
         }
       >
-        <Bell className="h-4 w-4" />
+        <BellIcon className="h-4 w-4" />
         {processingCount > 0 && (
           <span className="absolute -top-1 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-blue-500 text-[10px] text-white">
             {processingCount}
@@ -91,7 +93,7 @@ export function FileTranscriptionCenter() {
           <h3 className="font-semibold text-sm">File transcriptions</h3>
           {hasCompleted && (
             <Button onClick={() => clearCompleted()} size="xs" variant="ghost">
-              <Trash2 className="mr-1 h-3 w-3" />
+              <TrashIcon className="mr-1 h-3 w-3" />
               Clear completed
             </Button>
           )}
@@ -100,7 +102,7 @@ export function FileTranscriptionCenter() {
         <div className="max-h-[400px] overflow-y-auto">
           {!hasItems && (
             <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
-              <Bell className="h-8 w-8 text-muted-foreground/50" />
+              <BellIcon className="h-8 w-8 text-muted-foreground/50" />
               <p className="text-muted-foreground text-sm">
                 No file transcriptions yet
               </p>
@@ -133,7 +135,7 @@ export function FileTranscriptionCenter() {
                       size="xs"
                       variant="ghost"
                     >
-                      <X className="h-3 w-3" />
+                      <XIcon className="h-3 w-3" />
                     </Button>
                   </div>
 

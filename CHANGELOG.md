@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.8.10] - 2026-10-24
+
+### Changed
+- The settings window's sidebar runs to the top of the window with the window buttons inside it, settings sit on a rounded panel with lighter borders, and the version moved to the sidebar footer.
+- AI provider settings only appear when a cloud option is on: under "Post-process in the cloud" on the Post-processing page, and under "Summarize in the cloud" in Meeting settings. A summary that needs a provider now links to Meeting settings.
+- The prompt editor's toolbar shows which formatting is on, and each button has a tooltip.
+- Meeting settings use the same sections and rows as the other settings pages.
+- Icons across the app use the Phosphor set.
+
+### Fixed
+- The default prompt's transcript placeholder shows as one @output chip instead of a stray "$", and opening a prompt no longer enables "Save changes" before anything is edited.
+- Opening an app that isn't installed by voice now reports "Couldn't find an app named …" instead of "Opened …". On Windows it no longer opens the blocking "Windows cannot find" dialog or flashes a console window.
+- Voice commands no longer show as "Active" while post-processing is off: the section says they need post-processing on and the commands show "Off".
+- Sentences about changing a theme, such as "Tu peux changer de thème pour la soirée", are pasted as text instead of switching Echo's feedback sounds.
+
 ## [0.8.9] - 2026-10-24
 
 ### Added

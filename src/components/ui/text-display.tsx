@@ -1,4 +1,4 @@
-import { Check, Copy } from "lucide-react";
+import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -78,9 +78,9 @@ export const TextDisplay: React.FC<TextDisplayProps> = ({
             variant="ghost"
           >
             {showCopied ? (
-              <Check className="h-4 w-4" />
+              <CheckIcon className="h-4 w-4" />
             ) : (
-              <Copy className="h-4 w-4" />
+              <CopyIcon className="h-4 w-4" />
             )}
           </Button>
         )}

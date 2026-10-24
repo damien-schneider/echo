@@ -1,5 +1,5 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { ArrowLeft, RefreshCw } from "lucide-react";
+import { ArrowClockwiseIcon, ArrowLeftIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useMeetingModels } from "@/features/meeting/use-meeting-models";
@@ -58,7 +58,7 @@ export const MeetingDetail = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Button iconOnly onClick={unselectMeeting} size="md" variant="ghost">
-            <ArrowLeft className="size-4" />
+            <ArrowLeftIcon className="size-4" />
           </Button>
           <h2 className="font-semibold text-lg">{meeting.title}</h2>
         </div>
@@ -69,7 +69,7 @@ export const MeetingDetail = () => {
             size="sm"
             variant="surface"
           >
-            <RefreshCw
+            <ArrowClockwiseIcon
               className={cn("mr-1 size-3", retranscribing && "animate-spin")}
             />
             {retranscribing ? "Retranscribing…" : "Retranscribe"}
@@ -96,7 +96,7 @@ export const MeetingDetail = () => {
             tone="primary"
             variant="solid"
           >
-            <RefreshCw
+            <ArrowClockwiseIcon
               className={cn("mr-1 size-3", buildBusy && "animate-spin")}
             />
             {buildLabel}

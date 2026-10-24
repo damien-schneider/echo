@@ -1,4 +1,8 @@
-import { ArrowDownToLine, Check, Square } from "lucide-react";
+import {
+  ArrowLineDownIcon,
+  CheckIcon,
+  SquareIcon,
+} from "@phosphor-icons/react";
 import { ChatPanel } from "@/features/overlay-chat/chat-panel";
 import { PolishModelPanel } from "@/features/overlay-controls/polish-model-panel";
 import type {
@@ -14,12 +18,12 @@ import type { NotificationController } from "@/features/overlay-notification/use
 
 const actionIcon = (intent: ActivityAction["intent"]) => {
   if (intent === "finish_recording") {
-    return <Check aria-hidden="true" className="size-3.5" />;
+    return <CheckIcon aria-hidden="true" className="size-3.5" />;
   }
   if (intent === "stop_meeting") {
-    return <Square aria-hidden="true" className="size-3" />;
+    return <SquareIcon aria-hidden="true" className="size-3" />;
   }
-  return <ArrowDownToLine aria-hidden="true" className="size-3.5" />;
+  return <ArrowLineDownIcon aria-hidden="true" className="size-3.5" />;
 };
 
 const islandAction = (

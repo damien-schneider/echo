@@ -1,5 +1,5 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { X } from "lucide-react";
+import { XIcon } from "@phosphor-icons/react";
 import type { FormEvent, ReactNode } from "react";
 import {
   CHAT_MODEL_KINDS,
@@ -66,7 +66,7 @@ const ChatToolbarRight = ({
       type="button"
       variant="solid"
     >
-      <X aria-hidden="true" className="size-3.5" />
+      <XIcon aria-hidden="true" className="size-3.5" />
     </Button>
   </div>
 );

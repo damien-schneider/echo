@@ -5,8 +5,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@ctrl-ui/react/ui/select";
+import { ClockIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
-import { Clock } from "lucide-react";
 import type React from "react";
 import { SettingRow } from "@/features/settings/setting-row";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
@@ -38,7 +38,7 @@ export const InputTrackingIdleTimeout: React.FC = () => {
   return (
     <SettingRow
       description="Save input entries after being idle for this duration. Set to disabled to only save on app switch or click."
-      icon={<Clock className="h-4 w-4" />}
+      icon={<ClockIcon className="h-4 w-4" />}
       title="Idle Timeout"
     >
       <Select

@@ -6,7 +6,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
-import { Check, Copy, RefreshCw, RotateCcw, Star, Trash2 } from "lucide-react";
+import {
+  ArrowClockwiseIcon,
+  ArrowCounterClockwiseIcon,
+  CheckIcon,
+  CopyIcon,
+  StarIcon,
+  TrashIcon,
+} from "@phosphor-icons/react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { AudioPlayer } from "@/components/ui/audio-player";
@@ -110,7 +117,7 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
                   />
                 }
               >
-                <RefreshCw
+                <ArrowClockwiseIcon
                   className={isRetranscribing ? "animate-spin" : ""}
                   height={16}
                   width={16}
@@ -130,7 +137,7 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
                   />
                 }
               >
-                <RotateCcw
+                <ArrowCounterClockwiseIcon
                   className={isReprocessing ? "animate-spin" : ""}
                   height={16}
                   width={16}
@@ -150,9 +157,9 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
                 }
               >
                 {showCopied ? (
-                  <Check height={16} width={16} />
+                  <CheckIcon height={16} width={16} />
                 ) : (
-                  <Copy height={16} width={16} />
+                  <CopyIcon height={16} width={16} />
                 )}
               </TooltipTrigger>
               <TooltipContent>
@@ -171,7 +178,7 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
                   />
                 }
               >
-                <Star
+                <StarIcon
                   fill={entry.saved ? "currentColor" : "none"}
                   height={16}
                   width={16}
@@ -194,9 +201,9 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
                 }
               >
                 {confirmDelete ? (
-                  <Check height={16} width={16} />
+                  <CheckIcon height={16} width={16} />
                 ) : (
-                  <Trash2 height={16} width={16} />
+                  <TrashIcon height={16} width={16} />
                 )}
               </TooltipTrigger>
               <TooltipContent>

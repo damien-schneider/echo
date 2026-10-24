@@ -1,6 +1,6 @@
 import { Button } from "@ctrl-ui/react/ui/button";
+import { CheckCircleIcon, XIcon } from "@phosphor-icons/react";
 import { listen } from "@tauri-apps/api/event";
-import { CheckCircle2, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 
@@ -41,7 +41,7 @@ export const TranscriptionResultDialog: React.FC<
       <div className="w-full max-w-lg rounded-lg bg-background p-6 shadow-lg">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            <CheckCircleIcon className="h-5 w-5 text-green-500" />
             <h3 className="font-semibold text-lg">Transcription Complete</h3>
           </div>
           <button
@@ -49,7 +49,7 @@ export const TranscriptionResultDialog: React.FC<
             onClick={handleClose}
             type="button"
           >
-            <X className="h-4 w-4" />
+            <XIcon className="h-4 w-4" />
           </button>
         </div>
 

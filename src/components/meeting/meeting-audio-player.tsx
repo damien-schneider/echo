@@ -1,7 +1,7 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { Slider } from "@ctrl-ui/react/ui/slider";
+import { DownloadSimpleIcon, PauseIcon, PlayIcon } from "@phosphor-icons/react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
-import { Download, Pause, Play } from "lucide-react";
 import { useEffect, useState } from "react";
 
 function formatTime(secs: number): string {
@@ -88,9 +88,9 @@ export const MeetingAudioPlayer = ({
         variant="ghost"
       >
         {isPlaying ? (
-          <Pause className="size-3.5" />
+          <PauseIcon className="size-3.5" />
         ) : (
-          <Play className="size-3.5" />
+          <PlayIcon className="size-3.5" />
         )}
       </Button>
 
@@ -132,7 +132,7 @@ export const MeetingAudioPlayer = ({
         size="md"
         variant="ghost"
       >
-        <Download className="size-3.5" />
+        <DownloadSimpleIcon className="size-3.5" />
       </Button>
     </div>
   );

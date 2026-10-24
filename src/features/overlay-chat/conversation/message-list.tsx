@@ -1,5 +1,5 @@
 import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
-import { Loader2 } from "lucide-react";
+import { CircleNotchIcon } from "@phosphor-icons/react";
 import { lazy, Suspense } from "react";
 import { CHAT_ROLES, type ChatMessage } from "@/features/overlay-chat/chat";
 import { useStickToBottom } from "@/features/overlay-chat/conversation/use-stick-to-bottom";
@@ -20,7 +20,7 @@ const PlainText = ({ text }: { text: string }) => (
 );
 const PendingAnswer = () => (
   <span className="inline-flex items-center gap-2 text-white/58">
-    <Loader2 aria-hidden="true" className="size-3 animate-spin" />
+    <CircleNotchIcon aria-hidden="true" className="size-3 animate-spin" />
     Thinking
   </span>
 );

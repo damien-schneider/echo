@@ -1,4 +1,4 @@
-import { Pause, Play } from "lucide-react";
+import { PauseIcon, PlayIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -432,9 +432,9 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         type="button"
       >
         {isPlaying ? (
-          <Pause fill="currentColor" height={20} width={20} />
+          <PauseIcon height={20} weight="fill" width={20} />
         ) : (
-          <Play fill="currentColor" height={20} width={20} />
+          <PlayIcon height={20} weight="fill" width={20} />
         )}
       </button>
 

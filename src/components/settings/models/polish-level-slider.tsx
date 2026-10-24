@@ -1,4 +1,4 @@
-import { Wand2 } from "lucide-react";
+import { MagicWandIcon } from "@phosphor-icons/react";
 import { SettingSlider } from "@/features/settings/setting-slider";
 import type { PolishLevel } from "@/lib/types";
 import {
@@ -23,7 +23,7 @@ export const PolishLevelSlider = () => {
       description="How far Polish may go: fix mistakes only, make the wording sound native, or also restructure what reads badly."
       disabled={updating}
       formatValue={(value) => LABELS[levelAt(value)]}
-      icon={<Wand2 className="h-4 w-4" />}
+      icon={<MagicWandIcon className="h-4 w-4" />}
       label="Polish level"
       max={LEVELS.length - 1}
       min={0}

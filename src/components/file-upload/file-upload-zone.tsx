@@ -1,7 +1,7 @@
 import { Button } from "@ctrl-ui/react/ui/button";
+import { UploadSimpleIcon, XIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Upload, X } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { TranscriptionProgress } from "@/features/file-transcription/transcription-progress";
@@ -205,7 +205,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
             onDrop={handleDrop}
             variant="ghost"
           >
-            <Upload className="pointer-events-none mb-2 h-8 w-8 text-muted-foreground" />
+            <UploadSimpleIcon className="pointer-events-none mb-2 h-8 w-8 text-muted-foreground" />
             <span className="pointer-events-none font-medium text-sm">
               Drop audio or video file here or click to browse
             </span>
@@ -240,7 +240,7 @@ export const FileUploadZone: React.FC<FileUploadZoneProps> = ({
             size="xs"
             variant="ghost"
           >
-            <X className="h-4 w-4" />
+            <XIcon className="h-4 w-4" />
           </Button>
         </div>
       )}

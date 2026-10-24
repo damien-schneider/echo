@@ -1,7 +1,11 @@
 import { Button } from "@ctrl-ui/react/ui/button";
+import {
+  FolderOpenIcon,
+  KeyboardIcon,
+  MicrophoneIcon,
+} from "@phosphor-icons/react";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { FolderOpen, Keyboard, Mic } from "lucide-react";
 import {
   type ComponentProps,
   useEffect,
@@ -141,7 +145,7 @@ export const HistorySettings = () => {
     if (historyEntries.length === 0) {
       return (
         <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-text/60">
-          <Mic className="h-10 w-10 opacity-40" />
+          <MicrophoneIcon className="h-10 w-10 opacity-40" />
           <div>
             <p className="font-medium">No transcriptions yet</p>
             <p className="mt-1 text-sm">
@@ -187,7 +191,7 @@ export const HistorySettings = () => {
             onClick={() => setActiveTab("transcriptions")}
             type="button"
           >
-            <Mic className="h-4 w-4" />
+            <MicrophoneIcon className="h-4 w-4" />
             Transcriptions
           </button>
           <button
@@ -200,7 +204,7 @@ export const HistorySettings = () => {
             onClick={() => setActiveTab("keyboard")}
             type="button"
           >
-            <Keyboard className="h-4 w-4" />
+            <KeyboardIcon className="h-4 w-4" />
             Keyboard Inputs
           </button>
         </div>
@@ -229,7 +233,7 @@ const OpenRecordingsButton = ({
     variant="surface"
     {...props}
   >
-    <FolderOpen className="h-4 w-4" />
+    <FolderOpenIcon className="h-4 w-4" />
     <span>Open Recordings Folder</span>
   </Button>
 );

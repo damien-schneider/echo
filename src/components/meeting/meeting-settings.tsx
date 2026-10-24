@@ -1,24 +1,26 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { Switch } from "@ctrl-ui/react/ui/switch";
 import {
-  AudioLines,
-  Check,
-  Cloud,
-  Download,
-  FileText,
-  Loader2,
-  Monitor,
-  Sparkles,
-  Users,
-} from "lucide-react";
+  CheckIcon,
+  CircleNotchIcon,
+  CloudIcon,
+  DownloadSimpleIcon,
+  FileTextIcon,
+  MonitorIcon,
+  SparkleIcon,
+  UsersIcon,
+  WaveformIcon,
+} from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import { MicrophoneSelector } from "@/components/settings/microphone-selector";
+import { AiProviderSettings } from "@/components/settings/post-processing-settings-api/ai-provider-settings";
 import ProgressBar from "@/components/shared/progress-bar";
 import { useTranscriptionReadiness } from "@/features/meeting/use-transcription-readiness";
 import type { DownloadProgress } from "@/features/model-download/download-state";
 import { useDiarizationModel } from "@/features/model-download/use-diarization-model";
 import { useMeetingModel } from "@/features/model-download/use-meeting-model";
 import { SettingRow } from "@/features/settings/setting-row";
+import { SettingsSection } from "@/features/settings/settings-section";
 import { useModelStore } from "@/stores/model-store";
 import {
   useIsSettingUpdating,
@@ -51,8 +53,8 @@ const ModelRow = ({
   <div>
     <SettingRow description={description} icon={icon} title={title}>
       {downloaded ? (
-        <span className="flex items-center gap-1.5 text-muted-foreground text-xs">
-          <Check className="size-3" />
+        <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
+          <CheckIcon className="size-3" />
           Ready
         </span>
       ) : (
@@ -63,9 +65,9 @@ const ModelRow = ({
           variant="surface"
         >
           {downloading ? (
-            <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+            <CircleNotchIcon className="mr-1.5 size-3.5 animate-spin" />
           ) : (
-            <Download className="mr-1.5 size-3.5" />
+            <DownloadSimpleIcon className="mr-1.5 size-3.5" />
           )}
           {downloading ? "Downloading" : downloadLabel}
         </Button>
@@ -88,7 +90,7 @@ const ModelRow = ({
       </div>
     ) : null}
     {error ? (
-      <p className="px-4 pb-2 text-destructive text-xs">{error}</p>
+      <p className="px-4 pb-2 text-caption text-destructive">{error}</p>
     ) : null}
   </div>
 );
@@ -107,92 +109,103 @@ export const MeetingSettings = () => {
   const meetingModel = useMeetingModel();
   const transcription = useTranscriptionReadiness();
   const transcriptionError = useModelStore((s) => s.error);
+  const showsModels =
+    transcription.known ||
+    Boolean(diarization.status) ||
+    Boolean(meetingModel.status?.supported);
   return (
-    <div className="flex flex-col gap-1 rounded-lg border border-border/20">
-      <MicrophoneSelector />
-      <SettingRow
-        description="Capture system/output audio in addition to your microphone"
-        icon={<Monitor className="h-4 w-4" />}
-        title="Capture system audio"
-      >
-        <Switch
-          checked={systemAudioEnabled}
-          disabled={updatingSystemAudio}
-          onCheckedChange={(enabled) =>
-            updateSetting("meeting_system_audio_enabled", enabled)
-          }
-        />
-      </SettingRow>
-      <SettingRow
-        description="Automatically generate an AI summary when a meeting ends"
-        icon={<Sparkles className="h-4 w-4" />}
-        title="Auto-generate summary"
-      >
-        <Switch
-          checked={autoSummary}
-          disabled={updatingAutoSummary}
-          onCheckedChange={(enabled) =>
-            updateSetting("meeting_auto_summary", enabled)
-          }
-        />
-      </SettingRow>
-      <SettingRow
-        description="Summaries run on your machine by default. Turn this on to use the AI provider configured in Settings."
-        icon={<Cloud className="h-4 w-4" />}
-        title="Summarize in the cloud"
-      >
-        <Switch
-          checked={summaryEngine === "cloud"}
-          disabled={updatingSummaryEngine}
-          onCheckedChange={(enabled) =>
-            updateSetting("meeting_summary_engine", enabled ? "cloud" : "local")
-          }
-        />
-      </SettingRow>
-      {summaryEngine === "cloud" && (
-        <p className="px-4 pb-3 text-muted-foreground text-xs">
-          Meeting transcripts leave your machine for your AI provider.
-        </p>
+    <>
+      <SettingsSection title="Recording">
+        <MicrophoneSelector />
+        <SettingRow
+          description="Capture system/output audio in addition to your microphone"
+          icon={<MonitorIcon className="h-4 w-4" />}
+          title="Capture system audio"
+        >
+          <Switch
+            checked={systemAudioEnabled}
+            disabled={updatingSystemAudio}
+            onCheckedChange={(enabled) =>
+              updateSetting("meeting_system_audio_enabled", enabled)
+            }
+          />
+        </SettingRow>
+      </SettingsSection>
+      <SettingsSection title="Summary">
+        <SettingRow
+          description="Automatically generate an AI summary when a meeting ends"
+          icon={<SparkleIcon className="h-4 w-4" />}
+          title="Auto-generate summary"
+        >
+          <Switch
+            checked={autoSummary}
+            disabled={updatingAutoSummary}
+            onCheckedChange={(enabled) =>
+              updateSetting("meeting_auto_summary", enabled)
+            }
+          />
+        </SettingRow>
+        <SettingRow
+          description="Summaries run on this computer by default. Turn this on to send meeting transcripts to an AI provider instead."
+          icon={<CloudIcon className="h-4 w-4" />}
+          title="Summarize in the cloud"
+        >
+          <Switch
+            checked={summaryEngine === "cloud"}
+            disabled={updatingSummaryEngine}
+            onCheckedChange={(enabled) =>
+              updateSetting(
+                "meeting_summary_engine",
+                enabled ? "cloud" : "local"
+              )
+            }
+          />
+        </SettingRow>
+        {summaryEngine === "cloud" && <AiProviderSettings />}
+      </SettingsSection>
+      {showsModels && (
+        <SettingsSection title="Models">
+          {transcription.known && (
+            <ModelRow
+              description="Turns the recording into text once the meeting ends"
+              downloaded={transcription.ready}
+              downloading={transcription.downloading}
+              downloadLabel={transcription.resolveLabel}
+              error={transcriptionError}
+              icon={<FileTextIcon className="h-4 w-4" />}
+              onDownload={transcription.resolve}
+              progress={transcription.progress}
+              title="Transcription"
+            />
+          )}
+          {diarization.status && (
+            <ModelRow
+              description="Tells voices apart so the transcript reads Speaker 1, Guest 2 — without it everyone becomes one speaker"
+              downloaded={diarization.status.downloaded}
+              downloading={diarization.status.downloading}
+              downloadLabel="Download"
+              error={diarization.error}
+              icon={<UsersIcon className="h-4 w-4" />}
+              onDownload={diarization.download}
+              progress={diarization.progress}
+              title="Speaker detection"
+            />
+          )}
+          {meetingModel.status?.supported && (
+            <ModelRow
+              description="Better accuracy and live text for meetings. 2.8 GB."
+              downloaded={meetingModel.status.downloaded}
+              downloading={meetingModel.status.downloading}
+              downloadLabel="Download"
+              error={meetingModel.error}
+              icon={<WaveformIcon className="h-4 w-4" />}
+              onDownload={meetingModel.download}
+              progress={meetingModel.progress}
+              title="Meeting transcription (Voxtral)"
+            />
+          )}
+        </SettingsSection>
       )}
-      {transcription.known && (
-        <ModelRow
-          description="Turns the recording into text once the meeting ends"
-          downloaded={transcription.ready}
-          downloading={transcription.downloading}
-          downloadLabel={transcription.resolveLabel}
-          error={transcriptionError}
-          icon={<FileText className="h-4 w-4" />}
-          onDownload={transcription.resolve}
-          progress={transcription.progress}
-          title="Transcription"
-        />
-      )}
-      {diarization.status && (
-        <ModelRow
-          description="Tells voices apart so the transcript reads Speaker 1, Guest 2 — without it everyone becomes one speaker"
-          downloaded={diarization.status.downloaded}
-          downloading={diarization.status.downloading}
-          downloadLabel="Download"
-          error={diarization.error}
-          icon={<Users className="h-4 w-4" />}
-          onDownload={diarization.download}
-          progress={diarization.progress}
-          title="Speaker detection"
-        />
-      )}
-      {meetingModel.status?.supported && (
-        <ModelRow
-          description="Better accuracy and live text for meetings. 2.8 GB."
-          downloaded={meetingModel.status.downloaded}
-          downloading={meetingModel.status.downloading}
-          downloadLabel="Download"
-          error={meetingModel.error}
-          icon={<AudioLines className="h-4 w-4" />}
-          onDownload={meetingModel.download}
-          progress={meetingModel.progress}
-          title="Meeting transcription (Voxtral)"
-        />
-      )}
-    </div>
+    </>
   );
 };

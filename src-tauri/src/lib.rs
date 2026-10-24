@@ -26,6 +26,8 @@ mod tray;
 mod updates;
 mod utils;
 mod wayland;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+mod window_chrome;
 
 use features::shortcut;
 
@@ -563,38 +565,8 @@ pub fn run() {
                 #[cfg(debug_assertions)]
                 let _ = main_window.set_title("Echo Dev");
 
-                // tauri.conf.json ships decorations:false to dodge GTK CSD artifacts; macOS/Windows re-enable here
-
-                #[cfg(target_os = "macos")]
-                #[allow(deprecated)] // cocoa deprecated for objc2-app-kit.
-                {
-                    use cocoa::appkit::{NSWindow, NSWindowStyleMask, NSWindowTitleVisibility};
-                    use cocoa::base::{id, YES};
-
-                    // one atomic setStyleMask_ — traffic lights land inside the glass
-                    if let Ok(ns_win) = main_window.ns_window() {
-                        unsafe {
-                            let window = ns_win as id;
-                            window.setStyleMask_(
-                                NSWindowStyleMask::NSTitledWindowMask
-                                    | NSWindowStyleMask::NSClosableWindowMask
-                                    | NSWindowStyleMask::NSMiniaturizableWindowMask
-                                    | NSWindowStyleMask::NSResizableWindowMask
-                                    | NSWindowStyleMask::NSFullSizeContentViewWindowMask,
-                            );
-                            window.setTitlebarAppearsTransparent_(YES);
-                            window
-                                .setTitleVisibility_(NSWindowTitleVisibility::NSWindowTitleHidden);
-                        }
-                    }
-                }
-
-                #[cfg(target_os = "windows")]
-                {
-                    use tauri::TitleBarStyle;
-                    let _ = main_window.set_decorations(true);
-                    let _ = main_window.set_title_bar_style(TitleBarStyle::Transparent);
-                }
+                #[cfg(any(target_os = "macos", target_os = "windows"))]
+                window_chrome::apply_main_window_chrome(&main_window);
             }
 
             startup::mark_backend_ready(&app_handle);
@@ -615,6 +587,10 @@ pub fn run() {
                         log::error!("Failed to set activation policy: {}", e);
                     }
                 }
+            }
+            #[cfg(target_os = "macos")]
+            tauri::WindowEvent::Focused(true) if window.label() == "main" => {
+                window_chrome::reposition_traffic_lights(window);
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
                 log::info!("Theme changed to: {:?}", theme);

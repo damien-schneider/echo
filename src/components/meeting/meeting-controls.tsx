@@ -1,5 +1,9 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { Loader2, Mic, Square } from "lucide-react";
+import {
+  CircleNotchIcon,
+  MicrophoneIcon,
+  SquareIcon,
+} from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { formatElapsed } from "@/features/meeting/format-elapsed";
@@ -64,7 +68,7 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
             tone="danger"
             variant="solid"
           >
-            <Square className="mr-1.5 size-3.5" />
+            <SquareIcon className="mr-1.5 size-3.5" />
             Stop Meeting
           </Button>
         </div>
@@ -82,7 +86,7 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
               variant="surface"
             >
               {models.downloading ? (
-                <Loader2 className="mr-1.5 size-3.5 animate-spin" />
+                <CircleNotchIcon className="mr-1.5 size-3.5 animate-spin" />
               ) : null}
               {models.downloading ? "Downloading…" : models.label}
             </Button>
@@ -102,7 +106,7 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
           value={title}
         />
         <Button onClick={handleStart} size="sm" tone="primary" variant="solid">
-          <Mic className="mr-1.5 size-3.5" />
+          <MicrophoneIcon className="mr-1.5 size-3.5" />
           Start Meeting
         </Button>
       </div>

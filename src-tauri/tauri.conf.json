@@ -25,6 +25,10 @@
         "visible": false,
         "decorations": false,
         "shadow": true,
+        "trafficLightPosition": {
+          "x": 18,
+          "y": 31
+        },
         "dragDropEnabled": true
       },
       {

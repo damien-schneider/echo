@@ -1,7 +1,7 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { emit } from "@tauri-apps/api/event";
-import { ChevronDown, ChevronUp, Sparkles } from "lucide-react";
+import { CaretDownIcon, CaretUpIcon, SparkleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
+import { openSummarySetup } from "@/features/meeting/open-summary-setup";
 import {
   MeetingSummaryError,
   SUMMARY_SETUP_LABELS,
@@ -31,6 +31,7 @@ export const MeetingSummary = ({ meetingId, summary }: MeetingSummaryProps) => {
   const generateSummary = useMeetingStore((s) => s.generateSummary);
   const idleLabel = summary ? "Regenerate" : "Generate summary";
   const actionLabel = generating ? "Generating..." : idleLabel;
+  const failedSetupSection = failure?.section;
   const handleGenerate = async () => {
     setGenerating(true);
     setFailure(undefined);
@@ -44,20 +45,20 @@ export const MeetingSummary = ({ meetingId, summary }: MeetingSummaryProps) => {
     }
   };
   return (
-    <div className="rounded-lg border border-border/20">
+    <div className="rounded-panel bg-surface-group">
       <button
         className="flex w-full items-center justify-between px-4 py-2.5 text-left"
         onClick={() => setExpanded(!expanded)}
         type="button"
       >
         <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-muted-foreground" />
+          <SparkleIcon className="size-4 text-muted-foreground" />
           <span className="font-medium text-sm">Summary</span>
         </div>
         {expanded ? (
-          <ChevronUp className="size-4 text-muted-foreground" />
+          <CaretUpIcon className="size-4 text-muted-foreground" />
         ) : (
-          <ChevronDown className="size-4 text-muted-foreground" />
+          <CaretDownIcon className="size-4 text-muted-foreground" />
         )}
       </button>
 
@@ -75,13 +76,13 @@ export const MeetingSummary = ({ meetingId, summary }: MeetingSummaryProps) => {
           {failure && (
             <div className="flex flex-col items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-center text-destructive text-xs">
               <span>{failure.message}</span>
-              {failure.section && (
+              {failedSetupSection && (
                 <Button
-                  onClick={() => emit("open-settings-section", failure.section)}
+                  onClick={() => openSummarySetup(failedSetupSection)}
                   size="sm"
                   variant="surface"
                 >
-                  {SUMMARY_SETUP_LABELS[failure.section]}
+                  {SUMMARY_SETUP_LABELS[failedSetupSection]}
                 </Button>
               )}
             </div>
@@ -93,7 +94,7 @@ export const MeetingSummary = ({ meetingId, summary }: MeetingSummaryProps) => {
             size="sm"
             variant={summary ? "ghost" : "surface"}
           >
-            <Sparkles className="mr-1.5 size-3.5" />
+            <SparkleIcon className="mr-1.5 size-3.5" />
             {actionLabel}
           </Button>
         </div>

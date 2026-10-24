@@ -1,4 +1,5 @@
 import { Button } from "@ctrl-ui/react/ui/button";
+import { Field, FieldLabel } from "@ctrl-ui/react/ui/field";
 import { Input } from "@ctrl-ui/react/ui/input";
 import {
   Select,
@@ -14,38 +15,54 @@ import {
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
 import {
-  AlertTriangle,
   CheckIcon,
-  PencilIcon,
+  PencilSimpleIcon,
   PlusIcon,
+  WarningIcon,
   XIcon,
-} from "lucide-react";
+} from "@phosphor-icons/react";
+import { useId } from "react";
 import { MarkdownEditor } from "@/components/editor/markdown-editor";
 import { usePromptSettings } from "@/components/settings/post-processing/use-prompt-settings";
 import { SettingRow } from "@/features/settings/setting-row";
 import type { LLMPrompt } from "@/lib/types";
+import { hasTranscriptPlaceholder } from "@/lib/utils/replace-mention-output";
 import { useSetting } from "@/stores/settings-store";
 
-const MENTION_OUTPUT_REGEX = /\[[^\]]*\]\(mention:output\)/;
-const OUTPUT_TEMPLATE = ["$", "{output}"].join("");
-const hasMissingOutputPlaceholder = (text: string): boolean =>
-  text.trim() !== "" &&
-  !text.includes("@output") &&
-  !text.includes(OUTPUT_TEMPLATE) &&
-  !MENTION_OUTPUT_REGEX.test(text);
-const OutputPlaceholderWarning = () => (
-  <div className="flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-warning">
-    <AlertTriangle className="h-4 w-4" />
-    <p className="text-xs">
-      The transcript will be appended. Add @output to place it elsewhere.
-    </p>
-  </div>
-);
-const DisabledNotice = ({ children }: { children: React.ReactNode }) => (
-  <div className="px-4 py-3">
-    <p className="text-muted-foreground text-sm">{children}</p>
-  </div>
-);
+const PromptInstructions = ({
+  onChange,
+  value,
+}: {
+  onChange: (markdown: string) => void;
+  value: string;
+}) => {
+  const labelId = useId();
+  const transcriptPlaceholderIsMissing =
+    value.trim() !== "" && !hasTranscriptPlaceholder(value);
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="font-medium text-label" id={labelId}>
+        Instructions
+      </span>
+      <MarkdownEditor
+        labelledBy={labelId}
+        onChange={onChange}
+        placeholder="e.g. Fix spelling and punctuation"
+        value={value}
+      />
+      {transcriptPlaceholderIsMissing ? (
+        <p className="flex items-center gap-2 rounded-md bg-amber-500/10 p-2 text-caption text-warning">
+          <WarningIcon aria-hidden="true" className="size-4 shrink-0" />
+          The transcript will be appended. Type @output to place it elsewhere.
+        </p>
+      ) : (
+        <p className="text-caption text-muted-foreground">
+          Type @output to insert the transcript.
+        </p>
+      )}
+    </div>
+  );
+};
 export function PostProcessingSettingsPrompts() {
   const selectedPromptId = useSetting("post_process_selected_prompt_id");
   const prompts = useSetting("post_process_prompts");
@@ -88,9 +105,9 @@ function PromptSettingsEditor({
   } = usePromptSettings(initialPrompt);
   if (!postProcessEnabled) {
     return (
-      <DisabledNotice>
+      <p className="px-4 py-3 text-caption text-muted-foreground">
         Enable post-processing to configure prompts.
-      </DisabledNotice>
+      </p>
     );
   }
   const hasPrompts = prompts.length > 0;
@@ -101,32 +118,9 @@ function PromptSettingsEditor({
       return null;
     }
     return (
-      <div className="space-y-3">
-        <div className="flex flex-col space-y-2">
-          <div className="flex flex-col gap-1">
-            <span className="font-semibold text-sm">Instructions</span>
-          </div>
-          <MarkdownEditor
-            className="min-h-32"
-            onChange={setDraftText}
-            placeholder="e.g. Fix spelling and punctuation"
-            showMentionMenu
-            showToolbar
-            value={draftText}
-          />
-          <p className="text-muted-foreground text-xs">
-            Use{" "}
-            <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
-              @output
-            </code>{" "}
-            to insert the transcript.
-          </p>
-          {hasMissingOutputPlaceholder(draftText) && (
-            <OutputPlaceholderWarning />
-          )}
-        </div>
-
-        <div className="flex gap-2 pt-2">
+      <div className="flex flex-col gap-3">
+        <PromptInstructions onChange={setDraftText} value={draftText} />
+        <div className="flex gap-2">
           <Button
             disabled={!isPromptTextDirty}
             onClick={handleUpdatePrompt}
@@ -151,13 +145,11 @@ function PromptSettingsEditor({
       return null;
     }
     return (
-      <div className="rounded border border-border/20 bg-muted/5 p-3">
-        <p className="text-muted-foreground text-sm">
-          {hasPrompts
-            ? "Select a prompt to edit it."
-            : "Create a prompt with the + button above."}
-        </p>
-      </div>
+      <p className="text-caption text-muted-foreground">
+        {hasPrompts
+          ? "Select a prompt to edit it."
+          : "Create a prompt with the + button above."}
+      </p>
     );
   };
   const renderCreateSection = () => {
@@ -165,46 +157,18 @@ function PromptSettingsEditor({
       return null;
     }
     return (
-      <div className="space-y-3">
-        <div className="flex flex-col space-y-2">
-          <label className="font-medium text-sm" htmlFor="new-prompt-name">
-            Name
-          </label>
+      <div className="flex flex-col gap-3">
+        <Field className="gap-2">
+          <FieldLabel className="font-medium">Name</FieldLabel>
           <Input
-            id="new-prompt-name"
             onChange={(e) => setDraftName(e.target.value)}
             placeholder="e.g. Meeting notes"
             type="text"
             value={draftName}
           />
-        </div>
-
-        <div className="flex flex-col space-y-2">
-          <div className="flex flex-col gap-1">
-            <span className="font-semibold text-sm">Instructions</span>
-          </div>
-          <MarkdownEditor
-            onChange={setDraftText}
-            placeholder="e.g. Fix spelling and punctuation"
-            showMentionMenu
-            showToolbar
-            value={draftText}
-          />
-          <div className="flex flex-col gap-2">
-            <p className="text-muted-foreground text-xs">
-              Use{" "}
-              <code className="rounded bg-muted/20 px-1 py-0.5 text-xs">
-                @output
-              </code>{" "}
-              to insert the transcript.
-            </p>
-            {hasMissingOutputPlaceholder(draftText) && (
-              <OutputPlaceholderWarning />
-            )}
-          </div>
-        </div>
-
-        <div className="flex gap-2 pt-2">
+        </Field>
+        <PromptInstructions onChange={setDraftText} value={draftText} />
+        <div className="flex gap-2">
           <Button
             disabled={!(draftName.trim() && draftText.trim())}
             onClick={handleCreatePrompt}
@@ -330,7 +294,7 @@ function PromptSettingsEditor({
                         />
                       }
                     >
-                      <PencilIcon className="size-4" />
+                      <PencilSimpleIcon className="size-4" />
                     </TooltipTrigger>
                     <TooltipContent>Rename prompt</TooltipContent>
                   </Tooltip>

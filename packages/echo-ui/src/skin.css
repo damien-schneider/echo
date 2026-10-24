@@ -20,16 +20,21 @@
   --destructive: #b52e36;
   --destructive-foreground: #ffffff;
   --destructive-text: #b52e36;
-  --border: #e5e5e5;
-  --input: #8a8a8a;
+  --border: #ebebeb;
+  --input: #d4d4d4;
   --ring: #171717;
   --focus-ring: var(--ring);
-  --control-boundary: var(--input);
+  --control-boundary: #8a8a8a;
   --control-fill: var(--card);
   --control-rim: var(--input);
   --hover-fill: #ededed;
   --active-fill: #e3e3e3;
   --shadow-color: #000000;
+  --surface-group: rgb(0 0 0 / 0.035);
+  --surface-divider: rgb(0 0 0 / 0.06);
+  --panel-shadow:
+    0 0 0 1px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.04),
+    0 8px 24px -12px rgb(0 0 0 / 0.1);
   --scale-neutral-seed: oklch(0.5 0 0);
   --scale-primary-seed: oklch(0.3 0 0);
   --sidebar: var(--canvas);
@@ -61,7 +66,7 @@
 [data-skin="echo"].dark {
   --background: #111111;
   --foreground: #f5f5f5;
-  --canvas: #161616;
+  --canvas: #0c0c0c;
   --card: #191919;
   --popover: #222222;
   --primary: #f5f5f5;
@@ -74,12 +79,16 @@
   --destructive: #ff9aa0;
   --destructive-foreground: #3d0c14;
   --destructive-text: #ff9aa0;
-  --border: #303030;
-  --input: #787878;
+  --border: #2a2a2a;
+  --input: #3a3a3a;
+  --control-boundary: #787878;
   --ring: #f5f5f5;
   --hover-fill: #292929;
   --active-fill: #333333;
   --shadow-color: #000000;
+  --surface-group: rgb(255 255 255 / 0.035);
+  --surface-divider: rgb(255 255 255 / 0.06);
+  --panel-shadow: 0 0 0 1px rgb(255 255 255 / 0.07);
 }
 
 [data-skin="echo"] :where([data-control-family="button"][data-control="true"]) {
@@ -101,6 +110,14 @@
   --cui-sidebar-menu-button-font-size: 13px;
   --cui-sidebar-menu-button-font-weight: 500;
   --cui-sidebar-menu-button-foreground: var(--muted-foreground);
+  --cui-sidebar-menu-button-hover-background: oklch(
+    from var(--foreground) l c h /
+    0.05
+  );
+  --cui-sidebar-menu-button-active-background: oklch(
+    from var(--foreground) l c h /
+    0.08
+  );
 }
 
 [data-skin="echo"]

@@ -1,7 +1,7 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { PostProcessingSettingsApi } from "@/components/settings/post-processing/post-processing-api-settings";
 import { PostProcessingEngineSettings } from "@/components/settings/post-processing/post-processing-engine";
 import { PostProcessingSettingsPrompts } from "@/components/settings/post-processing/prompt-settings";
+import { VoiceCommandsSettings } from "@/components/settings/post-processing/voice-commands";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
 import {
@@ -36,7 +36,7 @@ export const PostProcessingSettings = () => (
       <PostProcessingEngineSettings />
     </SettingsSection>
 
-    <PostProcessingSettingsApi />
+    <VoiceCommandsSettings />
 
     <SettingsSection title="Prompt">
       <PostProcessingSettingsPrompts />

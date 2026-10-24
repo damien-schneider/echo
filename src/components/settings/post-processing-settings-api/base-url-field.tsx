@@ -1,6 +1,6 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { Input } from "@ctrl-ui/react/ui/input";
-import { RotateCcw } from "lucide-react";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -56,7 +56,7 @@ function BaseUrlEditor({
           title={`Reset to default: ${defaultBaseUrl}`}
           variant="ghost"
         >
-          <RotateCcw />
+          <ArrowCounterClockwiseIcon />
         </Button>
       )}
     </div>

@@ -15,30 +15,39 @@ interface PostProcessProviderState {
   apiKey: string;
   baseUrl: string;
   defaultBaseUrl: string | undefined;
-  enabled: boolean;
   handleApiKeyChange: (value: string) => void;
   handleBaseUrlChange: (value: string) => void;
-  handleBaseUrlReset: () => void;
-  handleModelChange: (value: string) => void;
   handleModelCreate: (value: string) => void;
   handleModelSelect: (value: string) => void;
   handleProviderSelect: (providerId: string) => void;
   handleRefreshModels: () => void;
   isApiKeyUpdating: boolean;
-  isBaseUrlModified: boolean;
   isBaseUrlUpdating: boolean;
-  isCustomProvider: boolean;
   isFetchingModels: boolean;
   isLocalProvider: boolean;
   isModelUpdating: boolean;
-  isOllamaProvider: boolean;
   model: string;
   modelOptions: ModelOption[];
   providerOptions: DropdownOption[];
   selectedProvider: PostProcessProvider | undefined;
   selectedProviderId: string;
-  toolSupport: ToolSupportStatus;
 }
+
+export const useModelToolSupport = (
+  providerId: string,
+  model: string
+): ToolSupportStatus => {
+  const modelToolSupport = useSettingsStore((s) => s.modelToolSupport);
+  const checkModelToolSupport = useSettingsStore(
+    (s) => s.checkModelToolSupport
+  );
+  useEffect(() => {
+    if (model.trim()) {
+      checkModelToolSupport(providerId, model);
+    }
+  }, [providerId, model, checkModelToolSupport]);
+  return modelToolSupport[`${providerId}:${model}`] ?? null;
+};
 
 export const usePostProcessProviderState = (): PostProcessProviderState => {
   const providers = useSetting("post_process_providers") ?? [];
@@ -50,7 +59,6 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     (s) => s.postProcessModelOptions
   );
   const isUpdatingMap = useSettingsStore((s) => s.isUpdating);
-  const modelToolSupport = useSettingsStore((s) => s.modelToolSupport);
 
   const setPostProcessProvider = useSettingsStore(
     (s) => s.setPostProcessProvider
@@ -64,9 +72,6 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
   const fetchPostProcessModels = useSettingsStore(
     (s) => s.fetchPostProcessModels
   );
-  const checkModelToolSupportAction = useSettingsStore(
-    (s) => s.checkModelToolSupport
-  );
 
   const selectedProviderId =
     selectedProviderIdSetting || providers[0]?.id || "openai";
@@ -77,9 +82,6 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
 
   const baseUrl = selectedProvider?.base_url ?? "";
   const defaultBaseUrl = getDefaultBaseUrl(selectedProviderId);
-  const isBaseUrlModified =
-    defaultBaseUrl !== undefined &&
-    (baseUrl !== defaultBaseUrl || baseUrl === "");
   const apiKey = apiKeys?.[selectedProviderId] ?? "";
   const model = models?.[selectedProviderId] ?? "";
 
@@ -104,26 +106,10 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     }
   };
 
-  const handleBaseUrlReset = () => {
-    if (!(selectedProvider?.allow_base_url_edit && defaultBaseUrl)) {
-      return;
-    }
-    if (baseUrl !== defaultBaseUrl) {
-      updatePostProcessSetting("base_url", selectedProvider.id, defaultBaseUrl);
-    }
-  };
-
   const handleApiKeyChange = (value: string) => {
     const trimmed = value.trim();
     if (trimmed !== apiKey) {
       updatePostProcessApiKeyAction(selectedProviderId, trimmed);
-    }
-  };
-
-  const handleModelChange = (value: string) => {
-    const trimmed = value.trim();
-    if (trimmed !== model) {
-      updatePostProcessSetting("model", selectedProviderId, trimmed);
     }
   };
 
@@ -176,48 +162,27 @@ export const usePostProcessProviderState = (): PostProcessProviderState => {
     isUpdatingMap[`post_process_models_fetch:${selectedProviderId}`]
   );
 
-  const isCustomProvider = selectedProvider?.id === "custom";
-  const isOllamaProvider = selectedProvider?.id === "ollama";
-  const isLocalProvider = isCustomProvider || isOllamaProvider;
-
-  useEffect(() => {
-    if (selectedProviderId && model.trim()) {
-      checkModelToolSupportAction(selectedProviderId, model);
-    }
-  }, [selectedProviderId, model, checkModelToolSupportAction]);
-
-  const cacheKey = `${selectedProviderId}:${model}`;
-  const toolSupport: ToolSupportStatus =
-    model.trim() && cacheKey in modelToolSupport
-      ? (modelToolSupport[cacheKey] ?? null)
-      : null;
-
+  const isLocalProvider =
+    selectedProvider?.id === "custom" || selectedProvider?.id === "ollama";
   return {
     apiKey,
     baseUrl,
     defaultBaseUrl,
-    enabled: true,
     handleApiKeyChange,
     handleBaseUrlChange,
-    handleBaseUrlReset,
-    handleModelChange,
     handleModelCreate,
     handleModelSelect,
     handleProviderSelect,
     handleRefreshModels,
     isApiKeyUpdating,
-    isBaseUrlModified,
     isBaseUrlUpdating,
-    isCustomProvider,
     isFetchingModels,
     isLocalProvider,
     isModelUpdating,
-    isOllamaProvider,
     model,
     modelOptions,
     providerOptions,
     selectedProvider,
     selectedProviderId,
-    toolSupport,
   };
 };

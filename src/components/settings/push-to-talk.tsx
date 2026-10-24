@@ -1,5 +1,5 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { Hand } from "lucide-react";
+import { HandIcon } from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
@@ -13,7 +13,7 @@ export const PushToTalk = () => {
   return (
     <SettingRow
       description="Hold the shortcut to record; release to stop."
-      icon={<Hand className="h-4 w-4" />}
+      icon={<HandIcon className="h-4 w-4" />}
       title="Push to talk"
     >
       <Switch

@@ -5,7 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@ctrl-ui/react/ui/select";
-import { Layers } from "lucide-react";
+import { StackIcon } from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import { type OverlayPosition, OverlayPositionSchema } from "@/lib/types";
 import {
@@ -36,7 +36,7 @@ export const ShowOverlay = () => {
   return (
     <SettingRow
       description="Drag the docked overlay along any screen edge."
-      icon={<Layers className="h-4 w-4" />}
+      icon={<StackIcon className="h-4 w-4" />}
       title="Overlay"
     >
       <Select

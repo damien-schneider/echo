@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { replaceMentionOutputInMarkdown } from "./replace-mention-output";
+import {
+  hasTranscriptPlaceholder,
+  replaceMentionOutputInMarkdown,
+} from "./replace-mention-output";
 
 const TEMPLATE_PLACEHOLDER = ["$", "{output}"].join("");
 
@@ -295,5 +298,25 @@ Provide bullet points.`);
       const result = replaceMentionOutputInMarkdown(markdown, "wrong");
       expect(result).toBe("The syntax is mention:output for mentions");
     });
+  });
+});
+
+describe("hasTranscriptPlaceholder", () => {
+  it("finds every placeholder form the filler replaces", () => {
+    expect(hasTranscriptPlaceholder("Fix: [output](mention:output)")).toBe(
+      true
+    );
+    expect(hasTranscriptPlaceholder(`Fix: ${TEMPLATE_PLACEHOLDER}`)).toBe(true);
+    expect(hasTranscriptPlaceholder("Fix: @output")).toBe(true);
+  });
+
+  it("gives the same answer on repeated calls", () => {
+    const markdown = "Fix: @output";
+    expect(hasTranscriptPlaceholder(markdown)).toBe(true);
+    expect(hasTranscriptPlaceholder(markdown)).toBe(true);
+  });
+
+  it("ignores prompts without a placeholder", () => {
+    expect(hasTranscriptPlaceholder("Fix spelling and @outputs")).toBe(false);
   });
 });

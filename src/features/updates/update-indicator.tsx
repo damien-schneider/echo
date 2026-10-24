@@ -5,7 +5,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
-import { RefreshCw } from "lucide-react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import ProgressBar from "@/components/shared/progress-bar";
 import { Spinner } from "@/components/ui/spinner";
@@ -56,11 +56,11 @@ const CheckButton = ({
         {isChecking ? (
           <Spinner className="size-3!" />
         ) : (
-          <RefreshCw className="size-3!" />
+          <ArrowClockwiseIcon className="size-3!" />
         )}
         <span className="sr-only">Check for updates</span>
       </TooltipTrigger>
-      <TooltipContent side="bottom">
+      <TooltipContent side="top">
         {isChecking ? "Checking…" : "Check for updates"}
       </TooltipContent>
     </Tooltip>

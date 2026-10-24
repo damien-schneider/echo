@@ -1,83 +1,120 @@
-"use client";
-import { Button } from "@ctrl-ui/react/ui/button";
-import { Separator } from "@ctrl-ui/react/ui/separator";
-import { Bold, Code, Italic, Strikethrough } from "lucide-react";
-import { useEditorRef } from "platejs/react";
 import {
-  RedoToolbarButton,
-  UndoToolbarButton,
-} from "@/components/ui/history-toolbar-button";
-import { Toolbar } from "@/components/ui/toolbar";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
-export function EditorToolbar({ className }: { className?: string }) {
+  Toolbar,
+  ToolbarButton,
+  ToolbarSeparator,
+} from "@ctrl-ui/react/ui/toolbar";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@ctrl-ui/react/ui/tooltip";
+import {
+  ArrowUUpLeftIcon,
+  ArrowUUpRightIcon,
+  CodeIcon,
+  TextBIcon,
+  TextItalicIcon,
+  TextStrikethroughIcon,
+} from "@phosphor-icons/react";
+import { useEditorRef, useEditorSelector } from "platejs/react";
+import type { ReactNode } from "react";
+
+const MARK_BUTTONS = [
+  { icon: <TextBIcon />, label: "Bold", mark: "bold" },
+  { icon: <TextItalicIcon />, label: "Italic", mark: "italic" },
+  {
+    icon: <TextStrikethroughIcon />,
+    label: "Strikethrough",
+    mark: "strikethrough",
+  },
+  { icon: <CodeIcon />, label: "Inline code", mark: "code" },
+] as const;
+
+export function EditorToolbar() {
   const editor = useEditorRef();
+  const cannotUndo = useEditorSelector((e) => e.history.undos.length === 0, []);
+  const cannotRedo = useEditorSelector((e) => e.history.redos.length === 0, []);
   return (
     <TooltipProvider>
-      <Toolbar
-        className={cn(
-          "flex items-center gap-1 rounded-t-lg border-input border-x border-t bg-muted/50 p-1",
-          className
-        )}
-      >
-        <UndoToolbarButton className="size-8" />
-        <RedoToolbarButton className="size-8" />
-
-        <Separator className="mx-1 h-6" orientation="vertical" />
-
-        <ToolbarButton
-          active={editor.api.hasMark("bold")}
-          icon={<Bold className="size-4" />}
-          onClick={() => editor.tf.toggleMark("bold")}
-          tooltip="Bold (⌘B)"
-        />
-        <ToolbarButton
-          active={editor.api.hasMark("italic")}
-          icon={<Italic className="size-4" />}
-          onClick={() => editor.tf.toggleMark("italic")}
-          tooltip="Italic (⌘I)"
-        />
-        <ToolbarButton
-          active={editor.api.hasMark("strikethrough")}
-          icon={<Strikethrough className="size-4" />}
-          onClick={() => editor.tf.toggleMark("strikethrough")}
-          tooltip="Strikethrough"
-        />
-        <ToolbarButton
-          active={editor.api.hasMark("code")}
-          icon={<Code className="size-4" />}
-          onClick={() => editor.tf.toggleMark("code")}
-          tooltip="Inline Code (⌘E)"
-        />
+      <Toolbar aria-label="Formatting" chrome="embedded">
+        <EditorToolbarButton
+          disabled={cannotUndo}
+          label="Undo"
+          onClick={() => editor.undo()}
+        >
+          <ArrowUUpLeftIcon />
+        </EditorToolbarButton>
+        <EditorToolbarButton
+          disabled={cannotRedo}
+          label="Redo"
+          onClick={() => editor.redo()}
+        >
+          <ArrowUUpRightIcon />
+        </EditorToolbarButton>
+        <ToolbarSeparator />
+        {MARK_BUTTONS.map(({ icon, label, mark }) => (
+          <MarkToolbarButton key={mark} label={label} mark={mark}>
+            {icon}
+          </MarkToolbarButton>
+        ))}
       </Toolbar>
     </TooltipProvider>
   );
 }
-interface ToolbarButtonProps {
-  active?: boolean;
-  disabled?: boolean;
-  icon: React.ReactNode;
-  onClick: () => void;
-  tooltip: string;
-}
-function ToolbarButton({
-  onClick,
-  icon,
-  tooltip,
-  active,
-  disabled,
-}: ToolbarButtonProps) {
+
+function MarkToolbarButton({
+  children,
+  label,
+  mark,
+}: {
+  children: ReactNode;
+  label: string;
+  mark: string;
+}) {
+  const editor = useEditorRef();
+  const markIsActive = useEditorSelector((e) => e.api.hasMark(mark), [mark]);
   return (
-    <Button
-      aria-label={tooltip}
-      className={cn("size-8 p-0", active && "bg-accent text-accent-foreground")}
-      disabled={disabled}
-      onClick={onClick}
-      size="sm"
-      title={tooltip}
-      variant="ghost"
+    <EditorToolbarButton
+      label={label}
+      onClick={() => editor.tf.toggleMark(mark)}
+      pressed={markIsActive}
     >
-      {icon}
-    </Button>
+      {children}
+    </EditorToolbarButton>
+  );
+}
+
+function EditorToolbarButton({
+  children,
+  disabled,
+  label,
+  onClick,
+  pressed,
+}: {
+  children: ReactNode;
+  disabled?: boolean;
+  label: string;
+  onClick: () => void;
+  pressed?: boolean;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <ToolbarButton
+            aria-label={label}
+            aria-pressed={pressed}
+            disabled={disabled}
+            iconOnly
+            onClick={onClick}
+            onMouseDown={(event) => event.preventDefault()}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
   );
 }

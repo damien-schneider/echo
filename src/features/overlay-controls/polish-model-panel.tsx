@@ -1,5 +1,10 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { CircleCheck, Download, RotateCcw, X } from "lucide-react";
+import {
+  ArrowCounterClockwiseIcon,
+  CheckCircleIcon,
+  DownloadSimpleIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import ProgressBar from "@/components/shared/progress-bar";
 import type { PolishModelProgress } from "@/features/polish/polish-model-state";
 import { polishStatusCopy } from "@/features/polish/polish-status-copy";
@@ -17,14 +22,21 @@ const polishActionClassName =
 const StatusIcon = ({ state }: Pick<PolishStatus, "state">) => {
   if (state === "ready") {
     return (
-      <CircleCheck aria-hidden="true" className="size-4 text-emerald-300" />
+      <CheckCircleIcon aria-hidden="true" className="size-4 text-emerald-300" />
     );
   }
   if (state === "not_downloaded") {
-    return <Download aria-hidden="true" className="size-4 text-white/55" />;
+    return (
+      <DownloadSimpleIcon aria-hidden="true" className="size-4 text-white/55" />
+    );
   }
   if (state === "repair") {
-    return <RotateCcw aria-hidden="true" className="size-4 text-red-300" />;
+    return (
+      <ArrowCounterClockwiseIcon
+        aria-hidden="true"
+        className="size-4 text-red-300"
+      />
+    );
   }
   return <span aria-hidden="true" className="echo-polish-phase-indicator" />;
 };
@@ -62,7 +74,7 @@ const PolishPanelHeader = ({ onClose, status }: PolishPanelHeaderProps) => {
         size="xs"
         variant="ghost"
       >
-        <X aria-hidden="true" />
+        <XIcon aria-hidden="true" />
       </Button>
     </div>
   );
@@ -143,7 +155,7 @@ const PolishPanelAction = ({
         tone="primary"
         variant="solid"
       >
-        <Download aria-hidden="true" />
+        <DownloadSimpleIcon aria-hidden="true" />
         Download 2.5 GB
       </Button>
     );
@@ -157,7 +169,7 @@ const PolishPanelAction = ({
         tone="primary"
         variant="solid"
       >
-        <RotateCcw aria-hidden="true" />
+        <ArrowCounterClockwiseIcon aria-hidden="true" />
         Repair Polish
       </Button>
     );

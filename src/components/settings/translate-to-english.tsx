@@ -1,5 +1,5 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { Languages } from "lucide-react";
+import { TranslateIcon } from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
@@ -13,7 +13,7 @@ export const TranslateToEnglish = () => {
   return (
     <SettingRow
       description="Automatically translate speech from other languages to English during transcription."
-      icon={<Languages className="h-4 w-4" />}
+      icon={<TranslateIcon className="h-4 w-4" />}
       title="Translate to English"
     >
       <Switch

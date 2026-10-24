@@ -1,4 +1,4 @@
-import { InfoIcon } from "lucide-react";
+import { InfoIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { cn } from "@/lib/utils";
 import {

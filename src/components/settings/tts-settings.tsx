@@ -1,7 +1,13 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { Switch } from "@ctrl-ui/react/ui/switch";
+import {
+  CheckCircleIcon,
+  CircleNotchIcon,
+  PlayIcon,
+  SpeakerHighIcon,
+  XCircleIcon,
+} from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
-import { CheckCircle, Loader2, Play, Volume2, XCircle } from "lucide-react";
 import { useState } from "react";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
@@ -52,7 +58,7 @@ export function TtsSettings() {
       {isEnabled && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 rounded-lg border border-border/40 bg-card/50 px-4 py-3">
-            <Volume2 className="h-5 w-5 text-muted-foreground" />
+            <SpeakerHighIcon className="h-5 w-5 text-muted-foreground" />
             <div className="space-y-1">
               <p className="text-muted-foreground text-sm">
                 System TTS automatically detects the language of your
@@ -85,12 +91,12 @@ export function TtsSettings() {
                 >
                   {playing ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <CircleNotchIcon className="mr-2 h-4 w-4 animate-spin" />
                       Playing...
                     </>
                   ) : (
                     <>
-                      <Play className="mr-2 h-4 w-4" />
+                      <PlayIcon className="mr-2 h-4 w-4" />
                       Preview
                     </>
                   )}
@@ -102,7 +108,7 @@ export function TtsSettings() {
           {successMessage && (
             <div className="rounded-lg border border-green-500/20 bg-green-500/10 px-4 py-3">
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <CheckCircleIcon className="h-4 w-4 text-green-600 dark:text-green-400" />
                 <p className="text-green-700 text-sm dark:text-green-300">
                   {successMessage}
                 </p>
@@ -113,7 +119,7 @@ export function TtsSettings() {
           {errorMessage && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3">
               <div className="flex items-center gap-2">
-                <XCircle className="h-4 w-4 text-destructive" />
+                <XCircleIcon className="h-4 w-4 text-destructive" />
                 <p className="text-destructive text-sm">{errorMessage}</p>
               </div>
             </div>

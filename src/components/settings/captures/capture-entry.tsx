@@ -6,8 +6,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
+import { CheckIcon, CopyIcon, TrashIcon } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
-import { Check, Copy, Trash2 } from "lucide-react";
 import { useState } from "react";
 import type { Capture } from "@/lib/types";
 
@@ -69,9 +69,9 @@ export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
                 }
               >
                 {showCopied ? (
-                  <Check height={16} width={16} />
+                  <CheckIcon height={16} width={16} />
                 ) : (
-                  <Copy height={16} width={16} />
+                  <CopyIcon height={16} width={16} />
                 )}
               </TooltipTrigger>
               <TooltipContent>
@@ -91,9 +91,9 @@ export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
                 }
               >
                 {confirmDelete ? (
-                  <Check height={16} width={16} />
+                  <CheckIcon height={16} width={16} />
                 ) : (
-                  <Trash2 height={16} width={16} />
+                  <TrashIcon height={16} width={16} />
                 )}
               </TooltipTrigger>
               <TooltipContent>

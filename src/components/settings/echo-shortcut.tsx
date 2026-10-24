@@ -1,7 +1,7 @@
+import { KeyboardIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { type } from "@tauri-apps/plugin-os";
-import { Keyboard } from "lucide-react";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -253,10 +253,12 @@ export const EchoShortcut: React.FC = () => {
     return (
       <SettingRow
         description="Start and stop recording."
-        icon={<Keyboard className="h-4 w-4" />}
+        icon={<KeyboardIcon className="h-4 w-4" />}
         title="Shortcuts"
       >
-        <div className="text-muted-foreground text-sm">Loading shortcuts…</div>
+        <div className="text-caption text-muted-foreground">
+          Loading shortcuts…
+        </div>
       </SettingRow>
     );
   }
@@ -264,10 +266,10 @@ export const EchoShortcut: React.FC = () => {
     return (
       <SettingRow
         description="Start and stop recording."
-        icon={<Keyboard className="h-4 w-4" />}
+        icon={<KeyboardIcon className="h-4 w-4" />}
         title="Shortcuts"
       >
-        <div className="text-muted-foreground text-sm">
+        <div className="text-caption text-muted-foreground">
           No shortcuts configured
         </div>
       </SettingRow>
@@ -284,7 +286,7 @@ export const EchoShortcut: React.FC = () => {
   };
   return (
     <SettingRow
-      icon={<Keyboard className="h-4 w-4" />}
+      icon={<KeyboardIcon className="h-4 w-4" />}
       layout="stacked"
       title="Shortcuts"
     >

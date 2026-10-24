@@ -2,13 +2,13 @@ import { Button } from "@ctrl-ui/react/ui/button";
 import { ButtonGroup } from "@ctrl-ui/react/ui/button-group";
 import { Input } from "@ctrl-ui/react/ui/input";
 import {
-  BookText,
-  Download,
-  PencilIcon,
+  BookOpenTextIcon,
+  DownloadSimpleIcon,
+  PencilSimpleIcon,
   PlusIcon,
-  Trash2,
-  Upload,
-} from "lucide-react";
+  TrashIcon,
+  UploadSimpleIcon,
+} from "@phosphor-icons/react";
 import type React from "react";
 import { useRef, useState } from "react";
 import { z } from "zod";
@@ -171,7 +171,7 @@ export const DictionaryEditor = () => {
     <>
       <SettingRow
         description="Names and terms to preserve verbatim in cleaned transcripts. Add the canonical spelling and any variants (commonly misheard or misspelled forms) — variants are rewritten to the canonical before the cleanup model runs."
-        icon={<BookText className="h-4 w-4" />}
+        icon={<BookOpenTextIcon className="h-4 w-4" />}
         layout="stacked"
         title="Custom Dictionary"
       >
@@ -215,7 +215,7 @@ export const DictionaryEditor = () => {
               size="xs"
               variant="ghost"
             >
-              <Upload className="mr-1 h-3 w-3" />
+              <UploadSimpleIcon className="mr-1 h-3 w-3" />
               Import JSON
             </Button>
             <Button
@@ -224,7 +224,7 @@ export const DictionaryEditor = () => {
               size="xs"
               variant="ghost"
             >
-              <Download className="mr-1 h-3 w-3" />
+              <DownloadSimpleIcon className="mr-1 h-3 w-3" />
               Export JSON
             </Button>
             <input
@@ -299,7 +299,7 @@ export const DictionaryEditor = () => {
                       size="md"
                       variant="ghost"
                     >
-                      <PencilIcon className="h-3 w-3" />
+                      <PencilSimpleIcon className="h-3 w-3" />
                     </Button>
                     <Button
                       aria-label={`Remove ${entry.canonical}`}
@@ -309,7 +309,7 @@ export const DictionaryEditor = () => {
                       size="md"
                       variant="ghost"
                     >
-                      <Trash2 className="h-3 w-3" />
+                      <TrashIcon className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>

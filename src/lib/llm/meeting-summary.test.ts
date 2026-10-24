@@ -64,7 +64,7 @@ describe("generateMeetingSummary setup errors", () => {
     translate_to_english: false,
   });
 
-  it("points at the AI settings when no cloud provider is configured", async () => {
+  it("points at the meeting settings when no cloud provider is configured", async () => {
     const error: unknown = await generateMeetingSummary(
       line("Speaker 1", "hello"),
       cloudSettings
@@ -72,7 +72,7 @@ describe("generateMeetingSummary setup errors", () => {
 
     expect(error).toBeInstanceOf(MeetingSummaryError);
     if (error instanceof MeetingSummaryError) {
-      expect(error.section).toBe("post-processing");
+      expect(error.section).toBe("meeting");
     }
   });
 });

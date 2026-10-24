@@ -1,5 +1,5 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { EyeOff } from "lucide-react";
+import { EyeSlashIcon } from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import {
   useIsSettingUpdating,
@@ -13,7 +13,7 @@ export const StartHidden = () => {
   return (
     <SettingRow
       description="Keep the window closed when Echo starts."
-      icon={<EyeOff className="h-4 w-4" />}
+      icon={<EyeSlashIcon className="h-4 w-4" />}
       title="Start hidden"
     >
       <Switch

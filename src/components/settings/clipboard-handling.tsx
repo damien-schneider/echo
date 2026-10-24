@@ -5,7 +5,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@ctrl-ui/react/ui/select";
-import { ClipboardCopy } from "lucide-react";
+import { ClipboardTextIcon } from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import type { ClipboardHandling } from "@/lib/types";
 import {
@@ -25,7 +25,7 @@ export const ClipboardHandlingSetting = () => {
   return (
     <SettingRow
       description="Choose what stays on the clipboard after pasting."
-      icon={<ClipboardCopy className="h-4 w-4" />}
+      icon={<ClipboardTextIcon className="h-4 w-4" />}
       title="Clipboard"
     >
       <Select<ClipboardHandling>

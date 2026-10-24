@@ -8,9 +8,9 @@ import {
   DialogTrigger,
 } from "@ctrl-ui/react/ui/dialog";
 import { Switch } from "@ctrl-ui/react/ui/switch";
+import { ArrowSquareOutIcon, HeartIcon, InfoIcon } from "@phosphor-icons/react";
 import { getVersion } from "@tauri-apps/api/app";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { ExternalLink, Heart, Info } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import GithubIcon from "@/components/icons/github-icon";
@@ -81,7 +81,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
               size="md"
               variant="ghost"
             >
-              <Info className="size-4" />
+              <InfoIcon className="size-4" />
             </Button>
           )
         }
@@ -89,7 +89,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Info className="h-5 w-5" />
+            <InfoIcon className="h-5 w-5" />
             About Echo
           </DialogTitle>
           <DialogDescription>
@@ -117,7 +117,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
               >
                 <GithubIcon className="h-4 w-4" />
                 GitHub
-                <ExternalLink className="h-3 w-3" />
+                <ArrowSquareOutIcon className="h-3 w-3" />
               </Button>
             </SettingRow>
 
@@ -132,7 +132,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
                 tone="primary"
                 variant="solid"
               >
-                <Heart className="h-4 w-4" />
+                <HeartIcon className="h-4 w-4" />
                 Donate
               </Button>
             </SettingRow>

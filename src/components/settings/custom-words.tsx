@@ -1,7 +1,7 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { ButtonGroup } from "@ctrl-ui/react/ui/button-group";
 import { Input } from "@ctrl-ui/react/ui/input";
-import { BookText, PlusIcon, XIcon } from "lucide-react";
+import { BookOpenTextIcon, PlusIcon, XIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { useState } from "react";
 import { SettingRow } from "@/features/settings/setting-row";
@@ -44,7 +44,7 @@ export const CustomWords = () => {
     <>
       <SettingRow
         description="Correct words Echo often mishears."
-        icon={<BookText className="h-4 w-4" />}
+        icon={<BookOpenTextIcon className="h-4 w-4" />}
         title="Custom words"
       >
         <ButtonGroup className="w-full">

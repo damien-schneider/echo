@@ -1,5 +1,10 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { Download, Loader2, Quote, RotateCcw } from "lucide-react";
+import {
+  ArrowCounterClockwiseIcon,
+  CircleNotchIcon,
+  DownloadSimpleIcon,
+  QuotesIcon,
+} from "@phosphor-icons/react";
 import {
   CHAT_MODEL_KINDS,
   type ChatModelOption,
@@ -26,7 +31,7 @@ const LoadingChatReference = () => (
     aria-label="Selected text context"
     className="flex min-w-0 items-center gap-2 rounded-lg bg-white/7 px-3 py-2 text-[12px] text-white/60"
   >
-    <Loader2 aria-hidden="true" className="size-3 animate-spin" />
+    <CircleNotchIcon aria-hidden="true" className="size-3 animate-spin" />
     <span>Checking selected text…</span>
   </output>
 );
@@ -37,7 +42,10 @@ const AccessibilityChatReference = ({
     aria-label="Selected text context"
     className="m-0 flex min-w-0 items-center gap-2 rounded-lg border-0 bg-white/7 px-3 py-2"
   >
-    <Quote aria-hidden="true" className="size-3.5 shrink-0 text-white/48" />
+    <QuotesIcon
+      aria-hidden="true"
+      className="size-3.5 shrink-0 text-white/48"
+    />
     <div className="min-w-0 flex-1">
       <div className="font-medium text-[11px] text-white/72">Selected text</div>
       <div className="truncate text-[12px] text-white/48">
@@ -69,7 +77,7 @@ const SelectedChatReference = ({
       aria-label="Selected text context"
       className="m-0 flex min-w-0 items-start gap-2 rounded-lg border-0 bg-white/7 px-3 py-2"
     >
-      <Quote
+      <QuotesIcon
         aria-hidden="true"
         className="mt-0.5 size-3.5 shrink-0 text-white/48"
       />
@@ -138,7 +146,7 @@ const DownloadBundledModel = ({
       type="button"
       variant="solid"
     >
-      <Download aria-hidden="true" className="size-3.5" />
+      <DownloadSimpleIcon aria-hidden="true" className="size-3.5" />
       Download 2.5 GB
     </Button>
   </div>
@@ -162,7 +170,7 @@ const RepairBundledModel = ({ message, repair }: RepairBundledModelProps) => (
       type="button"
       variant="solid"
     >
-      <RotateCcw aria-hidden="true" className="size-3.5" />
+      <ArrowCounterClockwiseIcon aria-hidden="true" className="size-3.5" />
       Repair
     </Button>
   </div>
@@ -190,7 +198,7 @@ export const BundledModelSetup = ({
   }
   return (
     <output className="flex min-w-0 items-center gap-2 rounded-lg bg-white/7 px-3 py-2 text-[12px] text-white/62">
-      <Loader2 aria-hidden="true" className="size-3 animate-spin" />
+      <CircleNotchIcon aria-hidden="true" className="size-3 animate-spin" />
       <span>{bundledModelProgressLabel(model)}</span>
     </output>
   );

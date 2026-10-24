@@ -1,5 +1,5 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { GripHorizontal } from "lucide-react";
+import { DotsSixIcon } from "@phosphor-icons/react";
 import {
   type CSSProperties,
   type MouseEvent,
@@ -173,7 +173,7 @@ export const ResidentIsland = ({
             title="Move Echo control"
             type="button"
           >
-            <GripHorizontal
+            <DotsSixIcon
               aria-hidden="true"
               className="echo-island-dock-grip-icon"
             />

@@ -1,5 +1,11 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { AudioLines, Check, Copy, MessageSquareText, X } from "lucide-react";
+import {
+  ChatTextIcon,
+  CheckIcon,
+  CopyIcon,
+  WaveformIcon,
+  XIcon,
+} from "@phosphor-icons/react";
 import { m } from "motion/react";
 import { useEffect, useEffectEvent, useState } from "react";
 
@@ -41,7 +47,7 @@ export const TranscriptPanel = ({
     >
       <div className="flex items-center gap-3">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/8">
-          <AudioLines aria-hidden="true" className="size-4 text-white/70" />
+          <WaveformIcon aria-hidden="true" className="size-4 text-white/70" />
         </span>
         <p className="min-w-0 flex-1 text-center text-[12px] text-white/58">
           {TRANSCRIPT_HEADLINE}
@@ -54,7 +60,7 @@ export const TranscriptPanel = ({
           size="xs"
           variant="ghost"
         >
-          <X aria-hidden="true" />
+          <XIcon aria-hidden="true" />
         </Button>
       </div>
       <p className="max-h-20 overflow-y-auto text-[15px] text-white leading-snug">
@@ -70,7 +76,7 @@ export const TranscriptPanel = ({
           title="Send to chat"
           variant="ghost"
         >
-          <MessageSquareText aria-hidden="true" className="size-4" />
+          <ChatTextIcon aria-hidden="true" className="size-4" />
         </Button>
         <Button
           className="rounded-full bg-white/12 px-4 text-white hover:bg-white/20"
@@ -80,9 +86,9 @@ export const TranscriptPanel = ({
           variant="solid"
         >
           {isCopied ? (
-            <Check aria-hidden="true" className="size-4" />
+            <CheckIcon aria-hidden="true" className="size-4" />
           ) : (
-            <Copy aria-hidden="true" className="size-4" />
+            <CopyIcon aria-hidden="true" className="size-4" />
           )}
           {isCopied ? "Copied" : "Copy"}
         </Button>

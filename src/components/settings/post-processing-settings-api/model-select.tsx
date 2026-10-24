@@ -12,7 +12,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@ctrl-ui/react/ui/popover";
-import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
+import { CaretUpDownIcon, CheckIcon, PlusIcon } from "@phosphor-icons/react";
 import type React from "react";
 import { useState } from "react";
 import type { ModelOption } from "@/components/settings/post-processing-settings-api/types";
@@ -89,7 +89,7 @@ export const ModelSelect: React.FC<ModelSelectProps> = ({
         <span className="truncate">
           {selectedOption?.label || value || placeholder}
         </span>
-        <ChevronsUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        <CaretUpDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0">
         <Command shouldFilter={false}>
