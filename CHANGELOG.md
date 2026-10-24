@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.8.14] - 2026-10-24
+
+### Changed
+- When the settings window is narrower than 768 px and the sidebar is hidden, the content panel fills the window edge to edge instead of keeping its margin and rounded corners.
+
 ## [0.8.13] - 2026-10-24
 
 ### Added
