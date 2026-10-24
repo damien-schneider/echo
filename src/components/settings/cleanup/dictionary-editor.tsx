@@ -14,7 +14,6 @@ import { useRef, useState } from "react";
 import { z } from "zod";
 import { SettingRow } from "@/features/settings/setting-row";
 import type { DictionaryEntry } from "@/lib/types";
-import { cn } from "@/lib/utils";
 import {
   useIsSettingUpdating,
   useSetting,
@@ -239,7 +238,7 @@ export const DictionaryEditor = () => {
       </SettingRow>
 
       {dictionary.length > 0 && (
-        <div className={cn("flex flex-col gap-2 p-2 px-4", false)}>
+        <div className="flex flex-col gap-2">
           {dictionary.map((entry) => {
             const isEditing = editingCanonical === entry.canonical;
             if (isEditing) {

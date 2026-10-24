@@ -105,7 +105,7 @@ function PromptSettingsEditor({
   } = usePromptSettings(initialPrompt);
   if (!postProcessEnabled) {
     return (
-      <p className="px-4 py-3 text-caption text-muted-foreground">
+      <p className="text-caption text-muted-foreground">
         Enable post-processing to configure prompts.
       </p>
     );
@@ -159,7 +159,7 @@ function PromptSettingsEditor({
     return (
       <div className="flex flex-col gap-3">
         <Field className="gap-2">
-          <FieldLabel className="font-medium">Name</FieldLabel>
+          <FieldLabel>Name</FieldLabel>
           <Input
             onChange={(e) => setDraftName(e.target.value)}
             placeholder="e.g. Meeting notes"

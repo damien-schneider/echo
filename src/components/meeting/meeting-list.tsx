@@ -100,18 +100,20 @@ function MeetingListItem({
           )}
         </div>
       </button>
-      <Button
-        className="opacity-0 group-hover:opacity-100"
-        iconOnly
-        onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
-        }}
-        size="md"
-        variant="ghost"
-      >
-        <TrashIcon className="size-3.5 text-muted-foreground" />
-      </Button>
+      <span className="opacity-0 focus-within:opacity-100 group-hover:opacity-100">
+        <Button
+          aria-label="Delete meeting"
+          iconOnly
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          size="md"
+          variant="ghost"
+        >
+          <TrashIcon className="size-3.5 text-muted-foreground" />
+        </Button>
+      </span>
     </div>
   );
 }

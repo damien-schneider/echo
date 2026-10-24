@@ -88,7 +88,7 @@ export function FileTranscriptionCenter() {
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-96 p-0" side="top">
+      <PopoverContent align="start" className="w-96" padding="none" side="top">
         <div className="flex items-center justify-between border-foreground/10 border-b px-4 py-3">
           <h3 className="font-semibold text-sm">File transcriptions</h3>
           {hasCompleted && (

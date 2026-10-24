@@ -58,13 +58,11 @@ const CapturesList = () => {
     setCaptures((previous) => previous.filter((capture) => capture.id !== id));
   };
   if (loading) {
-    return (
-      <p className="px-4 py-3 text-center text-text/60">Loading captures…</p>
-    );
+    return <p className="text-center text-text/60">Loading captures…</p>;
   }
   if (captures.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-text/60">
+      <div className="flex flex-col items-center gap-3 py-5 text-center text-text/60">
         <ListChecksIcon className="h-10 w-10 opacity-40" />
         <div>
           <p className="font-medium">Nothing captured yet</p>
@@ -76,7 +74,7 @@ const CapturesList = () => {
     );
   }
   return (
-    <div className="divide-y divide-border/10">
+    <>
       {captures.map((capture) => (
         <CaptureEntry
           capture={capture}
@@ -84,7 +82,7 @@ const CapturesList = () => {
           onDelete={handleDelete}
         />
       ))}
-    </div>
+    </>
   );
 };
 export const CapturesSettings = () => (

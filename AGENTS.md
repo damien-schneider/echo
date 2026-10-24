@@ -21,7 +21,7 @@ Tauri desktop app: Rust backend + React 19 / TypeScript frontend. Bun package ma
 ```
 src/                          → React/TypeScript frontend
   components/                 → UI components
-    ui/                       → Shadcn primitives (don't touch)
+    ui/                       → Echo-only UI pieces (window controls, audio player…)
     settings/                 → Settings UI
     model-selector/           → Model management
     editor/                   → Markdown editor
@@ -84,7 +84,6 @@ Non-negotiable. Every file, every commit.
 - Absolute imports — `@/components/...` not `../../`
 - No backwards compatibility code — migrate data, then delete old code
 - No `utils.ts` / `helpers.ts` — name by domain (formatters.ts, validators.ts)
-- Don't touch `components/ui/` — Shadcn primitives, leave as-is
 - Max 8 files per folder (`components/`, `hooks/`, etc.) — beyond that, extract into `features/` sub-features
 - No duplicate code — never copy-paste logic or components. If you see duplicated code, refactor immediately
 
@@ -118,6 +117,7 @@ Non-negotiable. Every file, every commit.
 **Styling:**
 - Use `cn()` for conditional classes — no template literal className
 - No inline `style={{}}` — use Tailwind classes
+- Control UI components (`@ctrl-ui/react/ui/*`) are used as installed: `className` only lays them out (flex, gap, width, margin, placement). Color, type, padding, borders, radius, shadows and state styles come from their props or `--cui-*` knobs — app-wide in `packages/echo-ui/src/skin.css`, one-off as an arbitrary-property class (`[--cui-button-hover-background:var(--destructive)]`). Biome enforces this for the main window
 - No CSS modules, styled-components, Emotion, or SCSS — Tailwind only
 
 **Rust:**

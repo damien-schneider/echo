@@ -81,7 +81,7 @@ export const LanguageSelector = () => {
               size={16}
             />
           </PopoverTrigger>
-          <PopoverContent align="start" className="w-64 p-0">
+          <PopoverContent align="start" className="w-64" padding="none">
             <Command>
               <CommandInput placeholder="Search languages…" />
               <CommandList>

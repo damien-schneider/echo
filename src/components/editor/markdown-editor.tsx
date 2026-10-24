@@ -23,7 +23,7 @@ export function MarkdownEditor({
   });
 
   return (
-    <InputGroup className="h-auto flex-col items-stretch px-0">
+    <InputGroup className="h-auto flex-col items-stretch [--cui-field-padding-inline:0px]">
       <Plate editor={editor} onChange={handleChange}>
         <div className="px-1.5 pt-1.5">
           <EditorToolbar />

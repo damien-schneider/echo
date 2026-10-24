@@ -76,17 +76,16 @@ export const CustomWords = () => {
         </ButtonGroup>
       </SettingRow>
       {customWords.length > 0 && (
-        <div className="px-4 py-3">
+        <div>
           <ButtonGroup className="w-full flex-wrap gap-1">
             {customWords.map((word) => (
               <Button
                 aria-label={`Remove ${word}`}
-                className="gap-1 text-muted-foreground hover:text-foreground"
                 disabled={updating}
                 key={word}
                 onClick={() => handleRemoveWord(word)}
                 size="xs"
-                variant="ghost"
+                variant="quiet"
               >
                 <span>{word}</span>
                 <XIcon className="h-3 w-3" />

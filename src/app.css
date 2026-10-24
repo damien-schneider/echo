@@ -16,14 +16,12 @@
 &[data-hovered]);
 
 @theme {
-  --breakpoint-lg: 48rem;
+  --breakpoint-sidebar: 48rem;
 }
 
 @theme inline {
   --color-brand: var(--brand);
   --color-surface-group: var(--surface-group);
-  --color-surface-divider: var(--surface-divider);
-  --shadow-panel: var(--panel-shadow);
 }
 
 @layer base {

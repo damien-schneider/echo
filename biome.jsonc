@@ -3,6 +3,12 @@
   "extends": ["ultracite/core", "ultracite/react"],
   "overrides": [
     {
+      "includes": ["src/**", "!src/overlay/**", "!src/features/overlay-*/**"],
+      "plugins": [
+        "./node_modules/@ctrl-ui/react/lint/no-component-style-classes.grit"
+      ]
+    },
+    {
       // Allow dangerouslySetInnerHTML in specific files for JSON-LD structured data injection
       "includes": [
         "apps/web/src/routes/__root.tsx",

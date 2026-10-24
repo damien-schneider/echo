@@ -47,12 +47,7 @@ export const ShortcutBindingRow = ({
           {currentKeys}
         </Button>
       ) : (
-        <Button
-          className="font-semibold"
-          onClick={() => onEdit(binding.id)}
-          size="sm"
-          variant="surface"
-        >
+        <Button onClick={() => onEdit(binding.id)} size="sm" variant="surface">
           {formatKeyCombination(binding.current_binding, osType)}
         </Button>
       )}

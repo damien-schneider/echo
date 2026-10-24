@@ -152,14 +152,14 @@ function AppSidebar(props: SettingsNavigationProps) {
   return (
     <Sidebar label="Settings" variant="inset">
       <SidebarHeader
-        className="h-12 flex-row items-center gap-2 px-4"
+        className="h-12 flex-row items-center"
         data-tauri-drag-region
       >
         {!usesNativeTrafficLights && (
-          <>
+          <div className="flex items-center gap-2 px-2" data-tauri-drag-region>
             <EchoLogo className="size-4" />
             <span className="font-semibold text-body">Echo</span>
-          </>
+          </div>
         )}
       </SidebarHeader>
       <SidebarContent>
@@ -167,7 +167,7 @@ function AppSidebar(props: SettingsNavigationProps) {
           <SettingsNavigation {...props} />
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="flex-row items-center gap-0.5 px-2 pb-2">
+      <SidebarFooter className="flex-row items-center gap-0.5">
         <ThemeSwitcher />
         <FileTranscriptionCenter />
         <AboutDialog />
@@ -188,13 +188,7 @@ function SettingsPanel({
   const { state } = useSidebar();
   const sidebarIsCollapsed = state === "collapsed";
   return (
-    <SidebarInset
-      className={cn(
-        "m-2 min-h-0 overflow-hidden rounded-panel bg-card shadow-panel",
-        !sidebarIsCollapsed && "ml-0"
-      )}
-      render={<main />}
-    >
+    <SidebarInset className="overflow-hidden" render={<main />}>
       <header
         className={cn(
           "flex h-10 shrink-0 items-center gap-1.5 px-2",
@@ -202,7 +196,7 @@ function SettingsPanel({
         )}
         data-tauri-drag-region
       >
-        <SidebarTrigger className="text-muted-foreground" />
+        <SidebarTrigger />
         <h1
           className="min-w-0 flex-1 truncate font-semibold text-body"
           data-tauri-drag-region
