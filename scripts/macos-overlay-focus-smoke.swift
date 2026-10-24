@@ -7,10 +7,12 @@ struct SmokeFailure: Error, CustomStringConvertible {
     let description: String
 }
 
-let residentCanvasSize = CGSize(width: 48, height: 136)
-let chatCanvasSize = CGSize(width: 680, height: 620)
 let stateTimeout: TimeInterval = 1.5
-var recordingWindowID: CGWindowID?
+/// Echo's own code hands activation back within ~300 ms, so the watch must start at mouse-down.
+let clickWatchDuration: TimeInterval = 0.6
+let selectedSentence = "Echo keeps this sentence selected."
+let documentURL = URL(fileURLWithPath: NSTemporaryDirectory())
+    .appendingPathComponent("echo-overlay-focus-smoke.txt")
 
 func require(_ condition: @autoclosure () -> Bool, _ message: String) throws {
     if !condition() {
@@ -18,61 +20,280 @@ func require(_ condition: @autoclosure () -> Bool, _ message: String) throws {
     }
 }
 
-func recordingBounds(pid: pid_t) -> CGRect? {
-    let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-    let rows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-    for row in rows {
-        guard
-            let owner = row[kCGWindowOwnerPID as String] as? Int,
-            owner == Int(pid),
-            let rawWindowID = row[kCGWindowNumber as String] as? NSNumber,
-            let layer = row[kCGWindowLayer as String] as? NSNumber,
-            let alpha = row[kCGWindowAlpha as String] as? NSNumber,
-            let raw = row[kCGWindowBounds as String] as? [String: Any],
-            let x = raw["X"] as? NSNumber,
-            let y = raw["Y"] as? NSNumber,
-            let width = raw["Width"] as? NSNumber,
-            let height = raw["Height"] as? NSNumber
-        else {
-            continue
+func step(_ text: String) {
+    print("  \(text)")
+}
+
+/// NSWorkspace and NSRunningApplication only refresh while the run loop turns.
+func runLoop(for duration: TimeInterval) {
+    RunLoop.current.run(until: Date().addingTimeInterval(duration))
+}
+
+func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+    var value: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
+        return nil
+    }
+    return value
+}
+
+func elementAttribute(_ element: AXUIElement, _ name: String) -> AXUIElement? {
+    guard let value = attribute(element, name), CFGetTypeID(value) == AXUIElementGetTypeID() else {
+        return nil
+    }
+    return unsafeBitCast(value, to: AXUIElement.self)
+}
+
+func children(_ element: AXUIElement) -> [AXUIElement] {
+    attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
+}
+
+func windows(_ application: AXUIElement) -> [AXUIElement] {
+    attribute(application, kAXWindowsAttribute) as? [AXUIElement] ?? []
+}
+
+func hasLabel(_ element: AXUIElement, _ label: String) -> Bool {
+    [kAXTitleAttribute, kAXDescriptionAttribute, kAXValueAttribute, kAXPlaceholderValueAttribute]
+        .contains { attribute(element, $0) as? String == label }
+}
+
+func findElement(
+    in root: AXUIElement,
+    depth: Int = 32,
+    matching predicate: (AXUIElement) -> Bool
+) -> AXUIElement? {
+    if predicate(root) {
+        return root
+    }
+    guard depth > 0 else {
+        return nil
+    }
+    for child in children(root) {
+        if let match = findElement(in: child, depth: depth - 1, matching: predicate) {
+            return match
         }
-        let windowID = CGWindowID(rawWindowID.uint32Value)
-        if let recordingWindowID, windowID != recordingWindowID {
-            continue
-        }
-        let name = row[kCGWindowName as String] as? String
-        let isOverlayPanel = name == "Recording" ||
-            (layer.intValue > 0 && layer.intValue < 100 && alpha.doubleValue >= 0.99)
-        guard isOverlayPanel else {
-            continue
-        }
-        if recordingWindowID == nil {
-            recordingWindowID = windowID
-        }
-        return CGRect(
-            x: x.doubleValue,
-            y: y.doubleValue,
-            width: width.doubleValue,
-            height: height.doubleValue
-        )
     }
     return nil
 }
 
-func blockingEchoWindowNames(pid: pid_t) -> [String] {
-    let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-    let rows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] ?? []
-    return rows.compactMap { row in
-        guard
-            let owner = row[kCGWindowOwnerPID as String] as? Int,
-            owner == Int(pid),
-            let name = row[kCGWindowName as String] as? String,
-            !name.isEmpty,
-            name != "Recording"
-        else {
-            return nil
+func subtreeContains(_ root: AXUIElement, text: String) -> Bool {
+    findElement(in: root) { element in
+        (attribute(element, kAXValueAttribute) as? String)?.contains(text) == true
+    } != nil
+}
+
+/// Chat lives in the notification window, the actions in the HUD: every lookup spans all of Echo.
+func waitForElement(
+    in application: AXUIElement,
+    timeout: TimeInterval = stateTimeout,
+    matching predicate: (AXUIElement) -> Bool
+) -> AXUIElement? {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        for window in windows(application) {
+            if let match = findElement(in: window, matching: predicate) {
+                return match
+            }
         }
-        return name
+        runLoop(for: 0.01)
+    }
+    return nil
+}
+
+func frame(of element: AXUIElement) -> CGRect? {
+    guard
+        let rawPosition = attribute(element, kAXPositionAttribute),
+        let rawSize = attribute(element, kAXSizeAttribute),
+        CFGetTypeID(rawPosition) == AXValueGetTypeID(),
+        CFGetTypeID(rawSize) == AXValueGetTypeID()
+    else {
+        return nil
+    }
+    var position = CGPoint.zero
+    var size = CGSize.zero
+    guard
+        AXValueGetValue(unsafeBitCast(rawPosition, to: AXValue.self), .cgPoint, &position),
+        AXValueGetValue(unsafeBitCast(rawSize, to: AXValue.self), .cgSize, &size)
+    else {
+        return nil
+    }
+    return CGRect(origin: position, size: size)
+}
+
+func center(of element: AXUIElement, _ label: String) throws -> CGPoint {
+    guard let box = frame(of: element), !box.isEmpty else {
+        throw SmokeFailure(description: "Could not resolve the \(label) frame")
+    }
+    return CGPoint(x: box.midX, y: box.midY)
+}
+
+func pid(of element: AXUIElement) -> pid_t? {
+    var value: pid_t = 0
+    return AXUIElementGetPid(element, &value) == .success ? value : nil
+}
+
+/// What Echo's own selection read asks: the app the system routes the keyboard to.
+func keyboardOwner() -> pid_t? {
+    elementAttribute(AXUIElementCreateSystemWide(), kAXFocusedApplicationAttribute).flatMap(pid(of:))
+}
+
+func isActive(_ pid: pid_t) -> Bool {
+    NSRunningApplication(processIdentifier: pid)?.isActive == true
+}
+
+func postMouse(_ type: CGEventType, at point: CGPoint) {
+    CGEvent(
+        mouseEventSource: CGEventSource(stateID: .combinedSessionState),
+        mouseType: type,
+        mouseCursorPosition: point,
+        mouseButton: .left
+    )?.post(tap: .cghidEventTap)
+}
+
+func movePointer(to point: CGPoint) {
+    CGWarpMouseCursorPosition(point)
+    postMouse(.mouseMoved, at: point)
+}
+
+func type(_ text: String) {
+    let source = CGEventSource(stateID: .combinedSessionState)
+    for unit in text.utf16 {
+        for isDown in [true, false] {
+            var character = unit
+            let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: isDown)
+            event?.keyboardSetUnicodeString(stringLength: 1, unicodeString: &character)
+            event?.post(tap: .cghidEventTap)
+            runLoop(for: 0.01)
+        }
+    }
+}
+
+struct ForeignDocument {
+    let pid: pid_t
+    let textArea: AXUIElement
+
+    var selectedText: String? {
+        attribute(textArea, kAXSelectedTextAttribute) as? String
+    }
+}
+
+/// A click, like the user's own, is the only thing that takes the keyboard back from a floating panel.
+func openForeignDocument() throws -> ForeignDocument {
+    try selectedSentence.write(to: documentURL, atomically: true, encoding: .utf8)
+    let open = Process()
+    open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+    open.arguments = ["-a", "TextEdit", documentURL.path]
+    try open.run()
+    open.waitUntilExit()
+    let deadline = Date().addingTimeInterval(5)
+    while Date() < deadline {
+        runLoop(for: 0.05)
+        guard
+            let textEdit = NSWorkspace.shared.runningApplications.first(where: {
+                $0.bundleIdentifier == "com.apple.TextEdit"
+            }),
+            let textArea = elementAttribute(
+                AXUIElementCreateApplication(textEdit.processIdentifier),
+                kAXFocusedUIElementAttribute
+            ),
+            attribute(textArea, kAXValueAttribute) as? String == selectedSentence,
+            let box = frame(of: textArea)
+        else {
+            continue
+        }
+        if keyboardOwner() != textEdit.processIdentifier {
+            let point = CGPoint(x: box.midX, y: box.midY)
+            movePointer(to: point)
+            postMouse(.leftMouseDown, at: point)
+            postMouse(.leftMouseUp, at: point)
+            runLoop(for: 0.25)
+            continue
+        }
+        return ForeignDocument(pid: textEdit.processIdentifier, textArea: textArea)
+    }
+    throw SmokeFailure(description: "TextEdit did not take the keyboard with the smoke document")
+}
+
+func selectSentence(in document: ForeignDocument) throws {
+    var range = CFRange(location: 0, length: selectedSentence.utf16.count)
+    guard let value = AXValueCreate(.cfRange, &range) else {
+        throw SmokeFailure(description: "Could not build the selection range")
+    }
+    AXUIElementSetAttributeValue(document.textArea, kAXSelectedTextRangeAttribute as CFString, value)
+    runLoop(for: 0.1)
+    try require(document.selectedText == selectedSentence, "TextEdit did not select the smoke sentence")
+}
+
+func closeForeignDocument(_ document: ForeignDocument) {
+    let textEdit = AXUIElementCreateApplication(document.pid)
+    for window in windows(textEdit) where (attribute(window, kAXDocumentAttribute) as? String)?
+        .hasSuffix(documentURL.lastPathComponent) == true {
+        if let close = elementAttribute(window, kAXCloseButtonAttribute) {
+            AXUIElementPerformAction(close, kAXPressAction as CFString)
+        }
+    }
+}
+
+struct SmokeSession {
+    let echo: AXUIElement
+    let echoPid: pid_t
+    let document: ForeignDocument
+
+    func requireFocusStays(keyboardMayMove: Bool, _ phase: String) throws {
+        try require(!isActive(echoPid), "Echo activated during \(phase), deactivating the user's app")
+        try require(isActive(document.pid), "TextEdit stopped being the active app during \(phase)")
+        if !keyboardMayMove {
+            try require(keyboardOwner() == document.pid, "Echo took the keyboard during \(phase)")
+        }
+    }
+
+    func watchFocus(for duration: TimeInterval, keyboardMayMove: Bool, _ phase: String) throws {
+        let deadline = Date().addingTimeInterval(duration)
+        repeat {
+            try requireFocusStays(keyboardMayMove: keyboardMayMove, phase)
+            runLoop(for: 0.005)
+        } while Date() < deadline
+    }
+
+    /// Samples focus from mouse-down on: activation Echo undoes a moment later still costs the selection read.
+    func click(_ point: CGPoint, keyboardMayMove: Bool, _ phase: String) throws {
+        movePointer(to: point)
+        runLoop(for: 0.18)
+        postMouse(.leftMouseDown, at: point)
+        try watchFocus(for: 0.03, keyboardMayMove: keyboardMayMove, phase)
+        postMouse(.leftMouseUp, at: point)
+        try watchFocus(for: clickWatchDuration, keyboardMayMove: keyboardMayMove, phase)
+        try require(document.selectedText == selectedSentence, "TextEdit lost its selection during \(phase)")
+    }
+
+    func element(_ label: String, timeout: TimeInterval = stateTimeout) throws -> AXUIElement {
+        guard let match = waitForElement(in: echo, timeout: timeout, matching: { hasLabel($0, label) }) else {
+            throw SmokeFailure(description: "Echo shows no \(label)")
+        }
+        return match
+    }
+
+    /// Hover reveals the actions without ever taking the keyboard; the accessibility tree lists them before the reveal lands.
+    func revealAction(_ label: String) throws -> CGPoint {
+        let resident = try residentWindow(echo)
+        movePointer(to: try center(of: resident, "resident island"))
+        try watchFocus(for: 0.8, keyboardMayMove: false, "island hover")
+        let point = try center(of: try element(label), label)
+        movePointer(to: point)
+        try watchFocus(for: 0.3, keyboardMayMove: false, "\(label) dwell")
+        try require(
+            findElement(in: resident, matching: { hasLabel($0, label) }) != nil,
+            "Resident actions collapsed while dwelling over \(label)"
+        )
+        return point
+    }
+
+    func waitForKeyboardReturn(_ phase: String) throws {
+        let deadline = Date().addingTimeInterval(stateTimeout)
+        while keyboardOwner() != document.pid, Date() < deadline {
+            runLoop(for: 0.01)
+        }
+        try require(keyboardOwner() == document.pid, "\(phase) left the keyboard stranded away from TextEdit")
     }
 }
 
@@ -90,327 +311,83 @@ func echoProcessIdentifier() throws -> pid_t {
     return process.processIdentifier
 }
 
-func approximatelyEqual(_ first: CGFloat, _ second: CGFloat) -> Bool {
-    abs(first - second) <= 0.5
-}
-
-func canvasHasSize(_ bounds: CGRect, _ size: CGSize) -> Bool {
-    approximatelyEqual(bounds.width, size.width) &&
-        approximatelyEqual(bounds.height, size.height)
-}
-
-@discardableResult
-func waitForCanvasSize(pid: pid_t, size: CGSize, phase: String) throws -> CGRect {
-    let deadline = Date().addingTimeInterval(stateTimeout)
-    var lastBounds: CGRect?
-    while Date() < deadline {
-        if let bounds = recordingBounds(pid: pid) {
-            lastBounds = bounds
-            if canvasHasSize(bounds, size) {
-                return bounds
-            }
-        }
-        usleep(10_000)
+/// Title, not size: the island's canvas changes with the screen edge it docks to.
+func residentWindow(_ echo: AXUIElement) throws -> AXUIElement {
+    let resident = windows(echo).first { attribute($0, kAXTitleAttribute) as? String == "Recording" }
+    guard let resident else {
+        throw SmokeFailure(description: "Could not find the resident island")
     }
-    throw SmokeFailure(
-        description: "Recording canvas did not reach \(size) during \(phase); last bounds: \(String(describing: lastBounds))"
-    )
+    return resident
 }
 
-@discardableResult
-func requireStableCanvas(pid: pid_t, reference: CGRect, phase: String) throws -> CGRect {
-    guard let current = recordingBounds(pid: pid) else {
-        throw SmokeFailure(description: "Recording canvas disappeared during \(phase)")
+func chatScenario(_ session: SmokeSession) throws {
+    print("Scenario: asking chat about the text selected in another app")
+    step("When the user opens chat from the island")
+    try session.click(try session.revealAction("Open Echo chat"), keyboardMayMove: true, "opening chat")
+    step("Then chat quotes the sentence TextEdit still holds selected")
+    let quotesSentence = waitForElement(in: session.echo, timeout: 4) { element in
+        hasLabel(element, "Selected text context") && subtreeContains(element, text: selectedSentence)
     }
-    let stable = approximatelyEqual(current.minX, reference.minX) &&
-        approximatelyEqual(current.minY, reference.minY) &&
-        approximatelyEqual(current.width, reference.width) &&
-        approximatelyEqual(current.height, reference.height)
-    try require(stable, "Recording canvas changed during \(phase): \(reference) -> \(current)")
-    return current
+    try require(quotesSentence != nil, "Chat did not attach the sentence selected in TextEdit")
+    step("When the user clicks into the composer and types")
+    let composer = try session.element("Ask about this text")
+    try session.click(try center(of: composer, "composer"), keyboardMayMove: true, "clicking the composer")
+    type("hi")
+    step("Then the keystrokes reach the composer while TextEdit stays active and selected")
+    try session.watchFocus(for: 0.2, keyboardMayMove: true, "typing in chat")
+    try require(attribute(composer, kAXValueAttribute) as? String == "hi", "Typing did not reach the chat composer")
+    try require(session.document.selectedText == selectedSentence, "TextEdit lost its selection while chat was typed into")
+    step("When the user closes chat, the keyboard returns to TextEdit")
+    let close = try session.element("Close chat")
+    try session.click(try center(of: close, "Close chat"), keyboardMayMove: true, "closing chat")
+    try session.waitForKeyboardReturn("Closing chat")
 }
 
-func accessibilityAttribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
-    var value: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else {
-        return nil
-    }
-    return value
-}
-
-func accessibilityElement(_ element: AXUIElement, hasLabel label: String) -> Bool {
-    let attributes = [
-        kAXTitleAttribute,
-        kAXDescriptionAttribute,
-        kAXHelpAttribute,
-        kAXValueAttribute,
-    ]
-    for attribute in attributes {
-        if accessibilityAttribute(element, attribute) as? String == label {
-            return true
-        }
-    }
-    return false
-}
-
-func accessibilityChildren(_ element: AXUIElement) -> [AXUIElement] {
-    accessibilityAttribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? []
-}
-
-func findAccessibleElement(
-    root: AXUIElement,
-    label: String,
-    remainingDepth: Int = 32
-) -> AXUIElement? {
-    if accessibilityElement(root, hasLabel: label) {
-        return root
-    }
-    guard remainingDepth > 0 else {
-        return nil
-    }
-    for child in accessibilityChildren(root) {
-        if let match = findAccessibleElement(
-            root: child,
-            label: label,
-            remainingDepth: remainingDepth - 1
-        ) {
-            return match
-        }
-    }
-    return nil
-}
-
-
-func waitForAccessibleElement(
-    root: AXUIElement,
-    label: String,
-    timeout: TimeInterval = stateTimeout
-) -> AXUIElement? {
-    let deadline = Date().addingTimeInterval(timeout)
-    while Date() < deadline {
-        if let element = findAccessibleElement(root: root, label: label) {
-            return element
-        }
-        usleep(10_000)
-    }
-    return nil
-}
-
-
-func accessibilityFrame(_ element: AXUIElement) -> CGRect? {
-    guard
-        let rawPosition = accessibilityAttribute(element, kAXPositionAttribute),
-        let rawSize = accessibilityAttribute(element, kAXSizeAttribute),
-        CFGetTypeID(rawPosition) == AXValueGetTypeID(),
-        CFGetTypeID(rawSize) == AXValueGetTypeID()
-    else {
-        return nil
-    }
-    var position = CGPoint.zero
-    var size = CGSize.zero
-    let positionValue = unsafeBitCast(rawPosition, to: AXValue.self)
-    let sizeValue = unsafeBitCast(rawSize, to: AXValue.self)
-    guard
-        AXValueGetValue(positionValue, .cgPoint, &position),
-        AXValueGetValue(sizeValue, .cgSize, &size)
-    else {
-        return nil
-    }
-    return CGRect(origin: position, size: size)
-}
-
-func waitForAccessibilityWindow(root: AXUIElement, size: CGSize) -> AXUIElement? {
-    let deadline = Date().addingTimeInterval(stateTimeout)
-    while Date() < deadline {
-        let windows =
-            accessibilityAttribute(root, kAXWindowsAttribute) as? [AXUIElement] ?? []
-        if let window = windows.first(where: { window in
-            guard let frame = accessibilityFrame(window) else {
-                return false
-            }
-            return canvasHasSize(frame, size)
-        }) {
-            return window
-        }
-        usleep(10_000)
-    }
-    return nil
-}
-
-func displayBounds(containing point: CGPoint) -> CGRect? {
-    var display = CGDirectDisplayID()
-    var count: UInt32 = 0
-    guard CGGetDisplaysWithPoint(point, 1, &display, &count) == .success, count == 1 else {
-        return nil
-    }
-    return CGDisplayBounds(display)
-}
-
-
-func postMouseMove(_ point: CGPoint) {
-    let source = CGEventSource(stateID: .combinedSessionState)
-    CGEvent(
-        mouseEventSource: source,
-        mouseType: .mouseMoved,
-        mouseCursorPosition: point,
-        mouseButton: .left
-    )?.post(tap: .cghidEventTap)
-}
-
-func movePointer(_ point: CGPoint) {
-    CGWarpMouseCursorPosition(point)
-    postMouseMove(point)
-}
-
-
-func click(_ point: CGPoint) throws {
-    let source = CGEventSource(stateID: .combinedSessionState)
-    guard
-        let down = CGEvent(
-            mouseEventSource: source,
-            mouseType: .leftMouseDown,
-            mouseCursorPosition: point,
-            mouseButton: .left
-        ),
-        let up = CGEvent(
-            mouseEventSource: source,
-            mouseType: .leftMouseUp,
-            mouseCursorPosition: point,
-            mouseButton: .left
-        )
-    else {
-        throw SmokeFailure(description: "Could not create mouse events")
-    }
-    movePointer(point)
-    usleep(20_000)
-    down.post(tap: .cghidEventTap)
-    usleep(20_000)
-    up.post(tap: .cghidEventTap)
-}
-
-func clickAccessibleElement(_ element: AXUIElement, label: String) throws {
-    guard let frame = accessibilityFrame(element), !frame.isEmpty else {
-        throw SmokeFailure(description: "Could not resolve \(label) accessibility frame")
-    }
-    let point = CGPoint(x: frame.midX, y: frame.midY)
-    movePointer(point)
-    usleep(160_000)
-    try click(point)
-}
-
-func requireForeignFocus(_ pid: pid_t?, phase: String) throws {
-    try require(
-        NSWorkspace.shared.frontmostApplication?.processIdentifier == pid,
-        "Echo activated during \(phase)"
-    )
+func polishScenario(_ session: SmokeSession) throws {
+    print("Scenario: polishing the text selected in another app")
+    try selectSentence(in: session.document)
+    step("When the user clicks Polish on the island")
+    let polish = try session.revealAction("Polish selected text")
+    step("Then TextEdit keeps the keyboard and its selection for Polish to read")
+    try session.click(polish, keyboardMayMove: false, "clicking Polish")
 }
 
 let previousApplication = NSWorkspace.shared.frontmostApplication
 let savedCursor = CGEvent(source: nil)?.location ?? .zero
-
+var openedDocument: ForeignDocument?
+var echoApplication: AXUIElement?
 var exitCode: Int32 = 0
+
 do {
+    try require(CGPreflightPostEventAccess(), "Synthetic input permission is unavailable")
+    try require(AXIsProcessTrusted(), "Accessibility permission is unavailable for this terminal")
     let echoPid = try echoProcessIdentifier()
-    let blockingWindows = blockingEchoWindowNames(pid: echoPid)
-    try require(
-        blockingWindows.isEmpty,
-        "Close Echo windows or permission dialogs before smoke test: \(blockingWindows.joined(separator: ", "))"
-    )
-    let canvas = try waitForCanvasSize(
-        pid: echoPid,
-        size: residentCanvasSize,
-        phase: "initial resident state"
-    )
-    guard let display = displayBounds(containing: CGPoint(x: canvas.midX, y: canvas.midY)) else {
-        throw SmokeFailure(description: "Could not resolve the resident overlay display")
-    }
-    let edgeGap = [
-        abs(display.maxX - canvas.maxX),
-        abs(canvas.minX - display.minX),
-        abs(display.maxY - canvas.maxY),
-        abs(canvas.minY - display.minY),
-    ].min() ?? .infinity
-    try require(edgeGap <= 0.5, "Resident canvas is detached from the display edge: \(canvas)")
-
-    if CommandLine.arguments.contains("--geometry-only") {
-        print("PASS: resident canvas is attached to a display edge at \(canvas)")
-    } else {
-        let previousPid = previousApplication?.processIdentifier
-        try require(CGPreflightPostEventAccess(), "Synthetic input permission is unavailable")
-        try require(AXIsProcessTrusted(), "Accessibility permission is unavailable for this terminal")
-        try require(previousPid != nil && previousPid != echoPid, "Focus another app before this smoke test")
-    let echoApplicationAccessibility = AXUIElementCreateApplication(echoPid)
-    AXUIElementSetMessagingTimeout(echoApplicationAccessibility, Float(stateTimeout))
-    guard
-        let echoAccessibility = waitForAccessibilityWindow(
-            root: echoApplicationAccessibility,
-            size: residentCanvasSize
-        )
-    else {
-        throw SmokeFailure(description: "Could not resolve the resident overlay accessibility window")
-    }
+    let echo = AXUIElementCreateApplication(echoPid)
+    echoApplication = echo
+    AXUIElementSetMessagingTimeout(echo, Float(stateTimeout))
+    print("Given TextEdit is the active app with \"\(selectedSentence)\" selected")
+    let document = try openForeignDocument()
+    openedDocument = document
+    try selectSentence(in: document)
     CGAssociateMouseAndMouseCursorPosition(boolean_t(0))
-
-    let actionLabels = ["Start recording", "Open Echo chat", "Polish selected text"]
-    for label in actionLabels {
-        guard
-            let action = waitForAccessibleElement(root: echoAccessibility, label: label),
-            let frame = accessibilityFrame(action),
-            !frame.isEmpty
-        else {
-            throw SmokeFailure(description: "Could not resolve \(label) action center")
-        }
-        movePointer(CGPoint(x: frame.midX, y: frame.midY))
-        usleep(180_000)
-        try require(
-            findAccessibleElement(root: echoAccessibility, label: "Open Echo chat") != nil,
-            "Resident actions collapsed while dwelling over \(label)"
-        )
-        try requireStableCanvas(pid: echoPid, reference: canvas, phase: "\(label) dwell")
-        try requireForeignFocus(previousPid, phase: "\(label) dwell")
-    }
-
-    guard
-        let chatAction = findAccessibleElement(root: echoAccessibility, label: "Open Echo chat"),
-        let chatFrame = accessibilityFrame(chatAction),
-        !chatFrame.isEmpty
-    else {
-        throw SmokeFailure(description: "Could not resolve Open Echo chat before click")
-    }
-    let chatPoint = CGPoint(x: chatFrame.midX, y: chatFrame.midY)
-    movePointer(chatPoint)
-    usleep(180_000)
-    try require(
-        findAccessibleElement(root: echoAccessibility, label: "Open Echo chat") != nil,
-        "Open Echo chat disappeared during the pre-click dwell"
-    )
-    try requireForeignFocus(previousPid, phase: "Open Echo chat pre-click dwell")
-    try click(chatPoint)
-    guard let closeChat = waitForAccessibleElement(root: echoAccessibility, label: "Close chat") else {
-        throw SmokeFailure(description: "Passive Chat click did not open the React panel")
-    }
-    try waitForCanvasSize(pid: echoPid, size: chatCanvasSize, phase: "Chat open")
-    try requireForeignFocus(previousPid, phase: "passive Chat click")
-    try clickAccessibleElement(closeChat, label: "Close chat")
-    try waitForCanvasSize(pid: echoPid, size: residentCanvasSize, phase: "Chat close")
-    try requireStableCanvas(pid: echoPid, reference: canvas, phase: "Chat close")
-    try requireForeignFocus(previousPid, phase: "passive Chat close")
-    guard waitForAccessibleElement(root: echoAccessibility, label: "Open Echo chat") != nil else {
-        throw SmokeFailure(description: "Resident actions did not recover after Chat closed")
-    }
-    try requireStableCanvas(pid: echoPid, reference: canvas, phase: "post-Chat resident")
-    try requireForeignFocus(previousPid, phase: "post-Chat resident")
-    print("PASS: persistent resident actions and passive clicks preserved foreign-app focus")
-    }
+    let session = SmokeSession(echo: echo, echoPid: echoPid, document: document)
+    try chatScenario(session)
+    try polishScenario(session)
+    print("PASS: clicking Echo left the user's app active with its selection intact")
 } catch {
     fputs("FAIL: \(error)\n", stderr)
     exitCode = 1
 }
 
 CGWarpMouseCursorPosition(savedCursor)
-postMouseMove(savedCursor)
+postMouse(.mouseMoved, at: savedCursor)
 CGAssociateMouseAndMouseCursorPosition(boolean_t(1))
-previousApplication?.activate()
-if exitCode != 0 {
-    exit(exitCode)
+runLoop(for: 1)
+if let openedDocument {
+    closeForeignDocument(openedDocument)
 }
+if let echoApplication, let close = findElement(in: echoApplication, matching: { hasLabel($0, "Close chat") }) {
+    AXUIElementPerformAction(close, kAXPressAction as CFString)
+}
+previousApplication?.activate()
+exit(exitCode)

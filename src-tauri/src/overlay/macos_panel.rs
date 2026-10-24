@@ -6,7 +6,7 @@ use super::macos_hover::{
 use super::macos_hover_sync::{register_panel_window, sync_hover_key_possession};
 use super::surface::OverlayBoxPayload;
 use std::{sync::atomic::Ordering, sync::mpsc, time::Duration};
-use tauri::{AppHandle, Manager, WebviewWindow};
+use tauri::{AppHandle, WebviewWindow};
 use tauri_nspanel::objc2_foundation::MainThreadMarker as AppKitMainThreadMarker;
 use tauri_nspanel::{CollectionBehavior, ManagerExt, PanelLevel, StyleMask, WebviewWindowExt};
 
@@ -35,7 +35,7 @@ tauri_nspanel::tauri_panel!(EchoOverlayPanel {
 
 mod notification_panel {
     use super::{apply_shared_panel_configuration, require_main_thread, OverlayPanelHandle};
-    use tauri::{Manager, WebviewWindow};
+    use tauri::WebviewWindow;
     use tauri_nspanel::WebviewWindowExt;
 
     tauri_nspanel::tauri_panel!(EchoNotificationPanel {
@@ -54,14 +54,14 @@ mod notification_panel {
         let panel = window
             .to_panel::<EchoNotificationPanel>()
             .map_err(|error| format!("Failed to create the notification panel: {error}"))?;
-        apply_shared_panel_configuration(&panel);
+        apply_shared_panel_configuration(&panel)?;
         Ok(panel)
     }
 }
 
 mod snap_preview_panel {
     use super::{overlay_collection_behavior, require_main_thread};
-    use tauri::{Manager, WebviewWindow};
+    use tauri::WebviewWindow;
     use tauri_nspanel::{PanelLevel, StyleMask, WebviewWindowExt};
 
     tauri_nspanel::tauri_panel!(EchoSnapPreviewPanel {
@@ -80,7 +80,9 @@ mod snap_preview_panel {
         let panel = window
             .to_panel::<EchoSnapPreviewPanel>()
             .map_err(|error| format!("Failed to create snap preview panel: {error}"))?;
-        panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
+        panel
+            .set_style_mask(StyleMask::empty().nonactivating_panel().into())
+            .map_err(|error| format!("Failed to make the snap preview non-activating: {error}"))?;
         panel.set_collection_behavior(overlay_collection_behavior().into());
         panel.set_level(PanelLevel::ModalPanel.value());
         panel.set_hides_on_deactivate(false);
@@ -92,8 +94,10 @@ mod snap_preview_panel {
 
 /// Hit testing is the window frame, never a sampled pointer: a click that arrives before the next mouse-moved
 /// sample would otherwise fall through to the app underneath and be spent making the panel reachable.
-fn apply_shared_panel_configuration(panel: &OverlayPanelHandle) {
-    panel.set_style_mask(StyleMask::empty().nonactivating_panel().into());
+fn apply_shared_panel_configuration(panel: &OverlayPanelHandle) -> Result<(), String> {
+    panel
+        .set_style_mask(StyleMask::empty().nonactivating_panel().into())
+        .map_err(|error| format!("Failed to make the overlay panel non-activating: {error}"))?;
     panel.set_collection_behavior(overlay_collection_behavior().into());
     panel.set_level(PanelLevel::Status.value());
     panel.set_hides_on_deactivate(false);
@@ -102,6 +106,7 @@ fn apply_shared_panel_configuration(panel: &OverlayPanelHandle) {
     panel.set_released_when_closed(false);
     panel.set_accepts_mouse_moved_events(true);
     panel.set_ignores_mouse_events(false);
+    Ok(())
 }
 
 pub(super) fn configure(
@@ -114,7 +119,7 @@ pub(super) fn configure(
     let panel = window
         .to_panel::<EchoOverlayPanel>()
         .map_err(|error| format!("Failed to create non-activating overlay panel: {error}"))?;
-    apply_shared_panel_configuration(&panel);
+    apply_shared_panel_configuration(&panel)?;
     register_panel_window(OverlaySurfaceKind::Hud, window)?;
     if initially_visible {
         panel.show();

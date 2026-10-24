@@ -4,6 +4,7 @@
 
 ### Fixed
 - Quitting Echo, or restarting it into an update, no longer ends in "Echo quit unexpectedly" while a speech model is loaded.
+- Clicking Polish or chat on the island, or clicking into chat to send a new message, no longer pulls focus from the app being worked in, so its selected text stays selected and reaches Polish and chat.
 
 ## [0.8.8] - 2026-10-24
 

@@ -108,6 +108,7 @@
   "devDependencies": {
     "@babel/core": "^7.29.7",
     "@biomejs/biome": "2.4.4",
+    "@msw/playwright": "^0.7.0",
     "@playwright/test": "^1.61.1",
     "@rolldown/plugin-babel": "^0.2.3",
     "@tauri-apps/cli": "~2.10.1",
@@ -119,6 +120,7 @@
     "@vitejs/plugin-react": "^6.0.3",
     "babel-plugin-react-compiler": "^1.0.0",
     "husky": "^9.1.7",
+    "msw": "^3.0.3",
     "react-grab": "^0.1.48",
     "react-scan": "^0.5.7",
     "turbo": "^2.10.5",
