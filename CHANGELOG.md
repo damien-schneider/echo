@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.8.12] - 2026-10-24
 
 ### Added
 - Each model on the Models page shows its disk size and how much memory it takes while running, measured on Apple silicon: Small 469 MB, Medium 857 MB, Large 1.7 GB, Qwen3 4B 3.1 GB. A downloaded model has buttons to show its file in Finder and to delete it. Delete asks for a second click and also works on the active transcription model and on Qwen3 4B, which are unloaded from memory first.
