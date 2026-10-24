@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.8.9] - 2026-10-24
 
 ### Added
 - Post-processing and voice commands run on Echo 4B, the on-device model (a one-time 2.5 GB download, offered on the Post-processing page), so turning them on no longer needs an AI provider. "Post-process in the cloud" switches back to the configured provider, and setups that already had a provider model keep using it.
