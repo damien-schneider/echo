@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.8.8] - 2026-10-24
 
 ### Added
 - Meetings can run on Voxtral Mini 4B Realtime, an optional 2.8 GB download in Meeting settings for Apple Silicon Macs with 16 GB of memory. Once downloaded, the microphone's live text comes from Voxtral and is kept as the transcript at stop; retranscribing runs every track through it.

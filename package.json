@@ -1,7 +1,7 @@
 {
   "name": "echo-app",
   "private": true,
-  "version": "0.8.7",
+  "version": "0.8.8",
   "workspaces": [
     "apps/*",
     "packages/*"
