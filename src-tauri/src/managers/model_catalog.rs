@@ -1,4 +1,4 @@
-use super::model::{EngineType, ModelInfo, POLISH_MODEL_ID, VOXTRAL_MODEL_ID};
+use super::model::{EngineType, ModelInfo, POLISH_MODEL_ID, POLISH_MODEL_NAME, VOXTRAL_MODEL_ID};
 use super::transcription_profiles::{transcription_profiles, TranscriptionProfileSpec};
 use std::collections::HashMap;
 
@@ -67,7 +67,7 @@ pub(super) fn available_model_catalog() -> HashMap<String, ModelInfo> {
         POLISH_MODEL_ID.to_string(),
         ModelInfo {
             id: POLISH_MODEL_ID.to_string(),
-            name: "Polish".to_string(),
+            name: POLISH_MODEL_NAME.to_string(),
             description: "Private multilingual spelling and grammar correction".to_string(),
             filename: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf".to_string(),
             url: Some(POLISH_MODEL_URL.to_string()),

@@ -37,6 +37,7 @@ interface ModelStore {
   downloadStats: Map<string, DownloadStats>;
   error: string | null;
   initialize: () => Promise<void>;
+  loadingSize: TranscriptionModelSize | null;
   loadProfiles: () => Promise<void>;
   modelStatus: ModelStatus;
   profiles: TranscriptionProfileStatus[];
@@ -51,14 +52,8 @@ const loadProfilePayload = async () => {
 
 export const useModelStore = create<ModelStore>((set, get) => ({
   deleteProfile: async (size) => {
-    set({ error: null });
-    try {
-      await invoke("delete_model", { modelId: size });
-      await get().loadProfiles();
-    } catch (error) {
-      set({ error: `${error}` });
-      throw error;
-    }
+    await invoke("delete_model", { modelId: size });
+    await get().loadProfiles();
   },
   downloadProgress: new Map(),
   downloadStats: new Map(),
@@ -86,6 +81,7 @@ export const useModelStore = create<ModelStore>((set, get) => ({
     }
   },
 
+  loadingSize: null,
   loadProfiles: async () => {
     try {
       const profiles = await loadProfilePayload();
@@ -135,15 +131,24 @@ export const useModelStore = create<ModelStore>((set, get) => ({
           return;
         }
         switch (parsed.data.event_type) {
-          case "loading_started":
-            set({ error: null, modelStatus: "loading" });
+          case "loading_started": {
+            const size = TranscriptionModelSizeSchema.safeParse(
+              parsed.data.model_id
+            );
+            set({
+              error: null,
+              loadingSize: size.success ? size.data : null,
+              modelStatus: "loading",
+            });
             break;
+          }
           case "loading_completed":
-            set({ error: null, modelStatus: "ready" });
+            set({ error: null, loadingSize: null, modelStatus: "ready" });
             break;
           case "loading_failed":
             set({
               error: parsed.data.error ?? "Failed to load transcription model",
+              loadingSize: null,
               modelStatus: "error",
             });
             break;

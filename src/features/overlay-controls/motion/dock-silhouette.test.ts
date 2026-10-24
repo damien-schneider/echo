@@ -51,7 +51,8 @@ const lifted = dockSilhouettePath({
   ...SIDE_DOCK,
   corner: 999,
   gear: { revealed: true, slot: DOCK_GEAR_SLOT },
-  shoulder: 0,
+  isLifted: true,
+  shoulder: DOCK_SHOULDER,
 });
 const sliver = dockSilhouettePath({
   anchor: "top",
@@ -65,7 +66,6 @@ describe("dock shoulder", () => {
     expect(
       dockShoulder({
         anchor: "top",
-        isDragging: false,
         mode: "actions",
         presentation: "bar",
       })
@@ -76,7 +76,6 @@ describe("dock shoulder", () => {
     expect(
       dockShoulder({
         anchor: "left",
-        isDragging: false,
         mode: "compact",
         presentation: "docked",
       })
@@ -84,7 +83,6 @@ describe("dock shoulder", () => {
     expect(
       dockShoulder({
         anchor: "right",
-        isDragging: false,
         mode: "actions",
         presentation: "docked",
       })
@@ -96,7 +94,6 @@ describe("dock shoulder", () => {
     expect(
       dockShoulder({
         anchor: "top",
-        isDragging: false,
         mode: "compact",
         presentation: "docked",
       })
@@ -104,7 +101,6 @@ describe("dock shoulder", () => {
     expect(
       dockShoulder({
         anchor: "bottom",
-        isDragging: false,
         mode: "actions",
         presentation: "docked",
       })
@@ -116,20 +112,8 @@ describe("dock shoulder", () => {
     expect(
       dockShoulder({
         anchor: "top",
-        isDragging: false,
         mode: "recording",
         presentation: "bar",
-      })
-    ).toBe(0);
-  });
-
-  test("a lifted island hangs off nothing", () => {
-    expect(
-      dockShoulder({
-        anchor: "left",
-        isDragging: true,
-        mode: "actions",
-        presentation: "docked",
       })
     ).toBe(0);
   });
@@ -167,9 +151,17 @@ describe("dock silhouette", () => {
         ...SIDE_DOCK,
         corner: 999,
         gear: { revealed: false, slot: DOCK_GEAR_SLOT },
-        shoulder: 0,
+        isLifted: true,
+        shoulder: DOCK_SHOULDER,
       })
     );
+  });
+
+  // the shoulders fold away, they don't turn into extra panel past the end buttons
+  test("a lifted island keeps the length it had docked", () => {
+    const along = endpointsOf(lifted).map((point) => point.y);
+    expect(Math.min(...along)).toBe(DOCK_SHOULDER);
+    expect(Math.max(...along)).toBe(PANEL_END - DOCK_SHOULDER);
   });
 
   test("the outline never leaves its frame", () => {

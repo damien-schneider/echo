@@ -93,7 +93,7 @@ const setupEchoTestState = () => {
     chatContextRefreshResolvers: [],
     chatReply:
       new URLSearchParams(window.location.search).get("chatReply") ??
-      "Echo 4B reply",
+      "Qwen3 4B reply",
     chatReplyResolvers: [],
     holdsChatContextRefresh: false,
     holdsChatReply: false,

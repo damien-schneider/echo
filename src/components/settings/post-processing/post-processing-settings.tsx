@@ -1,5 +1,4 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import { EchoModelRow } from "@/components/settings/post-processing/echo-model-row";
 import { PostProcessingSettingsPrompts } from "@/components/settings/post-processing/prompt-settings";
 import { VoiceCommandsSettings } from "@/components/settings/post-processing/voice-commands";
 import { SettingRow } from "@/features/settings/setting-row";
@@ -33,7 +32,6 @@ export const PostProcessingSettings = () => (
   <div className="space-y-5">
     <SettingsSection title="General">
       <PostProcessingEnableToggle />
-      <EchoModelRow />
     </SettingsSection>
 
     <VoiceCommandsSettings />

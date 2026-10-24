@@ -1,54 +1,17 @@
-import {
-  CheckCircleIcon,
-  CircleDashedIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
 import { useEffect } from "react";
-import { TranscriptionProfileCard } from "@/components/model-selector/transcription-profile-card";
+import { TranscriptionModelRow } from "@/components/model-selector/transcription-model-row";
 import { PolishLevelSlider } from "@/components/settings/models/polish-level-slider";
-import { PolishStatusCard } from "@/components/settings/models/polish-status-card";
+import { PolishModelRow } from "@/components/settings/models/polish-model-row";
 import { usePolishModel } from "@/features/polish/use-polish-model";
+import { SettingsSection } from "@/features/settings/settings-section";
 import type { TranscriptionModelSize } from "@/lib/types";
 import { useModelStore } from "@/stores/model-store";
-
-const statusCopy = {
-  downloading: "Downloading local model",
-  error: "Transcription model error",
-  loading: "Preparing local model",
-  none: "Choose a model size",
-  ready: "Local transcription ready",
-  unloaded: "Local model is not loaded",
-} as const;
-
-const renderStatusIcon = (modelStatus: keyof typeof statusCopy) => {
-  if (modelStatus === "ready") {
-    return (
-      <CheckCircleIcon
-        aria-hidden="true"
-        className="h-4 w-4 text-muted-foreground"
-      />
-    );
-  }
-  if (modelStatus === "error") {
-    return (
-      <WarningCircleIcon
-        aria-hidden="true"
-        className="h-4 w-4 text-muted-foreground"
-      />
-    );
-  }
-  return (
-    <CircleDashedIcon
-      aria-hidden="true"
-      className="h-4 w-4 text-muted-foreground"
-    />
-  );
-};
 
 export const ModelsSettings = () => {
   const polish = usePolishModel();
   const profiles = useModelStore((state) => state.profiles);
   const modelStatus = useModelStore((state) => state.modelStatus);
+  const loadingSize = useModelStore((state) => state.loadingSize);
   const error = useModelStore((state) => state.error);
   const downloadProgress = useModelStore((state) => state.downloadProgress);
   const downloadStats = useModelStore((state) => state.downloadStats);
@@ -82,59 +45,41 @@ export const ModelsSettings = () => {
     }
   };
 
-  const handleDelete = async (size: TranscriptionModelSize) => {
-    try {
-      await deleteProfile(size);
-    } catch {
-      // Store exposes the actionable error below.
-    }
-  };
-
   const isBusy = modelStatus === "loading" || modelStatus === "downloading";
   return (
     <div className="space-y-5">
-      <div className="rounded-lg border border-border/20 bg-card px-4 py-3">
-        <div className="flex items-center gap-3">
-          {renderStatusIcon(modelStatus)}
-          <div>
-            <p className="font-medium text-label">{statusCopy[modelStatus]}</p>
-            <p className="text-caption text-muted-foreground">
-              Audio is transcribed on this computer.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {error ? (
-        <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive text-sm">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="space-y-3">
-        {profiles.map((profile) => {
-          const progress = downloadProgress.get(profile.size);
-          const stats = downloadStats.get(profile.size);
-          return (
-            <TranscriptionProfileCard
-              downloadProgress={progress?.percentage}
-              downloadSpeed={stats?.speed}
-              isBusy={isBusy}
-              key={profile.size}
-              onDelete={() => handleDelete(profile.size)}
-              onSelect={() => handleSelect(profile.size)}
-              profile={profile}
-            />
-          );
-        })}
-      </div>
-      <PolishStatusCard
-        onDownload={polish.download}
-        onRepair={polish.repair}
-        progress={polish.progress?.percentage}
-        status={polish.status}
-      />
-      <PolishLevelSlider />
+      <SettingsSection
+        description="Audio is transcribed on this computer."
+        title="Transcription"
+      >
+        {profiles.map((profile) => (
+          <TranscriptionModelRow
+            downloadProgress={downloadProgress.get(profile.size)?.percentage}
+            downloadSpeed={downloadStats.get(profile.size)?.speed}
+            isBusy={isBusy}
+            isLoading={loadingSize === profile.size}
+            key={profile.size}
+            onDelete={() => deleteProfile(profile.size)}
+            onSelect={() => handleSelect(profile.size)}
+            profile={profile}
+          />
+        ))}
+        {error ? (
+          <p className="px-4 py-3 text-caption text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </SettingsSection>
+      <SettingsSection title="Language model">
+        <PolishModelRow
+          onDelete={polish.remove}
+          onDownload={polish.download}
+          onRepair={polish.repair}
+          progress={polish.progress?.percentage}
+          status={polish.status}
+        />
+        <PolishLevelSlider />
+      </SettingsSection>
     </div>
   );
 };

@@ -24,6 +24,9 @@ pub enum EngineType {
 }
 
 pub const POLISH_MODEL_ID: &str = "polish-qwen3-4b-instruct-2507";
+pub const POLISH_MODEL_NAME: &str = "Qwen3 4B";
+/// Peak resident memory serving one request at a 4096-token context, mapped weights included.
+pub const POLISH_MODEL_MEMORY_MB: u64 = 3127;
 pub const VOXTRAL_MODEL_ID: &str = "meeting-voxtral-realtime";
 
 const SHARED_MODELS_APP_ID: &str = "com.damien-schneider.echo";

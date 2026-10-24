@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Each model on the Models page shows its disk size and how much memory it takes while running, measured on Apple silicon: Small 469 MB, Medium 857 MB, Large 1.7 GB, Qwen3 4B 3.1 GB. A downloaded model has buttons to show its file in Finder and to delete it. Delete asks for a second click and also works on the active transcription model and on Qwen3 4B, which are unloaded from memory first.
+
+### Changed
+- The on-device model is shown only on the Models page, under its real name, Qwen3 4B, with what runs on it: post-processing, voice commands, Polish, meeting summaries and chat. The Post-processing page no longer has its own model row, and chat, meeting settings and error messages say Qwen3 4B instead of Echo 4B.
+- The Models page has a Transcription section and a Language model section, and Small, Medium, Large and Qwen3 4B share one layout. The "Local transcription ready" banner is gone: the Active badge marks the chosen model, and a model loading into memory says so on its own row.
+- Model sizes use decimal units like Finder, so Qwen3 4B reads 2.5 GB on the Models page too.
+
+### Fixed
+- A dragged island stays the length it has when docked, instead of growing extra space above its first button and below its last.
+
 ## [0.8.11] - 2026-10-24
 
 ### Added

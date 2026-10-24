@@ -49,7 +49,7 @@ test("the prompt appears before the selected-text lookup answers", async ({
 
   await releaseChatContextRefresh(page);
   await expect(page.locator('[data-chat-role="assistant"]')).toContainText(
-    "Echo 4B reply"
+    "Qwen3 4B reply"
   );
 });
 
@@ -112,7 +112,7 @@ const streamIdOfPendingChat = async (page: Page) => {
   return parsed.streamId;
 };
 
-test("the local answer shows up while Echo 4B is still writing it", async ({
+test("the local answer shows up while Qwen3 4B is still writing it", async ({
   page,
 }) => {
   await page.goto(chatUrl("Final answer."));
@@ -138,7 +138,7 @@ test("the local answer shows up while Echo 4B is still writing it", async ({
   await expect(answer).toHaveText("Final answer.");
 });
 
-test("stopping mid-answer keeps the streamed text and tells Echo 4B to stop", async ({
+test("stopping mid-answer keeps the streamed text and tells Qwen3 4B to stop", async ({
   page,
 }) => {
   await page.goto(chatUrl("Final answer."));

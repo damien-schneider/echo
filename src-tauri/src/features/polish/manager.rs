@@ -6,6 +6,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::watch;
 
+mod deletion;
 mod setup;
 
 use crate::managers::model::{ModelManager, POLISH_MODEL_ID};
@@ -193,7 +194,7 @@ impl PolishManager {
         }
         self.prepare()
             .await
-            .context("Failed to prepare Echo 4B for chat")?;
+            .context("Failed to prepare the local model for chat")?;
         let app = self.app.clone();
         let publish = move |answer: &str| {
             let _ = app.emit(
@@ -252,10 +253,7 @@ impl PolishManager {
         let _guard = self.preparation.lock().await;
         match polish_use_preparation(self.is_downloaded(), self.status().state) {
             PolishUsePreparation::MissingModel => {
-                self.set_status(
-                    PolishState::NotDownloaded,
-                    "Download the local Polish model to enable proofreading.",
-                );
+                self.mark_not_downloaded();
                 anyhow::bail!("Download the Polish model in Settings before using Polish");
             }
             PolishUsePreparation::EnsureRuntime => self.ensure_ready_runtime().await,

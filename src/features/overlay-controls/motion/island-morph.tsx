@@ -146,7 +146,6 @@ interface NotchStripStyle extends CSSProperties {
 }
 
 interface MorphFrameOptions {
-  isDragging: boolean;
   mode: OverlayMode;
   size: IslandSize | null;
   surface: OverlaySurface;
@@ -161,12 +160,7 @@ interface MorphFrame {
 }
 
 // content-sized, then stretched up over the notch — the bridged box reads as the cut-out itself, widened
-const morphFrame = ({
-  isDragging,
-  mode,
-  size,
-  surface,
-}: MorphFrameOptions): MorphFrame => {
+const morphFrame = ({ mode, size, surface }: MorphFrameOptions): MorphFrame => {
   const box = toScreenBox(surface.island, surface.window);
   const isResident = isResidentMode(mode);
   // unmeasured surface keeps its frame — the island expands from the pill, not the reserved box
@@ -189,7 +183,6 @@ const morphFrame = ({
   const bridgesNotch = bridged.strip > 0;
   const shoulder = dockShoulder({
     anchor: surface.anchor,
-    isDragging,
     mode,
     presentation: surface.presentation,
   });
@@ -246,6 +239,7 @@ const islandMorphTarget = ({
       ? { revealed: revealsGear, slot: DOCK_GEAR_SLOT }
       : undefined,
     height: frame.height,
+    isLifted: isDragging,
     shoulder,
     width: frame.width,
   }),
@@ -300,7 +294,6 @@ export const IslandMorph = ({
   });
   const { measurementRef, size } = useMeasuredIslandSize();
   const { bridgesNotch, frame, isMeasured, shoulder, strip } = morphFrame({
-    isDragging: isDragging === true,
     mode,
     size,
     surface,

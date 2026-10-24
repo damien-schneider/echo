@@ -108,7 +108,7 @@ mod transcription_profile_tests {
         let json = serde_json::to_value(status).unwrap();
         let object = json.as_object().unwrap();
 
-        assert_eq!(object.len(), 8);
+        assert_eq!(object.len(), 9);
         assert!(object.contains_key("size"));
         assert!(object.contains_key("label"));
         assert!(object.contains_key("description"));
@@ -117,6 +117,7 @@ mod transcription_profile_tests {
         assert!(object.contains_key("is_downloading"));
         assert!(object.contains_key("is_active"));
         assert!(object.contains_key("is_recommended"));
+        assert!(object.contains_key("memory_mb"));
         assert!(!object.contains_key("filename"));
         assert!(!object.contains_key("url"));
         assert!(!object.contains_key("engine_type"));

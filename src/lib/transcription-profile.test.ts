@@ -24,6 +24,7 @@ describe("TranscriptionProfileStatusSchema", () => {
       is_downloading: false,
       is_recommended: true,
       label: "Medium",
+      memory_mb: 857,
       size: "medium",
     });
 
@@ -41,6 +42,7 @@ describe("TranscriptionProfileStatusSchema", () => {
       is_downloading: false,
       is_recommended: false,
       label: "Small",
+      memory_mb: 469,
       size: "small",
     });
 

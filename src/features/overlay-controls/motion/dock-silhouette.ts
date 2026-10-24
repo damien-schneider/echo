@@ -51,9 +51,16 @@ const projectEdgePoint = (box: SilhouetteBox, point: EdgePoint) => {
   return { x: point.along, y: point.depth };
 };
 
-const drawSegment = (box: SilhouetteBox, segment: SilhouetteSegment) => {
+// `inset` slides the panel along the edge: a lifted body stays where it sat docked
+const drawSegment = (
+  box: SilhouetteBox,
+  segment: SilhouetteSegment,
+  inset: number
+) => {
   const drawn = segment.points
-    .map((point) => projectEdgePoint(box, point))
+    .map((point) =>
+      projectEdgePoint(box, { along: point.along + inset, depth: point.depth })
+    )
     .map((point) => `${round(point.x)} ${round(point.y)}`)
     .join(" ");
   return `${segment.verb} ${drawn}`;
@@ -182,6 +189,8 @@ interface DockSilhouetteOptions extends SilhouetteBox {
   /// A lifted panel rounds its own corners — border-radius cannot reach a panel ending mid-frame.
   corner?: number;
   gear?: GearLobeOptions;
+  /// Shoulders retract into the body instead of stretching it — the ends stay where they sat docked.
+  isLifted?: boolean;
   shoulder: number;
 }
 
@@ -189,6 +198,7 @@ interface DockSilhouetteOptions extends SilhouetteBox {
 export const dockSilhouettePath = ({
   corner = 0,
   gear,
+  isLifted = false,
   shoulder,
   ...box
 }: DockSilhouetteOptions) => {
@@ -204,14 +214,17 @@ export const dockSilhouettePath = ({
     0,
     Math.min(shoulder, depth / 2, panelSpan / 4)
   );
+  const inset = isLifted ? fittedShoulder : 0;
+  const flare = isLifted ? 0 : fittedShoulder;
+  const bodySpan = panelSpan - 2 * inset;
   const edge: PanelEdge = {
     corner:
-      fittedShoulder > 0
-        ? fittedShoulder
-        : Math.max(0, Math.min(corner, depth / 2, panelSpan / 2)),
+      flare > 0
+        ? flare
+        : Math.max(0, Math.min(corner, depth / 2, bodySpan / 2)),
     depth,
-    shoulder: fittedShoulder,
-    span: panelSpan,
+    shoulder: flare,
+    span: bodySpan,
   };
   const lobe =
     gear?.revealed && slot > 0 && edge.shoulder > 0
@@ -219,29 +232,24 @@ export const dockSilhouettePath = ({
       : null;
   const segments = [
     ...panelStart(edge),
-    line({ along: panelSpan - edge.shoulder - edge.corner, depth }),
+    line({ along: edge.span - edge.shoulder - edge.corner, depth }),
     ...(lobe ?? panelEnd(edge)),
   ];
-  const drawn = segments.map((segment) => drawSegment(box, segment));
+  const drawn = segments.map((segment) => drawSegment(box, segment, inset));
   return `path("${[...drawn, "Z"].join(" ")}")`;
 };
 
 interface DockShoulderOptions {
   anchor: OverlayAnchor;
-  isDragging: boolean;
   mode: OverlayMode;
   presentation: OverlayPresentation;
 }
 
 export const dockShoulder = ({
   anchor,
-  isDragging,
   mode,
   presentation,
 }: DockShoulderOptions) => {
-  if (isDragging) {
-    return 0;
-  }
   if (presentation !== "docked") {
     return 0;
   }

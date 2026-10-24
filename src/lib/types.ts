@@ -35,18 +35,23 @@ export type TranscriptionModelSize = z.infer<
   typeof TranscriptionModelSizeSchema
 >;
 
-export const TranscriptionProfileStatusSchema = z
+export const ModelFootprintSchema = z
   .object({
-    description: z.string(),
     download_size_mb: z.number().nonnegative(),
-    is_active: z.boolean(),
-    is_downloaded: z.boolean(),
-    is_downloading: z.boolean(),
-    is_recommended: z.boolean(),
-    label: z.string(),
-    size: TranscriptionModelSizeSchema,
+    memory_mb: z.number().nonnegative(),
   })
   .strict();
+export type ModelFootprint = z.infer<typeof ModelFootprintSchema>;
+
+export const TranscriptionProfileStatusSchema = ModelFootprintSchema.extend({
+  description: z.string(),
+  is_active: z.boolean(),
+  is_downloaded: z.boolean(),
+  is_downloading: z.boolean(),
+  is_recommended: z.boolean(),
+  label: z.string(),
+  size: TranscriptionModelSizeSchema,
+}).strict();
 export type TranscriptionProfileStatus = z.infer<
   typeof TranscriptionProfileStatusSchema
 >;

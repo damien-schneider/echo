@@ -3,7 +3,7 @@ import type { ChatTextContext } from "@/features/overlay-controls/runtime/overla
 
 export const CHAT_ANSWER_EVENT = "polish-chat-answer";
 
-/// Echo 4B republishes the whole answer, so a restarted attempt overwrites the first one.
+/// The model republishes the whole answer, so a restarted attempt overwrites the first one.
 export const ChatAnswerEventSchema = z.object({
   answer: z.string(),
   stream_id: z.string(),

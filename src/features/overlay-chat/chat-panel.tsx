@@ -17,6 +17,7 @@ import type {
   ChatContextEvent,
   ChatTextContext,
 } from "@/features/overlay-controls/runtime/overlay-windows";
+import { polishModelName } from "@/features/polish/polish-model-state";
 import "@/features/overlay-chat/chat-panel.css";
 interface ChatPanelProps {
   bundledModel: BundledChatModel;
@@ -29,7 +30,7 @@ interface ChatPanelProps {
 }
 const ChatModelLabel = () => (
   <span className="flex h-8 shrink-0 items-center rounded-full border border-white/10 bg-white/7 px-3 text-[11px] text-white/62">
-    Echo 4B
+    {polishModelName}
   </span>
 );
 const CloseChatButton = ({ onClose }: { onClose: () => void }) => (

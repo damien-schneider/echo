@@ -1,7 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
+import { polishModelName } from "@/features/polish/polish-model-state";
 import { PolishStatusSchema } from "@/lib/types";
 
-// A summary that cannot run until Echo 4B is downloaded from Models.
+// A summary that cannot run until its model is downloaded from Models.
 export class MeetingSummaryError extends Error {}
 
 const SYSTEM_PROMPT = `You summarize meeting transcripts.
@@ -66,7 +67,7 @@ async function localEngine(): Promise<SummaryEngine> {
   );
   if (polish.success && polish.data.state === "not_downloaded") {
     throw new MeetingSummaryError(
-      "Summaries run on Echo 4B, which is not downloaded yet."
+      `Summaries run on ${polishModelName}, which is not downloaded yet.`
     );
   }
   const charBudget = await invoke<number>("local_summary_char_budget");

@@ -257,6 +257,22 @@ impl TranscriptionManager {
         Ok(())
     }
 
+    pub fn unload_model(&self, model_id: &str) {
+        if !self.engine.unload(model_id) {
+            return;
+        }
+        info!("Unloaded transcription model: {model_id}");
+        let _ = self.app_handle.emit(
+            "model-state-changed",
+            ModelStateEvent {
+                event_type: "unloaded".to_string(),
+                model_id: Some(model_id.to_string()),
+                model_name: None,
+                error: None,
+            },
+        );
+    }
+
     /// Idempotent. Streaming engine is never idle-evicted — caller owns unload on shutdown.
     pub fn load_streaming_model(&self, model_id: &str) -> Result<()> {
         self.load_model(model_id)

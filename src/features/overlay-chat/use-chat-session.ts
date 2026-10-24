@@ -29,6 +29,7 @@ import type {
   ChatContextEvent,
   ChatTextContext,
 } from "@/features/overlay-controls/runtime/overlay-windows";
+import { polishModelName } from "@/features/polish/polish-model-state";
 
 const abortable = <T>(operation: Promise<T>, signal: AbortSignal): Promise<T> =>
   new Promise<T>((resolve, reject) => {
@@ -123,7 +124,7 @@ const sendChatMessage = async (options: SendMessageOptions) => {
     return;
   }
   if (!options.isBundledModelReady) {
-    options.setError("Download Echo 4B before chatting.");
+    options.setError(`Download ${polishModelName} before chatting.`);
     return;
   }
   const assistantId = makeMessageId();

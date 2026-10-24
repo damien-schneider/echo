@@ -62,6 +62,21 @@ impl<T> SharedModelSlot<T> {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .clone()
     }
+
+    fn release(&self, model_id: &str) -> bool {
+        let mut loaded = self
+            .loaded
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if loaded
+            .as_ref()
+            .is_none_or(|lease| lease.model_id != model_id)
+        {
+            return false;
+        }
+        *loaded = None;
+        true
+    }
 }
 
 impl<T> Default for SharedModelSlot<T> {
@@ -165,6 +180,19 @@ impl WhisperRuntime {
         self.sessions.clear();
         self.models.install(model_id, model);
         Ok(())
+    }
+
+    /// Decodes already running keep their own lease and finish.
+    pub fn unload(&self, model_id: &str) -> bool {
+        let _load_guard = self
+            .load_lock
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let released = self.models.release(model_id);
+        if released {
+            self.sessions.clear();
+        }
+        released
     }
 
     pub fn current_model_id(&self) -> Option<String> {
@@ -276,6 +304,20 @@ mod tests {
         assert_eq!(existing.model_id, "small");
         assert_eq!(replacement.model_id, "large");
         assert!(!Arc::ptr_eq(&existing.model, &replacement.model));
+    }
+
+    #[test]
+    fn releasing_a_model_leaves_running_sessions_their_lease() {
+        let slot = SharedModelSlot::new();
+        slot.install("small", String::from("small weights"));
+        let running = slot.current().expect("running session model");
+
+        assert!(!slot.release("large"));
+        assert!(slot.current().is_some());
+        assert!(slot.release("small"));
+
+        assert!(slot.current().is_none());
+        assert_eq!(running.model.as_str(), "small weights");
     }
 
     #[test]

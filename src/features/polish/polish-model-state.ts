@@ -3,6 +3,7 @@ import { DownloadProgressSchema } from "@/features/model-download/download-state
 import { type PolishStatus, PolishStatusSchema } from "@/lib/types";
 
 export const polishModelId = "polish-qwen3-4b-instruct-2507";
+export const polishModelName = "Qwen3 4B";
 
 export interface PolishModelProgress {
   percentage: number;

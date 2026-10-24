@@ -9,7 +9,6 @@ export const polishStatusCopy = {
     title: "Loading Polish",
   },
   not_downloaded: {
-    action: "Download",
     description:
       "Download the 2.5 GB local proofreading model. It stays offline afterward.",
     title: "Polish",
@@ -23,7 +22,6 @@ export const polishStatusCopy = {
     title: "Polish ready",
   },
   repair: {
-    action: "Repair",
     description: "The local model or runtime could not be prepared.",
     title: "Polish needs repair",
   },

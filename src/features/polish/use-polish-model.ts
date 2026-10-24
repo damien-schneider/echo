@@ -13,6 +13,7 @@ import {
   isPolishModelEvent,
   type PolishModelProgress,
   polishModelFailure,
+  polishModelId,
   runPolishModelCommand,
 } from "@/features/polish/polish-model-state";
 import { PolishStatusSchema } from "@/lib/types";
@@ -167,6 +168,10 @@ export const usePolishModel = () => {
       setProgress,
       statusSynchronizer: session,
     });
+  const remove = async () => {
+    await invoke("delete_model", { modelId: polishModelId });
+    await session.refresh();
+  };
 
-  return { download, progress, repair, status };
+  return { download, progress, remove, repair, status };
 };

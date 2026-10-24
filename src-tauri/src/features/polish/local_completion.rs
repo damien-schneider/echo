@@ -9,6 +9,7 @@ use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use super::manager::PolishManager;
+use crate::managers::model::POLISH_MODEL_NAME;
 
 /// Frees the single sidecar slot once the paste watchdog has already given up on the answer.
 const LOCAL_COMPLETION_TIMEOUT: Duration = Duration::from_secs(30);
@@ -24,7 +25,9 @@ pub(crate) struct LocalCompletionResponse {
 impl PolishManager {
     async fn forward_chat_completion(&self, body: String) -> Result<LocalCompletionResponse> {
         if !self.is_downloaded() {
-            anyhow::bail!("Download Echo 4B in Settings → Models to post-process dictations.");
+            anyhow::bail!(
+                "Download {POLISH_MODEL_NAME} in Settings → Models to post-process dictations."
+            );
         }
         self.prepare()
             .await

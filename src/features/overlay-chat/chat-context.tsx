@@ -9,7 +9,10 @@ import type {
   ChatContextEvent,
   ChatTextContext,
 } from "@/features/overlay-controls/runtime/overlay-windows";
-import type { PolishModelProgress } from "@/features/polish/polish-model-state";
+import {
+  type PolishModelProgress,
+  polishModelName,
+} from "@/features/polish/polish-model-state";
 import type { PolishStatus } from "@/lib/types";
 export interface BundledChatModel {
   download: () => Promise<void>;
@@ -115,15 +118,15 @@ interface BundledModelSetupProps {
 const bundledModelProgressLabel = (model: BundledChatModel) => {
   const percentage = Math.round(model.progress?.percentage ?? 0);
   if (model.status.state === "downloading") {
-    return `Downloading Echo 4B · ${percentage}%`;
+    return `Downloading ${polishModelName} · ${percentage}%`;
   }
   if (model.status.state === "verifying") {
-    return `Verifying Echo 4B · ${percentage}%`;
+    return `Verifying ${polishModelName} · ${percentage}%`;
   }
   if (model.status.state === "loading") {
-    return "Loading Echo 4B…";
+    return `Loading ${polishModelName}…`;
   }
-  return "Checking Echo 4B…";
+  return `Checking ${polishModelName}…`;
 };
 const DownloadBundledModel = ({
   download,
@@ -133,7 +136,7 @@ const DownloadBundledModel = ({
       Private, on-device
     </span>
     <Button
-      aria-label="Download Echo 4B model, 2.5 GB"
+      aria-label={`Download ${polishModelName} model, 2.5 GB`}
       className="h-8 shrink-0 rounded-full bg-white px-3 text-[11px] text-black hover:bg-white/88"
       onClick={download}
       size="sm"
@@ -157,7 +160,7 @@ const RepairBundledModel = ({ message, repair }: RepairBundledModelProps) => (
   >
     <span className="min-w-0 truncate text-[12px] text-red-100">{message}</span>
     <Button
-      aria-label="Repair Echo 4B model"
+      aria-label={`Repair ${polishModelName} model`}
       className="h-8 shrink-0 rounded-full bg-white px-3 text-[11px] text-black hover:bg-white/88"
       onClick={repair}
       size="sm"

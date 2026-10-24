@@ -1,14 +1,38 @@
-use crate::managers::model::{transcription_profile_id, ModelManager, TranscriptionProfileStatus};
+use crate::features::polish::manager::PolishManager;
+use crate::managers::model::{
+    transcription_profile_id, ModelManager, TranscriptionProfileStatus, POLISH_MODEL_ID,
+    POLISH_MODEL_MEMORY_MB, POLISH_MODEL_NAME,
+};
 use crate::managers::transcription::TranscriptionManager;
 use crate::settings::{self, TranscriptionModelSize};
+use serde::Serialize;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
+
+#[derive(Debug, Serialize)]
+pub struct ModelFootprint {
+    download_size_mb: u64,
+    memory_mb: u64,
+}
 
 #[tauri::command]
 pub async fn get_transcription_profiles(
     model_manager: State<'_, Arc<ModelManager>>,
 ) -> Result<Vec<TranscriptionProfileStatus>, String> {
     Ok(model_manager.get_transcription_profile_statuses())
+}
+
+#[tauri::command]
+pub async fn get_polish_model_footprint(
+    model_manager: State<'_, Arc<ModelManager>>,
+) -> Result<ModelFootprint, String> {
+    let model = model_manager
+        .get_model_info(POLISH_MODEL_ID)
+        .ok_or_else(|| format!("{POLISH_MODEL_NAME} is missing from the model catalog"))?;
+    Ok(ModelFootprint {
+        download_size_mb: model.size_mb,
+        memory_mb: POLISH_MODEL_MEMORY_MB,
+    })
 }
 
 /// What the notch offers when a dictation is blocked: the model Settings already picked, no
@@ -62,14 +86,35 @@ pub async fn select_transcription_model_size(
     Ok(())
 }
 
+/// A model still in memory keeps answering from a file that is gone; unload it first.
 #[tauri::command]
-pub async fn delete_model(
+pub(crate) async fn delete_model(
+    model_manager: State<'_, Arc<ModelManager>>,
+    transcription_manager: State<'_, Arc<TranscriptionManager>>,
+    polish_manager: State<'_, Arc<PolishManager>>,
+    model_id: String,
+) -> Result<(), String> {
+    if model_id == POLISH_MODEL_ID {
+        return polish_manager
+            .delete_model()
+            .await
+            .map_err(|error| format!("{error:#}"));
+    }
+    transcription_manager.unload_model(&model_id);
+    model_manager
+        .delete_model(&model_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn reveal_model_file(
     model_manager: State<'_, Arc<ModelManager>>,
     model_id: String,
 ) -> Result<(), String> {
-    model_manager
-        .delete_model(&model_id)
-        .map_err(|e| e.to_string())
+    let path = model_manager
+        .get_model_path(&model_id)
+        .map_err(|error| error.to_string())?;
+    tauri_plugin_opener::reveal_item_in_dir(path).map_err(|error| error.to_string())
 }
 
 #[tauri::command]

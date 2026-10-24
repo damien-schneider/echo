@@ -15,6 +15,8 @@ pub struct TranscriptionProfileSpec {
     pub url: &'static str,
     pub size_mb: u64,
     pub size_bytes: u64,
+    /// Peak footprint of one Metal decode on Apple silicon, weights included.
+    pub memory_mb: u64,
 }
 
 const TRANSCRIPTION_PROFILES: [TranscriptionProfileSpec; 3] = [
@@ -28,6 +30,7 @@ const TRANSCRIPTION_PROFILES: [TranscriptionProfileSpec; 3] = [
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-small-q5_1.bin",
         size_mb: 190,
         size_bytes: 190_085_487,
+        memory_mb: 469,
     },
     TranscriptionProfileSpec {
         description: "Best balance of multilingual accuracy and realtime speed.",
@@ -40,6 +43,7 @@ const TRANSCRIPTION_PROFILES: [TranscriptionProfileSpec; 3] = [
             "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo-q5_0.bin",
         size_mb: 574,
         size_bytes: 574_041_195,
+        memory_mb: 857,
     },
     TranscriptionProfileSpec {
         description: "Highest multilingual accuracy for powerful computers.",
@@ -51,6 +55,7 @@ const TRANSCRIPTION_PROFILES: [TranscriptionProfileSpec; 3] = [
         url: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-q5_0.bin",
         size_mb: 1080,
         size_bytes: 1_081_140_203,
+        memory_mb: 1651,
     },
 ];
 
@@ -77,6 +82,7 @@ pub struct TranscriptionProfileStatus {
     pub is_downloading: bool,
     pub is_recommended: bool,
     pub label: &'static str,
+    pub memory_mb: u64,
     pub size: TranscriptionModelSize,
 }
 
@@ -99,6 +105,7 @@ where
                 is_downloading,
                 is_recommended: profile.size == TranscriptionModelSize::default(),
                 label: profile.label,
+                memory_mb: profile.memory_mb,
                 size: profile.size,
             }
         })

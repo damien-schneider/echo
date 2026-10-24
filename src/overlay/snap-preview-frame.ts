@@ -24,7 +24,6 @@ export const previewFrameVars = (payload: SnapPreviewPayload) => ({
     height: payload.height,
     shoulder: dockShoulder({
       anchor: payload.anchor,
-      isDragging: false,
       mode: "actions",
       presentation: "docked",
     }),

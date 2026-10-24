@@ -20,6 +20,7 @@ import {
 import type { DownloadProgress } from "@/features/model-download/download-state";
 import { useDiarizationModel } from "@/features/model-download/use-diarization-model";
 import { useMeetingModel } from "@/features/model-download/use-meeting-model";
+import { polishModelName } from "@/features/polish/polish-model-state";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
 import { useModelStore } from "@/stores/model-store";
@@ -129,7 +130,7 @@ const SummarySettings = () => {
   return (
     <SettingsSection title="Summary">
       <SettingRow
-        description="Summarize each meeting with Echo 4B on this computer when it ends"
+        description={`Summarize each meeting with ${polishModelName} on this computer when it ends`}
         icon={<SparkleIcon className="h-4 w-4" />}
         title="Auto-generate summary"
       >

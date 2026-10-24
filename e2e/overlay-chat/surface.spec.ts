@@ -36,32 +36,32 @@ test("chat restores an early request with model loading inside its window", asyn
   );
 
   await expect(page.getByPlaceholder("Ask anything")).toBeVisible();
-  await expect(page.getByText("Loading Echo 4B…")).toBeVisible();
+  await expect(page.getByText("Loading Qwen3 4B…")).toBeVisible();
   await expect
     .poll(() => invokedCommands(page))
     .toContain("get_overlay_notification_request");
 });
 
-test("chat runs on Echo 4B and offers its download inline", async ({
+test("chat runs on Qwen3 4B and offers its download inline", async ({
   page,
 }) => {
   await page.goto(`${NOTIFICATION_URL}?polish=not_downloaded`);
   await waitForTauriListener(page, "overlay-notification-request");
   await requestNotificationSurface(page, "chat");
 
-  await expect(page.getByText("Echo 4B", { exact: true })).toBeVisible();
+  await expect(page.getByText("Qwen3 4B", { exact: true })).toBeVisible();
   await expect(
     page
       .getByRole("button", { name: "Cloud" })
       .or(page.getByRole("combobox", { name: "Provider and model" }))
   ).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Download Echo 4B model, 2.5 GB" })
+    .getByRole("button", { name: "Download Qwen3 4B model, 2.5 GB" })
     .click();
   await expect
     .poll(() => invokedCommands(page))
     .toContain("download_polish_model");
-  await expect(page.getByText("Downloading Echo 4B · 0%")).toBeVisible();
+  await expect(page.getByText("Downloading Qwen3 4B · 0%")).toBeVisible();
 });
 
 test("chat repair reports its reason and visibly starts recovery", async ({
@@ -80,8 +80,8 @@ test("chat repair reports its reason and visibly starts recovery", async ({
   await expect(page.getByRole("alert")).toContainText(
     "The local Polish service could not start"
   );
-  await page.getByRole("button", { name: "Repair Echo 4B model" }).click();
-  await expect(page.getByText("Checking Echo 4B…")).toBeVisible();
+  await page.getByRole("button", { name: "Repair Qwen3 4B model" }).click();
+  await expect(page.getByText("Checking Qwen3 4B…")).toBeVisible();
   await expect
     .poll(() => invokedCommands(page))
     .toContain("repair_polish_model");
@@ -243,7 +243,7 @@ const assertNotchControlsInteractive = async (page: Page) => {
   await expect(
     hud
       .locator(':scope > .echo-island-hud-flank[data-side="left"]')
-      .getByText("Echo 4B", { exact: true })
+      .getByText("Qwen3 4B", { exact: true })
   ).toBeVisible();
   const closeButton = hud
     .locator(':scope > .echo-island-hud-flank[data-side="right"]')

@@ -6,12 +6,15 @@ use std::sync::Arc;
 use super::manager::PolishManager;
 use super::runtime::PolishRuntime;
 use super::{BundledChatMessage, BundledChatRole};
+use crate::managers::model::POLISH_MODEL_NAME;
 
 impl PolishManager {
     /// One completion, no stream: the caller shows the summary when it is whole.
     pub(crate) async fn summarize(&self, system: &str, prompt: &str) -> Result<String> {
         if !self.is_downloaded() {
-            anyhow::bail!("Download Echo 4B in Settings → Models to summarize meetings.");
+            anyhow::bail!(
+                "Download {POLISH_MODEL_NAME} in Settings → Models to summarize meetings."
+            );
         }
         self.prepare()
             .await

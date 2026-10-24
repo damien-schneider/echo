@@ -46,7 +46,7 @@ const sendFromComposer = async (page: Page, question: string) => {
 };
 
 test.describe("chat keeps the text selected in the user's app", () => {
-  test("clicking into the composer sends the selection to Echo 4B", async ({
+  test("clicking into the composer sends the selection to Qwen3 4B", async ({
     page,
   }) => {
     const selectedText = "Revenue grew 18% year over year.";
@@ -56,7 +56,7 @@ test.describe("chat keeps the text selected in the user's app", () => {
     await test.step("When the user clicks into the composer and sends a question", () =>
       sendFromComposer(page, "What does this mean?"));
 
-    await test.step("Then Echo 4B answers about the selected text", async () => {
+    await test.step("Then Qwen3 4B answers about the selected text", async () => {
       await expect(page.getByText(ECHO_REPLY)).toBeVisible();
       const [request] = await chatRequests(page);
       expect(request?.system).toContain(selectedText);
@@ -91,7 +91,7 @@ test.describe("chat keeps the text selected in the user's app", () => {
     await test.step("When the user clicks into the composer and sends a new message", () =>
       sendFromComposer(page, "And this one?"));
 
-    await test.step("Then Echo 4B receives the newer selection with the thread", async () => {
+    await test.step("Then Qwen3 4B receives the newer selection with the thread", async () => {
       await expect.poll(async () => (await chatRequests(page)).length).toBe(2);
       const latest = (await chatRequests(page))[1];
       expect(latest?.system).toContain("Churn fell to 2% in Q3.");

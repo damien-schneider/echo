@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import EchoLogo from "@/components/icons/echo-logo";
-import { TranscriptionProfileCard } from "@/components/model-selector/transcription-profile-card";
+import { TranscriptionModelRow } from "@/components/model-selector/transcription-model-row";
 import type { TranscriptionModelSize } from "@/lib/types";
 import { useModelStore } from "@/stores/model-store";
 
@@ -11,6 +11,7 @@ interface OnboardingProps {
 const Onboarding = ({ onModelSelected }: OnboardingProps) => {
   const profiles = useModelStore((state) => state.profiles);
   const modelStatus = useModelStore((state) => state.modelStatus);
+  const loadingSize = useModelStore((state) => state.loadingSize);
   const error = useModelStore((state) => state.error);
   const downloadProgress = useModelStore((state) => state.downloadProgress);
   const downloadStats = useModelStore((state) => state.downloadStats);
@@ -75,10 +76,12 @@ const Onboarding = ({ onModelSelected }: OnboardingProps) => {
             const progress = downloadProgress.get(profile.size);
             const stats = downloadStats.get(profile.size);
             return (
-              <TranscriptionProfileCard
+              <TranscriptionModelRow
+                className="rounded-panel bg-surface-group"
                 downloadProgress={progress?.percentage}
                 downloadSpeed={stats?.speed}
                 isBusy={isBusy}
+                isLoading={loadingSize === profile.size}
                 key={profile.size}
                 onSelect={() => handleSelect(profile.size)}
                 profile={profile}

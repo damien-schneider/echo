@@ -23,7 +23,7 @@ test("chat message selection stays on message text", async ({ page }) => {
   const assistantText = page.locator(
     '[data-chat-role="assistant"] [data-component="chat-message-text"]'
   );
-  await expect(assistantText).toHaveText("Echo 4B reply");
+  await expect(assistantText).toHaveText("Qwen3 4B reply");
   const viewport = page.locator('[data-slot="scroll-area-viewport"]');
   const [textBox, viewportBox] = await Promise.all([
     assistantText.boundingBox(),
@@ -51,7 +51,7 @@ test("chat message selection stays on message text", async ({ page }) => {
       text: current.toString(),
     };
   });
-  expect(selection?.text).toContain("Echo 4B reply");
+  expect(selection?.text).toContain("Qwen3 4B reply");
   expect(selection?.bottom).toBeLessThanOrEqual(textBox.y + textBox.height + 1);
 });
 
@@ -128,7 +128,7 @@ const sendCompactChat = async (
   updatedText: string
 ) => {
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByText("Echo 4B reply")).toBeVisible();
+  await expect(page.getByText("Qwen3 4B reply")).toBeVisible();
   const composer = page.getByPlaceholder("Ask about this text");
   await expect
     .poll(async () => {
@@ -174,17 +174,17 @@ test("chat sends the selected reference and complete recent thread", async ({
 
   await input.fill("What does this mean?");
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByText("Echo 4B reply")).toHaveCount(1);
+  await expect(page.getByText("Qwen3 4B reply")).toHaveCount(1);
 
   await input.fill("In French");
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByText("Echo 4B reply")).toHaveCount(2);
+  await expect(page.getByText("Qwen3 4B reply")).toHaveCount(2);
 
   const payloads = await invokedCommandPayloads(page, "chat_with_polish_model");
   expect(payloads).toHaveLength(2);
   expect(payloads[1]).toContain(selectedText);
   expect(payloads[1]).toContain('"content":"What does this mean?"');
-  expect(payloads[1]).toContain('"content":"Echo 4B reply"');
+  expect(payloads[1]).toContain('"content":"Qwen3 4B reply"');
   expect(payloads[1]).toContain('"content":"In French"');
 });
 
