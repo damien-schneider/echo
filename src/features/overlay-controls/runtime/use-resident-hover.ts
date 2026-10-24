@@ -85,12 +85,22 @@ interface ResidentHoverOptions {
   residentRef: RefObject<HTMLDivElement | null>;
 }
 
+export interface ResidentHover {
+  isActive: boolean;
+  onBlurCapture: (event: FocusEvent<HTMLDivElement>) => void;
+  onFocusCapture: (event: FocusEvent<HTMLDivElement>) => void;
+  onPointerDownCapture: () => void;
+  onPointerEnter: () => void;
+  onPointerLeave: () => void;
+  onTriggerPointerEnter: () => void;
+}
+
 export const useResidentHover = ({
   isExpanded,
   onCollapse,
   onReveal,
   residentRef,
-}: ResidentHoverOptions) => {
+}: ResidentHoverOptions): ResidentHover => {
   const sources = useRef(initialResidentHoverSources);
   const [isActive, setIsActive] = useState(false);
   const dispatch = (event: ResidentHoverEvent) => {

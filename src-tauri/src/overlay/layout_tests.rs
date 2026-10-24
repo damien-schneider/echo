@@ -47,25 +47,21 @@ fn interaction_dimensions_preserve_mode_sizes() {
 #[test]
 fn side_resident_modes_share_a_vertical_actions_window() {
     let placement = edge_placement(OverlayDockEdge::Right, 0.5);
+    let (width, height) = overlay_window_dimensions(RecordingOverlayMode::Actions, placement);
     assert_eq!(
         overlay_window_dimensions(RecordingOverlayMode::Compact, placement),
-        (48.0, 136.0)
+        (width, height)
     );
-    assert_eq!(
-        overlay_window_dimensions(RecordingOverlayMode::Actions, placement),
-        (48.0, 136.0)
-    );
+    assert!(height > width);
 }
 
 #[cfg(not(target_os = "macos"))]
 #[test]
 fn side_compact_window_contains_the_vertical_actions() {
+    let side = edge_placement(OverlayDockEdge::Right, 0.5);
     assert_eq!(
-        overlay_window_dimensions(
-            RecordingOverlayMode::Compact,
-            edge_placement(OverlayDockEdge::Right, 0.5)
-        ),
-        (48.0, 136.0)
+        overlay_window_dimensions(RecordingOverlayMode::Compact, side),
+        overlay_window_dimensions(RecordingOverlayMode::Actions, side)
     );
     assert_eq!(
         overlay_window_dimensions(

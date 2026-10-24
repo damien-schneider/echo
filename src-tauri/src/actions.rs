@@ -10,7 +10,7 @@ use crate::overlay::{
     mark_recording_live, show_model_required_overlay, show_preparing_overlay,
     show_transcribing_overlay, show_warning_overlay,
 };
-use crate::settings::{get_settings, AppSettings, LlmEngine};
+use crate::settings::{get_settings, AppSettings};
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils;
 use crate::ManagedToggleState;
@@ -671,7 +671,7 @@ impl ShortcutAction for TranscribeAction {
         );
 
         let settings = get_settings(app);
-        if settings.post_process_enabled && settings.post_process_engine == LlmEngine::Local {
+        if settings.post_process_enabled {
             if let Some(polish) = app.try_state::<Arc<PolishManager>>() {
                 polish.inner().warm_up_for_post_processing();
             }

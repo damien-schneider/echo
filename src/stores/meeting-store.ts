@@ -11,7 +11,6 @@ import type {
   StreamingInterim,
   StreamingSource,
 } from "@/lib/types";
-import { useSettingsStore } from "@/stores/settings-store";
 
 export interface InterimSegmentState {
   committedText: string;
@@ -149,15 +148,11 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   },
 
   generateSummary: async (id) => {
-    const settings = useSettingsStore.getState().settings;
-    if (!settings) {
-      throw new Error("Settings not loaded");
-    }
     const transcript = await invoke<string>(
       "get_meeting_transcript_for_summary",
       { meetingId: id }
     );
-    const summary = await generateMeetingSummary(transcript, settings);
+    const summary = await generateMeetingSummary(transcript);
     await invoke("save_meeting_summary", { meetingId: id, summary });
     const meeting = await invoke<Meeting>("get_meeting", { id });
     set({ selectedMeeting: meeting });

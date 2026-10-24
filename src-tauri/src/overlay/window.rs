@@ -1,3 +1,4 @@
+use super::glide;
 #[cfg(not(target_os = "macos"))]
 use super::layout::overlay_mode_accepts_keyboard;
 use super::layout::{
@@ -147,7 +148,10 @@ pub(super) fn render_overlay_surface(render: OverlayRender<'_>) -> Result<(), St
     if !grows {
         publish();
     }
-    apply_absolute_overlay_frame(&window, frame)?;
+    match render.kind {
+        OverlaySurfaceKind::Hud => glide::place_hud(&window, frame)?,
+        OverlaySurfaceKind::Notification => apply_absolute_overlay_frame(&window, frame)?,
+    }
     if grows {
         publish();
     }

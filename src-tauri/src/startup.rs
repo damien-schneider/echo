@@ -7,7 +7,7 @@ const MACOS_WINDOW_FOREGROUND_DELAY_MS: u64 = 200;
 // a webview that never boots must not strand the splash on screen forever
 const STARTUP_WATCHDOG_MS: u64 = 15_000;
 use log::{error, warn};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 #[derive(Default)]
 pub struct StartupState {
@@ -66,6 +66,13 @@ pub fn show_main_window(app: &AppHandle) {
         }
     } else {
         error!("Main window not found.");
+    }
+}
+
+pub fn show_settings(app: &AppHandle) {
+    show_main_window(app);
+    if let Err(error) = app.emit_to("main", "open-settings-section", "app") {
+        warn!("Failed to open the settings page: {error}");
     }
 }
 

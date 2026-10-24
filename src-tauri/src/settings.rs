@@ -63,12 +63,7 @@ pub fn get_default_settings() -> AppSettings {
         paste_method: PasteMethod::default(),
         clipboard_handling: ClipboardHandling::default(),
         polish_level: PolishLevel::default(),
-        post_process_provider_id: default_post_process_provider_id(),
-        post_process_providers: default_post_process_providers(),
-        post_process_api_keys: default_post_process_api_keys(),
         post_process_enabled: false,
-        post_process_engine: LlmEngine::default(),
-        post_process_models: default_post_process_models(),
         post_process_prompts: default_post_process_prompts(),
         post_process_selected_prompt_id: None,
         voice_commands_enabled: default_voice_commands_enabled(),
@@ -79,7 +74,6 @@ pub fn get_default_settings() -> AppSettings {
         tts_enabled: false,
         meeting_system_audio_enabled: false,
         meeting_auto_summary: false,
-        meeting_summary_engine: LlmEngine::default(),
         meeting_chunk_duration_secs: default_meeting_chunk_duration_secs(),
         cleanup_enabled: default_cleanup_enabled(),
         cleanup_app_context_enabled: default_cleanup_app_context_enabled(),
@@ -97,27 +91,22 @@ fn default_polish_binding() -> ShortcutBinding {
     }
 }
 
-impl AppSettings {
-    pub fn active_post_process_provider(&self) -> Option<&PostProcessProvider> {
-        self.post_process_providers
-            .iter()
-            .find(|provider| provider.id == self.post_process_provider_id)
-    }
+const REMOVED_PROVIDER_KEYS: [&str; 6] = [
+    "post_process_provider_id",
+    "post_process_providers",
+    "post_process_api_keys",
+    "post_process_engine",
+    "post_process_models",
+    "meeting_summary_engine",
+];
 
-    pub fn post_process_provider(&self, provider_id: &str) -> Option<&PostProcessProvider> {
-        self.post_process_providers
+/// Rewriting drops stored API keys from disk instead of leaving them until the next settings change.
+fn has_removed_provider_keys(raw_settings: Option<&serde_json::Value>) -> bool {
+    raw_settings.is_some_and(|raw| {
+        REMOVED_PROVIDER_KEYS
             .iter()
-            .find(|provider| provider.id == provider_id)
-    }
-
-    pub fn post_process_provider_mut(
-        &mut self,
-        provider_id: &str,
-    ) -> Option<&mut PostProcessProvider> {
-        self.post_process_providers
-            .iter_mut()
-            .find(|provider| provider.id == provider_id)
-    }
+            .any(|key| raw.get(key).is_some())
+    })
 }
 
 /// A store seeded before the profiles diverged still holds the other build's combos — both apps would fire.
@@ -153,32 +142,12 @@ fn migrate_shortcuts_to_profile_defaults(settings: &mut AppSettings) -> bool {
     updated
 }
 
-/// Stores saved before post-processing ran on this machine keep the provider model their user set up.
-fn migrate_post_process_engine(
-    settings: &mut AppSettings,
-    raw_settings: Option<&serde_json::Value>,
-) -> bool {
-    if raw_settings.is_some_and(|raw| raw.get("post_process_engine").is_some()) {
-        return false;
-    }
-    let has_provider_model = settings
-        .active_post_process_provider()
-        .and_then(|provider| settings.post_process_models.get(&provider.id))
-        .is_some_and(|model| !model.trim().is_empty());
-    settings.post_process_engine = if has_provider_model {
-        LlmEngine::Cloud
-    } else {
-        LlmEngine::Local
-    };
-    true
-}
-
 fn apply_settings_migrations_from_raw(
     settings: &mut AppSettings,
     raw_settings: Option<&serde_json::Value>,
 ) -> bool {
     let mut updated = migrate_shortcuts_to_profile_defaults(settings);
-    updated |= migrate_post_process_engine(settings, raw_settings);
+    updated |= has_removed_provider_keys(raw_settings);
 
     let has_transcription_model_size = raw_settings
         .and_then(|raw| raw.get("transcription_model_size"))
@@ -204,31 +173,6 @@ fn apply_settings_migrations_from_raw(
         ) {
             settings.overlay_position = OverlayPosition::Edge;
         }
-        updated = true;
-    }
-
-    if !settings
-        .post_process_providers
-        .iter()
-        .any(|p| p.id == "ollama")
-    {
-        // Insert before "custom".
-        let insert_pos = settings
-            .post_process_providers
-            .iter()
-            .position(|p| p.id == "custom")
-            .unwrap_or(settings.post_process_providers.len());
-
-        settings.post_process_providers.insert(
-            insert_pos,
-            PostProcessProvider {
-                id: "ollama".to_string(),
-                label: "Ollama".to_string(),
-                base_url: "http://localhost:11434/v1".to_string(),
-                allow_base_url_edit: true,
-                models_endpoint: Some("/api/tags".to_string()),
-            },
-        );
         updated = true;
     }
 

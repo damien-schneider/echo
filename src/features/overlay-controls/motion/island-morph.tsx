@@ -12,13 +12,21 @@ import {
   useEffectEvent,
 } from "react";
 import {
+  DOCK_GEAR_SLOT,
   dockShoulder,
   dockSilhouettePath,
 } from "@/features/overlay-controls/motion/dock-silhouette";
-import { islandCornerRadii } from "@/features/overlay-controls/motion/island-corners";
+import {
+  islandCornerRadii,
+  PILL_RADIUS,
+} from "@/features/overlay-controls/motion/island-corners";
 import { useMeasuredIslandSize } from "@/features/overlay-controls/motion/island-measurement";
 import type { IslandEntry } from "@/features/overlay-controls/motion/notch-entry";
-import { isSideDockedSurface } from "@/features/overlay-controls/overlay-presentation";
+import { useIslandLanding } from "@/features/overlay-controls/motion/use-island-landing";
+import {
+  hasDockGearSlot,
+  isSideDockedSurface,
+} from "@/features/overlay-controls/overlay-presentation";
 import type {
   IslandEdge,
   OverlayMode,
@@ -34,14 +42,6 @@ import {
   toScreenBox,
 } from "@/features/overlay-controls/runtime/overlay-surface";
 import "@/features/overlay-controls/motion/island-morph.css";
-
-// stiff and barely under critical damping — the island lands once instead of ringing
-const ISLAND_LAYOUT_SPRING = {
-  damping: 36,
-  mass: 0.55,
-  stiffness: 700,
-  type: "spring",
-} as const;
 
 const DRAG_LIFT_SCALE = 0.985;
 
@@ -59,21 +59,6 @@ const ISLAND_CONTENT_MOTION = {
     transition: { duration: 0.13, ease: [0.4, 0, 1, 1] },
   },
   initial: { filter: "blur(4px)", opacity: 0 },
-} as const;
-
-const INSTANT = { duration: 0 } as const;
-
-const LAYOUT_TRANSITION = {
-  borderBottomLeftRadius: ISLAND_LAYOUT_SPRING,
-  borderBottomRightRadius: ISLAND_LAYOUT_SPRING,
-  borderTopLeftRadius: ISLAND_LAYOUT_SPRING,
-  borderTopRightRadius: ISLAND_LAYOUT_SPRING,
-  clipPath: ISLAND_LAYOUT_SPRING,
-  height: ISLAND_LAYOUT_SPRING,
-  scale: ISLAND_LAYOUT_SPRING,
-  width: ISLAND_LAYOUT_SPRING,
-  x: ISLAND_LAYOUT_SPRING,
-  y: ISLAND_LAYOUT_SPRING,
 } as const;
 
 const isResidentMode = (mode: OverlayMode) =>
@@ -223,6 +208,7 @@ interface MorphTargetOptions {
   isDragging: boolean;
   isMeasured: boolean;
   mode: OverlayMode;
+  revealsGear: boolean;
   shoulder: number;
   strip: number;
   surface: OverlaySurface;
@@ -235,6 +221,7 @@ const islandMorphTarget = ({
   isDragging,
   isMeasured,
   mode,
+  revealsGear,
   shoulder,
   strip,
   surface,
@@ -242,13 +229,22 @@ const islandMorphTarget = ({
   ...islandCornerRadii({
     anchor: surface.anchor,
     bridgeBand: bridgesNotch ? frame.height - strip : null,
-    isCompactHandle: mode === "compact" && !isSideDockedSurface(surface),
+    isPill:
+      mode === "compact"
+        ? !isSideDockedSurface(surface)
+        : mode === "actions" && surface.presentation === "bar",
     isDragging,
     presentation: surface.presentation,
   }),
   // never "none": motion interpolates path to path, and a swap would snap the silhouette
   clipPath: dockSilhouettePath({
     anchor: surface.anchor,
+    // round buttons sit in a pill whenever the toolbar floats free of the edge
+    corner:
+      isSideDockedSurface(surface) || mode === "actions" ? PILL_RADIUS : 0,
+    gear: hasDockGearSlot(surface, mode)
+      ? { revealed: revealsGear, slot: DOCK_GEAR_SLOT }
+      : undefined,
     height: frame.height,
     shoulder,
     width: frame.width,
@@ -276,6 +272,8 @@ interface IslandMorphProps {
   microphoneRef?: Ref<HTMLSpanElement>;
   mode: OverlayMode;
   onMorphComplete: () => void;
+  /// Docked HUD only — grows the settings lobe out of the panel's far end.
+  revealsGear?: boolean;
   surface: OverlaySurface;
 }
 
@@ -290,9 +288,16 @@ export const IslandMorph = ({
   microphoneRef,
   mode,
   onMorphComplete,
+  revealsGear,
   surface,
 }: IslandMorphProps) => {
   const reduceMotion = useReducedMotion() === true;
+  const { canvasOrigin, toCanvas, transition } = useIslandLanding({
+    freezesLayout: freezesLayout === true,
+    isDragging: isDragging === true,
+    reduceMotion,
+    surface,
+  });
   const { measurementRef, size } = useMeasuredIslandSize();
   const { bridgesNotch, frame, isMeasured, shoulder, strip } = morphFrame({
     isDragging: isDragging === true,
@@ -308,8 +313,8 @@ export const IslandMorph = ({
     }
   }, [reducedMotionKey]);
   const screenOrigin: ScreenOriginStyle = {
-    "--echo-window-x": `${-surface.window.x}px`,
-    "--echo-window-y": `${-surface.window.y}px`,
+    "--echo-window-x": `${-canvasOrigin.x}px`,
+    "--echo-window-y": `${-canvasOrigin.y}px`,
   };
   // The flanks either side of the cut-out are the only part of the strip content may use.
   const notchStrip: NotchStripStyle = {
@@ -322,10 +327,11 @@ export const IslandMorph = ({
       <m.div
         animate={islandMorphTarget({
           bridgesNotch,
-          frame,
+          frame: toCanvas(frame),
           isDragging: isDragging === true,
           isMeasured,
           mode,
+          revealsGear: revealsGear === true,
           shoulder,
           strip,
           surface,
@@ -342,7 +348,7 @@ export const IslandMorph = ({
         initial={entry ?? false}
         onAnimationComplete={onMorphComplete}
         style={notchStrip}
-        transition={reduceMotion || freezesLayout ? INSTANT : LAYOUT_TRANSITION}
+        transition={transition}
       >
         {edge === "trace" ? (
           <span aria-hidden="true" className="echo-island-edge-trace" />

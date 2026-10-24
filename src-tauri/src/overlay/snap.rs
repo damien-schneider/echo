@@ -1,7 +1,8 @@
 use super::drag_preview::{
-    painted_preview, preview_paint, DragSession, PaintedPreview, PreviewPaint, SnapTarget,
-    SNAP_EDGE_HYSTERESIS,
+    grab_offset, held_island, painted_preview, preview_paint, DragSession, GrabOffset,
+    PaintedPreview, PreviewPaint, SnapTarget, SNAP_EDGE_HYSTERESIS,
 };
+use super::glide;
 use super::layout::{
     dock_location_from_frame_with_hysteresis, MonitorBounds, OverlayFrame, OverlayPlacement,
     RecordingOverlayMode,
@@ -13,6 +14,7 @@ use super::surface::{overlay_surface, SurfaceRequest};
 use super::window::{apply_absolute_overlay_frame, RECORDING_OVERLAY_LABEL};
 use super::window_modes::update_overlay_position;
 use crate::settings::{self, OverlayDockEdge, OverlayPosition};
+use log::debug;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow, WebviewWindowBuilder};
 
@@ -149,14 +151,15 @@ fn window_center_frame(window: &WebviewWindow) -> Result<(MonitorBounds, Overlay
 fn resolve_snap_target(
     app_handle: &AppHandle,
     preferred_edge: Option<OverlayDockEdge>,
+    grab: GrabOffset,
 ) -> Result<SnapTarget, String> {
     let window = app_handle
         .get_webview_window(RECORDING_OVERLAY_LABEL)
         .ok_or_else(|| "Recording overlay window is unavailable".to_string())?;
-    let (monitor, frame) = pointer_frame(&window)?;
+    let (monitor, pointer) = pointer_frame(&window)?;
     let (dock_edge, dock_offset) = dock_location_from_frame_with_hysteresis(
         monitor,
-        frame,
+        held_island(pointer, grab),
         preferred_edge,
         SNAP_EDGE_HYSTERESIS,
     );
@@ -220,6 +223,7 @@ pub(super) fn refresh_snap_preview(app_handle: &AppHandle) -> Result<(), String>
     let target = resolve_snap_target(
         app_handle,
         session.placement.map(|placement| placement.dock_edge),
+        session.grab,
     )?;
     let painted = painted_preview(target);
     // A release or cancel can land while the sample above resolves.
@@ -227,14 +231,31 @@ pub(super) fn refresh_snap_preview(app_handle: &AppHandle) -> Result<(), String>
         return Ok(());
     };
     store_session(Some(DragSession {
+        grab: session.grab,
         painted: Some(painted),
         placement: Some(target.placement),
     }));
     paint_snap_preview(app_handle, preview_paint(session.painted, painted), painted)
 }
 
+/// Read before the OS moves the window — island and pointer still sit where the grab began.
+fn grab_on_island(app_handle: &AppHandle) -> GrabOffset {
+    app_handle
+        .get_webview_window(RECORDING_OVERLAY_LABEL)
+        .and_then(|window| {
+            let (_, island) = window_center_frame(&window).ok()?;
+            let (_, pointer) = pointer_frame(&window).ok()?;
+            Some(grab_offset(island, pointer))
+        })
+        .unwrap_or_default()
+}
+
 pub(super) fn begin_snap_preview(app_handle: &AppHandle) -> Result<(), String> {
-    store_session(Some(DragSession::default()));
+    glide::stop();
+    store_session(Some(DragSession {
+        grab: grab_on_island(app_handle),
+        ..DragSession::default()
+    }));
     let result = refresh_snap_preview(app_handle);
     if result.is_err() {
         store_session(None);
@@ -263,10 +284,43 @@ pub(super) fn cancel_drag(app_handle: &AppHandle) -> Result<(), String> {
 
 fn drop_placement(app_handle: &AppHandle, session: DragSession) -> Option<OverlayPlacement> {
     session.placement.or_else(|| {
-        resolve_snap_target(app_handle, None)
+        resolve_snap_target(app_handle, None, session.grab)
             .ok()
             .map(|target| target.placement)
     })
+}
+
+/// Docking mid-flight would grow the shoulders and gear lobe away from the edge — ghost and settle wait for arrival.
+fn settle_landed_drop(app_handle: &AppHandle) {
+    let landed = app_handle.clone();
+    let settle = move || {
+        #[cfg(target_os = "macos")]
+        super::macos_hover_sync::sync_hover_key_possession(&landed);
+        if let Err(error) = dismiss_preview(&landed) {
+            debug!("[Overlay] {error}");
+        }
+        let _ = landed.emit_to(RECORDING_OVERLAY_LABEL, DRAG_SETTLED_EVENT, ());
+    };
+    if app_handle.run_on_main_thread(settle).is_err() {
+        let _ = dismiss_preview(app_handle);
+        let _ = app_handle.emit_to(RECORDING_OVERLAY_LABEL, DRAG_SETTLED_EVENT, ());
+    }
+}
+
+/// The OS left the window where it was let go — the landing render glides it on from there.
+fn land_drop(app_handle: &AppHandle) {
+    let dropped = app_handle
+        .get_webview_window(RECORDING_OVERLAY_LABEL)
+        .and_then(|window| window_center_frame(&window).ok());
+    let Some((_, dropped)) = dropped else {
+        update_overlay_position(app_handle);
+        settle_landed_drop(app_handle);
+        return;
+    };
+    let landed = app_handle.clone();
+    glide::arm(dropped, Box::new(move || settle_landed_drop(&landed)));
+    update_overlay_position(app_handle);
+    glide::disarm();
 }
 
 /// Idempotent — native mouse-up and webview pointer release both land here; first one owns the drop.
@@ -282,10 +336,8 @@ pub(super) fn finish_drag(app_handle: &AppHandle) -> Result<(), String> {
             settings.overlay_dock_offset = placement.dock_offset;
         });
     }
-    let dismissed = dismiss_preview(app_handle);
-    update_overlay_position(app_handle);
-    let _ = app_handle.emit_to(RECORDING_OVERLAY_LABEL, DRAG_SETTLED_EVENT, ());
-    dismissed
+    land_drop(app_handle);
+    Ok(())
 }
 
 pub(super) fn set_dock_edge(app_handle: &AppHandle, edge: &str) -> Result<(), String> {

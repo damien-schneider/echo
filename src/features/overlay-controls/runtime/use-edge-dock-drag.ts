@@ -18,8 +18,16 @@ import { listenCancellable } from "@/lib/tauri-listener";
 
 const invokeDrag = (command: string) => invoke(command).catch(() => undefined);
 
+export interface EdgeDockDrag {
+  isDragging: boolean;
+  onGripKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  onGripPointerDown: (
+    event: ReactPointerEvent<HTMLButtonElement>
+  ) => Promise<void>;
+}
+
 // the compositor swallows the mouse-up ending a native drag, so Rust reports the drop instead
-export const useEdgeDockDrag = () => {
+export const useEdgeDockDrag = (): EdgeDockDrag => {
   const [isDragging, setIsDragging] = useState(false);
   const holdsGrip = useRef(false);
 
@@ -29,12 +37,14 @@ export const useEdgeDockDrag = () => {
   };
 
   const settleDrag = useEffectEvent(() => endDrag());
+  // stays lifted until Rust lands it — settling first would replay the drop mid-air
+  const landDrop = () => invoke(OVERLAY_DRAG_COMMAND.snap).catch(endDrag);
   const releasePointer = useEffectEvent(() => {
     if (!holdsGrip.current) {
       return;
     }
-    endDrag();
-    invokeDrag(OVERLAY_DRAG_COMMAND.snap);
+    holdsGrip.current = false;
+    landDrop();
   });
   const abandonDrag = useEffectEvent(() => {
     if (!holdsGrip.current) {
@@ -82,7 +92,7 @@ export const useEdgeDockDrag = () => {
     }
     // Release can beat the handshake: settle the session it just opened.
     if (!holdsGrip.current) {
-      invokeDrag(OVERLAY_DRAG_COMMAND.snap);
+      landDrop();
       return;
     }
     try {
@@ -104,5 +114,3 @@ export const useEdgeDockDrag = () => {
 
   return { isDragging, onGripKeyDown, onGripPointerDown };
 };
-
-export type EdgeDockDrag = ReturnType<typeof useEdgeDockDrag>;

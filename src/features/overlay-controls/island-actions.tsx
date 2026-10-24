@@ -18,7 +18,7 @@ interface IslandActionsProps {
   orientation: "horizontal" | "vertical";
 }
 const actionClassName =
-  "echo-island-action p-0 text-white/68 hover:bg-white/10 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45 [&_svg]:size-3";
+  "echo-island-action p-0 text-white/72 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45 [&_svg]:size-4";
 const ACTION_TOOLBAR_VARIANTS = {
   hidden: {
     transition: { staggerChildren: 0.02, staggerDirection: -1 },

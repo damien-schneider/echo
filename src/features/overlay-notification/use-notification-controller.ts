@@ -18,7 +18,6 @@ import {
 import {
   CHAT_CONTEXT_EVENT,
   CHAT_CONTEXT_STATE_COMMAND,
-  CHAT_MODEL_SETTINGS_COMMAND,
   type ChatContextEvent,
   ChatContextEventSchema,
   HELD_TRANSCRIPT_COMMAND,
@@ -347,11 +346,6 @@ export const useNotificationController = () => {
     handleKeyDown: (event: KeyboardEvent<HTMLDivElement>) =>
       dismissFromKeyboard(event, presentation.escapeIntent, dismissSurface),
     microphoneRef,
-    openChatModelSettings: () => {
-      invoke(CHAT_MODEL_SETTINGS_COMMAND)
-        .then(() => dismissSurface())
-        .catch(() => undefined);
-    },
     /// The prompt returns at once; the context watch notices the grant and reads the selection then.
     requestAccessibilityAccess: async () => {
       await requestAccessibilityPermission();

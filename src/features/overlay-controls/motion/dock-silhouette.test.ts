@@ -1,8 +1,64 @@
 import { describe, expect, test } from "bun:test";
 import {
+  DOCK_GEAR_DIAMETER,
+  DOCK_GEAR_SLOT,
+  DOCK_SHOULDER,
   dockShoulder,
   dockSilhouettePath,
 } from "@/features/overlay-controls/motion/dock-silhouette";
+
+interface PathPoint {
+  x: number;
+  y: number;
+}
+
+const NOT_A_COMMAND = /[^MCLZ]/g;
+const SEGMENT_START = /(?=[MCL])/;
+
+const commandsOf = (path: string) => path.replace(NOT_A_COMMAND, "");
+
+// on-curve points only: control points may bow past the outline they shape
+const endpointsOf = (path: string): PathPoint[] =>
+  path
+    .slice('path("'.length, -'")'.length)
+    .split(SEGMENT_START)
+    .map((segment) => {
+      const numbers = segment
+        .replace("Z", "")
+        .slice(1)
+        .trim()
+        .split(" ")
+        .map(Number);
+      return {
+        x: numbers.at(-2) ?? Number.NaN,
+        y: numbers.at(-1) ?? Number.NaN,
+      };
+    });
+
+const SIDE_DOCK = { anchor: "right", height: 228, width: 40 } as const;
+const PANEL_END = SIDE_DOCK.height - DOCK_GEAR_SLOT;
+const tucked = dockSilhouettePath({
+  ...SIDE_DOCK,
+  gear: { revealed: false, slot: DOCK_GEAR_SLOT },
+  shoulder: DOCK_SHOULDER,
+});
+const revealed = dockSilhouettePath({
+  ...SIDE_DOCK,
+  gear: { revealed: true, slot: DOCK_GEAR_SLOT },
+  shoulder: DOCK_SHOULDER,
+});
+const lifted = dockSilhouettePath({
+  ...SIDE_DOCK,
+  corner: 999,
+  gear: { revealed: true, slot: DOCK_GEAR_SLOT },
+  shoulder: 0,
+});
+const sliver = dockSilhouettePath({
+  anchor: "top",
+  height: 5,
+  shoulder: DOCK_SHOULDER,
+  width: 38,
+});
 
 describe("dock shoulder", () => {
   test("a floating surface hangs off no edge", () => {
@@ -80,74 +136,115 @@ describe("dock shoulder", () => {
 });
 
 describe("dock silhouette", () => {
-  // a shoulderless surface still traces its own box: motion interpolates path to path, never path to none
-  test("a surface with no shoulder traces its own box", () => {
-    expect(
-      dockSilhouettePath({ anchor: "top", height: 40, shoulder: 0, width: 128 })
-    ).toBe(
-      'path("M 0 0 C 0 0 0 0 0 0 L 0 40 C 0 40 0 40 0 40 L 128 40 C 128 40 128 40 128 40 L 128 0 C 128 0 128 0 128 0 Z")'
+  // motion interpolates path to path: a differing command list would snap mid-morph
+  test("every state draws the same commands", () => {
+    const box = dockSilhouettePath({
+      anchor: "top",
+      height: 40,
+      shoulder: 0,
+      width: 116,
+    });
+    for (const path of [revealed, lifted, sliver, box]) {
+      expect(commandsOf(path)).toBe(commandsOf(tucked));
+    }
+  });
+
+  test("a tucked lobe leaves the slot past the panel empty", () => {
+    const reach = Math.max(...endpointsOf(tucked).map((point) => point.y));
+    expect(reach).toBe(PANEL_END);
+  });
+
+  test("a revealed lobe stands out past the panel and lands back on the edge", () => {
+    const lobe = endpointsOf(revealed).filter((point) => point.y > PANEL_END);
+    const depth = Math.max(...lobe.map((point) => SIDE_DOCK.width - point.x));
+    expect(depth).toBeGreaterThanOrEqual(DOCK_GEAR_DIAMETER);
+    expect(lobe.at(-1)).toEqual({ x: SIDE_DOCK.width, y: SIDE_DOCK.height });
+  });
+
+  test("a lifted toolbar never shows the lobe", () => {
+    expect(lifted).toBe(
+      dockSilhouettePath({
+        ...SIDE_DOCK,
+        corner: 999,
+        gear: { revealed: false, slot: DOCK_GEAR_SLOT },
+        shoulder: 0,
+      })
     );
   });
 
-  test("a top-anchored surface curves into both top corners", () => {
-    expect(
-      dockSilhouettePath({
-        anchor: "top",
-        height: 40,
-        shoulder: 10,
-        width: 128,
-      })
-    ).toBe(
-      'path("M 0 0 C 5.523 0 10 4.477 10 10 L 10 30 C 10 35.523 14.477 40 20 40 L 108 40 C 113.523 40 118 35.523 118 30 L 118 10 C 118 4.477 122.477 0 128 0 Z")'
-    );
-  });
-
-  test("a bottom-anchored surface mirrors the top one", () => {
-    expect(
-      dockSilhouettePath({
-        anchor: "bottom",
-        height: 40,
-        shoulder: 10,
-        width: 128,
-      })
-    ).toBe(
-      'path("M 0 40 C 5.523 40 10 35.523 10 30 L 10 10 C 10 4.477 14.477 0 20 0 L 108 0 C 113.523 0 118 4.477 118 10 L 118 30 C 118 35.523 122.477 40 128 40 Z")'
-    );
-  });
-
-  test("a left-anchored surface runs its shoulders down the left edge", () => {
-    expect(
-      dockSilhouettePath({
-        anchor: "left",
-        height: 104,
-        shoulder: 10,
-        width: 32,
-      })
-    ).toBe(
-      'path("M 0 0 C 0 5.523 4.477 10 10 10 L 22 10 C 27.523 10 32 14.477 32 20 L 32 84 C 32 89.523 27.523 94 22 94 L 10 94 C 4.477 94 0 98.477 0 104 Z")'
-    );
-  });
-
-  test("a right-anchored surface mirrors the left one", () => {
-    expect(
-      dockSilhouettePath({
-        anchor: "right",
-        height: 104,
-        shoulder: 10,
-        width: 32,
-      })
-    ).toBe(
-      'path("M 32 0 C 32 5.523 27.523 10 22 10 L 10 10 C 4.477 10 0 14.477 0 20 L 0 84 C 0 89.523 4.477 94 10 94 L 22 94 C 27.523 94 32 98.477 32 104 Z")'
-    );
+  test("the outline never leaves its frame", () => {
+    const frames = [
+      { height: 228, path: tucked, width: 40 },
+      { height: 228, path: revealed, width: 40 },
+      { height: 228, path: lifted, width: 40 },
+      { height: 5, path: sliver, width: 38 },
+    ];
+    for (const { height, path, width } of frames) {
+      for (const point of endpointsOf(path)) {
+        expect(point.x).toBeGreaterThanOrEqual(0);
+        expect(point.x).toBeLessThanOrEqual(width);
+        expect(point.y).toBeGreaterThanOrEqual(0);
+        expect(point.y).toBeLessThanOrEqual(height);
+      }
+    }
   });
 
   // the island morphs through sizes far below its resting box — a shoulder must never cross itself
-  test("shoulders shrink with a surface too small to hold them", () => {
-    expect(
-      dockSilhouettePath({ anchor: "top", height: 5, shoulder: 10, width: 38 })
-    ).toBe(
-      'path("M 0 0 C 1.381 0 2.5 1.119 2.5 2.5 L 2.5 2.5 C 2.5 3.881 3.619 5 5 5 L 33 5 C 34.381 5 35.5 3.881 35.5 2.5 L 35.5 2.5 C 35.5 1.119 36.619 0 38 0 Z")'
+  test("a docked outline never doubles back along its edge", () => {
+    const runs = [
+      endpointsOf(tucked).map((point) => point.y),
+      endpointsOf(revealed).map((point) => point.y),
+      endpointsOf(sliver).map((point) => point.x),
+    ];
+    for (const run of runs) {
+      expect(run).toEqual(run.toSorted((first, second) => first - second));
+    }
+  });
+
+  test("right and bottom anchors mirror left and top", () => {
+    const mirrors = [
+      { from: "left", height: 228, to: "right", width: 40 },
+      { from: "top", height: 40, to: "bottom", width: 228 },
+    ] as const;
+    for (const { from, height, to, width } of mirrors) {
+      const options = {
+        gear: { revealed: true, slot: DOCK_GEAR_SLOT },
+        height,
+        shoulder: DOCK_SHOULDER,
+        width,
+      };
+      const source = endpointsOf(
+        dockSilhouettePath({ ...options, anchor: from })
+      );
+      const mirrored = endpointsOf(
+        dockSilhouettePath({ ...options, anchor: to })
+      );
+      const flip = (point: PathPoint) =>
+        to === "right"
+          ? { x: width - point.x, y: point.y }
+          : { x: point.x, y: height - point.y };
+      expect(mirrored.map(flip)).toEqual(source);
+    }
+  });
+
+  test("a surface with no shoulder traces its own box", () => {
+    const corners = endpointsOf(
+      dockSilhouettePath({ anchor: "top", height: 40, shoulder: 0, width: 116 })
+    ).map(({ x, y }) => `${x},${y}`);
+    expect(new Set(corners)).toEqual(
+      new Set(["0,0", "0,40", "116,40", "116,0"])
     );
+  });
+
+  test("a frame too short for the lobe spends all of it on the panel", () => {
+    const path = dockSilhouettePath({
+      anchor: "top",
+      gear: { revealed: true, slot: DOCK_GEAR_SLOT },
+      height: 5,
+      shoulder: DOCK_SHOULDER,
+      width: 38,
+    });
+    expect(path).toBe(sliver);
   });
 
   test("an unlaid-out surface is left unclipped", () => {

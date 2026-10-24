@@ -82,9 +82,6 @@ export const ClipboardHandlingSchema = z.enum([
 ]);
 export type ClipboardHandling = z.infer<typeof ClipboardHandlingSchema>;
 
-export const LlmEngineSchema = z.enum(["local", "cloud"]);
-export type LlmEngine = z.infer<typeof LlmEngineSchema>;
-
 export const PolishLevelSchema = z.enum(["correct", "natural", "clear"]);
 export type PolishLevel = z.infer<typeof PolishLevelSchema>;
 
@@ -106,20 +103,6 @@ export const LLMPromptSchema = z.object({
 });
 
 export type LLMPrompt = z.infer<typeof LLMPromptSchema>;
-
-export const PostProcessProviderSchema = z.object({
-  allow_base_url_edit: z.boolean().optional().default(false),
-  base_url: z.string(),
-  id: z.string(),
-  kind: z
-    .enum(["openai_compatible", "anthropic"])
-    .optional()
-    .default("openai_compatible"),
-  label: z.string(),
-  models_endpoint: z.string().nullable().optional(),
-});
-
-export type PostProcessProvider = z.infer<typeof PostProcessProviderSchema>;
 
 export const DictionaryEntrySchema = z.object({
   canonical: z.string(),
@@ -161,7 +144,6 @@ export const SettingsSchema = z.object({
   log_level: z.number().int().min(1).max(5).optional().default(2),
   meeting_auto_summary: z.boolean().optional().default(false),
   meeting_chunk_duration_secs: z.number().optional().default(30),
-  meeting_summary_engine: LlmEngineSchema.optional().default("local"),
   meeting_system_audio_enabled: z.boolean().optional().default(false),
   mute_while_recording: z.boolean().optional().default(false),
   overlay_dock_edge: OverlayDockEdgeSchema.optional().default("right"),
@@ -169,19 +151,8 @@ export const SettingsSchema = z.object({
   overlay_position: OverlayPositionSchema,
   paste_method: PasteMethodSchema.optional().default("ctrl_v"),
   polish_level: PolishLevelSchema.optional().default("natural"),
-  post_process_api_keys: z
-    .record(z.string(), z.string())
-    .optional()
-    .default({}),
   post_process_enabled: z.boolean().optional().default(false),
-  post_process_engine: LlmEngineSchema.optional().default("local"),
-  post_process_models: z.record(z.string(), z.string()).optional().default({}),
   post_process_prompts: z.array(LLMPromptSchema).optional().default([]),
-  post_process_provider_id: z.string().optional().default("openai"),
-  post_process_providers: z
-    .array(PostProcessProviderSchema)
-    .optional()
-    .default([]),
   post_process_selected_prompt_id: z.string().nullable().optional(),
   push_to_talk: z.boolean(),
   recording_retention_period:

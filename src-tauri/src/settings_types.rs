@@ -23,17 +23,6 @@ pub struct DictionaryEntrySetting {
     pub variants: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PostProcessProvider {
-    pub id: String,
-    pub label: String,
-    pub base_url: String,
-    #[serde(default)]
-    pub allow_base_url_edit: bool,
-    #[serde(default)]
-    pub models_endpoint: Option<String>,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum OverlayPosition {
@@ -110,15 +99,6 @@ pub enum PasteMethod {
 pub enum ClipboardHandling {
     DontModify,
     CopyToClipboard,
-}
-
-/// Local by default: dictations and meeting transcripts stay on this machine unless the user opts out.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum LlmEngine {
-    #[default]
-    Local,
-    Cloud,
 }
 
 /// How far Polish may go: mistakes only, native phrasing, or clearer structure.
@@ -257,18 +237,8 @@ pub struct AppSettings {
     pub clipboard_handling: ClipboardHandling,
     #[serde(default)]
     pub polish_level: PolishLevel,
-    #[serde(default = "default_post_process_provider_id")]
-    pub post_process_provider_id: String,
-    #[serde(default = "default_post_process_providers")]
-    pub post_process_providers: Vec<PostProcessProvider>,
-    #[serde(default = "default_post_process_api_keys")]
-    pub post_process_api_keys: HashMap<String, String>,
     #[serde(default)]
     pub post_process_enabled: bool,
-    #[serde(default)]
-    pub post_process_engine: LlmEngine,
-    #[serde(default = "default_post_process_models")]
-    pub post_process_models: HashMap<String, String>,
     #[serde(default = "default_post_process_prompts")]
     pub post_process_prompts: Vec<LLMPrompt>,
     #[serde(default)]
@@ -290,8 +260,6 @@ pub struct AppSettings {
     pub meeting_system_audio_enabled: bool,
     #[serde(default)]
     pub meeting_auto_summary: bool,
-    #[serde(default)]
-    pub meeting_summary_engine: LlmEngine,
     #[serde(default = "default_meeting_chunk_duration_secs")]
     pub meeting_chunk_duration_secs: u32,
     /// Qwen 2.5 1.5B GGUF; defaults off (privacy).

@@ -1,11 +1,17 @@
+import { useCopyToClipboard } from "@ctrl-ui/react/hooks/use-copy-to-clipboard";
+import { Button } from "@ctrl-ui/react/ui/button";
+import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import type React from "react";
 import { useEffect, useState } from "react";
-import { TextDisplay } from "@/components/ui/text-display";
+import { SettingRow } from "@/features/settings/setting-row";
 export const AppDataDirectory: React.FC = () => {
   const [appDirPath, setAppDirPath] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { status: copyStatus, handleCopy } = useCopyToClipboard({
+    text: appDirPath,
+  });
   useEffect(() => {
     const loadAppDirectory = async () => {
       try {
@@ -39,12 +45,29 @@ export const AppDataDirectory: React.FC = () => {
     );
   }
   return (
-    <TextDisplay
-      copyable={true}
+    <SettingRow
       description="Main directory where application data, settings, and models are stored"
-      label="App Data Directory"
-      monospace={true}
-      value={appDirPath}
-    />
+      layout="stacked"
+      title="App Data Directory"
+    >
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1 break-all rounded-lg border border-border/80 bg-muted/10 px-2 py-2 font-mono text-xs">
+          {appDirPath}
+        </div>
+        <Button
+          aria-label="Copy app data directory"
+          iconOnly
+          onClick={handleCopy}
+          size="xs"
+          variant="ghost"
+        >
+          {copyStatus === "copied" ? (
+            <CheckIcon className="size-4" />
+          ) : (
+            <CopyIcon className="size-4" />
+          )}
+        </Button>
+      </div>
+    </SettingRow>
   );
 };

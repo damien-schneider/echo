@@ -9,6 +9,7 @@ interface InvokeOverlayControlOptions {
 }
 
 const controlFailureMessages = {
+  open_settings: "Couldn’t open Echo settings. Try again.",
   polish: "Couldn’t polish the selection. Try again.",
   start_recording: "Couldn’t start recording. Try again.",
   stop_recording: "Couldn’t stop recording. Try again.",

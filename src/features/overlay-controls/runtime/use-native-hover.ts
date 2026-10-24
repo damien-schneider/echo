@@ -4,6 +4,7 @@ import {
   HOVERED_ATTRIBUTE,
   hoverChainAt,
   hoverPaint,
+  NATIVE_HOVER_ATTRIBUTE,
 } from "@/features/overlay-controls/runtime/native-hover";
 import {
   OVERLAY_POINTER_EVENT,
@@ -11,9 +12,10 @@ import {
 } from "@/features/overlay-controls/runtime/native-pointer";
 import { listenCancellable } from "@/lib/tauri-listener";
 
-/// CSS `:hover` never fires here — the overlay refuses the keyboard, so hover is painted from the native pointer.
+/// WebKit's own `:hover` trails the pointer by ~400 ms in a panel that refuses the keyboard — once native samples flow, they alone paint hover.
 export const useNativeHover = () => {
   useEffect(() => {
+    const root = document.documentElement;
     let painted: Element[] = [];
     const paint = (next: Element[]) => {
       const { enter, leave } = hoverPaint(painted, next);
@@ -26,12 +28,14 @@ export const useNativeHover = () => {
       painted = next;
     };
     const stopListening = listenCancellable(() =>
-      listen<OverlayPointer>(OVERLAY_POINTER_EVENT, (event) =>
-        paint(hoverChainAt(document, event.payload))
-      )
+      listen<OverlayPointer>(OVERLAY_POINTER_EVENT, (event) => {
+        root.toggleAttribute(NATIVE_HOVER_ATTRIBUTE, true);
+        paint(hoverChainAt(document, event.payload));
+      })
     );
     return () => {
       paint([]);
+      root.removeAttribute(NATIVE_HOVER_ATTRIBUTE);
       stopListening();
     };
   }, []);

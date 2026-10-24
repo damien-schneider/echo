@@ -1,7 +1,17 @@
 import { useEffect } from "react";
+import type { DownloadProgress } from "@/features/model-download/download-state";
 import { useModelStore } from "@/stores/model-store";
 
-export const useTranscriptionReadiness = () => {
+export interface TranscriptionReadiness {
+  downloading: boolean;
+  known: boolean;
+  progress: DownloadProgress | undefined;
+  ready: boolean;
+  resolve: () => Promise<void>;
+  resolveLabel: string;
+}
+
+export const useTranscriptionReadiness = (): TranscriptionReadiness => {
   const profiles = useModelStore((s) => s.profiles);
   const downloadProgress = useModelStore((s) => s.downloadProgress);
   const selectProfile = useModelStore((s) => s.selectProfile);

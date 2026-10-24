@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Hovering the docked island grows a round settings button out of its end, joined to the panel by a soft neck; clicking it opens Echo's settings. On the top or bottom edge it appears once the actions are open.
+
+### Changed
+- The docked island has larger, smoother curves where it meets the screen edge and at its rounded ends. Its record, chat and Polish buttons are bigger round buttons that fill the panel's width, each on its own subtle fill so they stay apart before hovering.
+- Dragging the island no longer adds an outline or dims its buttons: the lifted island looks like the docked one with its edge curves rounded off, and the drop preview is a translucent copy of the docked island instead of an outlined box.
+- Letting go of the dragged island glides it into its dock instead of jumping there. It stays lifted on the way and settles against the edge once it arrives, and the drop preview stays until then. The drop preview lines up with the island instead of centering on the pointer, so the island glides straight in. It no longer slides in from where it was picked up or squeezes into a thin sliver when dropped on the opposite edge, and the settings button no longer pops out mid-flight.
+- The About dialog's App Data Directory row matches the rows around it: its description sits under the title instead of behind an info icon.
+
+### Removed
+- Cloud AI providers (OpenAI, OpenRouter, Anthropic, Ollama and custom endpoints) and their provider, base URL, API key and model settings. Post-processing, voice commands, meeting summaries and chat always run on Echo 4B on this computer, so "Post-process in the cloud", "Summarize in the cloud", and chat's Local/Cloud switch and model picker are gone. API keys saved by earlier versions are deleted from the settings file on the next launch.
+
+### Fixed
+- The island's buttons light up as soon as the pointer reaches them. On macOS their hover fill used to show up almost half a second late and stay on the button the pointer had just left.
+
 ## [0.8.10] - 2026-10-24
 
 ### Changed

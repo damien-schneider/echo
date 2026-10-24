@@ -76,10 +76,6 @@ pub(super) fn default_meeting_chunk_duration_secs() -> u32 {
     30
 }
 
-pub(super) fn default_post_process_provider_id() -> String {
-    "openai".to_string()
-}
-
 pub(super) fn default_cleanup_enabled() -> bool {
     false
 }
@@ -94,62 +90,6 @@ pub(super) fn default_debug_logging_enabled() -> bool {
 
 pub(super) fn default_log_level() -> LogLevel {
     LogLevel::Info
-}
-
-pub(super) fn default_post_process_providers() -> Vec<PostProcessProvider> {
-    vec![
-        PostProcessProvider {
-            id: "openai".to_string(),
-            label: "OpenAI".to_string(),
-            base_url: "https://api.openai.com/v1".to_string(),
-            allow_base_url_edit: false,
-            models_endpoint: Some("/models".to_string()),
-        },
-        PostProcessProvider {
-            id: "openrouter".to_string(),
-            label: "OpenRouter".to_string(),
-            base_url: "https://openrouter.ai/api/v1".to_string(),
-            allow_base_url_edit: false,
-            models_endpoint: Some("/models".to_string()),
-        },
-        PostProcessProvider {
-            id: "anthropic".to_string(),
-            label: "Anthropic".to_string(),
-            base_url: "https://api.anthropic.com/v1".to_string(),
-            allow_base_url_edit: false,
-            models_endpoint: Some("/models".to_string()),
-        },
-        PostProcessProvider {
-            id: "ollama".to_string(),
-            label: "Ollama".to_string(),
-            base_url: "http://localhost:11434/v1".to_string(),
-            allow_base_url_edit: true,
-            models_endpoint: Some("/api/tags".to_string()),
-        },
-        PostProcessProvider {
-            id: "custom".to_string(),
-            label: "Custom".to_string(),
-            base_url: "http://localhost:8080/v1".to_string(),
-            allow_base_url_edit: true,
-            models_endpoint: Some("/models".to_string()),
-        },
-    ]
-}
-
-pub(super) fn default_post_process_api_keys() -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    for provider in default_post_process_providers() {
-        map.insert(provider.id, String::new());
-    }
-    map
-}
-
-pub(super) fn default_post_process_models() -> HashMap<String, String> {
-    let mut map = HashMap::new();
-    for provider in default_post_process_providers() {
-        map.insert(provider.id, String::new());
-    }
-    map
 }
 
 pub(super) fn default_post_process_prompts() -> Vec<LLMPrompt> {

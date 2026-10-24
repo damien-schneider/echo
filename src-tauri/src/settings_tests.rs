@@ -86,32 +86,6 @@ mod tests {
         );
     }
 
-    /// Sequential updates via the lock-protected serialization pattern.
-    #[test]
-    fn sequential_updates_to_different_fields_both_preserved() {
-        let mut settings = get_default_settings();
-
-        settings.post_process_enabled = false;
-        let json = serde_json::to_value(&settings).unwrap();
-        let mut after_first: AppSettings = serde_json::from_value(json).unwrap();
-
-        after_first
-            .post_process_models
-            .insert("ollama".to_string(), "llama3".to_string());
-        let json = serde_json::to_value(&after_first).unwrap();
-        let final_settings: AppSettings = serde_json::from_value(json).unwrap();
-
-        assert!(
-            !final_settings.post_process_enabled,
-            "post_process_enabled should remain false after model update"
-        );
-        assert_eq!(
-            final_settings.post_process_models.get("ollama").unwrap(),
-            "llama3",
-            "model should be updated"
-        );
-    }
-
     #[test]
     fn default_cleanup_disabled() {
         let s = get_default_settings();
@@ -366,46 +340,39 @@ mod tests {
         assert_eq!(get_default_polish_shortcut(), expected_polish);
     }
 
-    fn store_saved_before_local_post_processing(
-        provider_model: &str,
-    ) -> (AppSettings, serde_json::Value) {
-        let mut settings = get_default_settings();
-        settings.post_process_models.insert(
-            settings.post_process_provider_id.clone(),
-            provider_model.to_string(),
-        );
-        let mut raw = serde_json::to_value(&settings).unwrap();
-        raw.as_object_mut().unwrap().remove("post_process_engine");
-        (settings, raw)
-    }
-
     #[test]
-    fn a_provider_model_set_up_before_local_post_processing_stays_in_use() {
-        let (mut settings, raw) = store_saved_before_local_post_processing("gpt-4o-mini");
+    fn a_store_from_the_provider_era_loads_and_is_rewritten_without_provider_keys() {
+        let mut clean = get_default_settings();
+        clean.post_process_enabled = true;
+        clean.post_process_selected_prompt_id = Some("default_improve_transcriptions".to_string());
+        let clean_raw = serde_json::to_value(&clean).unwrap();
+        let mut legacy_raw = clean_raw.clone();
+        legacy_raw.as_object_mut().unwrap().extend([
+            ("post_process_engine".to_string(), serde_json::json!("cloud")),
+            ("meeting_summary_engine".to_string(), serde_json::json!("cloud")),
+            (
+                "post_process_api_keys".to_string(),
+                serde_json::json!({ "openai": "sk-stored" }),
+            ),
+            (
+                "post_process_providers".to_string(),
+                serde_json::json!([{ "id": "openai", "label": "OpenAI", "base_url": "https://api.openai.com/v1" }]),
+            ),
+            (
+                "post_process_models".to_string(),
+                serde_json::json!({ "openai": "gpt-4o-mini" }),
+            ),
+            ("post_process_provider_id".to_string(), serde_json::json!("openai")),
+        ]);
 
-        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
+        let mut legacy: AppSettings = serde_json::from_value(legacy_raw.clone()).unwrap();
+        assert!(legacy.post_process_enabled);
+        assert!(apply_settings_migrations_from_raw(&mut legacy, Some(&legacy_raw)));
+        assert!(!apply_settings_migrations_from_raw(&mut clean, Some(&clean_raw)));
 
-        assert_eq!(settings.post_process_engine, LlmEngine::Cloud);
-    }
-
-    #[test]
-    fn a_store_without_a_provider_model_post_processes_on_this_machine() {
-        let (mut settings, raw) = store_saved_before_local_post_processing("");
-        settings.post_process_engine = LlmEngine::Cloud;
-
-        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
-
-        assert_eq!(settings.post_process_engine, LlmEngine::Local);
-    }
-
-    #[test]
-    fn a_chosen_post_process_engine_survives_later_migrations() {
-        let mut settings = get_default_settings();
-        settings.post_process_engine = LlmEngine::Cloud;
-        let raw = serde_json::to_value(&settings).unwrap();
-
-        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
-
-        assert_eq!(settings.post_process_engine, LlmEngine::Cloud);
+        let rewritten = serde_json::to_value(&legacy).unwrap();
+        for key in REMOVED_PROVIDER_KEYS {
+            assert!(rewritten.get(key).is_none(), "{key} should not be written back");
+        }
     }
 }

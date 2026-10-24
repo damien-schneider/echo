@@ -145,7 +145,7 @@ fn side_docked_resident_hugs_the_screen_edge_at_one_fixed_size() {
     let actions = overlay_surface(request(RecordingOverlayMode::Actions, placement, None));
 
     let screen_right = NOTCHED_MONITOR.x + NOTCHED_MONITOR.width;
-    assert_eq!((compact.island.width, compact.island.height), (32.0, 124.0));
+    assert_eq!((compact.island.width, compact.island.height), (40.0, 228.0));
     assert_eq!(compact.island.x + compact.island.width, screen_right);
     assert_eq!(compact.island, actions.island);
 }
@@ -182,7 +182,7 @@ fn transient_placement_recenters_on_an_offset_notch() {
 }
 
 #[test]
-fn surfaces_never_leave_the_monitor() {
+fn surfaces_never_leave_the_monitor_or_their_window() {
     for position in [
         OverlayPosition::Top,
         OverlayPosition::Bottom,
@@ -214,8 +214,19 @@ fn surfaces_never_leave_the_monitor() {
                     surface.window.x + surface.window.width
                         <= NOTCHED_MONITOR.x + NOTCHED_MONITOR.width
                 );
-                assert!(surface.island.x >= surface.window.x);
-                assert!(surface.island.y >= surface.window.y);
+                let context = format!("{position:?} {edge:?} {mode:?}");
+                assert!(surface.island.x >= surface.window.x, "{context}");
+                assert!(surface.island.y >= surface.window.y, "{context}");
+                assert!(
+                    surface.island.x + surface.island.width
+                        <= surface.window.x + surface.window.width,
+                    "{context}"
+                );
+                assert!(
+                    surface.island.y + surface.island.height
+                        <= surface.window.y + surface.window.height,
+                    "{context}"
+                );
             }
         }
     }
@@ -346,7 +357,7 @@ fn hover_box_tracks_the_drawn_island_for_residents() {
 
     let hover = super::surface_hover_box(compact, surface.window);
 
-    assert_eq!((hover.width, hover.height), (32.0, 124.0));
+    assert_eq!((hover.width, hover.height), (40.0, 228.0));
     assert_eq!(hover.x + hover.width, surface.window.width);
 }
 

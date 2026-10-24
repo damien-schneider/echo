@@ -66,7 +66,6 @@ export const NotificationSurface = ({
         hasFlanks={hasFlanks}
         isOpen={true}
         onClose={controller.dismissSurface}
-        onManageModels={controller.openChatModelSettings}
         onRequestAccessibility={controller.requestAccessibilityAccess}
       />
     );

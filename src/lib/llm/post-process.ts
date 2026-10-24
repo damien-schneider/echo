@@ -3,7 +3,6 @@ import type { Settings } from "@/lib/types";
 import { replaceMentionOutputInMarkdown } from "@/lib/utils/replace-mention-output";
 import { localLlmModel } from "./local-model";
 import { voiceCommandSystemPrompt } from "./post-process-prompt";
-import { createLlmModel } from "./providers";
 import { runVoiceTool, type VoiceToolCall, voiceTools } from "./tools";
 
 const POST_PROCESS_RESULT_KINDS = {
@@ -39,26 +38,6 @@ const textResult = (text: string, transcription: string): PostProcessResult => {
     : unchanged(transcription);
 };
 
-function resolvePostProcessRequest(
-  settings: Settings,
-  abortSignal: AbortSignal | undefined
-): PostProcessRequest | null {
-  if (settings.post_process_engine === "local") {
-    return { abortSignal, model: localLlmModel, temperature: 0 };
-  }
-  const provider = settings.post_process_providers.find(
-    (p) => p.id === settings.post_process_provider_id
-  );
-  const modelId = provider
-    ? (settings.post_process_models[provider.id] ?? "")
-    : "";
-  if (!(provider && modelId.trim())) {
-    return null;
-  }
-  const apiKey = settings.post_process_api_keys[provider.id] ?? "";
-  return { abortSignal, model: createLlmModel(provider, apiKey, modelId) };
-}
-
 export async function runPostProcess(
   transcription: string,
   settings: Settings,
@@ -73,10 +52,11 @@ export async function runPostProcess(
   if (!promptConfig?.prompt.trim()) {
     return unchanged(transcription);
   }
-  const request = resolvePostProcessRequest(settings, abortSignal);
-  if (!request) {
-    return unchanged(transcription);
-  }
+  const request: PostProcessRequest = {
+    abortSignal,
+    model: localLlmModel,
+    temperature: 0,
+  };
   if (settings.voice_commands_enabled) {
     return await runWithVoiceCommands(
       request,

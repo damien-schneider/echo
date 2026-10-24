@@ -24,10 +24,7 @@ pub(crate) struct LocalCompletionResponse {
 impl PolishManager {
     async fn forward_chat_completion(&self, body: String) -> Result<LocalCompletionResponse> {
         if !self.is_downloaded() {
-            anyhow::bail!(
-                "Download the local Echo model in Settings → Models to post-process on this machine, \
-                 or switch post-processing to your AI provider."
-            );
+            anyhow::bail!("Download Echo 4B in Settings → Models to post-process dictations.");
         }
         self.prepare()
             .await

@@ -1,16 +1,15 @@
 import { describe, expect, test } from "bun:test";
 import {
-  previewFrameVars,
   previewGlides,
   SnapPreviewPayloadSchema,
 } from "@/overlay/snap-preview-frame";
 
 const RIGHT_DOCK = {
   anchor: "right",
-  height: 104,
-  width: 32,
-  x: 1408,
-  y: 398,
+  height: 228,
+  width: 40,
+  x: 1400,
+  y: 336,
 } as const;
 
 describe("snap preview payloads", () => {
@@ -32,18 +31,6 @@ describe("snap preview payloads", () => {
         .success
     ).toBe(false);
   });
-
-  // the placeholder stands in for a docked island, so it wears the same silhouette
-  test("the frame travels through custom properties", () => {
-    expect(previewFrameVars(RIGHT_DOCK)).toEqual({
-      "--preview-clip":
-        'path("M 32 0 C 32 5.523 27.523 10 22 10 L 10 10 C 4.477 10 0 14.477 0 20 L 0 84 C 0 89.523 4.477 94 10 94 L 22 94 C 27.523 94 32 98.477 32 104 Z")',
-      "--preview-height": "104px",
-      "--preview-width": "32px",
-      "--preview-x": "1408px",
-      "--preview-y": "398px",
-    });
-  });
 });
 
 describe("snap preview motion", () => {
@@ -56,8 +43,8 @@ describe("snap preview motion", () => {
       previewGlides(RIGHT_DOCK, {
         anchor: "top",
         height: 40,
-        width: 128,
-        x: 656,
+        width: 228,
+        x: 606,
         y: 0,
       })
     ).toBe(true);

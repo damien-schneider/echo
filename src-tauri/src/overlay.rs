@@ -2,6 +2,7 @@ pub(crate) mod context_menu;
 mod drag_preview;
 mod events;
 mod generation;
+mod glide;
 mod layout;
 #[cfg(target_os = "macos")]
 mod macos_hover;
@@ -22,7 +23,7 @@ use crate::features::polish::chat_context::{ChatContextCapture, ShownChatContext
 use crate::features::polish::manager::PolishManager;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, State};
 
 pub(crate) use events::{
     emit_levels, emit_transcription_progress, hide_recording_overlay, mark_recording_live,
@@ -291,16 +292,14 @@ pub(crate) async fn request_overlay_notification(
     }
     Ok(())
 }
-#[tauri::command]
-pub(crate) fn open_chat_model_settings(app_handle: AppHandle) -> Result<(), String> {
-    crate::startup::show_main_window(&app_handle);
-    app_handle
-        .emit_to("main", "open-settings-section", "post-processing")
-        .map_err(|error| format!("Failed to open chat model settings: {error}"))
-}
 
 /// The HUD handle is a few pixels tall — failures surface as a warning notification instead.
 #[tauri::command]
 pub(crate) fn warn_from_overlay(app_handle: AppHandle, message: String) {
     events::show_warning_overlay(&app_handle, &message);
+}
+
+#[tauri::command]
+pub(crate) fn open_settings_from_overlay(app_handle: AppHandle) {
+    crate::startup::show_settings(&app_handle);
 }

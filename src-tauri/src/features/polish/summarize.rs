@@ -11,10 +11,7 @@ impl PolishManager {
     /// One completion, no stream: the caller shows the summary when it is whole.
     pub(crate) async fn summarize(&self, system: &str, prompt: &str) -> Result<String> {
         if !self.is_downloaded() {
-            anyhow::bail!(
-                "Download the local Echo model in Settings → Models to summarize on this machine, \
-                 or switch the meeting summary engine to a cloud provider."
-            );
+            anyhow::bail!("Download Echo 4B in Settings → Models to summarize meetings.");
         }
         self.prepare()
             .await

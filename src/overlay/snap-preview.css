@@ -12,15 +12,12 @@ body {
 .echo-snap-preview {
   --preview-x: 0px;
   --preview-y: 0px;
-  --preview-width: 128px;
+  --preview-width: 228px;
   --preview-height: 40px;
   position: fixed;
   top: 0;
   left: 0;
   box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: var(--preview-width);
   height: var(--preview-height);
   opacity: 0;
@@ -43,63 +40,16 @@ body {
     height 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* The frame arrives as the exact island box, so the silhouette just fills it. */
+/* The frame arrives as the exact island box; the ghost is the docked silhouette, lobe tucked. */
 .echo-snap-preview-shape {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 100%;
   height: 100%;
-  background: rgba(5, 5, 5, 0.5);
-  border-radius: 10px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  background: rgba(5, 5, 5, 0.42);
   clip-path: var(--preview-clip, none);
 }
 
 .echo-snap-preview[data-glide="true"] .echo-snap-preview-shape {
-  transition:
-    border-radius 200ms cubic-bezier(0.22, 1, 0.36, 1),
-    clip-path 200ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.echo-snap-preview[data-anchor="top"] .echo-snap-preview-shape {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-}
-
-.echo-snap-preview[data-anchor="bottom"] .echo-snap-preview-shape {
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.echo-snap-preview[data-anchor="left"] .echo-snap-preview-shape {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.echo-snap-preview[data-anchor="right"] .echo-snap-preview-shape {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
-
-.echo-snap-preview-actions {
-  display: flex;
-  gap: 3px;
-  align-items: center;
-  justify-content: center;
-}
-
-.echo-snap-preview:is([data-anchor="left"], [data-anchor="right"])
-  .echo-snap-preview-actions {
-  flex-direction: column;
-}
-
-.echo-snap-preview-actions > span {
-  width: 20px;
-  height: 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 5px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  transition: clip-path 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -267,10 +267,7 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
                 return;
             }
             match event.id.as_ref() {
-                "settings" => {
-                    show_main_window(app);
-                    let _ = app.emit_to("main", "open-settings-section", "app");
-                }
+                "settings" => startup::show_settings(app),
                 "check_updates" => {
                     show_main_window(app);
                     updates::check_in_background(app);
@@ -655,18 +652,11 @@ pub fn run() {
             shortcut::settings::general::change_paste_method_setting,
             shortcut::settings::general::change_clipboard_handling_setting,
             shortcut::settings::general::update_custom_words,
-            shortcut::settings::post_process::change_post_process_base_url_setting,
             shortcut::settings::post_process::change_post_process_enabled_setting,
-            shortcut::settings::post_process::change_post_process_engine_setting,
-            shortcut::settings::post_process::change_post_process_api_key_setting,
-            shortcut::settings::post_process::change_post_process_model_setting,
-            shortcut::settings::post_process::set_post_process_provider,
-            shortcut::settings::post_process::fetch_post_process_models,
             shortcut::settings::post_process::add_post_process_prompt,
             shortcut::settings::post_process::update_post_process_prompt,
             shortcut::settings::post_process::delete_post_process_prompt,
             shortcut::settings::post_process::set_post_process_selected_prompt,
-            shortcut::settings::post_process::check_model_tool_support,
             shortcut::settings::post_process::change_voice_commands_enabled_setting,
             shortcut::settings::cleanup::change_cleanup_enabled_setting,
             shortcut::settings::cleanup::change_cleanup_app_context_enabled_setting,
@@ -697,8 +687,8 @@ pub fn run() {
             overlay::hide_overlay_notification,
             overlay::request_overlay_notification,
             overlay::send_held_transcript_to_chat,
-            overlay::open_chat_model_settings,
             overlay::warn_from_overlay,
+            overlay::open_settings_from_overlay,
             overlay::context_menu::show_overlay_menu,
             commands::cancel_operation,
             commands::get_app_dir_path,
@@ -765,7 +755,6 @@ pub fn run() {
             features::shortcut::settings::tts::change_tts_enabled_setting,
             shortcut::settings::meeting::change_meeting_system_audio_setting,
             shortcut::settings::meeting::change_meeting_auto_summary_setting,
-            shortcut::settings::meeting::change_meeting_summary_engine_setting,
             shortcut::settings::meeting::change_meeting_chunk_duration_setting,
             shortcut::settings::meeting::get_diarization_status,
             shortcut::settings::meeting::download_diarization_model,

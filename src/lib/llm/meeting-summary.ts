@@ -1,27 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import { generateText } from "ai";
-import { PolishStatusSchema, type Settings } from "@/lib/types";
-import { createLlmModel } from "./providers";
+import { PolishStatusSchema } from "@/lib/types";
 
-export type SummarySetupSection = "models" | "meeting";
-
-export const SUMMARY_SETUP_LABELS: Record<SummarySetupSection, string> = {
-  meeting: "Open meeting settings",
-  models: "Open Models",
-};
-
-// A summary that cannot run yet, carrying the settings section that fixes it.
-export class MeetingSummaryError extends Error {
-  readonly section: SummarySetupSection;
-
-  constructor(message: string, section: SummarySetupSection) {
-    super(message);
-    this.section = section;
-  }
-}
-
-// Cloud context windows are far larger; this is what keeps one call cheap and fast.
-const CLOUD_CHAR_BUDGET = 24_000;
+// A summary that cannot run until Echo 4B is downloaded from Models.
+export class MeetingSummaryError extends Error {}
 
 const SYSTEM_PROMPT = `You summarize meeting transcripts.
 Write in the language the transcript is in — never translate it.
@@ -85,8 +66,7 @@ async function localEngine(): Promise<SummaryEngine> {
   );
   if (polish.success && polish.data.state === "not_downloaded") {
     throw new MeetingSummaryError(
-      "Summaries run on the on-device model, which is not downloaded yet.",
-      "models"
+      "Summaries run on Echo 4B, which is not downloaded yet."
     );
   }
   const charBudget = await invoke<number>("local_summary_char_budget");
@@ -97,50 +77,12 @@ async function localEngine(): Promise<SummaryEngine> {
   };
 }
 
-function cloudEngine(settings: Settings): SummaryEngine {
-  const provider = settings.post_process_providers.find(
-    (p) => p.id === settings.post_process_provider_id
-  );
-  if (!provider) {
-    throw new MeetingSummaryError(
-      "Cloud summaries need an AI provider, or switch the meeting summary back to on-device.",
-      "meeting"
-    );
-  }
-
-  const modelId = settings.post_process_models[provider.id] ?? "";
-  if (!modelId.trim()) {
-    throw new MeetingSummaryError(
-      `Cloud summaries need a ${provider.label} model, or switch the meeting summary back to on-device.`,
-      "meeting"
-    );
-  }
-
-  const model = createLlmModel(
-    provider,
-    settings.post_process_api_keys[provider.id] ?? "",
-    modelId
-  );
-
-  return {
-    charBudget: CLOUD_CHAR_BUDGET,
-    run: async (prompt) => {
-      const result = await generateText({
-        messages: [{ content: prompt, role: "user" }],
-        model,
-        system: SYSTEM_PROMPT,
-      });
-      return result.text;
-    },
-  };
-}
-
 async function summarizeChapters(
   chapters: string[],
   engine: SummaryEngine
 ): Promise<string> {
   const notes: string[] = [];
-  // Sequential: the local sidecar serves one request at a time, and cloud providers rate-limit.
+  // Sequential: the local sidecar serves one request at a time.
   for (const chapter of chapters) {
     notes.push(await engine.run(chapterPrompt(chapter)));
   }
@@ -169,13 +111,9 @@ async function reduceNotes(
 }
 
 export async function generateMeetingSummary(
-  transcript: string,
-  settings: Settings
+  transcript: string
 ): Promise<string> {
-  const engine =
-    settings.meeting_summary_engine === "cloud"
-      ? cloudEngine(settings)
-      : await localEngine();
+  const engine = await localEngine();
 
   const [first, ...rest] = splitTranscript(transcript, engine.charBudget);
   if (first === undefined) {

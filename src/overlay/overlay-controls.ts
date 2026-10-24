@@ -1,4 +1,5 @@
 const overlayControlCommands = {
+  open_settings: "open_settings_from_overlay",
   polish: "run_polish_from_overlay",
   start_recording: "start_transcription_from_overlay",
   stop_recording: "stop_transcription_from_overlay",

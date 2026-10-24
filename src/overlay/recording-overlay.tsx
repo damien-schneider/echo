@@ -35,6 +35,7 @@ const RecordingOverlay = () => {
         isDragging={controller.drag.isDragging}
         mode={controller.renderMode}
         onMorphComplete={controller.finishMorph}
+        revealsGear={controller.revealsGear}
         surface={surface}
       >
         <HudSurface controller={controller} surface={surface} />

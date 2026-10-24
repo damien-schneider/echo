@@ -2,18 +2,10 @@ import { Button } from "@ctrl-ui/react/ui/button";
 import { XIcon } from "@phosphor-icons/react";
 import type { FormEvent, ReactNode } from "react";
 import {
-  CHAT_MODEL_KINDS,
-  CHAT_MODEL_MODES,
-} from "@/features/overlay-chat/chat";
-import {
   type BundledChatModel,
   BundledModelSetup,
   ChatReference,
 } from "@/features/overlay-chat/chat-context";
-import {
-  ChatModelPicker,
-  ChatModePicker,
-} from "@/features/overlay-chat/chat-model-picker";
 import { ChatComposer } from "@/features/overlay-chat/conversation/chat-composer";
 import { MessageList } from "@/features/overlay-chat/conversation/message-list";
 import {
@@ -25,7 +17,6 @@ import type {
   ChatContextEvent,
   ChatTextContext,
 } from "@/features/overlay-controls/runtime/overlay-windows";
-import { cn } from "@/lib/utils";
 import "@/features/overlay-chat/chat-panel.css";
 interface ChatPanelProps {
   bundledModel: BundledChatModel;
@@ -34,82 +25,46 @@ interface ChatPanelProps {
   hasFlanks: boolean;
   isOpen: boolean;
   onClose: () => void;
-  onManageModels: () => void;
   onRequestAccessibility: () => Promise<void>;
 }
-interface ChatToolbarRightProps {
-  chat: ChatSession;
-  onClose: () => void;
-  onManageModels: () => void;
-}
-const ChatToolbarRight = ({
-  chat,
-  onClose,
-  onManageModels,
-}: ChatToolbarRightProps) => (
-  <div className="echo-chat-toolbar-right flex w-full min-w-0 max-w-[218px] items-center justify-between gap-2">
-    <ChatModelPicker
-      disabled={chat.isResponding}
-      mode={chat.mode}
-      onManageModels={onManageModels}
-      onSelect={chat.selectModel}
-      options={chat.modelOptions}
-      selected={chat.selected}
-    />
-    <Button
-      aria-label="Close chat"
-      className="size-7 shrink-0 rounded-full bg-white/8 text-white/80 hover:bg-white/14 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
-      iconOnly
-      onClick={onClose}
-      size="xs"
-      tone="primary"
-      type="button"
-      variant="solid"
-    >
-      <XIcon aria-hidden="true" className="size-3.5" />
-    </Button>
-  </div>
+const ChatModelLabel = () => (
+  <span className="flex h-8 shrink-0 items-center rounded-full border border-white/10 bg-white/7 px-3 text-[11px] text-white/62">
+    Echo 4B
+  </span>
+);
+const CloseChatButton = ({ onClose }: { onClose: () => void }) => (
+  <Button
+    aria-label="Close chat"
+    className="size-7 shrink-0 rounded-full bg-white/8 text-white/80 hover:bg-white/14 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
+    iconOnly
+    onClick={onClose}
+    size="xs"
+    tone="primary"
+    type="button"
+    variant="solid"
+  >
+    <XIcon aria-hidden="true" className="size-3.5" />
+  </Button>
 );
 interface ChatPanelShellProps {
-  chat: ChatSession;
   children: ReactNode;
   hasFlanks: boolean;
   onClose: () => void;
-  onManageModels: () => void;
   panelHeightClass: string;
 }
 const ChatPanelShell = ({
-  chat,
   children,
   hasFlanks,
   panelHeightClass,
   onClose,
-  onManageModels,
 }: ChatPanelShellProps) => (
   <IslandHud
     bodyClassName="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
-    className={cn(
-      "echo-island-chat min-h-0 min-w-0 max-w-full p-3 transition-colors duration-300",
-      chat.mode === CHAT_MODEL_MODES.cloud &&
-        "bg-sky-500/8 ring-1 ring-sky-400/55",
-      panelHeightClass
-    )}
+    className={`echo-island-chat min-h-0 min-w-0 max-w-full p-3 ${panelHeightClass}`}
     hasFlanks={hasFlanks}
     layout="chat"
-    leftFlank={
-      <ChatModePicker
-        disabled={chat.isResponding}
-        mode={chat.mode}
-        onSelect={chat.selectMode}
-      />
-    }
-    rightFlank={
-      <ChatToolbarRight
-        chat={chat}
-        onClose={onClose}
-        onManageModels={onManageModels}
-      />
-    }
+    leftFlank={<ChatModelLabel />}
+    rightFlank={<CloseChatButton onClose={onClose} />}
   >
     {children}
   </IslandHud>
@@ -120,7 +75,7 @@ interface ChatPanelContentProps {
   context: ChatTextContext | null;
   contextState: ChatContextEvent["state"];
   hasConversation: boolean;
-  isSelectedModelReady: boolean;
+  isBundledModelReady: boolean;
   onRequestAccessibility: () => Promise<void>;
 }
 const ChatPanelContent = ({
@@ -129,7 +84,7 @@ const ChatPanelContent = ({
   context,
   contextState,
   hasConversation,
-  isSelectedModelReady,
+  isBundledModelReady,
   onRequestAccessibility,
 }: ChatPanelContentProps) => {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -143,7 +98,7 @@ const ChatPanelContent = ({
         onRequestAccessibility={onRequestAccessibility}
         state={contextState}
       />
-      <BundledModelSetup model={bundledModel} selected={chat.selected} />
+      <BundledModelSetup model={bundledModel} />
       {hasConversation ? (
         <MessageList
           error={chat.error}
@@ -157,7 +112,7 @@ const ChatPanelContent = ({
           input={chat.input}
           inputRef={chat.inputRef}
           isContextLoading={contextState === "loading"}
-          isModelReady={isSelectedModelReady}
+          isModelReady={isBundledModelReady}
           isResponding={chat.isResponding}
           onInput={chat.setInput}
           onStop={chat.stop}
@@ -174,7 +129,6 @@ export const ChatPanel = ({
   hasFlanks,
   isOpen,
   onClose,
-  onManageModels,
   onRequestAccessibility,
 }: ChatPanelProps) => {
   const isBundledModelReady = bundledModel.status.state === "ready";
@@ -186,18 +140,13 @@ export const ChatPanel = ({
   });
   const hasConversation =
     chat.messages.length > 0 || chat.isResponding || chat.error.length > 0;
-  const isSelectedModelReady =
-    chat.selected?.kind === CHAT_MODEL_KINDS.provider ||
-    (chat.selected?.kind === CHAT_MODEL_KINDS.bundled && isBundledModelReady);
   const panelHeightClass = hasConversation
     ? "h-[430px] max-h-[calc(100vh-16px)]"
     : "min-h-[172px]";
   return (
     <ChatPanelShell
-      chat={chat}
       hasFlanks={hasFlanks}
       onClose={onClose}
-      onManageModels={onManageModels}
       panelHeightClass={panelHeightClass}
     >
       <ChatPanelContent
@@ -206,7 +155,7 @@ export const ChatPanel = ({
         context={context}
         contextState={contextState}
         hasConversation={hasConversation}
-        isSelectedModelReady={isSelectedModelReady}
+        isBundledModelReady={isBundledModelReady}
         onRequestAccessibility={onRequestAccessibility}
       />
     </ChatPanelShell>

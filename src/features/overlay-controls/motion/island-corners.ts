@@ -3,7 +3,7 @@ import type {
   OverlayPresentation,
 } from "@/features/overlay-controls/runtime/overlay-surface";
 
-const PILL_RADIUS = 999;
+export const PILL_RADIUS = 999;
 const SURFACE_RADIUS = 10;
 // Dynamic-Island proportion: the curve is half the band under the cut-out, capped for tall panels
 const BRIDGE_RADIUS_MAX = 28;
@@ -19,8 +19,9 @@ interface IslandCornerOptions {
   anchor: OverlayAnchor;
   /// Island height left under the notch strip — null when the island does not bridge it.
   bridgeBand: number | null;
-  isCompactHandle: boolean;
   isDragging?: boolean;
+  /// pill → round buttons sit concentric in the ends
+  isPill: boolean;
   presentation: OverlayPresentation;
 }
 
@@ -31,11 +32,11 @@ const bridgedBottomRadius = (band: number) =>
 export const islandCornerRadii = ({
   anchor,
   bridgeBand,
-  isCompactHandle,
+  isPill,
   isDragging,
   presentation,
 }: IslandCornerOptions): IslandCornerRadii => {
-  const radius = isCompactHandle ? PILL_RADIUS : SURFACE_RADIUS;
+  const radius = isPill ? PILL_RADIUS : SURFACE_RADIUS;
   const radii = {
     borderBottomLeftRadius: radius,
     borderBottomRightRadius: radius,

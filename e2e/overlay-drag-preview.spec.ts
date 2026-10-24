@@ -6,20 +6,21 @@ import {
   waitForTauriListener,
 } from "./fixtures";
 
+// The payload is the exact docked island box Rust reserves.
 const BOTTOM_DOCK = {
   anchor: "bottom",
   height: 40,
-  width: 128,
-  x: 336,
+  width: 228,
+  x: 286,
   y: 560,
 } as const;
 
 const LEFT_DOCK = {
   anchor: "left",
-  height: 128,
+  height: 228,
   width: 40,
   x: 0,
-  y: 236,
+  y: 186,
 } as const;
 
 test.beforeEach(async ({ page }) => {
@@ -29,35 +30,36 @@ test.beforeEach(async ({ page }) => {
   await waitForTauriListener(page, "overlay-snap-preview-dismiss");
 });
 
-test("morphs the placeholder to the predicted dock edge", async ({ page }) => {
+test("morphs the ghost to the predicted dock edge", async ({ page }) => {
   const preview = page.locator(".echo-snap-preview");
   const shape = page.locator(".echo-snap-preview-shape");
-  const slots = page.locator(".echo-snap-preview-actions > span");
+  const silhouette = () =>
+    shape.evaluate((element) => getComputedStyle(element).clipPath);
 
   await emitTauriEvent(page, "overlay-snap-preview", BOTTOM_DOCK);
   await expect(preview).toHaveAttribute("data-state", "visible");
   await expect(preview).toHaveAttribute("data-anchor", "bottom");
-  await expect(shape).toHaveCSS("width", "128px");
-  await expect(shape).toHaveCSS("height", "40px");
-  await expect(shape).toHaveCSS("border-bottom-left-radius", "0px");
-  await expect(shape).toHaveCSS("border-top-left-radius", "10px");
-  await expect(slots).toHaveCount(3);
+  await expect(shape).toHaveCSS("width", `${BOTTOM_DOCK.width}px`);
+  await expect(shape).toHaveCSS("height", `${BOTTOM_DOCK.height}px`);
+  // the ghost is the island's own silhouette — a ring would read as a second HUD
+  await expect(shape).toHaveCSS("box-shadow", "none");
+  await expect.poll(silhouette).toContain("path(");
+  const bottomSilhouette = await silhouette();
 
   await emitTauriEvent(page, "overlay-snap-preview", LEFT_DOCK);
   await page.waitForTimeout(60);
   const transitioningBox = await preview.boundingBox();
   expect(transitioningBox).not.toBeNull();
-  expect(transitioningBox?.width).toBeGreaterThan(40);
-  expect(transitioningBox?.width).toBeLessThan(128);
-  expect(transitioningBox?.height).toBeGreaterThan(40);
-  expect(transitioningBox?.height).toBeLessThan(128);
+  expect(transitioningBox?.width).toBeGreaterThan(LEFT_DOCK.width);
+  expect(transitioningBox?.width).toBeLessThan(BOTTOM_DOCK.width);
+  expect(transitioningBox?.height).toBeGreaterThan(BOTTOM_DOCK.height);
+  expect(transitioningBox?.height).toBeLessThan(LEFT_DOCK.height);
 
-  await expect(preview).toHaveCSS("width", "40px");
-  await expect(preview).toHaveCSS("height", "128px");
-  await expect(shape).toHaveCSS("width", "40px");
-  await expect(shape).toHaveCSS("height", "128px");
-  await expect(shape).toHaveCSS("border-top-left-radius", "0px");
-  await expect(shape).toHaveCSS("border-top-right-radius", "10px");
+  await expect(preview).toHaveCSS("width", `${LEFT_DOCK.width}px`);
+  await expect(preview).toHaveCSS("height", `${LEFT_DOCK.height}px`);
+  await expect(shape).toHaveCSS("width", `${LEFT_DOCK.width}px`);
+  await expect(shape).toHaveCSS("height", `${LEFT_DOCK.height}px`);
+  await expect.poll(silhouette).not.toBe(bottomSilhouette);
   await expect(preview).toHaveAttribute("data-glide", "false");
 });
 

@@ -1,22 +1,12 @@
 import { Badge } from "@ctrl-ui/react/ui/badge";
 import { Switch } from "@ctrl-ui/react/ui/switch";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@ctrl-ui/react/ui/tooltip";
-import {
   AppWindowIcon,
   FileTextIcon,
   LightningIcon,
   LightningSlashIcon,
   MusicNotesIcon,
 } from "@phosphor-icons/react";
-import {
-  useModelToolSupport,
-  usePostProcessProviderState,
-} from "@/components/settings/post-processing-settings-api/use-post-process-provider-state";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
 import { cn } from "@/lib/utils";
@@ -43,51 +33,6 @@ const VOICE_COMMANDS = [
     name: "Change Sound Theme",
   },
 ] as const;
-
-const UnavailableBadge = ({
-  explanation,
-  label,
-}: {
-  explanation: string;
-  label: string;
-}) => (
-  <TooltipProvider>
-    <Tooltip>
-      <TooltipTrigger
-        render={<Badge className="cursor-default gap-1" size="sm" />}
-      >
-        <LightningSlashIcon className="size-2.5" />
-        {label}
-      </TooltipTrigger>
-      <TooltipContent className="max-w-56">{explanation}</TooltipContent>
-    </Tooltip>
-  </TooltipProvider>
-);
-
-const ToolSupportBadge = ({ toolSupport }: { toolSupport: boolean | null }) => {
-  if (toolSupport === true) {
-    return (
-      <Badge className="gap-1" color="green" size="sm">
-        <LightningIcon className="size-2.5" />
-        Active
-      </Badge>
-    );
-  }
-  if (toolSupport === false) {
-    return (
-      <UnavailableBadge
-        explanation="This model does not support tool calling. Voice commands will fall back to text correction."
-        label="Not supported"
-      />
-    );
-  }
-  return (
-    <UnavailableBadge
-      explanation="Tool support could not be determined. Echo will automatically fall back to text correction if needed."
-      label="May fall back"
-    />
-  );
-};
 
 const VoiceCommandsToggle = ({
   postProcessEnabled,
@@ -120,17 +65,14 @@ const VoiceCommandsToggle = ({
 
 const AvailableCommands = ({
   postProcessEnabled,
-  toolSupport,
 }: {
   postProcessEnabled: boolean;
-  toolSupport: boolean | null;
 }) => {
   const voiceCommandsEnabled = useSetting("voice_commands_enabled") ?? true;
-  const commandsRun = postProcessEnabled && voiceCommandsEnabled;
-  const isActive = commandsRun && toolSupport === true;
+  const isActive = postProcessEnabled && voiceCommandsEnabled;
   return (
     <SettingRow
-      description="Available voice commands when the feature is enabled and the model supports tool calling."
+      description="Available voice commands when the feature is enabled."
       layout="stacked"
       title="Available Commands"
     >
@@ -160,8 +102,11 @@ const AvailableCommands = ({
                 e.g. {example}
               </span>
             </div>
-            {commandsRun ? (
-              <ToolSupportBadge toolSupport={toolSupport} />
+            {isActive ? (
+              <Badge className="gap-1" color="green" size="sm">
+                <LightningIcon className="size-2.5" />
+                Active
+              </Badge>
             ) : (
               <Badge className="gap-1" size="sm">
                 <LightningSlashIcon className="size-2.5" />
@@ -175,35 +120,12 @@ const AvailableCommands = ({
   );
 };
 
-const CloudAvailableCommands = ({
-  postProcessEnabled,
-}: {
-  postProcessEnabled: boolean;
-}) => {
-  const { selectedProviderId, model } = usePostProcessProviderState();
-  const toolSupport = useModelToolSupport(selectedProviderId, model);
-  return (
-    <AvailableCommands
-      postProcessEnabled={postProcessEnabled}
-      toolSupport={toolSupport}
-    />
-  );
-};
-
 export const VoiceCommandsSettings = () => {
-  const engine = useSetting("post_process_engine") ?? "local";
   const postProcessEnabled = useSetting("post_process_enabled") ?? false;
   return (
     <SettingsSection title="Voice commands">
       <VoiceCommandsToggle postProcessEnabled={postProcessEnabled} />
-      {engine === "cloud" ? (
-        <CloudAvailableCommands postProcessEnabled={postProcessEnabled} />
-      ) : (
-        <AvailableCommands
-          postProcessEnabled={postProcessEnabled}
-          toolSupport
-        />
-      )}
+      <AvailableCommands postProcessEnabled={postProcessEnabled} />
     </SettingsSection>
   );
 };

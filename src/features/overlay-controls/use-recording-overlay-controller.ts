@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 import { useNativeOverlayTransition } from "@/features/overlay-controls/motion/use-native-overlay-transition";
 import {
   createHudPresentation,
   isSideDockedSurface,
 } from "@/features/overlay-controls/overlay-presentation";
+import type { OverlayMode } from "@/features/overlay-controls/recording-overlay-state";
 import { HUD_WINDOW } from "@/features/overlay-controls/runtime/overlay-windows";
 import { useEdgeDockDrag } from "@/features/overlay-controls/runtime/use-edge-dock-drag";
 import { useResidentHover } from "@/features/overlay-controls/runtime/use-resident-hover";
@@ -28,8 +29,38 @@ const useCollapseOnActiveOperation = (
 
 const ignorePersistentHover = () => undefined;
 
-export const useRecordingOverlayController = () => {
-  const residentRef = useRef<HTMLDivElement>(null);
+interface DockHoverOptions {
+  isDragging: boolean;
+  isSideDocked: boolean;
+  onCollapse: () => void;
+  onReveal: () => void;
+  renderMode: OverlayMode;
+  residentRef: RefObject<HTMLDivElement | null>;
+}
+
+const useDockHover = ({
+  isDragging,
+  isSideDocked,
+  onCollapse,
+  onReveal,
+  renderMode,
+  residentRef,
+}: DockHoverOptions) => {
+  // collapsing mid-drag would resize the window the compositor is already moving
+  const holdsIslandOpen = isSideDocked || isDragging;
+  const hover = useResidentHover({
+    isExpanded: renderMode === "actions" && !isSideDocked,
+    onCollapse: holdsIslandOpen ? ignorePersistentHover : onCollapse,
+    onReveal: holdsIslandOpen ? ignorePersistentHover : onReveal,
+    residentRef,
+  });
+  // a side dock already shows its actions, so only hover can ask it for more
+  const revealsGear =
+    !isDragging && (isSideDocked ? hover.isActive : renderMode === "actions");
+  return { hover, revealsGear };
+};
+
+const useHudPresentation = () => {
   const events = useHudEvents();
   const polish = usePolishModel();
   const actions = useIslandControls({
@@ -41,6 +72,12 @@ export const useRecordingOverlayController = () => {
     isVisible: events.isVisible,
     state: events.state,
   });
+  return { actions, events, presentation };
+};
+
+export const useRecordingOverlayController = () => {
+  const residentRef = useRef<HTMLDivElement>(null);
+  const { actions, events, presentation } = useHudPresentation();
   const transition = useNativeOverlayTransition({
     channel: HUD_WINDOW,
     initialMode: "compact",
@@ -50,14 +87,12 @@ export const useRecordingOverlayController = () => {
   const drag = useEdgeDockDrag();
   const handoff = useScreenHandoff();
   const isSideDocked = isSideDockedSurface(events.surface);
-  // collapsing mid-drag would resize the window the compositor is already moving
-  const holdsIslandOpen = isSideDocked || drag.isDragging;
-  const hover = useResidentHover({
-    isExpanded: renderMode === "actions" && !isSideDocked,
-    onCollapse: holdsIslandOpen
-      ? ignorePersistentHover
-      : actions.collapseControls,
-    onReveal: holdsIslandOpen ? ignorePersistentHover : actions.showControls,
+  const { hover, revealsGear } = useDockHover({
+    isDragging: drag.isDragging,
+    isSideDocked,
+    onCollapse: actions.collapseControls,
+    onReveal: actions.showControls,
+    renderMode,
     residentRef,
   });
 
@@ -80,6 +115,7 @@ export const useRecordingOverlayController = () => {
     presentation,
     renderMode,
     residentRef,
+    revealsGear,
     transitionError: transition.error,
   };
 };

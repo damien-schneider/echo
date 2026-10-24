@@ -1,16 +1,9 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { Switch } from "@ctrl-ui/react/ui/switch";
 import { CircleNotchIcon, DownloadSimpleIcon } from "@phosphor-icons/react";
-import { AiProviderSettings } from "@/components/settings/post-processing-settings-api/ai-provider-settings";
 import { usePolishModel } from "@/features/polish/use-polish-model";
 import { SettingRow } from "@/features/settings/setting-row";
-import {
-  useIsSettingUpdating,
-  useSetting,
-  useSettingsStore,
-} from "@/stores/settings-store";
 
-const LocalModelRow = () => {
+export const EchoModelRow = () => {
   const polish = usePolishModel();
   const { state } = polish.status;
   if (state === "not_downloaded") {
@@ -66,28 +59,5 @@ const LocalModelRow = () => {
         {state === "ready" ? "Ready" : "Preparing…"}
       </span>
     </SettingRow>
-  );
-};
-
-export const PostProcessingEngineSettings = () => {
-  const engine = useSetting("post_process_engine") ?? "local";
-  const isUpdating = useIsSettingUpdating("post_process_engine");
-  const updateSetting = useSettingsStore((s) => s.updateSetting);
-  return (
-    <>
-      <SettingRow
-        description="Post-processing runs on Echo 4B on this computer. Turn this on to send transcripts to an AI provider instead."
-        title="Post-process in the cloud"
-      >
-        <Switch
-          checked={engine === "cloud"}
-          disabled={isUpdating}
-          onCheckedChange={(enabled) =>
-            updateSetting("post_process_engine", enabled ? "cloud" : "local")
-          }
-        />
-      </SettingRow>
-      {engine === "cloud" ? <AiProviderSettings /> : <LocalModelRow />}
-    </>
   );
 };

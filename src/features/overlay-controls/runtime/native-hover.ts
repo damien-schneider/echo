@@ -1,4 +1,5 @@
 export const HOVERED_ATTRIBUTE = "data-hovered";
+export const NATIVE_HOVER_ATTRIBUTE = "data-native-hover";
 
 /// What CSS would mark as `:hover` — the element under the pointer and everything it sits inside.
 export const hoverChainAt = (

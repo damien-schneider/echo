@@ -79,6 +79,10 @@ export const useIslandControls = ({
     isControlsOpen: island.surface.isControlsOpen,
     motionPhase: island.surface.motionPhase,
     openChat,
+    openSettings: () => {
+      island.dismissControls();
+      return invokeControl("open_settings");
+    },
     polish,
     showControls: island.showControls,
     toggleRecording: () =>

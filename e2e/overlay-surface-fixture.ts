@@ -26,13 +26,17 @@ export const setupOverlaySurface = () => {
     presentationFor(mode) === "docked" &&
     (anchorFor(mode) === "left" || anchorFor(mode) === "right");
 
+  // mirrors resident_island_dimensions in surface.rs
   const residentSize = (mode: string) => {
     if (isSideDocked(mode)) {
-      return { height: 124, width: 32 };
+      return { height: 228, width: 40 };
     }
-    return mode === "compact"
-      ? { height: 5, width: 38 }
-      : { height: 40, width: 128 };
+    if (mode === "compact") {
+      return { height: 5, width: 38 };
+    }
+    return presentationFor(mode) === "docked"
+      ? { height: 40, width: 228 }
+      : { height: 40, width: 116 };
   };
 
   const notchInset = (mode: string) =>

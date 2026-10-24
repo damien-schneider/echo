@@ -1,11 +1,12 @@
+use super::surface::{DOCKED_TOOLBAR, SURFACE_INSET, TOOLBAR_THICKNESS};
 use crate::settings::{AppSettings, OverlayDockEdge, OverlayPosition};
 #[cfg(target_os = "linux")]
 use tauri::WebviewWindow;
 
 const COMPACT_OVERLAY_WIDTH: f64 = 64.0;
 const COMPACT_OVERLAY_HEIGHT: f64 = 28.0;
-const ACTIONS_OVERLAY_WIDTH: f64 = 136.0;
-const ACTIONS_OVERLAY_HEIGHT: f64 = 48.0;
+const ACTIONS_OVERLAY_WIDTH: f64 = DOCKED_TOOLBAR + 2.0 * SURFACE_INSET;
+const ACTIONS_OVERLAY_HEIGHT: f64 = TOOLBAR_THICKNESS + 2.0 * SURFACE_INSET;
 /// Notch-bridged widths carry 20px of slack past the content so the flank controls fit either side.
 const RECORDING_OVERLAY_WIDTH: f64 = 354.0;
 const RECORDING_OVERLAY_HEIGHT: f64 = 96.0;

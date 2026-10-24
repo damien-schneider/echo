@@ -5,10 +5,6 @@ import {
   DownloadSimpleIcon,
   QuotesIcon,
 } from "@phosphor-icons/react";
-import {
-  CHAT_MODEL_KINDS,
-  type ChatModelOption,
-} from "@/features/overlay-chat/chat";
 import type {
   ChatContextEvent,
   ChatTextContext,
@@ -115,7 +111,6 @@ export const ChatReference = ({
 };
 interface BundledModelSetupProps {
   model: BundledChatModel;
-  selected: ChatModelOption | null;
 }
 const bundledModelProgressLabel = (model: BundledChatModel) => {
   const percentage = Math.round(model.progress?.percentage ?? 0);
@@ -175,14 +170,8 @@ const RepairBundledModel = ({ message, repair }: RepairBundledModelProps) => (
     </Button>
   </div>
 );
-export const BundledModelSetup = ({
-  model,
-  selected,
-}: BundledModelSetupProps) => {
-  if (
-    selected?.kind !== CHAT_MODEL_KINDS.bundled ||
-    model.status.state === "ready"
-  ) {
+export const BundledModelSetup = ({ model }: BundledModelSetupProps) => {
+  if (model.status.state === "ready") {
     return null;
   }
   if (model.status.state === "not_downloaded") {

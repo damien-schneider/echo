@@ -42,17 +42,19 @@ test("chat restores an early request with model loading inside its window", asyn
     .toContain("get_overlay_notification_request");
 });
 
-test("chat prioritizes Echo 4B and keeps provider setup accessible", async ({
+test("chat runs on Echo 4B and offers its download inline", async ({
   page,
 }) => {
   await page.goto(`${NOTIFICATION_URL}?polish=not_downloaded`);
   await waitForTauriListener(page, "overlay-notification-request");
   await requestNotificationSurface(page, "chat");
 
-  await expect(page.getByRole("combobox")).toContainText("Echo 4B");
+  await expect(page.getByText("Echo 4B", { exact: true })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "Manage chat models" })
-  ).toBeEnabled();
+    page
+      .getByRole("button", { name: "Cloud" })
+      .or(page.getByRole("combobox", { name: "Provider and model" }))
+  ).toHaveCount(0);
   await page
     .getByRole("button", { name: "Download Echo 4B model, 2.5 GB" })
     .click();
@@ -60,17 +62,6 @@ test("chat prioritizes Echo 4B and keeps provider setup accessible", async ({
     .poll(() => invokedCommands(page))
     .toContain("download_polish_model");
   await expect(page.getByText("Downloading Echo 4B · 0%")).toBeVisible();
-  await page.getByRole("button", { name: "Cloud" }).click();
-  const setupCloud = page.getByRole("button", {
-    name: "Set up cloud chat model",
-  });
-  await expect(setupCloud).toBeEnabled();
-  await setupCloud.click();
-
-  await expect
-    .poll(() => invokedCommands(page))
-    .toContain("open_chat_model_settings");
-  await expect(page.getByPlaceholder("Ask anything")).toBeHidden();
 });
 
 test("chat repair reports its reason and visibly starts recovery", async ({
@@ -94,19 +85,6 @@ test("chat repair reports its reason and visibly starts recovery", async ({
   await expect
     .poll(() => invokedCommands(page))
     .toContain("repair_polish_model");
-});
-
-test("chat model setup opens the post-processing settings section", async ({
-  page,
-}) => {
-  await page.goto("/");
-  await waitForTauriListener(page, "open-settings-section");
-  await emitTauriEvent(page, "open-settings-section", "post-processing");
-
-  await expect(
-    page.getByRole("switch", { name: "Post-process transcriptions" })
-  ).toBeVisible();
-  await expect(page.getByText("Provider", { exact: true })).toBeVisible();
 });
 
 test("chat always shows an empty selected-text preview", async ({ page }) => {
@@ -261,33 +239,25 @@ const assertChatEdgeInsets = async (page: Page) => {
 };
 
 const assertNotchControlsInteractive = async (page: Page) => {
-  const [localButtonBox, modelPickerBox] = await Promise.all([
-    requiredBox(page.getByRole("button", { name: "Local" }), "Local mode"),
-    requiredBox(
-      page.getByRole("combobox", { name: "Provider and model" }),
-      "Model picker"
-    ),
-  ]);
-  const controlsAtTheirCenters = await page.evaluate(
-    ({ leftX, leftY, rightX, rightY }) => {
-      const labelAt = (x: number, y: number) => {
-        const control = document.elementFromPoint(x, y)?.closest("button");
-        return (
-          control?.getAttribute("aria-label") ??
-          control?.textContent?.trim() ??
-          null
-        );
-      };
-      return [labelAt(leftX, leftY), labelAt(rightX, rightY)];
-    },
-    {
-      leftX: localButtonBox.x + localButtonBox.width / 2,
-      leftY: localButtonBox.y + localButtonBox.height / 2,
-      rightX: modelPickerBox.x + modelPickerBox.width / 2,
-      rightY: modelPickerBox.y + modelPickerBox.height / 2,
-    }
+  const hud = page.locator('[data-component="island-hud"][data-layout="chat"]');
+  await expect(
+    hud
+      .locator(':scope > .echo-island-hud-flank[data-side="left"]')
+      .getByText("Echo 4B", { exact: true })
+  ).toBeVisible();
+  const closeButton = hud
+    .locator(':scope > .echo-island-hud-flank[data-side="right"]')
+    .getByRole("button", { name: "Close chat" });
+  const closeBox = await requiredBox(closeButton, "Close chat");
+  const controlAtItsCenter = await page.evaluate(
+    ({ x, y }) =>
+      document
+        .elementFromPoint(x, y)
+        ?.closest("button")
+        ?.getAttribute("aria-label") ?? null,
+    { x: closeBox.x + closeBox.width / 2, y: closeBox.y + closeBox.height / 2 }
   );
-  expect(controlsAtTheirCenters).toEqual(["Local", "Provider and model"]);
+  expect(controlAtItsCenter).toBe("Close chat");
 };
 
 test("chat toolbar occupies the notch flanks", async ({ page }) => {

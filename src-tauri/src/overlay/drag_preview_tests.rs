@@ -1,5 +1,8 @@
-use super::{painted_preview, preview_paint, PreviewPaint, SnapTarget};
-use crate::overlay::layout::{MonitorBounds, OverlayFrame, OverlayPlacement};
+use super::{grab_offset, held_island, painted_preview, preview_paint, PreviewPaint, SnapTarget};
+use crate::overlay::layout::{
+    compute_overlay_geometry_for_size, dock_location_from_frame, MonitorBounds, OverlayFrame,
+    OverlayPlacement,
+};
 use crate::settings::{OverlayDockEdge, OverlayPosition};
 
 const MONITOR: MonitorBounds = MonitorBounds {
@@ -99,4 +102,38 @@ fn crossing_screens_remounts_the_preview_over_the_new_monitor() {
     let next = painted_preview(right_dock(SECOND_MONITOR, 400.0));
 
     assert_eq!(preview_paint(Some(painted), next), PreviewPaint::Mount);
+}
+
+#[test]
+fn a_grip_held_near_the_end_previews_the_dock_level_with_the_island() {
+    let docked = OverlayFrame {
+        height: 236.0,
+        width: 48.0,
+        x: 1392.0,
+        y: 332.0,
+    };
+    let grip = OverlayFrame {
+        height: 0.0,
+        width: 0.0,
+        x: 1416.0,
+        y: 360.0,
+    };
+    let grab = grab_offset(docked, grip);
+    // pulled straight off the edge: the island keeps its height, the pointer stays at the grip
+    let pulled = OverlayFrame { x: 1180.0, ..grip };
+
+    let (dock_edge, dock_offset) = dock_location_from_frame(MONITOR, held_island(pulled, grab));
+    let placement = OverlayPlacement {
+        dock_edge,
+        dock_offset,
+        position: OverlayPosition::Edge,
+    };
+    let (_, preview_y, _, preview_height) =
+        compute_overlay_geometry_for_size(MONITOR, placement, docked.width, docked.height);
+
+    assert_eq!(dock_edge, OverlayDockEdge::Right);
+    assert_eq!(
+        preview_y + preview_height / 2.0,
+        docked.y + docked.height / 2.0
+    );
 }

@@ -6,10 +6,15 @@ use super::layout::{
 use super::monitor::OverlayNotchGeometry;
 use crate::settings::{OverlayDockEdge, OverlayPosition};
 
-const SURFACE_INSET: f64 = 4.0;
+pub(super) const SURFACE_INSET: f64 = 4.0;
 const COMPACT_BAR: (f64, f64) = (38.0, 5.0);
-const SIDE_DOCK_BAR: (f64, f64) = (32.0, 124.0);
-const ACTIONS_ISLAND: (f64, f64) = (128.0, 40.0);
+/// Mirrored by `.echo-island-resident` in resident-island.css.
+pub(super) const TOOLBAR_THICKNESS: f64 = 40.0;
+const DOCK_PANEL: f64 = 176.0;
+/// Room past a docked panel for the settings lobe — mirrors DOCK_GEAR_SLOT in dock-silhouette.ts.
+const DOCK_GEAR_SLOT: f64 = 52.0;
+pub(super) const DOCKED_TOOLBAR: f64 = DOCK_PANEL + DOCK_GEAR_SLOT;
+const BAR_TOOLBAR: (f64, f64) = (116.0, TOOLBAR_THICKNESS);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct OverlaySurface {
@@ -108,12 +113,15 @@ fn resident_island_dimensions(
     placement: OverlayPlacement,
 ) -> (f64, f64) {
     if placement_is_side_docked(placement) {
-        return SIDE_DOCK_BAR;
+        return (TOOLBAR_THICKNESS, DOCKED_TOOLBAR);
     }
     if mode == RecordingOverlayMode::Compact {
         return COMPACT_BAR;
     }
-    ACTIONS_ISLAND
+    if placement.position == OverlayPosition::Edge {
+        return (DOCKED_TOOLBAR, TOOLBAR_THICKNESS);
+    }
+    BAR_TOOLBAR
 }
 
 fn clamped_origin(origin: f64, size: f64, bound_origin: f64, bound_size: f64) -> f64 {

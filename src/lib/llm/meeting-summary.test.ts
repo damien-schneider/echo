@@ -1,10 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-  generateMeetingSummary,
-  MeetingSummaryError,
-  splitTranscript,
-} from "@/lib/llm/meeting-summary";
-import { SettingsSchema } from "@/lib/types";
+import { splitTranscript } from "@/lib/llm/meeting-summary";
 
 const line = (speaker: string, text: string) =>
   `[00:00:00] ${speaker}: ${text}`;
@@ -48,31 +43,5 @@ describe("splitTranscript", () => {
 
   it("drops blank lines so no chunk is spent on nothing", () => {
     expect(splitTranscript("\n\n  \n", 100)).toEqual([]);
-  });
-});
-
-describe("generateMeetingSummary setup errors", () => {
-  const cloudSettings = SettingsSchema.parse({
-    always_on_microphone: false,
-    audio_feedback: false,
-    bindings: {},
-    debug_mode: false,
-    meeting_summary_engine: "cloud",
-    overlay_position: "bottom",
-    push_to_talk: false,
-    selected_language: "auto",
-    translate_to_english: false,
-  });
-
-  it("points at the meeting settings when no cloud provider is configured", async () => {
-    const error: unknown = await generateMeetingSummary(
-      line("Speaker 1", "hello"),
-      cloudSettings
-    ).catch((reason: unknown) => reason);
-
-    expect(error).toBeInstanceOf(MeetingSummaryError);
-    if (error instanceof MeetingSummaryError) {
-      expect(error.section).toBe("meeting");
-    }
   });
 });

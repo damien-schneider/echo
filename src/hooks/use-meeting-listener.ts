@@ -2,11 +2,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { toast } from "sonner";
-import { openSummarySetup } from "@/features/meeting/open-summary-setup";
 import {
-  MeetingSummaryError,
-  SUMMARY_SETUP_LABELS,
-} from "@/lib/llm/meeting-summary";
+  openSummarySetup,
+  SUMMARY_SETUP_LABEL,
+} from "@/features/meeting/open-summary-setup";
+import { MeetingSummaryError } from "@/lib/llm/meeting-summary";
 import {
   ActiveMeetingSchema,
   type MeetingAudioWarning,
@@ -122,8 +122,8 @@ const onAutoSummaryRequested = (meetingId: number) => {
       if (error instanceof MeetingSummaryError) {
         toast.error(error.message, {
           action: {
-            label: SUMMARY_SETUP_LABELS[error.section],
-            onClick: () => openSummarySetup(error.section),
+            label: SUMMARY_SETUP_LABEL,
+            onClick: openSummarySetup,
           },
         });
         return;

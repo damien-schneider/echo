@@ -1,0 +1,282 @@
+/* Mirrors TOOLBAR_THICKNESS, DOCK_PANEL and BAR_TOOLBAR in surface.rs. */
+.echo-island-resident {
+  --echo-toolbar-thickness: 40px;
+  --echo-dock-panel: 176px;
+  position: relative;
+  display: flex;
+  width: 116px;
+  height: var(--echo-toolbar-thickness);
+  contain: layout paint;
+  color: white;
+  pointer-events: auto;
+}
+
+.echo-island-resident[data-presentation="docked"] {
+  width: calc(var(--echo-dock-panel) + var(--echo-dock-gear-slot));
+}
+
+/* One size: a side dock already shows every action, so it never grows. */
+.echo-island-resident[data-orientation="vertical"] {
+  flex-direction: column;
+  width: var(--echo-toolbar-thickness);
+  height: calc(var(--echo-dock-panel) + var(--echo-dock-gear-slot));
+}
+
+.echo-island-resident[data-expanded="false"] {
+  pointer-events: none;
+}
+
+.echo-island-resident-panel {
+  display: flex;
+  flex: 1 1 auto;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+/* the rest of the frame is the settings lobe's slot */
+.echo-island-resident[data-presentation="docked"] .echo-island-resident-panel {
+  flex: 0 0 var(--echo-dock-panel);
+}
+
+.echo-island-resident[data-orientation="vertical"] .echo-island-resident-panel {
+  flex-direction: column;
+}
+
+.echo-island-resident-shell {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: transparent;
+  transition: none;
+}
+
+.echo-island-handle-hitbox {
+  position: fixed;
+  z-index: 10;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+}
+
+.echo-island-handle-hitbox:hover {
+  background: transparent;
+}
+
+/* Keeps the pointer over the trigger while the island shrinks under it. */
+.echo-island-handle-hitbox[data-motion="closing"] {
+  padding: 20px;
+  margin: -20px;
+}
+
+.echo-island-handle-hitbox:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 2px;
+}
+
+.echo-island-resident-actions {
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  scale: 1;
+  transition:
+    opacity 120ms ease-out,
+    scale 140ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.echo-island-dock-grip {
+  z-index: 2;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 16px;
+  padding: 0;
+  color: rgb(255, 255, 255);
+  pointer-events: auto;
+  cursor: grab;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  opacity: 0;
+  transition: opacity 140ms ease-out;
+}
+
+.echo-island-resident[data-orientation="horizontal"] .echo-island-dock-grip {
+  width: 16px;
+  height: 32px;
+}
+
+.echo-island-dock-grip[data-live="true"] {
+  opacity: 0.5;
+}
+
+:where(:root:not([data-native-hover]))
+  .echo-island-dock-grip[data-live="true"]:hover,
+.echo-island-dock-grip[data-live="true"][data-hovered] {
+  opacity: 0.9;
+  transition-property: none;
+}
+
+.echo-island-dock-grip-icon {
+  width: 14px;
+  height: 14px;
+  pointer-events: none;
+  stroke-width: 2;
+}
+
+.echo-island-resident[data-orientation="horizontal"]
+  .echo-island-dock-grip-icon {
+  rotate: 90deg;
+}
+
+.echo-island-dock-grip:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.72);
+  outline-offset: 1px;
+}
+
+.recording-overlay-root[data-dragging="true"] .echo-island-dock-grip {
+  cursor: grabbing;
+  opacity: 0.9;
+}
+
+.echo-island-action-toolbar {
+  display: flex;
+  flex: none;
+  gap: 6px;
+  align-items: center;
+}
+
+.echo-island-action-toolbar[data-orientation="vertical"] {
+  flex-direction: column;
+}
+
+.echo-island-action-item {
+  display: block;
+  width: 32px;
+  height: 32px;
+  line-height: 0;
+}
+
+/* ctrl-ui's own hover follows WebKit's :hover, which trails the pointer here */
+.echo-island-action,
+.echo-island-gear {
+  --cui-button-hover-background: var(--cui-button-background);
+}
+
+/* a resting fill keeps each action its own target on the black */
+.echo-island .echo-island-action {
+  --cui-button-height: 32px;
+  --cui-button-radius: 999px;
+  --cui-button-icon: 16px;
+  --cui-button-background: rgba(255, 255, 255, 0.07);
+  --cui-button-shadow: none;
+  --cui-button-hover-shadow: none;
+  --cui-button-press-shadow: none;
+  scale: 1;
+  transition:
+    scale 120ms cubic-bezier(0.25, 1, 0.5, 1),
+    color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+/* fill and color land at once; only leaving fades */
+:where(:root:not([data-native-hover])) .echo-island-action:hover,
+.echo-island-action[data-hovered] {
+  --cui-button-background: rgba(255, 255, 255, 0.14);
+  scale: 1.06;
+  transition-property: scale;
+}
+
+.echo-island-action:active {
+  scale: 0.9;
+  transition-duration: 80ms;
+}
+
+.echo-island-gear {
+  --echo-gear-button: calc(var(--echo-dock-gear-size) - 8px);
+  --cui-button-height: var(--echo-gear-button);
+  --cui-button-radius: 999px;
+  --cui-button-icon: 16px;
+  --cui-button-background: transparent;
+  --cui-button-shadow: none;
+  --cui-button-hover-shadow: none;
+  --cui-button-press-shadow: none;
+  position: absolute;
+  z-index: 2;
+  color: rgba(255, 255, 255, 0.72);
+  opacity: 0;
+  filter: blur(2px);
+  scale: 0.6;
+  transition:
+    opacity 110ms ease-in,
+    filter 110ms ease-in,
+    scale 140ms cubic-bezier(0.4, 0, 1, 1),
+    color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+.echo-island-resident[data-orientation="horizontal"] .echo-island-gear {
+  top: calc(50% - var(--echo-gear-button) / 2);
+  left: calc(
+    var(--echo-dock-panel) +
+    var(--echo-dock-gear-reach) -
+    var(--echo-gear-button) /
+    2
+  );
+}
+
+.echo-island-resident[data-orientation="vertical"] .echo-island-gear {
+  top: calc(
+    var(--echo-dock-panel) +
+    var(--echo-dock-gear-reach) -
+    var(--echo-gear-button) /
+    2
+  );
+  left: calc(50% - var(--echo-gear-button) / 2);
+}
+
+/* the lobe grows first; the glyph lands once there is black under it */
+.echo-island-gear[data-revealed="true"] {
+  opacity: 1;
+  filter: blur(0);
+  scale: 1;
+  transition:
+    opacity 180ms ease-out 70ms,
+    filter 180ms ease-out 70ms,
+    scale 260ms cubic-bezier(0.22, 1, 0.36, 1) 40ms,
+    color 120ms ease-out,
+    background-color 120ms ease-out;
+}
+
+:where(:root:not([data-native-hover])) .echo-island-gear:hover,
+.echo-island-gear[data-hovered] {
+  --cui-button-background: rgba(255, 255, 255, 0.12);
+  color: white;
+  transition-property: opacity, filter, scale;
+}
+
+.echo-island-gear:active {
+  scale: 0.92;
+}
+
+.echo-island-gear:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.72);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-island-dock-grip,
+  .echo-island-resident,
+  .echo-island-resident-actions,
+  .echo-island-action,
+  .echo-island-gear,
+  .echo-island-gear[data-revealed="true"] {
+    transition: none;
+    animation: none;
+  }
+}

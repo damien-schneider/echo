@@ -7,7 +7,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "top",
         bridgeBand: null,
-        isCompactHandle: true,
+        isPill: true,
         presentation: "bar",
       })
     ).toEqual({
@@ -23,7 +23,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "bottom",
         bridgeBand: null,
-        isCompactHandle: false,
+        isPill: false,
         presentation: "bar",
       })
     ).toEqual({
@@ -39,7 +39,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "right",
         bridgeBand: null,
-        isCompactHandle: false,
+        isPill: false,
         presentation: "docked",
       })
     ).toEqual({
@@ -52,7 +52,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "left",
         bridgeBand: null,
-        isCompactHandle: false,
+        isPill: false,
         presentation: "docked",
       })
     ).toEqual({
@@ -65,7 +65,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "top",
         bridgeBand: null,
-        isCompactHandle: false,
+        isPill: false,
         presentation: "docked",
       })
     ).toEqual({
@@ -78,7 +78,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "bottom",
         bridgeBand: null,
-        isCompactHandle: false,
+        isPill: false,
         presentation: "docked",
       })
     ).toEqual({
@@ -94,7 +94,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "bottom",
         bridgeBand: null,
-        isCompactHandle: true,
+        isPill: true,
         presentation: "docked",
       })
     ).toEqual({
@@ -110,7 +110,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "right",
         bridgeBand: null,
-        isCompactHandle: false,
+        isPill: false,
         isDragging: true,
         presentation: "docked",
       })
@@ -127,7 +127,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "top",
         bridgeBand: 56,
-        isCompactHandle: false,
+        isPill: false,
         presentation: "bar",
       })
     ).toEqual({
@@ -143,7 +143,7 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "top",
         bridgeBand,
-        isCompactHandle: false,
+        isPill: false,
         presentation: "bar",
       }).borderBottomLeftRadius;
     expect(bottomFor(700)).toBe(28);

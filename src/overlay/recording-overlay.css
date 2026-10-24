@@ -24,187 +24,6 @@
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
-/* the silhouette clips the frame, so a lifted island can only ring itself from the inside */
-.echo-island[data-dragging="true"] {
-  background: rgba(9, 9, 9, 0.94);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.26);
-}
-
-.echo-island-resident {
-  position: relative;
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  justify-content: center;
-  width: 128px;
-  height: 40px;
-  contain: layout paint;
-  color: white;
-  pointer-events: auto;
-}
-
-/* One size: a side dock already shows every action, so it never grows. */
-/* the concave shoulders eat ~11px of each end — the stack needs the bar to outrun them */
-.echo-island-resident[data-orientation="vertical"] {
-  flex-direction: column;
-  width: 32px;
-  height: 124px;
-}
-
-.echo-island-resident[data-expanded="false"] {
-  pointer-events: none;
-}
-
-.echo-island-resident-shell {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: transparent;
-  transition: none;
-}
-
-.echo-island-handle-hitbox {
-  position: fixed;
-  z-index: 10;
-  padding: 0;
-  cursor: pointer;
-  background: transparent;
-  border: 0;
-}
-
-.echo-island-handle-hitbox:hover {
-  background: transparent;
-}
-
-/* Keeps the pointer over the trigger while the island shrinks under it. */
-.echo-island-handle-hitbox[data-motion="closing"] {
-  padding: 20px;
-  margin: -20px;
-}
-
-.echo-island-handle-hitbox:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.85);
-  outline-offset: 2px;
-}
-
-.echo-island-resident-actions {
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 1;
-  scale: 1;
-  transition:
-    opacity 120ms ease-out,
-    scale 140ms cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-.echo-island-dock-grip {
-  z-index: 2;
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  color: rgb(255, 255, 255);
-  pointer-events: auto;
-  cursor: grab;
-  background: transparent;
-  border: 0;
-  border-radius: 6px;
-  opacity: 0;
-  transition: opacity 140ms ease-out;
-}
-
-.echo-island-dock-grip[data-live="true"] {
-  opacity: 0.5;
-}
-
-.echo-island-dock-grip[data-live="true"]:hover,
-.echo-island-dock-grip[data-live="true"][data-hovered] {
-  opacity: 0.9;
-}
-
-.echo-island-dock-grip-icon {
-  width: 12px;
-  height: 12px;
-  pointer-events: none;
-  stroke-width: 2;
-}
-
-.echo-island-resident[data-orientation="horizontal"]
-  .echo-island-dock-grip-icon {
-  rotate: 90deg;
-}
-
-.echo-island-dock-grip:focus-visible {
-  outline: 1px solid rgba(255, 255, 255, 0.72);
-  outline-offset: 1px;
-  border-radius: 6px;
-}
-
-.recording-overlay-root[data-dragging="true"] .echo-island-dock-grip {
-  cursor: grabbing;
-  opacity: 0.9;
-}
-
-/* The lifted island is what the pointer holds, not a live toolbar. */
-.recording-overlay-root[data-dragging="true"] .echo-island-resident-actions {
-  opacity: 0.62;
-  scale: 0.97;
-}
-
-.echo-island-action-toolbar {
-  display: flex;
-  flex: none;
-  gap: 4px;
-  align-items: center;
-  width: 68px;
-  height: 20px;
-}
-
-.echo-island-action-toolbar[data-orientation="vertical"] {
-  flex-direction: column;
-  width: 20px;
-  height: 68px;
-}
-
-.echo-island-action-item {
-  display: block;
-  width: 20px;
-  height: 20px;
-  line-height: 0;
-}
-
-.echo-island .echo-island-action {
-  --cui-button-height: 20px;
-  --cui-button-radius: 6px;
-  --cui-button-icon: 12px;
-  --cui-button-shadow: none;
-  --cui-button-hover-shadow: none;
-  --cui-button-press-shadow: none;
-  border-radius: 6px;
-  scale: 1;
-  transition:
-    scale 120ms cubic-bezier(0.25, 1, 0.5, 1),
-    color 120ms ease-out,
-    background-color 120ms ease-out;
-}
-
-.echo-island-action:hover,
-.echo-island-action[data-hovered] {
-  color: white;
-  background-color: rgba(255, 255, 255, 0.12);
-  scale: 1.06;
-}
-
-.echo-island-action:active {
-  scale: 0.9;
-  transition-duration: 80ms;
-}
-
 .echo-island-hud {
   position: relative;
   border-radius: inherit;
@@ -286,7 +105,7 @@
     opacity 120ms ease-out;
 }
 
-.echo-island-activity-dismiss:hover,
+:where(:root:not([data-native-hover])) .echo-island-activity-dismiss:hover,
 .echo-island-activity-dismiss[data-hovered] {
   opacity: 1;
 }
@@ -346,15 +165,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .echo-island,
-  .echo-island-activity-dismiss,
-  .echo-island-dock-grip,
-  .echo-island-resident,
-  .echo-island-resident-actions {
-    transition: none;
-    animation: none;
-  }
-
-  .echo-island-action {
+  .echo-island-activity-dismiss {
     transition: none;
     animation: none;
   }

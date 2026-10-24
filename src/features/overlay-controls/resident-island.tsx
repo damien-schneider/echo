@@ -1,23 +1,31 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { DotsSixIcon } from "@phosphor-icons/react";
+import { DotsSixIcon, GearSixIcon } from "@phosphor-icons/react";
 import {
   type CSSProperties,
   type MouseEvent,
+  type ReactNode,
   type RefObject,
   useEffect,
   useRef,
 } from "react";
 import { createPortal } from "react-dom";
 import { IslandActions } from "@/features/overlay-controls/island-actions";
+import {
+  DOCK_GEAR_DIAMETER,
+  DOCK_GEAR_REACH,
+  DOCK_GEAR_SLOT,
+} from "@/features/overlay-controls/motion/dock-silhouette";
 import type { IslandActionState } from "@/features/overlay-controls/recording-overlay-state";
 import type { IslandControlMotionPhase } from "@/features/overlay-controls/runtime/island-control-state";
 import type {
-  OverlayAnchor,
   OverlayBox,
   OverlayPresentation,
 } from "@/features/overlay-controls/runtime/overlay-surface";
 import type { EdgeDockDrag } from "@/features/overlay-controls/runtime/use-edge-dock-drag";
-import type { useResidentHover } from "@/features/overlay-controls/runtime/use-resident-hover";
+import type { ResidentHover } from "@/features/overlay-controls/runtime/use-resident-hover";
+import "@/features/overlay-controls/resident-island.css";
+
+type ResidentOrientation = "horizontal" | "vertical";
 
 interface ActionPorts {
   actionState: IslandActionState;
@@ -25,18 +33,20 @@ interface ActionPorts {
   onPolish: () => void;
   onRecord: () => void;
 }
-interface ResidentIslandProps extends ActionPorts {
-  anchor: OverlayAnchor;
-  drag: EdgeDockDrag;
-  hover: ReturnType<typeof useResidentHover>;
-  isExpanded: boolean;
-  isSideDocked: boolean;
-  motionPhase: IslandControlMotionPhase;
-  onReveal: () => void;
-  presentation: OverlayPresentation;
-  residentRef: RefObject<HTMLDivElement | null>;
-  triggerBox: OverlayBox;
+
+interface DockGearStyle extends CSSProperties {
+  "--echo-dock-gear-reach": string;
+  "--echo-dock-gear-size": string;
+  "--echo-dock-gear-slot": string;
 }
+
+// the silhouette owns the lobe geometry; the button only sits where it grows
+const DOCK_GEAR_STYLE: DockGearStyle = {
+  "--echo-dock-gear-reach": `${DOCK_GEAR_REACH}px`,
+  "--echo-dock-gear-size": `${DOCK_GEAR_DIAMETER}px`,
+  "--echo-dock-gear-slot": `${DOCK_GEAR_SLOT}px`,
+};
+
 const useResidentActionFocus = (isExpanded: boolean, onReveal: () => void) => {
   const actionsRef = useRef<HTMLDivElement>(null);
   const focusAfterReveal = useRef(false);
@@ -53,36 +63,14 @@ const useResidentActionFocus = (isExpanded: boolean, onReveal: () => void) => {
   };
   return { actionsRef, revealForActivation };
 };
-interface ResidentContentProps extends ActionPorts {
-  actionsRef: RefObject<HTMLDivElement | null>;
-  isInteractive: boolean;
-  orientation: "horizontal" | "vertical";
-}
-const ResidentContent = ({
-  actionsRef,
-  isInteractive,
-  orientation,
-  ...actions
-}: ResidentContentProps) => (
-  <div
-    aria-hidden={isInteractive ? undefined : true}
-    className="echo-island-resident-actions"
-    inert={isInteractive ? undefined : true}
-    ref={actionsRef}
-  >
-    <IslandActions
-      {...actions}
-      isVisible={isInteractive}
-      orientation={orientation}
-    />
-  </div>
-);
+
 interface ResidentTriggerProps {
   box: OverlayBox;
   motionPhase: IslandControlMotionPhase;
   onActivate: (event: MouseEvent<HTMLButtonElement>) => void;
   onPointerEnter: () => void;
 }
+
 const ResidentTrigger = ({
   box,
   motionPhase,
@@ -110,33 +98,204 @@ const ResidentTrigger = ({
     document.body
   );
 };
-export const ResidentIsland = ({
-  anchor,
+
+interface DockGripProps {
+  drag: EdgeDockDrag;
+  isLive: boolean;
+}
+
+const DockGrip = ({ drag, isLive }: DockGripProps) => (
+  <button
+    aria-label="Move Echo control"
+    className="echo-island-dock-grip"
+    data-live={isLive}
+    inert={isLive ? undefined : true}
+    onKeyDown={drag.onGripKeyDown}
+    onPointerDown={drag.onGripPointerDown}
+    title="Move Echo control"
+    type="button"
+  >
+    <DotsSixIcon aria-hidden="true" className="echo-island-dock-grip-icon" />
+  </button>
+);
+
+interface DockGearProps {
+  isRevealed: boolean;
+  onOpenSettings: () => void;
+}
+
+const DockGear = ({ isRevealed, onOpenSettings }: DockGearProps) => (
+  <Button
+    aria-label="Open Echo settings"
+    className="echo-island-gear"
+    data-revealed={isRevealed}
+    iconOnly
+    inert={isRevealed ? undefined : true}
+    onClick={onOpenSettings}
+    size="xs"
+    title="Open Echo settings"
+    variant="ghost"
+  >
+    <GearSixIcon aria-hidden="true" />
+  </Button>
+);
+
+interface ResidentPanelProps extends ActionPorts {
+  actionsRef: RefObject<HTMLDivElement | null>;
+  drag: EdgeDockDrag;
+  hasGrip: boolean;
+  isInteractive: boolean;
+  isVisible: boolean;
+  orientation: ResidentOrientation;
+}
+
+const ResidentPanel = ({
+  actionsRef,
   drag,
+  hasGrip,
+  isInteractive,
+  isVisible,
+  orientation,
+  ...actions
+}: ResidentPanelProps) => (
+  <div className="echo-island-resident-panel">
+    {hasGrip ? (
+      <DockGrip drag={drag} isLive={drag.isDragging || isVisible} />
+    ) : null}
+    <div
+      aria-hidden={isInteractive ? undefined : true}
+      className="echo-island-resident-actions"
+      inert={isInteractive ? undefined : true}
+      ref={actionsRef}
+    >
+      <IslandActions
+        {...actions}
+        isVisible={isVisible}
+        orientation={orientation}
+      />
+    </div>
+  </div>
+);
+
+interface ResidentFrameProps {
+  children: ReactNode;
+  hover: ResidentHover;
+  orientation: ResidentOrientation;
+  presentation: OverlayPresentation;
+  residentRef: RefObject<HTMLDivElement | null>;
+  showsActions: boolean;
+}
+
+const ResidentFrame = ({
+  children,
   hover,
+  orientation,
   presentation,
+  residentRef,
+  showsActions,
+}: ResidentFrameProps) => (
+  <div
+    className="echo-island-resident"
+    data-active={hover.isActive}
+    data-expanded={showsActions}
+    data-orientation={orientation}
+    data-presentation={presentation}
+    onBlurCapture={hover.onBlurCapture}
+    onFocusCapture={hover.onFocusCapture}
+    onPointerDownCapture={hover.onPointerDownCapture}
+    onPointerEnter={hover.onPointerEnter}
+    onPointerLeave={hover.onPointerLeave}
+    ref={residentRef}
+    style={DOCK_GEAR_STYLE}
+  >
+    <span aria-hidden="true" className="echo-island-resident-shell" />
+    {children}
+  </div>
+);
+
+interface ResidentDockProps extends ActionPorts {
+  actionsRef: RefObject<HTMLDivElement | null>;
+  drag: EdgeDockDrag;
+  /// Docked toolbars only — a floating bar has no edge to hang the lobe from.
+  hasGearSlot: boolean;
+  hover: ResidentHover;
+  isVisible: boolean;
+  onOpenSettings: () => void;
+  orientation: ResidentOrientation;
+  presentation: OverlayPresentation;
+  residentRef: RefObject<HTMLDivElement | null>;
+  revealsGear: boolean;
+  showsActions: boolean;
+}
+
+const ResidentDock = ({
+  actionsRef,
+  drag,
+  hasGearSlot,
+  hover,
+  isVisible,
+  onOpenSettings,
+  orientation,
+  presentation,
+  residentRef,
+  revealsGear,
+  showsActions,
+  ...actions
+}: ResidentDockProps) => {
+  // the lifted island keeps its face; it just stops taking clicks
+  const isInteractive = isVisible && !drag.isDragging;
+  return (
+    <ResidentFrame
+      hover={hover}
+      orientation={orientation}
+      presentation={presentation}
+      residentRef={residentRef}
+      showsActions={showsActions}
+    >
+      <ResidentPanel
+        {...actions}
+        actionsRef={actionsRef}
+        drag={drag}
+        hasGrip={presentation === "docked"}
+        isInteractive={isInteractive}
+        isVisible={isVisible}
+        orientation={orientation}
+      />
+      {hasGearSlot ? (
+        <DockGear
+          isRevealed={revealsGear && isInteractive}
+          onOpenSettings={onOpenSettings}
+        />
+      ) : null}
+    </ResidentFrame>
+  );
+};
+
+interface ResidentIslandProps
+  extends Omit<
+    ResidentDockProps,
+    "actionsRef" | "isVisible" | "orientation" | "showsActions"
+  > {
+  isExpanded: boolean;
+  isSideDocked: boolean;
+  motionPhase: IslandControlMotionPhase;
+  onReveal: () => void;
+  triggerBox: OverlayBox;
+}
+
+export const ResidentIsland = ({
   isExpanded,
   isSideDocked,
   motionPhase,
   onReveal,
-  residentRef,
   triggerBox,
-  ...actions
+  ...dock
 }: ResidentIslandProps) => {
   const showsActions = isSideDocked || isExpanded;
-  const actionsAreInteractive =
-    !drag.isDragging &&
-    (isSideDocked || (isExpanded && motionPhase === "open"));
-  const hasDockGrip = isSideDocked || presentation === "docked";
-  const gripIsLive =
-    drag.isDragging ||
-    isSideDocked ||
-    (isExpanded && motionPhase === "open" && presentation === "docked");
   const { actionsRef, revealForActivation } = useResidentActionFocus(
     isExpanded,
     onReveal
   );
-  const orientation = isSideDocked ? "vertical" : "horizontal";
   return (
     <>
       {showsActions ? null : (
@@ -144,48 +303,16 @@ export const ResidentIsland = ({
           box={triggerBox}
           motionPhase={motionPhase}
           onActivate={revealForActivation}
-          onPointerEnter={hover.onTriggerPointerEnter}
+          onPointerEnter={dock.hover.onTriggerPointerEnter}
         />
       )}
-      <div
-        className="echo-island-resident"
-        data-active={hover.isActive}
-        data-anchor={anchor}
-        data-expanded={showsActions}
-        data-motion={motionPhase}
-        data-orientation={orientation}
-        onBlurCapture={hover.onBlurCapture}
-        onFocusCapture={hover.onFocusCapture}
-        onPointerDownCapture={hover.onPointerDownCapture}
-        onPointerEnter={hover.onPointerEnter}
-        onPointerLeave={hover.onPointerLeave}
-        ref={residentRef}
-      >
-        <span aria-hidden="true" className="echo-island-resident-shell" />
-        {hasDockGrip ? (
-          <button
-            aria-label="Move Echo control"
-            className="echo-island-dock-grip"
-            data-live={gripIsLive}
-            inert={gripIsLive ? undefined : true}
-            onKeyDown={drag.onGripKeyDown}
-            onPointerDown={drag.onGripPointerDown}
-            title="Move Echo control"
-            type="button"
-          >
-            <DotsSixIcon
-              aria-hidden="true"
-              className="echo-island-dock-grip-icon"
-            />
-          </button>
-        ) : null}
-        <ResidentContent
-          {...actions}
-          actionsRef={actionsRef}
-          isInteractive={actionsAreInteractive}
-          orientation={orientation}
-        />
-      </div>
+      <ResidentDock
+        {...dock}
+        actionsRef={actionsRef}
+        isVisible={isSideDocked || (isExpanded && motionPhase === "open")}
+        orientation={isSideDocked ? "vertical" : "horizontal"}
+        showsActions={showsActions}
+      />
     </>
   );
 };
