@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.8.11] - 2026-10-24
 
 ### Added
 - Hovering the docked island grows a round settings button out of its end, joined to the panel by a soft neck; clicking it opens Echo's settings. On the top or bottom edge it appears once the actions are open.
