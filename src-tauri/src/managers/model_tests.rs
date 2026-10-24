@@ -82,9 +82,12 @@ mod transcription_profile_tests {
 
     #[test]
     fn profile_statuses_derive_active_and_download_state() {
-        let statuses = transcription_profile_statuses(TranscriptionModelSize::Medium, |id| {
-            (id != "large", id == "small")
-        });
+        let statuses =
+            transcription_profile_statuses(TranscriptionModelSize::Medium, |id| ProfileArtifact {
+                is_downloaded: id != "large",
+                is_downloading: id == "small",
+                partial_download_mb: None,
+            });
 
         assert_eq!(statuses.len(), 3);
         assert!(!statuses[0].is_active);
@@ -101,14 +104,28 @@ mod transcription_profile_tests {
     }
 
     #[test]
+    fn interrupted_download_reports_the_megabytes_it_resumes_from() {
+        let mut medium = available_model_catalog().remove("medium").unwrap();
+        assert_eq!(resumable_partial_mb(&medium), None);
+
+        medium.partial_size = 471_859_200;
+        assert_eq!(resumable_partial_mb(&medium), Some(472));
+
+        medium.partial_size = medium.size_bytes + 1;
+        assert_eq!(resumable_partial_mb(&medium), None);
+    }
+
+    #[test]
     fn profile_status_serialization_hides_engine_details() {
         let status =
-            transcription_profile_statuses(TranscriptionModelSize::Small, |_| (false, false))
+            transcription_profile_statuses(TranscriptionModelSize::Small, |_| {
+                ProfileArtifact::default()
+            })
                 .remove(0);
         let json = serde_json::to_value(status).unwrap();
         let object = json.as_object().unwrap();
 
-        assert_eq!(object.len(), 9);
+        assert_eq!(object.len(), 10);
         assert!(object.contains_key("size"));
         assert!(object.contains_key("label"));
         assert!(object.contains_key("description"));
@@ -117,6 +134,7 @@ mod transcription_profile_tests {
         assert!(object.contains_key("is_downloading"));
         assert!(object.contains_key("is_active"));
         assert!(object.contains_key("is_recommended"));
+        assert!(object.contains_key("partial_download_mb"));
         assert!(object.contains_key("memory_mb"));
         assert!(!object.contains_key("filename"));
         assert!(!object.contains_key("url"));

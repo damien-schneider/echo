@@ -1,4 +1,5 @@
 use crate::features::polish::manager::PolishManager;
+use crate::managers::meeting::MeetingManager;
 use crate::managers::model::{
     transcription_profile_id, ModelManager, TranscriptionProfileStatus, POLISH_MODEL_ID,
     POLISH_MODEL_MEMORY_MB, POLISH_MODEL_NAME,
@@ -86,14 +87,19 @@ pub async fn select_transcription_model_size(
     Ok(())
 }
 
-/// A model still in memory keeps answering from a file that is gone; unload it first.
+/// A model still in memory keeps answering from a file that is gone; unload it first. A meeting
+/// reaches for every model when it ends, so none may go while one runs.
 #[tauri::command]
 pub(crate) async fn delete_model(
     model_manager: State<'_, Arc<ModelManager>>,
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
     polish_manager: State<'_, Arc<PolishManager>>,
+    meeting_manager: State<'_, Arc<MeetingManager>>,
     model_id: String,
 ) -> Result<(), String> {
+    if meeting_manager.get_active_meeting().is_some() {
+        return Err("Stop the meeting before deleting a model".to_string());
+    }
     if model_id == POLISH_MODEL_ID {
         return polish_manager
             .delete_model()
@@ -112,9 +118,33 @@ pub async fn reveal_model_file(
     model_id: String,
 ) -> Result<(), String> {
     let path = model_manager
-        .get_model_path(&model_id)
+        .on_disk_path(&model_id)
         .map_err(|error| error.to_string())?;
     tauri_plugin_opener::reveal_item_in_dir(path).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn get_legacy_model_files_mb(
+    model_manager: State<'_, Arc<ModelManager>>,
+) -> Result<Option<u64>, String> {
+    Ok(model_manager.legacy_model_files_mb())
+}
+
+#[tauri::command]
+pub async fn reveal_legacy_model_files(
+    model_manager: State<'_, Arc<ModelManager>>,
+) -> Result<(), String> {
+    tauri_plugin_opener::reveal_items_in_dir(model_manager.legacy_model_files())
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn delete_legacy_model_files(
+    model_manager: State<'_, Arc<ModelManager>>,
+) -> Result<(), String> {
+    model_manager
+        .delete_legacy_model_files()
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

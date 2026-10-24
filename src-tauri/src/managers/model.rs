@@ -9,11 +9,12 @@ use tauri::{AppHandle, Manager};
 
 use super::model_catalog::{apply_artifact_state, available_model_catalog, ArtifactState};
 use super::model_download::receipt;
+pub use super::model_download::resumable_partial_mb;
 #[cfg(test)]
 pub(super) use super::model_download::verification::verify_file_sha256;
 pub use super::transcription_profiles::{
     transcription_profile_id, transcription_profile_statuses, transcription_profiles,
-    TranscriptionProfileSpec, TranscriptionProfileStatus,
+    ProfileArtifact, TranscriptionProfileSpec, TranscriptionProfileStatus,
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EngineType {
@@ -92,8 +93,12 @@ impl ModelManager {
         let active_size = settings::get_settings(&self.app_handle).transcription_model_size;
         transcription_profile_statuses(active_size, |id| {
             self.get_model_info(id)
-                .map(|model| (model.is_downloaded, model.is_downloading))
-                .unwrap_or((false, false))
+                .map(|model| ProfileArtifact {
+                    is_downloaded: model.is_downloaded,
+                    is_downloading: model.is_downloading,
+                    partial_download_mb: resumable_partial_mb(&model),
+                })
+                .unwrap_or_default()
         })
     }
 
@@ -107,7 +112,7 @@ impl ModelManager {
 
         for filename in &bundled_models {
             let bundled_path = self.app_handle.path().resolve(
-                &format!("resources/models/{}", filename),
+                format!("resources/models/{}", filename),
                 tauri::path::BaseDirectory::Resource,
             );
 
@@ -143,7 +148,7 @@ impl ModelManager {
 
     fn artifact_state(&self, model: &ModelInfo) -> ArtifactState {
         let model_path = self.models_dir.join(&model.filename);
-        let partial_path = self.models_dir.join(format!("{}.partial", &model.filename));
+        let partial_path = self.models_dir.join(format!("{}.partial", model.filename));
         if model.is_directory {
             self.discard_interrupted_extraction(model);
         }
@@ -160,7 +165,7 @@ impl ModelManager {
     fn discard_interrupted_extraction(&self, model: &ModelInfo) {
         let extracting_path = self
             .models_dir
-            .join(format!("{}.extracting", &model.filename));
+            .join(format!("{}.extracting", model.filename));
         if extracting_path.exists() {
             log::warn!("Cleaning up interrupted extraction for model: {}", model.id);
             let _ = fs::remove_dir_all(&extracting_path);
@@ -186,7 +191,7 @@ impl ModelManager {
         let model_path = self.models_dir.join(&model_info.filename);
         let partial_path = self
             .models_dir
-            .join(format!("{}.partial", &model_info.filename));
+            .join(format!("{}.partial", model_info.filename));
         log::debug!("ModelManager: Model path: {:?}", model_path);
         log::debug!("ModelManager: Partial path: {:?}", partial_path);
 
@@ -249,7 +254,7 @@ impl ModelManager {
         let model_path = self.models_dir.join(&model_info.filename);
         let partial_path = self
             .models_dir
-            .join(format!("{}.partial", &model_info.filename));
+            .join(format!("{}.partial", model_info.filename));
 
         if model_info.is_directory {
             if model_path.exists() && model_path.is_dir() && !partial_path.exists() {
@@ -277,6 +282,21 @@ impl ModelManager {
             .get_model_info(model_id)
             .ok_or_else(|| anyhow::anyhow!("Model not found: {model_id}"))?;
         Ok(self.models_dir.join(model.filename))
+    }
+
+    /// The installed artifact, else the `.partial` an interrupted download left behind.
+    pub fn on_disk_path(&self, model_id: &str) -> Result<PathBuf> {
+        if let Ok(path) = self.get_model_path(model_id) {
+            return Ok(path);
+        }
+        let model = self
+            .get_model_info(model_id)
+            .ok_or_else(|| anyhow::anyhow!("Model not found: {model_id}"))?;
+        let partial_path = self.models_dir.join(format!("{}.partial", model.filename));
+        if partial_path.exists() {
+            return Ok(partial_path);
+        }
+        Err(anyhow::anyhow!("{} is not on this computer", model.name))
     }
 }
 

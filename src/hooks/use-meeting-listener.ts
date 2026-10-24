@@ -3,9 +3,9 @@ import { emit, listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { toast } from "sonner";
 import {
-  openSummarySetup,
-  SUMMARY_SETUP_LABEL,
-} from "@/features/meeting/open-summary-setup";
+  OPEN_MODELS_LABEL,
+  openModelsPage,
+} from "@/features/meeting/open-models-page";
 import { MeetingSummaryError } from "@/lib/llm/meeting-summary";
 import {
   ActiveMeetingSchema,
@@ -122,8 +122,8 @@ const onAutoSummaryRequested = (meetingId: number) => {
       if (error instanceof MeetingSummaryError) {
         toast.error(error.message, {
           action: {
-            label: SUMMARY_SETUP_LABEL,
-            onClick: openSummarySetup,
+            label: OPEN_MODELS_LABEL,
+            onClick: openModelsPage,
           },
         });
         return;

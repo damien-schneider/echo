@@ -3,11 +3,12 @@ import { KeyboardIcon, TrashIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useEffectEvent, useState } from "react";
+import { useSecondClickConfirmation } from "@/hooks/use-second-click-confirmation";
 import { type InputEntry, KeyboardInputEntry } from "./keyboard-input-entry";
 export const KeyboardInputList = () => {
   const [entries, setEntries] = useState<InputEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const clearAllConfirmation = useSecondClickConfirmation();
   const loadEntries = async () => {
     try {
       const data = await invoke<InputEntry[]>("get_input_entries", {
@@ -47,19 +48,12 @@ export const KeyboardInputList = () => {
       throw error;
     }
   };
-  const handleClearAll = async () => {
-    if (!confirmClearAll) {
-      setConfirmClearAll(true);
-      setTimeout(() => setConfirmClearAll(false), 3000);
-      return;
-    }
+  const clearAll = async () => {
     try {
       await invoke("clear_all_input_entries");
       setEntries([]);
-      setConfirmClearAll(false);
     } catch (error) {
       console.error("Failed to clear all entries:", error);
-      setConfirmClearAll(false);
     }
   };
   if (loading) {
@@ -89,12 +83,18 @@ export const KeyboardInputList = () => {
           {entries.length} recorded {entries.length === 1 ? "input" : "inputs"}
         </p>
         <Button
-          onClick={handleClearAll}
+          disabled={clearAllConfirmation.isRunning}
+          onClick={() => clearAllConfirmation.runOnSecondClick(clearAll)}
           size="sm"
-          variant={confirmClearAll ? "ghost" : "ghost"}
+          tone={
+            clearAllConfirmation.isAwaitingConfirmation ? "danger" : "neutral"
+          }
+          variant="ghost"
         >
           <TrashIcon className="mr-1 h-3 w-3" />
-          {confirmClearAll ? "Click to confirm" : "Clear All"}
+          {clearAllConfirmation.isAwaitingConfirmation
+            ? "Click again to confirm"
+            : "Clear All"}
         </Button>
       </div>
       <div className="divide-y divide-border/10">

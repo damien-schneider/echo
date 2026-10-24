@@ -31,6 +31,7 @@ describe("modelActionPresentation", () => {
   test("keeps Download available when the selected model is not installed", () => {
     expect(
       modelActionPresentation({
+        hasPartialDownload: false,
         isActive: true,
         isBusy: false,
         isDownloaded: false,
@@ -47,6 +48,7 @@ describe("modelActionPresentation", () => {
   test("does not show spinners on unrelated disabled model buttons", () => {
     expect(
       modelActionPresentation({
+        hasPartialDownload: false,
         isActive: false,
         isBusy: true,
         isDownloaded: false,
@@ -58,5 +60,17 @@ describe("modelActionPresentation", () => {
       show: true,
       showSpinner: false,
     });
+  });
+
+  test("offers to resume an interrupted download instead of restarting it", () => {
+    expect(
+      modelActionPresentation({
+        hasPartialDownload: true,
+        isActive: false,
+        isBusy: false,
+        isDownloaded: false,
+        isDownloading: false,
+      }).label
+    ).toBe("Resume");
   });
 });

@@ -7,11 +7,13 @@ import {
   DownloadProgressSchema,
 } from "@/features/model-download/download-state";
 
-const diarizationModelId = "diarization-sortformer";
+export const diarizationModelId = "diarization-sortformer";
 const DiarizationStatusSchema = z
   .object({
+    download_size_mb: z.number().nonnegative(),
     downloaded: z.boolean(),
     downloading: z.boolean(),
+    partial_download_mb: z.number().nonnegative().nullable(),
   })
   .strict();
 type DiarizationStatus = z.infer<typeof DiarizationStatusSchema>;
@@ -20,6 +22,11 @@ const readDiarizationStatus = async () => {
   const result = await invoke<unknown>("get_diarization_status");
   return DiarizationStatusSchema.parse(result);
 };
+
+const withDownload =
+  (downloading: boolean) =>
+  (status: DiarizationStatus | null): DiarizationStatus | null =>
+    status && { ...status, downloaded: false, downloading };
 
 interface DiarizationStatePorts {
   refresh: () => Promise<void>;
@@ -45,16 +52,17 @@ const subscribeDiarizationEvents = async ({
       const parsed = DownloadProgressSchema.safeParse(event.payload);
       if (parsed.success && parsed.data.model_id === diarizationModelId) {
         setProgress(parsed.data);
-        setStatus({ downloaded: false, downloading: true });
+        setStatus(withDownload(true));
       }
     }),
     listen<unknown>("model-download-failed", (event) => {
       if (event.payload === diarizationModelId) {
         setProgress(undefined);
-        setStatus({ downloaded: false, downloading: false });
+        setStatus(withDownload(false));
         setError(
           "The speaker detection model download failed. Retry when you are online."
         );
+        refresh().catch((reason) => setError(`${reason}`));
       }
     }),
   ]);
@@ -71,13 +79,13 @@ const downloadDiarizationModel = async ({
     percentage: 0,
     total: 0,
   });
-  setStatus({ downloaded: false, downloading: true });
+  setStatus(withDownload(true));
   try {
     await invoke("download_diarization_model");
     setStatus(await readDiarizationStatus());
   } catch (reason) {
     setProgress(undefined);
-    setStatus({ downloaded: false, downloading: false });
+    setStatus(withDownload(false));
     setError(`${reason}`);
   }
 };
@@ -118,6 +126,10 @@ export const useDiarizationModel = () => {
 
   const download = () =>
     downloadDiarizationModel({ setError, setProgress, setStatus });
+  const remove = async () => {
+    await invoke("delete_model", { modelId: diarizationModelId });
+    setStatus(await readDiarizationStatus());
+  };
 
-  return { download, error, progress, status };
+  return { download, error, progress, remove, status };
 };

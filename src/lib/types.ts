@@ -50,6 +50,7 @@ export const TranscriptionProfileStatusSchema = ModelFootprintSchema.extend({
   is_downloading: z.boolean(),
   is_recommended: z.boolean(),
   label: z.string(),
+  partial_download_mb: z.number().nonnegative().nullable(),
   size: TranscriptionModelSizeSchema,
 }).strict();
 export type TranscriptionProfileStatus = z.infer<

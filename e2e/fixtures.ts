@@ -123,8 +123,21 @@ const setupEchoTestState = () => {
       get_available_microphones: [{ id: "default", name: "Default" }],
       get_available_output_devices: [{ id: "default", name: "Default" }],
       get_clamshell_microphone: "Default",
+      get_diarization_status: {
+        download_size_mb: 470,
+        downloaded: true,
+        downloading: false,
+        partial_download_mb: null,
+      },
       get_held_transcript: "Ok, let's rerun alors.",
       get_microphone_mode: false,
+      get_meeting_model_status: {
+        download_size_mb: 2831,
+        downloaded: false,
+        downloading: false,
+        partial_download_mb: null,
+        supported: true,
+      },
       get_selected_microphone: "Default",
       get_selected_output_device: "Default",
       get_update_status: {

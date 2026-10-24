@@ -1,6 +1,6 @@
 use crate::managers::diarization::DIARIZATION_MODEL_ID;
 use crate::managers::meeting_voxtral::voxtral_supported;
-use crate::managers::model::{ModelManager, VOXTRAL_MODEL_ID};
+use crate::managers::model::{resumable_partial_mb, ModelManager, VOXTRAL_MODEL_ID};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
@@ -33,16 +33,31 @@ pub fn change_meeting_chunk_duration_setting(
     Ok(())
 }
 
+#[derive(serde::Serialize)]
+pub struct ModelArtifactStatus {
+    pub downloaded: bool,
+    pub downloading: bool,
+    pub download_size_mb: u64,
+    pub partial_download_mb: Option<u64>,
+}
+
+fn artifact_status(app: &AppHandle, model_id: &str) -> Result<ModelArtifactStatus, String> {
+    let model = app
+        .state::<Arc<ModelManager>>()
+        .get_model_info(model_id)
+        .ok_or_else(|| format!("{model_id} is missing from the model catalog"))?;
+    Ok(ModelArtifactStatus {
+        downloaded: model.is_downloaded,
+        downloading: model.is_downloading,
+        download_size_mb: model.size_mb,
+        partial_download_mb: resumable_partial_mb(&model),
+    })
+}
+
 /// Polled by the frontend to gate "Start meeting" until the model is on disk.
 #[tauri::command]
-pub fn get_diarization_status(app: AppHandle) -> Result<DiarizationStatus, String> {
-    let model_manager = app.state::<Arc<ModelManager>>();
-    let model = model_manager.get_model_info(DIARIZATION_MODEL_ID);
-
-    Ok(DiarizationStatus {
-        downloaded: model.as_ref().map(|m| m.is_downloaded).unwrap_or(false),
-        downloading: model.as_ref().map(|m| m.is_downloading).unwrap_or(false),
-    })
+pub fn get_diarization_status(app: AppHandle) -> Result<ModelArtifactStatus, String> {
+    artifact_status(&app, DIARIZATION_MODEL_ID)
 }
 
 #[tauri::command]
@@ -61,22 +76,11 @@ pub async fn download_diarization_model(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-#[derive(serde::Serialize)]
-pub struct DiarizationStatus {
-    pub downloaded: bool,
-    pub downloading: bool,
-}
-
 #[tauri::command]
 pub fn get_meeting_model_status(app: AppHandle) -> Result<MeetingModelStatus, String> {
-    let model = app
-        .state::<Arc<ModelManager>>()
-        .get_model_info(VOXTRAL_MODEL_ID);
-
     Ok(MeetingModelStatus {
         supported: voxtral_supported(),
-        downloaded: model.as_ref().is_some_and(|m| m.is_downloaded),
-        downloading: model.as_ref().is_some_and(|m| m.is_downloading),
+        artifact: artifact_status(&app, VOXTRAL_MODEL_ID)?,
     })
 }
 
@@ -101,6 +105,6 @@ pub async fn download_meeting_model(app: AppHandle) -> Result<(), String> {
 #[derive(serde::Serialize)]
 pub struct MeetingModelStatus {
     pub supported: bool,
-    pub downloaded: bool,
-    pub downloading: bool,
+    #[serde(flatten)]
+    pub artifact: ModelArtifactStatus,
 }

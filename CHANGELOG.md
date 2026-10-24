@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- The Models page has a Meetings section with Voxtral Realtime (2.8 GB) and Speaker detection (470 MB). Each row shows its disk size and downloads from there; once downloaded it has buttons to show its file in Finder and to delete it. On a Mac that can't run Voxtral Realtime, its row says it needs an Apple Silicon Mac with 16 GB of memory instead of offering a download.
+- A Storage section on the Models page lists "Files from older versions": models that earlier versions of Echo downloaded and this version never uses, with their total size, a button to show them in Finder, and Delete.
+- A transcription or meeting model whose download was interrupted says how far it got, for example "472 MB of 574 MB downloaded". Its button reads Resume and continues from there, and the partial file can be shown in Finder or deleted.
+
+### Changed
+- Meeting settings no longer download or delete the meeting models: a Meeting models row opens the Models page, and messages about a missing meeting model point there too.
+- Deleting a capture, a history entry, a keyboard entry or a model, and Keyboard's Clear All, share the same confirmation: the button turns red and asks for a second click within three seconds. Every delete button now has a name that screen readers announce.
+- A model can't be deleted while a meeting is recording; Echo asks to stop the meeting first.
+
+### Fixed
+- When the model finishes downloading from the "Download the Small model to dictate" prompt while the welcome screen is open, the welcome screen gives way to settings. It used to stay up with the model marked Active and no button to continue.
+- Toggling dictation with SIGUSR2 keeps working after a dictation that could not start, for example while the model is missing. It used to stop responding to the signal until Echo restarted.
+
 ## [0.8.12] - 2026-10-24
 
 ### Added

@@ -24,7 +24,7 @@ struct ShortcutTransition {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ShortcutExecution {
+pub(crate) enum ShortcutExecution {
     None,
     Start,
     Stop,
@@ -50,7 +50,7 @@ fn shortcut_transition(transition: ShortcutTransition) -> ShortcutExecution {
     }
 }
 
-pub(super) fn execute_toggle_transition<F>(
+pub(crate) fn execute_toggle_transition<F>(
     state: &ManagedToggleState,
     binding_id: &str,
     execute: F,

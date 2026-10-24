@@ -2,6 +2,7 @@
 
 use crate::actions::ACTION_MAP;
 use crate::features::polish::app_exit;
+use crate::features::shortcut::init::{execute_toggle_transition, ShortcutExecution};
 use crate::process_exit::exit_without_destructors;
 use crate::ManagedToggleState;
 use log::{debug, info, warn};
@@ -63,28 +64,22 @@ fn toggle_transcription(app_handle: &AppHandle) {
         warn!("No action defined in ACTION_MAP for binding ID '{binding_id}'");
         return;
     };
-    let toggle_state_manager = app_handle.state::<ManagedToggleState>();
-    let mut states = match toggle_state_manager.lock() {
-        Ok(states) => states,
-        Err(error) => {
-            warn!("Failed to lock toggle state manager: {error}");
-            return;
-        }
-    };
-    let is_active = states
-        .active_toggles
-        .entry(binding_id.to_string())
-        .or_insert(false);
-    if *is_active {
-        debug!("SIGUSR2: Stopping transcription");
-        action.stop(app_handle, binding_id, shortcut_string);
-        *is_active = false;
-        return;
+    let toggle_state = app_handle.state::<ManagedToggleState>();
+    let result =
+        execute_toggle_transition(&toggle_state, binding_id, |execution| match execution {
+            ShortcutExecution::Start => {
+                debug!("SIGUSR2: Starting transcription");
+                action.start(app_handle, binding_id, shortcut_string);
+            }
+            ShortcutExecution::Stop => {
+                debug!("SIGUSR2: Stopping transcription");
+                action.stop(app_handle, binding_id, shortcut_string);
+            }
+            ShortcutExecution::None => {}
+        });
+    if let Err(error) = result {
+        warn!("SIGUSR2: {error}");
     }
-    debug!("SIGUSR2: Starting transcription");
-    action.start(app_handle, binding_id, shortcut_string);
-    *is_active = true;
-    info!("SIGUSR2: Transcription started");
 }
 
 #[cfg(test)]

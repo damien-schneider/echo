@@ -7,11 +7,13 @@ import {
   DownloadProgressSchema,
 } from "@/features/model-download/download-state";
 
-const meetingModelId = "meeting-voxtral-realtime";
+export const meetingModelId = "meeting-voxtral-realtime";
 const MeetingModelStatusSchema = z
   .object({
+    download_size_mb: z.number().nonnegative(),
     downloaded: z.boolean(),
     downloading: z.boolean(),
+    partial_download_mb: z.number().nonnegative().nullable(),
     supported: z.boolean(),
   })
   .strict();
@@ -61,6 +63,7 @@ const subscribeMeetingModelEvents = async ({
         setError(
           "The meeting transcription model download failed. Retry when you are online."
         );
+        refresh().catch((reason) => setError(`${reason}`));
       }
     }),
   ]);
@@ -124,6 +127,10 @@ export const useMeetingModel = () => {
 
   const download = () =>
     downloadMeetingModel({ setError, setProgress, setStatus });
+  const remove = async () => {
+    await invoke("delete_model", { modelId: meetingModelId });
+    setStatus(await readMeetingModelStatus());
+  };
 
-  return { download, error, progress, status };
+  return { download, error, progress, remove, status };
 };

@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { type ReactNode, useId, useState } from "react";
 import { ModelFileActions } from "@/components/model-selector/model-file-actions";
 import ProgressBar from "@/components/shared/progress-bar";
-import type { ModelFootprint } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatModelSize } from "@/lib/utils/format";
 
@@ -18,18 +17,22 @@ export interface ModelRowDownload {
 
 export interface ModelRowFiles {
   disabled: boolean;
-  modelId: string;
   onDelete: () => Promise<void>;
+  onReveal: () => Promise<void>;
 }
+
+export const revealModelFile = (modelId: string) => () =>
+  invoke<void>("reveal_model_file", { modelId });
 
 interface ModelRowProps {
   action?: ReactNode;
   badges?: ReactNode;
   className?: string;
   description: string;
+  diskMb?: number;
   download?: ModelRowDownload;
   files?: ModelRowFiles;
-  footprint?: ModelFootprint;
+  memoryMb?: number;
   name: string;
   status?: ModelRowStatus;
 }
@@ -39,9 +42,10 @@ export const ModelRow = ({
   badges,
   className,
   description,
+  diskMb,
   download,
   files,
-  footprint,
+  memoryMb,
   name,
   status,
 }: ModelRowProps) => {
@@ -55,6 +59,12 @@ export const ModelRow = ({
       setFileActionError(`${error}`);
     }
   };
+  const footprint = [
+    diskMb === undefined ? null : `Disk ${formatModelSize(diskMb)}`,
+    memoryMb === undefined ? null : `RAM ~${formatModelSize(memoryMb)}`,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   return (
     <article
@@ -71,8 +81,7 @@ export const ModelRow = ({
           </div>
           {footprint ? (
             <p className="mt-0.5 text-caption text-muted-foreground tabular-nums">
-              Disk {formatModelSize(footprint.download_size_mb)} · RAM ~
-              {formatModelSize(footprint.memory_mb)}
+              {footprint}
             </p>
           ) : null}
           <p className="mt-1 text-caption text-muted-foreground">
@@ -97,9 +106,7 @@ export const ModelRow = ({
               disabled={files.disabled}
               modelName={name}
               onDelete={reportingFailure(files.onDelete)}
-              onReveal={reportingFailure(() =>
-                invoke<void>("reveal_model_file", { modelId: files.modelId })
-              )}
+              onReveal={reportingFailure(files.onReveal)}
             />
           ) : null}
           {action}

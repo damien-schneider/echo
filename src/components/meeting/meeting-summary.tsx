@@ -2,9 +2,9 @@ import { Button } from "@ctrl-ui/react/ui/button";
 import { CaretDownIcon, CaretUpIcon, SparkleIcon } from "@phosphor-icons/react";
 import { useState } from "react";
 import {
-  openSummarySetup,
-  SUMMARY_SETUP_LABEL,
-} from "@/features/meeting/open-summary-setup";
+  OPEN_MODELS_LABEL,
+  openModelsPage,
+} from "@/features/meeting/open-models-page";
 import { MeetingSummaryError } from "@/lib/llm/meeting-summary";
 import { errorMessage } from "@/lib/utils";
 import { useMeetingStore } from "@/stores/meeting-store";
@@ -30,8 +30,8 @@ const SummaryFailureNotice = ({ failure }: { failure: SummaryFailure }) => (
   <div className="flex flex-col items-center gap-2 rounded-md bg-destructive/10 px-3 py-2 text-center text-destructive text-xs">
     <span>{failure.message}</span>
     {failure.needsSetup && (
-      <Button onClick={openSummarySetup} size="sm" variant="surface">
-        {SUMMARY_SETUP_LABEL}
+      <Button onClick={openModelsPage} size="sm" variant="surface">
+        {OPEN_MODELS_LABEL}
       </Button>
     )}
   </div>

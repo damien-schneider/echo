@@ -11,6 +11,7 @@ pub mod hallucination;
 pub mod history;
 pub mod input_events;
 pub mod input_tracker;
+mod legacy_models;
 pub mod meeting;
 pub mod meeting_audio_sink;
 pub mod meeting_batch;

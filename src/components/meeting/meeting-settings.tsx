@@ -1,101 +1,20 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { Switch } from "@ctrl-ui/react/ui/switch";
-import {
-  CheckIcon,
-  CircleNotchIcon,
-  DownloadSimpleIcon,
-  FileTextIcon,
-  MonitorIcon,
-  SparkleIcon,
-  UsersIcon,
-  WaveformIcon,
-} from "@phosphor-icons/react";
-import type { ReactNode } from "react";
+import { CubeIcon, MonitorIcon, SparkleIcon } from "@phosphor-icons/react";
 import { MicrophoneSelector } from "@/components/settings/microphone-selector";
-import ProgressBar from "@/components/shared/progress-bar";
 import {
-  type TranscriptionReadiness,
-  useTranscriptionReadiness,
-} from "@/features/meeting/use-transcription-readiness";
-import type { DownloadProgress } from "@/features/model-download/download-state";
-import { useDiarizationModel } from "@/features/model-download/use-diarization-model";
-import { useMeetingModel } from "@/features/model-download/use-meeting-model";
+  OPEN_MODELS_LABEL,
+  openModelsPage,
+} from "@/features/meeting/open-models-page";
 import { polishModelName } from "@/features/polish/polish-model-state";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
-import { useModelStore } from "@/stores/model-store";
 import {
   useIsSettingUpdating,
   useSetting,
   useSettingsStore,
 } from "@/stores/settings-store";
 
-interface ModelRowProps {
-  description: string;
-  downloaded: boolean;
-  downloading: boolean;
-  downloadLabel: string;
-  error?: string | null;
-  icon: ReactNode;
-  onDownload: () => void;
-  progress?: DownloadProgress;
-  title: string;
-}
-const ModelRow = ({
-  description,
-  downloadLabel,
-  downloaded,
-  downloading,
-  error,
-  icon,
-  onDownload,
-  progress,
-  title,
-}: ModelRowProps) => (
-  <div>
-    <SettingRow description={description} icon={icon} title={title}>
-      {downloaded ? (
-        <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
-          <CheckIcon className="size-3" />
-          Ready
-        </span>
-      ) : (
-        <Button
-          disabled={downloading}
-          onClick={onDownload}
-          size="sm"
-          variant="surface"
-        >
-          {downloading ? (
-            <CircleNotchIcon className="mr-1.5 size-3.5 animate-spin" />
-          ) : (
-            <DownloadSimpleIcon className="mr-1.5 size-3.5" />
-          )}
-          {downloading ? "Downloading" : downloadLabel}
-        </Button>
-      )}
-    </SettingRow>
-    {progress && !downloaded ? (
-      <div className="px-4 pb-2">
-        <ProgressBar
-          fullWidth={true}
-          progress={[
-            {
-              ...progress,
-              id: progress.model_id,
-              label: `${Math.round(progress.percentage)}%`,
-            },
-          ]}
-          showLabel={true}
-          size="small"
-        />
-      </div>
-    ) : null}
-    {error ? (
-      <p className="px-4 pb-2 text-caption text-destructive">{error}</p>
-    ) : null}
-  </div>
-);
 const RecordingSettings = () => {
   const systemAudioEnabled =
     useSetting("meeting_system_audio_enabled") ?? false;
@@ -146,77 +65,24 @@ const SummarySettings = () => {
   );
 };
 
-const TranscriptionModelRow = ({
-  transcription,
-}: {
-  transcription: TranscriptionReadiness;
-}) => {
-  const transcriptionError = useModelStore((s) => s.error);
-  return (
-    <ModelRow
-      description="Turns the recording into text once the meeting ends"
-      downloaded={transcription.ready}
-      downloading={transcription.downloading}
-      downloadLabel={transcription.resolveLabel}
-      error={transcriptionError}
-      icon={<FileTextIcon className="h-4 w-4" />}
-      onDownload={transcription.resolve}
-      progress={transcription.progress}
-      title="Transcription"
-    />
-  );
-};
-
-const MeetingModelsSettings = () => {
-  const diarization = useDiarizationModel();
-  const meetingModel = useMeetingModel();
-  const transcription = useTranscriptionReadiness();
-  const showsModels =
-    transcription.known ||
-    Boolean(diarization.status) ||
-    Boolean(meetingModel.status?.supported);
-  if (!showsModels) {
-    return null;
-  }
-  return (
-    <SettingsSection title="Models">
-      {transcription.known && (
-        <TranscriptionModelRow transcription={transcription} />
-      )}
-      {diarization.status && (
-        <ModelRow
-          description="Tells voices apart so the transcript reads Speaker 1, Guest 2 — without it everyone becomes one speaker"
-          downloaded={diarization.status.downloaded}
-          downloading={diarization.status.downloading}
-          downloadLabel="Download"
-          error={diarization.error}
-          icon={<UsersIcon className="h-4 w-4" />}
-          onDownload={diarization.download}
-          progress={diarization.progress}
-          title="Speaker detection"
-        />
-      )}
-      {meetingModel.status?.supported && (
-        <ModelRow
-          description="Better accuracy and live text for meetings. 2.8 GB."
-          downloaded={meetingModel.status.downloaded}
-          downloading={meetingModel.status.downloading}
-          downloadLabel="Download"
-          error={meetingModel.error}
-          icon={<WaveformIcon className="h-4 w-4" />}
-          onDownload={meetingModel.download}
-          progress={meetingModel.progress}
-          title="Meeting transcription (Voxtral)"
-        />
-      )}
-    </SettingsSection>
-  );
-};
+const MeetingModelsLink = () => (
+  <SettingsSection title="Models">
+    <SettingRow
+      description="Voxtral Realtime and speaker detection are downloaded and deleted in Models"
+      icon={<CubeIcon className="h-4 w-4" />}
+      title="Meeting models"
+    >
+      <Button onClick={openModelsPage} size="sm" variant="surface">
+        {OPEN_MODELS_LABEL}
+      </Button>
+    </SettingRow>
+  </SettingsSection>
+);
 
 export const MeetingSettings = () => (
   <>
     <RecordingSettings />
     <SummarySettings />
-    <MeetingModelsSettings />
+    <MeetingModelsLink />
   </>
 );

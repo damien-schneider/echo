@@ -8,8 +8,15 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript((polishModelId) => {
     const state = window.__ECHO_TEST_STATE__;
     const respond = state.respond;
+    let legacyFilesMb: number | null = 2340;
     state.respond = (command, args) => {
       const answer = respond(command, args);
+      if (command === "get_legacy_model_files_mb") {
+        return legacyFilesMb;
+      }
+      if (command === "delete_legacy_model_files") {
+        legacyFilesMb = null;
+      }
       if (command === "get_transcription_profiles") {
         return [
           {
@@ -21,6 +28,7 @@ test.beforeEach(async ({ page }) => {
             is_recommended: false,
             label: "Small",
             memory_mb: 469,
+            partial_download_mb: null,
             size: "small",
           },
           {
@@ -32,17 +40,19 @@ test.beforeEach(async ({ page }) => {
             is_recommended: true,
             label: "Medium",
             memory_mb: 857,
+            partial_download_mb: null,
             size: "medium",
           },
           {
             description: "Highest multilingual accuracy.",
             download_size_mb: 1080,
             is_active: false,
-            is_downloaded: true,
+            is_downloaded: false,
             is_downloading: false,
             is_recommended: false,
             label: "Large",
             memory_mb: 1651,
+            partial_download_mb: 472,
             size: "large",
           },
         ];
@@ -102,7 +112,9 @@ test("the active transcription model can be shown in Finder and deleted", async 
 
   await small.getByRole("button", { name: "Delete Small" }).click();
   expect(await invokedCommandPayloads(page, "delete_model")).toEqual([]);
-  await small.getByRole("button", { name: "Confirm deleting Small" }).click();
+  await small
+    .getByRole("button", { name: "Delete Small: click again to confirm" })
+    .click();
   await expect
     .poll(() => invokedCommandPayloads(page, "delete_model"))
     .toEqual(['{"modelId":"small"}']);
@@ -121,12 +133,28 @@ test("a model that is not downloaded offers no file actions", async ({
   ).toHaveCount(0);
 });
 
+test("an interrupted download shows how far it got and resumes it", async ({
+  page,
+}) => {
+  await openModels(page);
+  const large = page.getByRole("article", { name: "Large", exact: true });
+  await expect(large).toContainText("472 MB of 1.1 GB downloaded");
+
+  await large.getByRole("button", { name: "Resume", exact: true }).click();
+
+  await expect
+    .poll(() => invokedCommandPayloads(page, "select_transcription_model_size"))
+    .toEqual(['{"size":"large"}']);
+});
+
 test("deleting Qwen3 4B offers its download again", async ({ page }) => {
   await openModels(page);
   const qwen = page.getByRole("article", { name: "Qwen3 4B", exact: true });
 
   await qwen.getByRole("button", { name: "Delete Qwen3 4B" }).click();
-  await qwen.getByRole("button", { name: "Confirm deleting Qwen3 4B" }).click();
+  await qwen
+    .getByRole("button", { name: "Delete Qwen3 4B: click again to confirm" })
+    .click();
 
   await expect
     .poll(() => invokedCommandPayloads(page, "delete_model"))
@@ -143,10 +171,89 @@ test("a failed deletion is reported on the model it concerns", async ({
   const qwen = page.getByRole("article", { name: "Qwen3 4B", exact: true });
 
   await qwen.getByRole("button", { name: "Delete Qwen3 4B" }).click();
-  await qwen.getByRole("button", { name: "Confirm deleting Qwen3 4B" }).click();
+  await qwen
+    .getByRole("button", { name: "Delete Qwen3 4B: click again to confirm" })
+    .click();
 
   await expect(qwen.getByRole("alert")).toContainText("Rejected delete_model");
   await expect(
     qwen.getByRole("button", { name: "Delete Qwen3 4B" })
   ).toBeVisible();
+});
+
+test("meeting models state their size and download from Models", async ({
+  page,
+}) => {
+  await openModels(page);
+  const voxtral = page.getByRole("article", { name: "Voxtral Realtime" });
+  const speakers = page.getByRole("article", { name: "Speaker detection" });
+  await expect(voxtral).toContainText("Disk 2.8 GB");
+  await expect(speakers).toContainText("Disk 470 MB");
+
+  await voxtral.getByRole("button", { name: "Download", exact: true }).click();
+  await expect
+    .poll(() => invokedCommandPayloads(page, "download_meeting_model"))
+    .toHaveLength(1);
+
+  await speakers
+    .getByRole("button", { name: "Delete Speaker detection" })
+    .click();
+  await speakers
+    .getByRole("button", {
+      name: "Delete Speaker detection: click again to confirm",
+    })
+    .click();
+  await expect
+    .poll(() => invokedCommandPayloads(page, "delete_model"))
+    .toEqual(['{"modelId":"diarization-sortformer"}']);
+});
+
+test("Voxtral says why this Mac cannot run it instead of offering it", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const state = window.__ECHO_TEST_STATE__;
+    const respond = state.respond;
+    state.respond = (command, args) =>
+      command === "get_meeting_model_status"
+        ? {
+            download_size_mb: 2831,
+            downloaded: false,
+            downloading: false,
+            partial_download_mb: null,
+            supported: false,
+          }
+        : respond(command, args);
+  });
+  await openModels(page);
+  const voxtral = page.getByRole("article", { name: "Voxtral Realtime" });
+
+  await expect(voxtral).toContainText(
+    "Needs an Apple Silicon Mac with 16 GB of memory."
+  );
+  await expect(voxtral.getByRole("button")).toHaveCount(0);
+});
+
+test("files from older versions state their size and go once deleted", async ({
+  page,
+}) => {
+  await openModels(page);
+  const legacy = page.getByRole("article", {
+    name: "Files from older versions",
+  });
+  await expect(legacy).toContainText("Disk 2.3 GB");
+
+  await legacy
+    .getByRole("button", { name: "Delete Files from older versions" })
+    .click();
+  await legacy
+    .getByRole("button", {
+      name: "Delete Files from older versions: click again to confirm",
+    })
+    .click();
+
+  await expect(legacy).toHaveCount(0);
+  expect(
+    await invokedCommandPayloads(page, "delete_legacy_model_files")
+  ).toHaveLength(1);
 });

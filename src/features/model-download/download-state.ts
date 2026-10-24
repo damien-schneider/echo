@@ -36,28 +36,39 @@ export const clearDownloadFailure = ({
 };
 
 interface ModelActionOptions {
+  hasPartialDownload: boolean;
   isActive: boolean;
   isBusy: boolean;
   isDownloaded: boolean;
   isDownloading: boolean;
 }
 
-export const modelActionPresentation = ({
-  isActive,
-  isBusy,
+const actionLabel = ({
+  hasPartialDownload,
   isDownloaded,
   isDownloading,
-}: ModelActionOptions) => {
-  let label = "Download";
+}: Omit<ModelActionOptions, "isActive" | "isBusy">) => {
   if (isDownloading) {
-    label = "Downloading";
-  } else if (isDownloaded) {
-    label = "Use";
+    return "Downloading";
   }
-  return {
-    disabled: isBusy,
-    label,
-    show: !(isActive && isDownloaded),
-    showSpinner: isDownloading,
-  };
+  if (isDownloaded) {
+    return "Use";
+  }
+  return hasPartialDownload ? "Resume" : "Download";
 };
+
+export interface ModelActionPresentation {
+  disabled: boolean;
+  label: "Download" | "Downloading" | "Resume" | "Use";
+  show: boolean;
+  showSpinner: boolean;
+}
+
+export const modelActionPresentation = (
+  options: ModelActionOptions
+): ModelActionPresentation => ({
+  disabled: options.isBusy,
+  label: actionLabel(options),
+  show: !(options.isActive && options.isDownloaded),
+  showSpinner: options.isDownloading,
+});

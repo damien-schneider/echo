@@ -31,6 +31,14 @@ impl DownloadPaths {
     }
 }
 
+/// Megabytes an interrupted download resumes from; `None` when the next attempt starts over.
+pub fn resumable_partial_mb(model: &ModelInfo) -> Option<u64> {
+    let resumes = model.partial_size > 0
+        && recovery::partial_recovery(model.partial_size, model.size_bytes)
+            == recovery::PartialRecovery::Resume;
+    resumes.then(|| model.partial_size.div_ceil(1_000_000))
+}
+
 struct DownloadContext {
     model: ModelInfo,
     url: String,

@@ -122,7 +122,7 @@ function App() {
     };
   }, [debugMode, updateSetting]);
 
-  const handleModelSelected = () => {
+  const handleModelReady = () => {
     setShowOnboarding(false);
   };
 
@@ -189,7 +189,7 @@ function App() {
   if (showOnboarding) {
     return (
       <GlassWindow>
-        <Onboarding onModelSelected={handleModelSelected} />
+        <Onboarding onModelReady={handleModelReady} />
       </GlassWindow>
     );
   }

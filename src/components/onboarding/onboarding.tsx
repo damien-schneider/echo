@@ -5,10 +5,10 @@ import type { TranscriptionModelSize } from "@/lib/types";
 import { useModelStore } from "@/stores/model-store";
 
 interface OnboardingProps {
-  onModelSelected: () => void;
+  onModelReady: () => void;
 }
 
-const Onboarding = ({ onModelSelected }: OnboardingProps) => {
+const Onboarding = ({ onModelReady }: OnboardingProps) => {
   const profiles = useModelStore((state) => state.profiles);
   const modelStatus = useModelStore((state) => state.modelStatus);
   const loadingSize = useModelStore((state) => state.loadingSize);
@@ -36,10 +36,18 @@ const Onboarding = ({ onModelSelected }: OnboardingProps) => {
     };
   }, [initialize, setupListeners]);
 
+  const hasUsableModel = profiles.some(
+    (profile) => profile.is_active && profile.is_downloaded
+  );
+  useEffect(() => {
+    if (hasUsableModel) {
+      onModelReady();
+    }
+  }, [hasUsableModel, onModelReady]);
+
   const handleSelect = async (size: TranscriptionModelSize) => {
     try {
       await selectProfile(size);
-      onModelSelected();
     } catch {
       // Store exposes the actionable error in this screen.
     }

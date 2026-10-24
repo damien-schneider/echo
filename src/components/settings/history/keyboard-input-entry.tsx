@@ -6,10 +6,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
-import { CheckIcon, CopyIcon, TrashIcon } from "@phosphor-icons/react";
+import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
 import type React from "react";
 import { useState } from "react";
+import { ConfirmDeleteButton } from "@/components/shared/confirm-delete-button";
 export interface InputEntry {
   app_bundle_id: string | null;
   app_name: string;
@@ -28,7 +29,6 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
   onDelete,
 }) => {
   const [showCopied, setShowCopied] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const handleCopyText = async () => {
     try {
       await navigator.clipboard.writeText(entry.content);
@@ -36,19 +36,6 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
       setTimeout(() => setShowCopied(false), 2000);
     } catch (error) {
       console.error("Failed to copy to clipboard:", error);
-    }
-  };
-  const handleDeleteClick = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-      return;
-    }
-    try {
-      await onDelete(entry.id);
-    } catch (error) {
-      console.error("Failed to delete entry:", error);
-      setConfirmDelete(false);
     }
   };
   const formatTimestamp = (timestamp: number) => {
@@ -104,28 +91,16 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
                 {showCopied ? "Copied!" : "Copy text"}
               </TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    iconOnly
-                    onClick={handleDeleteClick}
-                    size="xs"
-                    tone={confirmDelete ? "danger" : "neutral"}
-                    variant={confirmDelete ? "ghost" : "surface"}
-                  />
+            <ConfirmDeleteButton
+              label="Delete entry"
+              onDelete={async () => {
+                try {
+                  await onDelete(entry.id);
+                } catch (error) {
+                  console.error("Failed to delete entry:", error);
                 }
-              >
-                {confirmDelete ? (
-                  <CheckIcon height={16} width={16} />
-                ) : (
-                  <TrashIcon height={16} width={16} />
-                )}
-              </TooltipTrigger>
-              <TooltipContent>
-                {confirmDelete ? "Click again to confirm" : "Delete entry"}
-              </TooltipContent>
-            </Tooltip>
+              }}
+            />
           </ButtonGroup>
         </TooltipProvider>
       </div>

@@ -36,10 +36,10 @@ impl MeetingManager {
     /// Gates the passes that need both models: without them every chunk of the batch would fail.
     pub(super) fn models_ready(&self) -> Result<()> {
         if !self.diarization_ready() {
-            anyhow::bail!("Download the speaker detection model in Meeting Settings.");
+            anyhow::bail!("Download the speaker detection model in Models.");
         }
         if !self.transcription_ready() {
-            anyhow::bail!("Download your transcription model in Settings.");
+            anyhow::bail!("Download your transcription model in Models.");
         }
         Ok(())
     }

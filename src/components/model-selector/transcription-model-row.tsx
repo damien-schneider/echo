@@ -1,20 +1,39 @@
 import { Badge } from "@ctrl-ui/react/ui/badge";
-import { Button } from "@ctrl-ui/react/ui/button";
-import {
-  CheckIcon,
-  CircleNotchIcon,
-  DownloadSimpleIcon,
-} from "@phosphor-icons/react";
+import { CheckIcon } from "@phosphor-icons/react";
+import { ModelActionButton } from "@/components/model-selector/model-action-button";
 import {
   ModelRow,
   type ModelRowStatus,
+  revealModelFile,
 } from "@/components/model-selector/model-row";
 import { modelActionPresentation } from "@/features/model-download/download-state";
 import type { TranscriptionProfileStatus } from "@/lib/types";
+import { formatModelSize } from "@/lib/utils/format";
 
 const LOADING_STATUS: ModelRowStatus = {
   message: "Loading into memory…",
   tone: "muted",
+};
+
+const rowStatus = (
+  profile: TranscriptionProfileStatus,
+  isDownloading: boolean,
+  isLoading: boolean
+): ModelRowStatus | undefined => {
+  if (isLoading) {
+    return LOADING_STATUS;
+  }
+  if (
+    profile.partial_download_mb === null ||
+    profile.is_downloaded ||
+    isDownloading
+  ) {
+    return;
+  }
+  return {
+    message: `${formatModelSize(profile.partial_download_mb)} of ${formatModelSize(profile.download_size_mb)} downloaded`,
+    tone: "muted",
+  };
 };
 
 interface TranscriptionModelRowProps {
@@ -39,7 +58,10 @@ export const TranscriptionModelRow = ({
   profile,
 }: TranscriptionModelRowProps) => {
   const isDownloading = downloadProgress !== undefined;
+  const hasPartialDownload =
+    profile.partial_download_mb !== null && !profile.is_downloaded;
   const action = modelActionPresentation({
+    hasPartialDownload,
     isActive: profile.is_active,
     isBusy,
     isDownloaded: profile.is_downloaded,
@@ -48,26 +70,11 @@ export const TranscriptionModelRow = ({
   return (
     <ModelRow
       action={
-        action.show ? (
-          <Button
-            disabled={action.disabled}
-            onClick={onSelect}
-            size="sm"
-            tone="primary"
-            variant="solid"
-          >
-            {action.showSpinner ? (
-              <CircleNotchIcon
-                aria-hidden="true"
-                className="mr-1 h-4 w-4 animate-spin"
-              />
-            ) : null}
-            {action.showSpinner || profile.is_downloaded ? null : (
-              <DownloadSimpleIcon aria-hidden="true" className="mr-1 h-4 w-4" />
-            )}
-            {action.label}
-          </Button>
-        ) : null
+        <ModelActionButton
+          action={action}
+          isDownloaded={profile.is_downloaded}
+          onClick={onSelect}
+        />
       }
       badges={
         <>
@@ -84,19 +91,26 @@ export const TranscriptionModelRow = ({
       }
       className={className}
       description={profile.description}
+      diskMb={profile.download_size_mb}
       download={
         isDownloading
           ? { percentage: downloadProgress, speed: downloadSpeed }
           : undefined
       }
       files={
-        profile.is_downloaded && !isDownloading && onDelete
-          ? { disabled: isBusy, modelId: profile.size, onDelete }
+        (profile.is_downloaded || hasPartialDownload) &&
+        !isDownloading &&
+        onDelete
+          ? {
+              disabled: isBusy,
+              onDelete,
+              onReveal: revealModelFile(profile.size),
+            }
           : undefined
       }
-      footprint={profile}
+      memoryMb={profile.memory_mb}
       name={profile.label}
-      status={isLoading ? LOADING_STATUS : undefined}
+      status={rowStatus(profile, isDownloading, isLoading)}
     />
   );
 };

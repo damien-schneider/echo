@@ -12,10 +12,10 @@ import {
   CheckIcon,
   CopyIcon,
   StarIcon,
-  TrashIcon,
 } from "@phosphor-icons/react";
 import type React from "react";
 import { useEffect, useState } from "react";
+import { ConfirmDeleteButton } from "@/components/shared/confirm-delete-button";
 import { AudioPlayer } from "@/components/ui/audio-player";
 export interface HistoryEntry {
   file_name: string;
@@ -45,7 +45,6 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
 }) => {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [showCopied, setShowCopied] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [isRetranscribing, setIsRetranscribing] = useState(false);
   const [isReprocessing, setIsReprocessing] = useState(false);
   useEffect(() => {
@@ -59,19 +58,6 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     onCopyText();
     setShowCopied(true);
     setTimeout(() => setShowCopied(false), 2000);
-  };
-  const handleDeleteClick = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), 3000);
-      return;
-    }
-    try {
-      await deleteAudio(entry.id);
-    } catch (error) {
-      console.error("Failed to delete entry:", error);
-      setConfirmDelete(false);
-    }
   };
   const handleRetranscribe = async () => {
     if (isRetranscribing) {
@@ -188,28 +174,16 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
                 {entry.saved ? "Remove from saved" : "Save transcription"}
               </TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    iconOnly
-                    onClick={handleDeleteClick}
-                    size="xs"
-                    tone={confirmDelete ? "danger" : "neutral"}
-                    variant={confirmDelete ? "ghost" : "surface"}
-                  />
+            <ConfirmDeleteButton
+              label="Delete entry"
+              onDelete={async () => {
+                try {
+                  await deleteAudio(entry.id);
+                } catch (error) {
+                  console.error("Failed to delete entry:", error);
                 }
-              >
-                {confirmDelete ? (
-                  <CheckIcon height={16} width={16} />
-                ) : (
-                  <TrashIcon height={16} width={16} />
-                )}
-              </TooltipTrigger>
-              <TooltipContent>
-                {confirmDelete ? "Click again to confirm" : "Delete entry"}
-              </TooltipContent>
-            </Tooltip>
+              }}
+            />
           </ButtonGroup>
         </TooltipProvider>
       </div>

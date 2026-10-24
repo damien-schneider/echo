@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import {
   ModelRow,
   type ModelRowStatus,
+  revealModelFile,
 } from "@/components/model-selector/model-row";
 import {
   polishModelId,
@@ -126,6 +127,7 @@ export const PolishModelRow = ({
         />
       }
       description={MODEL_USES}
+      diskMb={footprint?.download_size_mb}
       download={
         status.state === "downloading" && progress !== undefined
           ? { percentage: progress }
@@ -133,10 +135,14 @@ export const PolishModelRow = ({
       }
       files={
         status.state === "ready"
-          ? { disabled: false, modelId: polishModelId, onDelete }
+          ? {
+              disabled: false,
+              onDelete,
+              onReveal: revealModelFile(polishModelId),
+            }
           : undefined
       }
-      footprint={footprint}
+      memoryMb={footprint?.memory_mb}
       name={polishModelName}
       status={rowStatus(status)}
     />

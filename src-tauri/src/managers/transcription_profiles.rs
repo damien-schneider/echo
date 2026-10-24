@@ -73,6 +73,13 @@ pub fn transcription_profile_id(size: TranscriptionModelSize) -> &'static str {
         .map_or("medium", |profile| profile.id)
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct ProfileArtifact {
+    pub is_downloaded: bool,
+    pub is_downloading: bool,
+    pub partial_download_mb: Option<u64>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TranscriptionProfileStatus {
     pub description: &'static str,
@@ -83,29 +90,31 @@ pub struct TranscriptionProfileStatus {
     pub is_recommended: bool,
     pub label: &'static str,
     pub memory_mb: u64,
+    pub partial_download_mb: Option<u64>,
     pub size: TranscriptionModelSize,
 }
 
 pub fn transcription_profile_statuses<F>(
     active_size: TranscriptionModelSize,
-    model_state: F,
+    artifact: F,
 ) -> Vec<TranscriptionProfileStatus>
 where
-    F: Fn(&str) -> (bool, bool),
+    F: Fn(&str) -> ProfileArtifact,
 {
     transcription_profiles()
         .iter()
         .map(|profile| {
-            let (is_downloaded, is_downloading) = model_state(profile.id);
+            let artifact = artifact(profile.id);
             TranscriptionProfileStatus {
                 description: profile.description,
                 download_size_mb: profile.size_mb,
                 is_active: profile.size == active_size,
-                is_downloaded,
-                is_downloading,
+                is_downloaded: artifact.is_downloaded,
+                is_downloading: artifact.is_downloading,
                 is_recommended: profile.size == TranscriptionModelSize::default(),
                 label: profile.label,
                 memory_mb: profile.memory_mb,
+                partial_download_mb: artifact.partial_download_mb,
                 size: profile.size,
             }
         })

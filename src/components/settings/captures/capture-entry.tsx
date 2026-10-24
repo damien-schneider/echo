@@ -6,20 +6,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
-import { CheckIcon, CopyIcon, TrashIcon } from "@phosphor-icons/react";
+import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
+import { ConfirmDeleteButton } from "@/components/shared/confirm-delete-button";
 import type { Capture } from "@/lib/types";
 
 const COPIED_FEEDBACK_MS = 2000;
-const DELETE_CONFIRM_MS = 3000;
 interface CaptureEntryProps {
   capture: Capture;
   onDelete: (id: number) => Promise<void>;
 }
 export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
   const [showCopied, setShowCopied] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(capture.content);
@@ -27,19 +26,6 @@ export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
       setTimeout(() => setShowCopied(false), COPIED_FEEDBACK_MS);
     } catch (error) {
       console.error("Failed to copy the capture:", error);
-    }
-  };
-  const handleDelete = async () => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      setTimeout(() => setConfirmDelete(false), DELETE_CONFIRM_MS);
-      return;
-    }
-    try {
-      await onDelete(capture.id);
-    } catch (error) {
-      console.error("Failed to delete the capture:", error);
-      setConfirmDelete(false);
     }
   };
   return (
@@ -78,28 +64,16 @@ export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
                 {showCopied ? "Copied!" : "Copy text"}
               </TooltipContent>
             </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    iconOnly
-                    onClick={handleDelete}
-                    size="xs"
-                    tone={confirmDelete ? "danger" : "neutral"}
-                    variant={confirmDelete ? "ghost" : "surface"}
-                  />
+            <ConfirmDeleteButton
+              label="Delete capture"
+              onDelete={async () => {
+                try {
+                  await onDelete(capture.id);
+                } catch (error) {
+                  console.error("Failed to delete the capture:", error);
                 }
-              >
-                {confirmDelete ? (
-                  <CheckIcon height={16} width={16} />
-                ) : (
-                  <TrashIcon height={16} width={16} />
-                )}
-              </TooltipTrigger>
-              <TooltipContent>
-                {confirmDelete ? "Click again to confirm" : "Delete capture"}
-              </TooltipContent>
-            </Tooltip>
+              }}
+            />
           </ButtonGroup>
         </TooltipProvider>
       </div>
