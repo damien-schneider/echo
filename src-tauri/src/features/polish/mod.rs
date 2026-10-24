@@ -3,6 +3,7 @@ pub(crate) mod app_exit;
 pub(crate) mod chat_context;
 #[path = "lifecycle/idle_release.rs"]
 pub(crate) mod idle_release;
+pub(crate) mod local_completion;
 pub(crate) mod manager;
 mod platform;
 mod policy;

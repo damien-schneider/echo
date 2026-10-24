@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-use crate::actions::{sanitize_dictation_output, FINALIZE_DONE, OPERATION_GENERATION};
+use crate::actions::{claim_finalize, sanitize_dictation_output, OPERATION_GENERATION};
 use crate::managers::history::HistoryManager;
 use crate::managers::tts::TtsManager;
 use crate::overlay::show_tool_overlay;
@@ -216,15 +216,14 @@ pub async fn finalize_transcription(
     tool_message: Option<String>,
     post_process_prompt: Option<String>,
 ) -> Result<(), String> {
-    // stale-skip still counts as handled — the watchdog must not clobber a UI the frontend already answered for
-    FINALIZE_DONE.store(op_generation, Ordering::SeqCst);
+    let claimed = claim_finalize(op_generation);
 
     // Stashed by the stop flow; the webview never carries the raw buffer. Taken before the stale
     // check so an abandoned generation releases it instead of pinning it until the next dictation.
     let audio_samples = crate::actions::take_pending_audio(op_generation);
 
-    if OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
-        debug!("finalize_transcription: stale op_generation, skipping");
+    if !claimed || OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
+        debug!("finalize_transcription: stale or already delivered op_generation, skipping");
         return Ok(());
     }
 

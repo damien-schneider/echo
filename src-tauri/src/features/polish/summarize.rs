@@ -12,7 +12,7 @@ impl PolishManager {
     pub(crate) async fn summarize(&self, system: &str, prompt: &str) -> Result<String> {
         if !self.is_downloaded() {
             anyhow::bail!(
-                "Download the local Echo model in Settings → AI to summarize on this machine, \
+                "Download the local Echo model in Settings → Models to summarize on this machine, \
                  or switch the meeting summary engine to a cloud provider."
             );
         }

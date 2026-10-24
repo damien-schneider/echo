@@ -129,6 +129,8 @@ const settingUpdaters: {
     invoke("change_polish_level_setting", { level: value }),
   post_process_enabled: (value) =>
     invoke("change_post_process_enabled_setting", { enabled: value }),
+  post_process_engine: (value) =>
+    invoke("change_post_process_engine_setting", { engine: value }),
   post_process_selected_prompt_id: (value) =>
     invoke("set_post_process_selected_prompt", { id: value }),
   push_to_talk: (value) => invoke("change_ptt_setting", { enabled: value }),

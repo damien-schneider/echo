@@ -82,8 +82,8 @@ export const ClipboardHandlingSchema = z.enum([
 ]);
 export type ClipboardHandling = z.infer<typeof ClipboardHandlingSchema>;
 
-export const MeetingSummaryEngineSchema = z.enum(["local", "cloud"]);
-export type MeetingSummaryEngine = z.infer<typeof MeetingSummaryEngineSchema>;
+export const LlmEngineSchema = z.enum(["local", "cloud"]);
+export type LlmEngine = z.infer<typeof LlmEngineSchema>;
 
 export const PolishLevelSchema = z.enum(["correct", "natural", "clear"]);
 export type PolishLevel = z.infer<typeof PolishLevelSchema>;
@@ -161,8 +161,7 @@ export const SettingsSchema = z.object({
   log_level: z.number().int().min(1).max(5).optional().default(2),
   meeting_auto_summary: z.boolean().optional().default(false),
   meeting_chunk_duration_secs: z.number().optional().default(30),
-  meeting_summary_engine:
-    MeetingSummaryEngineSchema.optional().default("local"),
+  meeting_summary_engine: LlmEngineSchema.optional().default("local"),
   meeting_system_audio_enabled: z.boolean().optional().default(false),
   mute_while_recording: z.boolean().optional().default(false),
   overlay_dock_edge: OverlayDockEdgeSchema.optional().default("right"),
@@ -175,6 +174,7 @@ export const SettingsSchema = z.object({
     .optional()
     .default({}),
   post_process_enabled: z.boolean().optional().default(false),
+  post_process_engine: LlmEngineSchema.optional().default("local"),
   post_process_models: z.record(z.string(), z.string()).optional().default({}),
   post_process_prompts: z.array(LLMPromptSchema).optional().default([]),
   post_process_provider_id: z.string().optional().default("openai"),

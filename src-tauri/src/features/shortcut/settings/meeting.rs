@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 use crate::settings;
-use crate::settings::MeetingSummaryEngine;
+use crate::settings::LlmEngine;
 
 #[tauri::command]
 pub fn change_meeting_system_audio_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
@@ -18,7 +18,7 @@ pub fn change_meeting_system_audio_setting(app: AppHandle, enabled: bool) -> Res
 #[tauri::command]
 pub fn change_meeting_summary_engine_setting(
     app: AppHandle,
-    engine: MeetingSummaryEngine,
+    engine: LlmEngine,
 ) -> Result<(), String> {
     settings::update_settings(&app, |s| {
         s.meeting_summary_engine = engine;

@@ -235,7 +235,7 @@ impl PolishRuntime {
         }
     }
 
-    async fn endpoint_auth(&self, endpoint: &str) -> Result<(String, String)> {
+    pub(super) async fn endpoint_auth(&self, endpoint: &str) -> Result<(String, String)> {
         self.activity.touch();
         self.ensure_ready().await?;
         let process = self.process.lock().await;

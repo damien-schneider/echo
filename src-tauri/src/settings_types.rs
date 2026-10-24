@@ -112,10 +112,10 @@ pub enum ClipboardHandling {
     CopyToClipboard,
 }
 
-/// Local by default: a meeting transcript is the most private thing this app holds.
+/// Local by default: dictations and meeting transcripts stay on this machine unless the user opts out.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum MeetingSummaryEngine {
+pub enum LlmEngine {
     #[default]
     Local,
     Cloud,
@@ -265,6 +265,8 @@ pub struct AppSettings {
     pub post_process_api_keys: HashMap<String, String>,
     #[serde(default)]
     pub post_process_enabled: bool,
+    #[serde(default)]
+    pub post_process_engine: LlmEngine,
     #[serde(default = "default_post_process_models")]
     pub post_process_models: HashMap<String, String>,
     #[serde(default = "default_post_process_prompts")]
@@ -289,7 +291,7 @@ pub struct AppSettings {
     #[serde(default)]
     pub meeting_auto_summary: bool,
     #[serde(default)]
-    pub meeting_summary_engine: MeetingSummaryEngine,
+    pub meeting_summary_engine: LlmEngine,
     #[serde(default = "default_meeting_chunk_duration_secs")]
     pub meeting_chunk_duration_secs: u32,
     /// Qwen 2.5 1.5B GGUF; defaults off (privacy).

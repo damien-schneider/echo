@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { replaceMentionOutputInMarkdown } from "./replace-mention-output";
 
+const TEMPLATE_PLACEHOLDER = ["$", "{output}"].join("");
+
 describe("replaceMentionOutputInMarkdown", () => {
   describe("remarkMention link format [text](mention:output)", () => {
     it("should replace [output](mention:output) with transcript", () => {
@@ -112,6 +114,21 @@ describe("replaceMentionOutputInMarkdown", () => {
       const markdown = "Link: [output](mention:output) and legacy: @output";
       const result = replaceMentionOutputInMarkdown(markdown, "REPLACED");
       expect(result).toBe("Link: REPLACED and legacy: REPLACED");
+    });
+
+    it("fills the template placeholder and keeps $ patterns from the transcript literal", () => {
+      const markdown = `Clean this transcript:\n${TEMPLATE_PLACEHOLDER}`;
+      const result = replaceMentionOutputInMarkdown(
+        markdown,
+        "It costs $1, not $& or $$"
+      );
+      expect(result).toBe("Clean this transcript:\nIt costs $1, not $& or $$");
+    });
+
+    it("does not fill placeholders that appear inside the transcript", () => {
+      const markdown = `[output](mention:output) then ${TEMPLATE_PLACEHOLDER}`;
+      const result = replaceMentionOutputInMarkdown(markdown, "ping @output");
+      expect(result).toBe("ping @output then ping @output");
     });
   });
 

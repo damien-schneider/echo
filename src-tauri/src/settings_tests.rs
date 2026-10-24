@@ -356,10 +356,56 @@ mod tests {
         let (expected_transcribe, expected_polish) = if cfg!(debug_assertions) {
             (dev_default_shortcut(), dev_default_polish_shortcut())
         } else {
-            (release_default_shortcut(), release_default_polish_shortcut())
+            (
+                release_default_shortcut(),
+                release_default_polish_shortcut(),
+            )
         };
 
         assert_eq!(get_default_shortcut(), expected_transcribe);
         assert_eq!(get_default_polish_shortcut(), expected_polish);
+    }
+
+    fn store_saved_before_local_post_processing(
+        provider_model: &str,
+    ) -> (AppSettings, serde_json::Value) {
+        let mut settings = get_default_settings();
+        settings.post_process_models.insert(
+            settings.post_process_provider_id.clone(),
+            provider_model.to_string(),
+        );
+        let mut raw = serde_json::to_value(&settings).unwrap();
+        raw.as_object_mut().unwrap().remove("post_process_engine");
+        (settings, raw)
+    }
+
+    #[test]
+    fn a_provider_model_set_up_before_local_post_processing_stays_in_use() {
+        let (mut settings, raw) = store_saved_before_local_post_processing("gpt-4o-mini");
+
+        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
+
+        assert_eq!(settings.post_process_engine, LlmEngine::Cloud);
+    }
+
+    #[test]
+    fn a_store_without_a_provider_model_post_processes_on_this_machine() {
+        let (mut settings, raw) = store_saved_before_local_post_processing("");
+        settings.post_process_engine = LlmEngine::Cloud;
+
+        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
+
+        assert_eq!(settings.post_process_engine, LlmEngine::Local);
+    }
+
+    #[test]
+    fn a_chosen_post_process_engine_survives_later_migrations() {
+        let mut settings = get_default_settings();
+        settings.post_process_engine = LlmEngine::Cloud;
+        let raw = serde_json::to_value(&settings).unwrap();
+
+        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
+
+        assert_eq!(settings.post_process_engine, LlmEngine::Cloud);
     }
 }

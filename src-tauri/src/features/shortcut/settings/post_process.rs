@@ -1,6 +1,6 @@
 use tauri::AppHandle;
 
-use crate::settings::{self, LLMPrompt};
+use crate::settings::{self, LLMPrompt, LlmEngine};
 
 fn validate_provider_exists(
     settings: &settings::AppSettings,
@@ -374,6 +374,14 @@ pub fn change_voice_commands_enabled_setting(app: AppHandle, enabled: bool) -> R
 pub fn change_post_process_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     settings::update_settings(&app, |s| {
         s.post_process_enabled = enabled;
+    });
+    Ok(())
+}
+
+#[tauri::command]
+pub fn change_post_process_engine_setting(app: AppHandle, engine: LlmEngine) -> Result<(), String> {
+    settings::update_settings(&app, |s| {
+        s.post_process_engine = engine;
     });
     Ok(())
 }

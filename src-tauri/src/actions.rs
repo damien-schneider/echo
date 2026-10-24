@@ -10,7 +10,7 @@ use crate::overlay::{
     mark_recording_live, show_model_required_overlay, show_preparing_overlay,
     show_transcribing_overlay, show_warning_overlay,
 };
-use crate::settings::{get_settings, AppSettings};
+use crate::settings::{get_settings, AppSettings, LlmEngine};
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils;
 use crate::ManagedToggleState;
@@ -108,6 +108,7 @@ async fn apply_end_of_recording_action(
             let payload = serde_json::json!({
                 "transcription": transcription.clone(),
                 "op_generation": gen,
+                "post_process_timeout_ms": POST_PROCESS_FRONTEND_BUDGET.as_millis(),
             });
             match ah.emit("transcription-ready", payload) {
                 Ok(()) => {
@@ -152,7 +153,7 @@ fn arm_finalize_watchdog(ah: AppHandle, gen: u64, raw: String) {
         if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
             return;
         }
-        if FINALIZE_DONE.load(Ordering::SeqCst) == gen {
+        if !claim_finalize(gen) {
             return;
         }
         warn!(
@@ -296,8 +297,17 @@ pub fn apply_post_process_preference(
 /// Bumps on every accepted start, stop, or cancel so stale work cannot mutate UI.
 pub(crate) static OPERATION_GENERATION: AtomicU64 = AtomicU64::new(0);
 
-/// Set by voice_tools::finalize_transcription on every exit path.
-pub static FINALIZE_DONE: AtomicU64 = AtomicU64::new(0);
+/// Highest generation already delivered by `finalize_transcription` or the watchdog.
+static FINALIZE_CLAIMED: AtomicU64 = AtomicU64::new(0);
+
+/// First claim wins, so a model answering after the watchdog's raw paste cannot paste again.
+pub(crate) fn claim_finalize(gen: u64) -> bool {
+    claim_generation(&FINALIZE_CLAIMED, gen)
+}
+
+fn claim_generation(claimed: &AtomicU64, gen: u64) -> bool {
+    claimed.fetch_max(gen, Ordering::SeqCst) < gen
+}
 
 /// Recorded audio waiting for `finalize_transcription`, kept here instead of sent through the webview.
 /// Holds one dictation at most: a new stash replaces the previous, so an abandoned round-trip cannot pile up.
@@ -331,6 +341,9 @@ pub(crate) fn take_pending_audio(generation: u64) -> Vec<f32> {
 }
 
 pub const POST_PROCESS_WATCHDOG: Duration = Duration::from_secs(30);
+/// Leaves the frontend time to finalize before the watchdog pastes the raw text instead.
+const POST_PROCESS_FRONTEND_BUDGET: Duration =
+    POST_PROCESS_WATCHDOG.saturating_sub(Duration::from_secs(3));
 
 /// Last resort above the inner per-join budgets (~3s) — past it the audio path is abandoned so the UI can't stick.
 pub const STOP_RECORDING_CEILING: Duration = Duration::from_secs(10);
@@ -658,6 +671,11 @@ impl ShortcutAction for TranscribeAction {
         );
 
         let settings = get_settings(app);
+        if settings.post_process_enabled && settings.post_process_engine == LlmEngine::Local {
+            if let Some(polish) = app.try_state::<Arc<PolishManager>>() {
+                polish.inner().warm_up_for_post_processing();
+            }
+        }
         let is_always_on = settings.always_on_microphone;
         debug!("Microphone mode - always_on: {}", is_always_on);
 
@@ -934,12 +952,13 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 #[cfg(test)]
 mod decision_tests {
     use super::{
-        apply_post_process_preference, decide_end_of_recording, is_current_operation,
-        should_apply_start_feedback, transcribe_recording, EndOfRecordingAction, TranscribedText,
+        apply_post_process_preference, claim_generation, decide_end_of_recording,
+        is_current_operation, should_apply_start_feedback, transcribe_recording,
+        EndOfRecordingAction, TranscribedText,
     };
     use crate::managers::audio::RecordedDictation;
     use crate::managers::transcription::TranscribeError;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
     fn cleaned(text: &str) -> TranscribedText {
         TranscribedText {
@@ -1264,6 +1283,32 @@ mod decision_tests {
         assert!(is_current_operation(7, 7));
         assert!(!is_current_operation(8, 7));
     }
+
+    #[test]
+    fn a_dictation_is_delivered_once_whoever_answers_first() {
+        let claimed = AtomicU64::new(0);
+
+        assert!(
+            claim_generation(&claimed, 5),
+            "the watchdog pastes the raw text"
+        );
+        assert!(
+            !claim_generation(&claimed, 5),
+            "the model answering late pastes nothing"
+        );
+        assert!(
+            !claim_generation(&claimed, 4),
+            "an older dictation stays closed"
+        );
+        assert!(
+            !claim_generation(&claimed, 5),
+            "a stale claim cannot reopen the newer one"
+        );
+        assert!(
+            claim_generation(&claimed, 6),
+            "the next dictation delivers normally"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1296,96 +1341,6 @@ mod pending_audio_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::settings::{get_default_settings, LLMPrompt};
-
-    fn settings_with_post_process() -> AppSettings {
-        let mut s = get_default_settings();
-        s.post_process_enabled = true;
-        s.post_process_provider_id = "ollama".to_string();
-        s.post_process_models
-            .insert("ollama".to_string(), "llama3".to_string());
-        s.post_process_prompts = vec![LLMPrompt {
-            id: "test_prompt".to_string(),
-            name: "Test".to_string(),
-            prompt: "Fix this: ${output}".to_string(),
-        }];
-        s.post_process_selected_prompt_id = Some("test_prompt".to_string());
-        s
-    }
-
-    fn should_skip_post_process(settings: &AppSettings) -> bool {
-        if !settings.post_process_enabled {
-            return true;
-        }
-        if settings.active_post_process_provider().is_none() {
-            return true;
-        }
-        let provider = settings.active_post_process_provider().unwrap();
-        let model = settings
-            .post_process_models
-            .get(&provider.id)
-            .cloned()
-            .unwrap_or_default();
-        if model.trim().is_empty() {
-            return true;
-        }
-        if settings.post_process_selected_prompt_id.is_none() {
-            return true;
-        }
-        let prompt_id = settings.post_process_selected_prompt_id.as_ref().unwrap();
-        let prompt = settings
-            .post_process_prompts
-            .iter()
-            .find(|p| &p.id == prompt_id);
-        !matches!(prompt, Some(p) if !p.prompt.trim().is_empty())
-    }
-
-    #[test]
-    fn disabled_returns_empty() {
-        let mut s = settings_with_post_process();
-        s.post_process_enabled = false;
-        assert!(should_skip_post_process(&s), "Should skip when disabled");
-    }
-
-    #[test]
-    fn no_provider_returns_empty() {
-        let mut s = settings_with_post_process();
-        s.post_process_provider_id = "nonexistent_provider".to_string();
-        assert!(
-            should_skip_post_process(&s),
-            "Should skip when provider is invalid"
-        );
-    }
-
-    #[test]
-    fn no_model_returns_empty() {
-        let mut s = settings_with_post_process();
-        s.post_process_models
-            .insert("ollama".to_string(), "".to_string());
-        assert!(
-            should_skip_post_process(&s),
-            "Should skip when model is empty"
-        );
-    }
-
-    #[test]
-    fn no_prompt_returns_empty() {
-        let mut s = settings_with_post_process();
-        s.post_process_selected_prompt_id = None;
-        assert!(
-            should_skip_post_process(&s),
-            "Should skip when no prompt is selected"
-        );
-    }
-
-    #[test]
-    fn valid_settings_should_not_skip() {
-        let s = settings_with_post_process();
-        assert!(
-            !should_skip_post_process(&s),
-            "Should not skip with valid settings"
-        );
-    }
 
     #[test]
     fn missing_model_requires_an_explicit_settings_download() {

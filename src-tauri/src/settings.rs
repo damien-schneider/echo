@@ -67,6 +67,7 @@ pub fn get_default_settings() -> AppSettings {
         post_process_providers: default_post_process_providers(),
         post_process_api_keys: default_post_process_api_keys(),
         post_process_enabled: false,
+        post_process_engine: LlmEngine::default(),
         post_process_models: default_post_process_models(),
         post_process_prompts: default_post_process_prompts(),
         post_process_selected_prompt_id: None,
@@ -78,7 +79,7 @@ pub fn get_default_settings() -> AppSettings {
         tts_enabled: false,
         meeting_system_audio_enabled: false,
         meeting_auto_summary: false,
-        meeting_summary_engine: MeetingSummaryEngine::default(),
+        meeting_summary_engine: LlmEngine::default(),
         meeting_chunk_duration_secs: default_meeting_chunk_duration_secs(),
         cleanup_enabled: default_cleanup_enabled(),
         cleanup_app_context_enabled: default_cleanup_app_context_enabled(),
@@ -152,11 +153,32 @@ fn migrate_shortcuts_to_profile_defaults(settings: &mut AppSettings) -> bool {
     updated
 }
 
+/// Stores saved before post-processing ran on this machine keep the provider model their user set up.
+fn migrate_post_process_engine(
+    settings: &mut AppSettings,
+    raw_settings: Option<&serde_json::Value>,
+) -> bool {
+    if raw_settings.is_some_and(|raw| raw.get("post_process_engine").is_some()) {
+        return false;
+    }
+    let has_provider_model = settings
+        .active_post_process_provider()
+        .and_then(|provider| settings.post_process_models.get(&provider.id))
+        .is_some_and(|model| !model.trim().is_empty());
+    settings.post_process_engine = if has_provider_model {
+        LlmEngine::Cloud
+    } else {
+        LlmEngine::Local
+    };
+    true
+}
+
 fn apply_settings_migrations_from_raw(
     settings: &mut AppSettings,
     raw_settings: Option<&serde_json::Value>,
 ) -> bool {
     let mut updated = migrate_shortcuts_to_profile_defaults(settings);
+    updated |= migrate_post_process_engine(settings, raw_settings);
 
     let has_transcription_model_size = raw_settings
         .and_then(|raw| raw.get("transcription_model_size"))

@@ -1,7 +1,10 @@
-import { generateText, type StepResult, stepCountIs } from "ai";
+import { generateText, type LanguageModel } from "ai";
 import type { Settings } from "@/lib/types";
+import { replaceMentionOutputInMarkdown } from "@/lib/utils/replace-mention-output";
+import { localLlmModel } from "./local-model";
+import { voiceCommandSystemPrompt } from "./post-process-prompt";
 import { createLlmModel } from "./providers";
-import { voiceTools } from "./tools";
+import { runVoiceTool, type VoiceToolCall, voiceTools } from "./tools";
 
 const POST_PROCESS_RESULT_KINDS = {
   empty: "empty",
@@ -18,148 +21,161 @@ export interface PostProcessResult {
   toolMessage?: string;
 }
 
-const MAX_TOOL_STEPS = 5;
+interface PostProcessRequest {
+  abortSignal?: AbortSignal;
+  model: LanguageModel;
+  temperature?: number;
+}
 
-// Mirrors Rust `maybe_post_process_transcription`. Tool-loop max 5 steps.
-export async function runPostProcess(
-  transcription: string,
-  settings: Settings
-): Promise<PostProcessResult> {
-  if (!settings.post_process_enabled) {
-    return { content: transcription, kind: "empty" };
+const unchanged = (transcription: string): PostProcessResult => ({
+  content: transcription,
+  kind: POST_PROCESS_RESULT_KINDS.empty,
+});
+
+const textResult = (text: string, transcription: string): PostProcessResult => {
+  const trimmed = text.trim();
+  return trimmed
+    ? { content: trimmed, kind: POST_PROCESS_RESULT_KINDS.text }
+    : unchanged(transcription);
+};
+
+function resolvePostProcessRequest(
+  settings: Settings,
+  abortSignal: AbortSignal | undefined
+): PostProcessRequest | null {
+  if (settings.post_process_engine === "local") {
+    return { abortSignal, model: localLlmModel, temperature: 0 };
   }
-
   const provider = settings.post_process_providers.find(
     (p) => p.id === settings.post_process_provider_id
   );
-  if (!provider) {
-    return { content: transcription, kind: "empty" };
+  const modelId = provider
+    ? (settings.post_process_models[provider.id] ?? "")
+    : "";
+  if (!(provider && modelId.trim())) {
+    return null;
   }
+  const apiKey = settings.post_process_api_keys[provider.id] ?? "";
+  return { abortSignal, model: createLlmModel(provider, apiKey, modelId) };
+}
 
-  const model = settings.post_process_models[provider.id] ?? "";
-  if (!model.trim()) {
-    return { content: transcription, kind: "empty" };
+export async function runPostProcess(
+  transcription: string,
+  settings: Settings,
+  abortSignal?: AbortSignal
+): Promise<PostProcessResult> {
+  if (!settings.post_process_enabled) {
+    return unchanged(transcription);
   }
-
-  const selectedPromptId = settings.post_process_selected_prompt_id;
-  if (!selectedPromptId) {
-    return { content: transcription, kind: "empty" };
-  }
-
   const promptConfig = settings.post_process_prompts.find(
-    (p) => p.id === selectedPromptId
+    (p) => p.id === settings.post_process_selected_prompt_id
   );
   if (!promptConfig?.prompt.trim()) {
-    return { content: transcription, kind: "empty" };
+    return unchanged(transcription);
   }
+  const request = resolvePostProcessRequest(settings, abortSignal);
+  if (!request) {
+    return unchanged(transcription);
+  }
+  if (settings.voice_commands_enabled) {
+    return await runWithVoiceCommands(
+      request,
+      promptConfig.prompt,
+      transcription
+    );
+  }
+  return await runWithoutTools(request, promptConfig.prompt, transcription);
+}
 
-  const apiKey = settings.post_process_api_keys[provider.id] ?? "";
-  const llmModel = createLlmModel(provider, apiKey, model);
+interface VoiceCommandAnswer {
+  calls: VoiceToolCall[];
+  text: string;
+}
 
-  const mentionRegex = /\[[^\]]*\]\(mention:output\)/g;
-  const outputPlaceholder = ["$", "{output}"].join("");
-  const processedPrompt = promptConfig.prompt
-    .replace(mentionRegex, transcription)
-    .replace(outputPlaceholder, transcription)
-    .replace("@output", transcription);
+async function requestWithVoiceTools(
+  request: PostProcessRequest,
+  textInstructions: string,
+  transcription: string
+): Promise<VoiceCommandAnswer> {
+  const result = await generateText({
+    ...request,
+    messages: [{ content: transcription, role: "user" }],
+    system: voiceCommandSystemPrompt(textInstructions),
+    tools: voiceTools,
+  });
+  return {
+    calls: distinctToolCalls(result.staticToolCalls),
+    text: result.text,
+  };
+}
 
-  const useTools = settings.voice_commands_enabled ?? false;
+async function runWithVoiceCommands(
+  request: PostProcessRequest,
+  textInstructions: string,
+  transcription: string
+): Promise<PostProcessResult> {
+  let answer: VoiceCommandAnswer;
+  try {
+    answer = await requestWithVoiceTools(
+      request,
+      textInstructions,
+      transcription
+    );
+  } catch (error) {
+    console.warn(
+      "[Post-Process] Request with tools failed, retrying without tools:",
+      error
+    );
+    return runWithoutTools(request, textInstructions, transcription);
+  }
+  if (answer.calls.length === 0) {
+    return textResult(answer.text, transcription);
+  }
+  let toolMessage = "";
+  for (const call of answer.calls) {
+    toolMessage = (await runVoiceTool(call)).display_message;
+  }
+  return {
+    content: toolMessage,
+    kind: POST_PROCESS_RESULT_KINDS.tool,
+    toolMessage,
+  };
+}
 
-  if (useTools) {
-    // System message: routing + text-processing. User message: raw transcription.
-    const systemContent = `You are a voice assistant that processes speech transcriptions. \
-You have two roles:
-1. **Voice commands**: If the user's speech is clearly a command \
-(e.g. "open Safari", "create a note called ...", "change the sound theme"), \
-use the appropriate tool. Do NOT output any text when executing a tool.
-2. **Text processing**: If the speech is regular dictated text, \
-apply the following instructions and return only the processed text \
-with no extra commentary.
-
---- Text processing instructions ---
-${promptConfig.prompt}`;
-
-    try {
-      const result = await generateText({
-        messages: [{ content: transcription, role: "user" }],
-        model: llmModel,
-        stopWhen: stepCountIs(MAX_TOOL_STEPS),
-        system: systemContent,
-        tools: voiceTools,
-      });
-
-      return interpretResult(result.steps, transcription);
-    } catch (error) {
-      // Retry without tools for providers lacking function-calling.
-      console.warn(
-        "[Post-Process] Request with tools failed, retrying without tools:",
-        error
-      );
-      return runWithoutTools(llmModel, processedPrompt, transcription);
+/** A repeated identical call would run twice, and cycling the sound theme twice lands elsewhere. */
+function distinctToolCalls(calls: VoiceToolCall[]): VoiceToolCall[] {
+  const seen = new Set<string>();
+  return calls.filter((call) => {
+    const key = `${call.toolName}:${JSON.stringify(call.input)}`;
+    if (seen.has(key)) {
+      return false;
     }
-  }
-
-  return runWithoutTools(llmModel, processedPrompt, transcription);
+    seen.add(key);
+    return true;
+  });
 }
 
 async function runWithoutTools(
-  model: ReturnType<typeof createLlmModel>,
-  prompt: string,
-  originalTranscription: string
+  request: PostProcessRequest,
+  textInstructions: string,
+  transcription: string
 ): Promise<PostProcessResult> {
   try {
     const result = await generateText({
-      messages: [{ content: prompt, role: "user" }],
-      model,
+      ...request,
+      messages: [
+        {
+          content: replaceMentionOutputInMarkdown(
+            textInstructions,
+            transcription
+          ),
+          role: "user",
+        },
+      ],
     });
-
-    const text = result.text.trim();
-    if (text) {
-      return { content: text, kind: "text" };
-    }
-    return { content: originalTranscription, kind: "empty" };
+    return textResult(result.text, transcription);
   } catch (error) {
     console.error("[Post-Process] LLM request failed:", error);
-    return { content: originalTranscription, kind: "empty" };
+    return unchanged(transcription);
   }
-}
-
-// Tools called → "tool" + last message. Otherwise final text response.
-function interpretResult(
-  steps: StepResult<typeof voiceTools>[],
-  originalTranscription: string
-): PostProcessResult {
-  let lastToolMessage = "";
-
-  for (const step of steps) {
-    if (step.toolResults && step.toolResults.length > 0) {
-      for (const toolResult of step.toolResults) {
-        if (
-          toolResult.output &&
-          typeof toolResult.output === "object" &&
-          "display_message" in toolResult.output
-        ) {
-          lastToolMessage = (toolResult.output as { display_message: string })
-            .display_message;
-        }
-      }
-    }
-  }
-
-  const lastStep = steps.at(-1);
-  const finalText = lastStep?.text?.trim() ?? "";
-
-  if (lastToolMessage) {
-    return {
-      content: finalText || lastToolMessage,
-      kind: "tool",
-      toolMessage: lastToolMessage,
-    };
-  }
-
-  if (finalText) {
-    return { content: finalText, kind: "text" };
-  }
-
-  return { content: originalTranscription, kind: "empty" };
 }

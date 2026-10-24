@@ -5,6 +5,7 @@ import { runPostProcess } from "./post-process";
 
 interface TranscriptionReadyPayload {
   op_generation: number;
+  post_process_timeout_ms: number;
   transcription: string;
 }
 
@@ -15,7 +16,8 @@ export function mountTranscriptionBridge(
   return listen<TranscriptionReadyPayload>(
     "transcription-ready",
     async (event) => {
-      const { transcription, op_generation } = event.payload;
+      const { transcription, op_generation, post_process_timeout_ms } =
+        event.payload;
 
       const settings = getSettings();
       if (!settings) {
@@ -33,7 +35,11 @@ export function mountTranscriptionBridge(
 
       // On post-process error: still finalize with raw text so watchdog doesn't fire + overlay recovers.
       try {
-        const result = await runPostProcess(transcription, settings);
+        const result = await runPostProcess(
+          transcription,
+          settings,
+          AbortSignal.timeout(post_process_timeout_ms)
+        );
 
         let postProcessPrompt: string | null = null;
         if (

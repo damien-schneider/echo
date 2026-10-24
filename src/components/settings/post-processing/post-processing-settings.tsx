@@ -1,5 +1,6 @@
 import { Switch } from "@ctrl-ui/react/ui/switch";
 import { PostProcessingSettingsApi } from "@/components/settings/post-processing/post-processing-api-settings";
+import { PostProcessingEngineSettings } from "@/components/settings/post-processing/post-processing-engine";
 import { PostProcessingSettingsPrompts } from "@/components/settings/post-processing/prompt-settings";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
@@ -15,7 +16,7 @@ const PostProcessingEnableToggle = () => {
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="Refine transcriptions with an AI provider and a prompt."
+      description="Refine transcriptions with a prompt, and run voice commands."
       title="Post-process transcriptions"
     >
       <Switch
@@ -32,11 +33,10 @@ export const PostProcessingSettings = () => (
   <div className="space-y-5">
     <SettingsSection title="General">
       <PostProcessingEnableToggle />
+      <PostProcessingEngineSettings />
     </SettingsSection>
 
-    <SettingsSection title="AI provider">
-      <PostProcessingSettingsApi />
-    </SettingsSection>
+    <PostProcessingSettingsApi />
 
     <SettingsSection title="Prompt">
       <PostProcessingSettingsPrompts />

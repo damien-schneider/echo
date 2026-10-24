@@ -2,9 +2,16 @@
 
 ## [Unreleased]
 
+### Added
+- Post-processing and voice commands run on Echo 4B, the on-device model (a one-time 2.5 GB download, offered on the Post-processing page), so turning them on no longer needs an AI provider. "Post-process in the cloud" switches back to the configured provider, and setups that already had a provider model keep using it.
+
 ### Fixed
 - Quitting Echo, or restarting it into an update, no longer ends in "Echo quit unexpectedly" while a speech model is loaded.
 - Clicking Polish or chat on the island, or clicking into chat to send a new message, no longer pulls focus from the app being worked in, so its selected text stays selected and reaches Polish and chat.
+- A dictation that only mentions a note or a theme, such as "note de frais", is pasted as text instead of triggering a voice command, and no longer comes out as raw tool-call text.
+- A slow post-processing answer no longer pastes the dictation twice, or runs a voice command after the raw text was already pasted.
+- A voice command runs once, even when the model asks for it twice.
+- A dictation containing "$$" or "$&" reaches post-processing unchanged instead of being rewritten by the prompt template.
 
 ## [0.8.8] - 2026-10-24
 
