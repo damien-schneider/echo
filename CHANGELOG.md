@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.8.13] - 2026-10-24
 
 ### Added
 - The Models page has a Meetings section with Voxtral Realtime (2.8 GB) and Speaker detection (470 MB). Each row shows its disk size and downloads from there; once downloaded it has buttons to show its file in Finder and to delete it. On a Mac that can't run Voxtral Realtime, its row says it needs an Apple Silicon Mac with 16 GB of memory instead of offering a download.
