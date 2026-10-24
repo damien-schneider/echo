@@ -191,15 +191,6 @@ async fn download_and_install(
         .map_err(describe_error)
 }
 
-/// Windows hands off to its installer — this only runs where the bundle was swapped in place.
-fn restart(app: &AppHandle) -> Result<(), String> {
-    let handle = app.clone();
-    app.run_on_main_thread(move || {
-        handle.restart();
-    })
-    .map_err(|error| error.to_string())
-}
-
 pub(crate) async fn install(app: &AppHandle) -> Result<(), String> {
     let manager = manager(app);
     if manager.snapshot().phase.is_busy() {
@@ -222,10 +213,8 @@ pub(crate) async fn install(app: &AppHandle) -> Result<(), String> {
         Ok(()) => {
             info!("[Updates] Installed version {}", update.version);
             manager.set_pending(None);
-            if let Err(error) = restart(app) {
-                warn!("[Updates] Failed to restart into the new version: {error}");
-                manager.transition(app, |_| UpdateSnapshot::awaiting_restart());
-            }
+            // Windows hands off to its installer — this only runs where the bundle was swapped in place.
+            app.request_restart();
             Ok(())
         }
         Err(error) => {

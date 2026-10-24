@@ -84,16 +84,6 @@ impl UpdateSnapshot {
         }
     }
 
-    /// Bundle already swapped — retrying would reinstall it.
-    pub(crate) fn awaiting_restart() -> Self {
-        Self {
-            error: Some("Update installed. Restart Echo to finish.".to_string()),
-            phase: UpdatePhase::Error,
-            progress: None,
-            version: None,
-        }
-    }
-
     /// A failure keeps the version so the notice stays actionable as a retry.
     pub(crate) fn failed(&self, error: String) -> Self {
         Self {
@@ -179,18 +169,6 @@ mod tests {
         assert_eq!(
             failed.error.as_deref(),
             Some("Could not reach the update server.")
-        );
-    }
-
-    #[test]
-    fn an_installed_update_that_cannot_restart_offers_no_retry() {
-        let waiting = UpdateSnapshot::awaiting_restart();
-
-        assert_eq!(waiting.phase, UpdatePhase::Error);
-        assert_eq!(waiting.version, None);
-        assert_eq!(
-            waiting.error.as_deref(),
-            Some("Update installed. Restart Echo to finish.")
         );
     }
 

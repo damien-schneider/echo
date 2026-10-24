@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Quitting Echo, or restarting it into an update, no longer ends in "Echo quit unexpectedly" while a speech model is loaded.
+
 ## [0.8.8] - 2026-10-24
 
 ### Added

@@ -16,6 +16,7 @@ mod macos_accessibility;
 pub mod managers;
 mod overlay;
 mod paste_promise;
+mod process_exit;
 pub mod settings;
 #[cfg(unix)]
 mod signal_handle;
@@ -816,5 +817,6 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
-    app.run(|app_handle, event| features::polish::app_exit::handle(app_handle, &event));
+    let mut exit_flow = process_exit::ExitFlow::default();
+    app.run(move |app_handle, event| exit_flow.on_run_event(app_handle, &event));
 }

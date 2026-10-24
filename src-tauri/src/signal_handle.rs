@@ -1,10 +1,10 @@
 #![cfg(unix)]
 
 use crate::actions::ACTION_MAP;
-use crate::features::polish::manager::PolishManager;
+use crate::features::polish::app_exit;
+use crate::process_exit::exit_without_destructors;
 use crate::ManagedToggleState;
 use log::{debug, info, warn};
-use std::sync::Arc;
 use std::thread;
 use tauri::{AppHandle, Manager};
 
@@ -37,7 +37,7 @@ pub fn setup_signal_handler(app_handle: AppHandle, mut signals: Signals) {
                     info!("Received termination signal {sig}");
                     run_termination(
                         exit_code,
-                        || shutdown_polish(&app_handle),
+                        || app_exit::shutdown(&app_handle),
                         exit_without_destructors,
                     );
                 }
@@ -45,18 +45,6 @@ pub fn setup_signal_handler(app_handle: AppHandle, mut signals: Signals) {
             }
         }
     });
-}
-
-fn shutdown_polish(app_handle: &AppHandle) {
-    let manager = app_handle.state::<Arc<PolishManager>>();
-    if let Err(error) = tauri::async_runtime::block_on(manager.shutdown()) {
-        log::error!("Failed to stop local Polish runtime before termination: {error:#}");
-    }
-}
-
-fn exit_without_destructors(exit_code: i32) -> ! {
-    // Signal-thread exit must skip global destructors while inference runtimes remain live.
-    unsafe { libc::_exit(exit_code) }
 }
 
 fn run_termination<ExitOutput>(
@@ -101,23 +89,10 @@ fn toggle_transcription(app_handle: &AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{exit_without_destructors, signal_action, SignalAction};
+    use super::{signal_action, SignalAction};
     use signal_hook::consts::{SIGINT, SIGTERM, SIGUSR2};
     use std::cell::RefCell;
-    use std::env;
-    use std::fs;
-    use std::process::Command;
     use std::rc::Rc;
-
-    const EXIT_MARKER_ENV: &str = "ECHO_SIGNAL_EXIT_MARKER";
-    const STANDARD_EXIT_ENV: &str = "ECHO_USE_STANDARD_PROCESS_EXIT";
-
-    extern "C" fn mark_process_destructor() {
-        let Some(path) = env::var_os(EXIT_MARKER_ENV) else {
-            return;
-        };
-        let _ = fs::write(path, "process destructor ran");
-    }
 
     #[test]
     fn sigusr2_routes_to_transcription_toggle() {
@@ -149,41 +124,5 @@ mod tests {
         );
 
         assert_eq!(calls.borrow().as_slice(), ["cleanup", "exit:143"]);
-    }
-
-    #[test]
-    fn signal_exit_skips_process_destructors() {
-        let temp_dir = tempfile::tempdir().expect("temp directory should be available");
-        let test_executable = env::current_exe().expect("test executable should be available");
-        let standard_marker = temp_dir.path().join("standard-exit-destructor");
-        let standard_status = Command::new(&test_executable)
-            .args(["--exact", "signal_handle::tests::signal_exit_child_process"])
-            .env(EXIT_MARKER_ENV, &standard_marker)
-            .env(STANDARD_EXIT_ENV, "1")
-            .status()
-            .expect("standard exit child should start");
-        let immediate_marker = temp_dir.path().join("immediate-exit-destructor");
-        let immediate_status = Command::new(test_executable)
-            .args(["--exact", "signal_handle::tests::signal_exit_child_process"])
-            .env(EXIT_MARKER_ENV, &immediate_marker)
-            .status()
-            .expect("immediate exit child should start");
-
-        assert_eq!(standard_status.code(), Some(73));
-        assert!(standard_marker.exists());
-        assert_eq!(immediate_status.code(), Some(73));
-        assert!(!immediate_marker.exists());
-    }
-
-    #[test]
-    fn signal_exit_child_process() {
-        if env::var_os(EXIT_MARKER_ENV).is_none() {
-            return;
-        }
-        unsafe { libc::atexit(mark_process_destructor) };
-        if env::var_os(STANDARD_EXIT_ENV).is_some() {
-            std::process::exit(73);
-        }
-        exit_without_destructors(73);
     }
 }
