@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.8.15] - 2026-10-25
 
 ### Added
 - On Macs with 24 GB of memory or more, the guest side of a meeting (system audio) gets its own live Voxtral Realtime stream, like your microphone. Below 24 GB the guest keeps the Whisper live preview.
