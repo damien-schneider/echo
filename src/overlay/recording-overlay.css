@@ -92,17 +92,17 @@
   flex: none;
 }
 
-/* optical padding for the inline row only: the glyph lines up with the edge, not its round hit area */
-.echo-island-activity .echo-island-activity-dismiss {
-  margin-right: -5px;
-}
-
 .echo-island-activity-dismiss {
   opacity: 0.78;
   transition:
     color 120ms ease-out,
     background-color 120ms ease-out,
     opacity 120ms ease-out;
+}
+
+/* optical padding for the inline row only: the glyph lines up with the edge, not its round hit area */
+.echo-island-activity .echo-island-activity-dismiss {
+  margin-right: -5px;
 }
 
 :where(:root:not([data-native-hover])) .echo-island-activity-dismiss:hover,

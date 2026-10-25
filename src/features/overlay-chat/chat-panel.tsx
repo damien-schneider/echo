@@ -19,6 +19,7 @@ import type {
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import { polishModelName } from "@/features/polish/polish-model-state";
 import "@/features/overlay-chat/chat-panel.css";
+
 interface ChatPanelProps {
   bundledModel: BundledChatModel;
   context: ChatTextContext | null;

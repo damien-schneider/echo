@@ -63,17 +63,17 @@
 }
 
 .echo-island-morph[data-mode="compact"][data-presentation="docked"]:is(
-    [data-anchor="left"],
-    [data-anchor="right"]
-  ) {
+  [data-anchor="left"],
+  [data-anchor="right"]
+) {
   background: rgba(5, 5, 5, 0.97);
   box-shadow: none;
 }
 
 .echo-island-morph[data-mode="compact"][data-presentation="docked"]:is(
-    [data-anchor="left"],
-    [data-anchor="right"]
-  )::before {
+  [data-anchor="left"],
+  [data-anchor="right"]
+)::before {
   display: none;
 }
 

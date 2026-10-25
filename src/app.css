@@ -12,8 +12,10 @@
 
 @custom-variant dark (&:is(.dark *));
 /* Nonactivating overlays receive hover from Rust; WebKit's own :hover trails it there. */
-@custom-variant hover (:where(:root:not([data-native-hover])) &:hover,
-&[data-hovered]);
+@custom-variant hover (
+  :where(:root:not([data-native-hover])) &:hover,
+  &[data-hovered]
+);
 
 @theme {
   --breakpoint-sidebar: 48rem;

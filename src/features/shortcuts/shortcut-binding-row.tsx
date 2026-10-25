@@ -63,9 +63,9 @@ export const ShortcutBindingRow = ({
       </Button>
       {showWaylandWarning ? (
         <Tooltip>
-          <TooltipTrigger
-            render={<WarningIcon className="h-4 w-4 text-orange-500" />}
-          />
+          <TooltipTrigger render={<span className="inline-flex" />}>
+            <WarningIcon className="size-4 text-warning" />
+          </TooltipTrigger>
           <TooltipContent className="max-w-xs" side="bottom">
             <p>
               This shortcut may type a character when activated on Wayland.

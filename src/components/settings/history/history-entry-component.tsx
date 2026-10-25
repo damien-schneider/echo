@@ -95,6 +95,7 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
               <TooltipTrigger
                 render={
                   <Button
+                    aria-label="Retranscribe audio"
                     disabled={isRetranscribing}
                     iconOnly
                     onClick={handleRetranscribe}
@@ -115,6 +116,7 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
               <TooltipTrigger
                 render={
                   <Button
+                    aria-label="Reprocess with AI & TTS"
                     disabled={isReprocessing}
                     iconOnly
                     onClick={handleReprocess}
@@ -135,6 +137,7 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
               <TooltipTrigger
                 render={
                   <Button
+                    aria-label="Copy transcription"
                     iconOnly
                     onClick={handleCopyText}
                     size="xs"
@@ -156,7 +159,9 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
               <TooltipTrigger
                 render={
                   <Button
-                    className={entry.saved ? "text-brand" : ""}
+                    aria-label={
+                      entry.saved ? "Remove from saved" : "Save transcription"
+                    }
                     iconOnly
                     onClick={onToggleSaved}
                     size="xs"
@@ -165,6 +170,7 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
                 }
               >
                 <StarIcon
+                  className={entry.saved ? "text-brand" : undefined}
                   fill={entry.saved ? "currentColor" : "none"}
                   height={16}
                   width={16}

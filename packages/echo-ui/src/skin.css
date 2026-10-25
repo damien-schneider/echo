@@ -154,11 +154,11 @@
 [data-skin="echo"]
   :where(
     [data-control-family="sidebar"]:is(
-        [data-slot="container"],
-        [data-slot="gap"],
-        [data-slot="inner"],
-        [data-slot="menu-button"]
-      )
+      [data-slot="container"],
+      [data-slot="gap"],
+      [data-slot="inner"],
+      [data-slot="menu-button"]
+    )
   ) {
   transition: none;
 }
