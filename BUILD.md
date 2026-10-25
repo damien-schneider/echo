@@ -52,5 +52,9 @@ cd Echo
 bun install
 ```
 
-### 3. Download Required Models
-Echo requires a VAD (Voice Activity Detection) model to function
+### 3. Run in Development Mode
+```bash
+bun run tauri:dev
+```
+
+The Silero VAD model Echo needs ships in the repository at `src-tauri/resources/models/silero_vad_v4.onnx`; no download step is required.

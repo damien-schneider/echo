@@ -36,7 +36,6 @@ fn is_video_file(path: &PathBuf) -> bool {
     )
 }
 
-#[tauri::command]
 pub async fn transcribe_audio_file(
     app: AppHandle,
     file_path: String,

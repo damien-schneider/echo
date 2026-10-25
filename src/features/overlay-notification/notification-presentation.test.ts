@@ -234,7 +234,7 @@ describe("update notices in the notch", () => {
   it("waits behind a model download instead of stacking two messages", () => {
     const behindDownload = createNotificationPresentation({
       events: events({
-        download: { model_id: "parakeet-tdt-0.6b-v3", percentage: 30 },
+        download: { model_id: "medium", percentage: 30 },
       }),
       meetingNotice: null,
       modelState: "Ready",

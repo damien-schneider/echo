@@ -2,7 +2,6 @@ use ashpd::desktop::global_shortcuts::{
     BindShortcuts, GlobalShortcuts, NewShortcut, Shortcut, ShortcutsChanged,
 };
 use ashpd::desktop::{Request, Session};
-use ashpd::WindowIdentifier;
 use futures_util::StreamExt;
 use log::{debug, error, info, warn};
 use tauri::{AppHandle, Emitter, Manager};
@@ -86,7 +85,7 @@ async fn manager_task(
             return Err(error);
         }
     };
-    let initial_result = manager.bind(None).await.map(|_| ());
+    let initial_result = manager.bind().await.map(|_| ());
     let _ = init_sender.send(initial_result.clone());
     initial_result?;
     manager.run().await
@@ -113,15 +112,12 @@ impl WaylandManager {
         })
     }
 
-    async fn bind(
-        &self,
-        window_identifier: Option<WindowIdentifier>,
-    ) -> Result<Vec<WaylandShortcutInfo>, String> {
+    async fn bind(&self) -> Result<Vec<WaylandShortcutInfo>, String> {
         let context = PortalContext {
             portal: &self.portal,
             app: &self.app,
         };
-        bind_shortcuts(context, &self.session, window_identifier).await
+        bind_shortcuts(context, &self.session).await
     }
 
     async fn run(&mut self) -> Result<(), String> {
@@ -170,34 +166,24 @@ async fn handle_command(
     session: &mut Session<'static, GlobalShortcuts<'static>>,
     command: WaylandCommand,
 ) {
-    let WaylandCommand::Configure {
-        window_identifier,
-        respond,
-    } = command;
-    let result = configure(context, session, window_identifier).await;
+    let WaylandCommand::Configure { respond } = command;
+    let result = configure(context, session).await;
     let _ = respond.send(result);
 }
 
 async fn configure(
     context: PortalContext<'_>,
     session: &mut Session<'static, GlobalShortcuts<'static>>,
-    window_identifier: Option<WindowIdentifier>,
 ) -> Result<(), String> {
     let result = context
         .portal
-        .configure_shortcuts(
-            session,
-            window_identifier.as_ref(),
-            None::<ashpd::ActivationToken>,
-        )
+        .configure_shortcuts(session, None, None::<ashpd::ActivationToken>)
         .await;
     match result {
         Ok(()) => Ok(()),
         Err(ashpd::Error::RequiresVersion(required, actual)) => {
             warn!("[Wayland] Portal v{actual}; v{required} required, rebinding");
-            rebind(context, session, window_identifier)
-                .await
-                .map(|_| ())
+            rebind(context, session).await.map(|_| ())
         }
         Err(error) => Err(portal_error("configure shortcuts", error)),
     }
@@ -206,7 +192,6 @@ async fn configure(
 async fn rebind(
     context: PortalContext<'_>,
     session: &mut Session<'static, GlobalShortcuts<'static>>,
-    window_identifier: Option<WindowIdentifier>,
 ) -> Result<Vec<WaylandShortcutInfo>, String> {
     if let Err(error) = session.close().await {
         warn!("[Wayland] Failed to close old session: {error}");
@@ -216,7 +201,7 @@ async fn rebind(
         .create_session()
         .await
         .map_err(|error| portal_error("create replacement session", error))?;
-    let result = bind_shortcuts(context, &new_session, window_identifier).await;
+    let result = bind_shortcuts(context, &new_session).await;
     if result.is_ok() {
         *session = new_session;
     }
@@ -226,7 +211,6 @@ async fn rebind(
 async fn bind_shortcuts(
     context: PortalContext<'_>,
     session: &Session<'static, GlobalShortcuts<'static>>,
-    window_identifier: Option<WindowIdentifier>,
 ) -> Result<Vec<WaylandShortcutInfo>, String> {
     if let Err(error) = dconf::update_shortcuts(context.app) {
         warn!("[Wayland] Failed to update dconf shortcuts: {error}");
@@ -239,7 +223,7 @@ async fn bind_shortcuts(
     let shortcuts = requested_shortcuts(&bindings);
     let request = context
         .portal
-        .bind_shortcuts(session, &shortcuts, window_identifier.as_ref())
+        .bind_shortcuts(session, &shortcuts, None)
         .await
         .map_err(|error| portal_error("bind shortcuts", error))?;
     let _ = context
@@ -354,18 +338,12 @@ pub async fn ensure_manager_running(app: &AppHandle) -> Result<(), String> {
     init_wayland_shortcuts(app).await
 }
 
-pub async fn request_configure(
-    app: &AppHandle,
-    window_identifier: Option<WindowIdentifier>,
-) -> Result<(), String> {
+pub async fn request_configure(app: &AppHandle) -> Result<(), String> {
     ensure_manager_running(app).await?;
     let sender = command_sender(app)?;
     let (respond, response) = oneshot::channel();
     sender
-        .send(WaylandCommand::Configure {
-            window_identifier,
-            respond,
-        })
+        .send(WaylandCommand::Configure { respond })
         .await
         .map_err(|_| "Manager task not responding".to_string())?;
     response.await.map_err(|_| "Response lost".to_string())?

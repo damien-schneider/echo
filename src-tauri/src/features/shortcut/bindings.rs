@@ -56,7 +56,7 @@ pub async fn change_binding(
         if super::wayland::is_wayland_session() {
             // portal v2 confirms asynchronously via ShortcutsChanged
             info!("[Shortcuts] Wayland: opening configure dialog for '{}'", id);
-            match super::wayland::request_configure(&app, None).await {
+            match super::wayland::request_configure(&app).await {
                 Ok(()) => {
                     info!("[Shortcuts] Wayland configure dialog opened");
                     Ok(BindingResponse {

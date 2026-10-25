@@ -67,7 +67,7 @@ export const LogDirectory: React.FC = () => {
   };
   return (
     <SettingRow
-      description="Location on disk where Handy writes rotated log files"
+      description="Location on disk where Echo writes rotated log files"
       layout="stacked"
       title="Log Directory"
     >

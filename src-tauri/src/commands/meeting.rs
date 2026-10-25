@@ -31,13 +31,6 @@ pub async fn stop_meeting(
 }
 
 #[tauri::command]
-pub fn get_meeting_status(
-    meeting_manager: State<'_, Arc<MeetingManager>>,
-) -> Result<MeetingStatus, String> {
-    Ok(meeting_manager.get_meeting_status())
-}
-
-#[tauri::command]
 pub fn get_active_meeting(
     meeting_manager: State<'_, Arc<MeetingManager>>,
 ) -> Result<Option<ActiveMeeting>, String> {
@@ -102,11 +95,6 @@ pub fn rename_meeting_speaker(
     meeting_manager
         .rename_speaker(meeting_id, &old_label, &new_label)
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub fn is_system_audio_available() -> bool {
-    crate::audio_toolkit::audio::system_capture::is_system_audio_available()
 }
 
 #[tauri::command]

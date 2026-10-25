@@ -155,14 +155,6 @@ pub async fn get_transcription_model_status(
 }
 
 #[tauri::command]
-pub async fn is_model_loading(
-    transcription_manager: State<'_, Arc<TranscriptionManager>>,
-) -> Result<bool, String> {
-    let current_model = transcription_manager.get_current_model();
-    Ok(current_model.is_none())
-}
-
-#[tauri::command]
 pub async fn has_any_models_available(
     model_manager: State<'_, Arc<ModelManager>>,
 ) -> Result<bool, String> {
@@ -170,19 +162,4 @@ pub async fn has_any_models_available(
         .get_transcription_profile_statuses()
         .iter()
         .any(|profile| profile.is_downloaded))
-}
-
-#[tauri::command]
-pub async fn has_any_models_or_downloads(
-    model_manager: State<'_, Arc<ModelManager>>,
-) -> Result<bool, String> {
-    Ok(model_manager
-        .get_transcription_profile_statuses()
-        .iter()
-        .any(|profile| profile.is_downloaded || profile.is_downloading))
-}
-
-#[tauri::command]
-pub async fn get_recommended_first_model() -> Result<String, String> {
-    Ok(TranscriptionModelSize::default().as_str().to_string())
 }

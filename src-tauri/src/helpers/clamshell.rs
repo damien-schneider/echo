@@ -2,7 +2,6 @@
 use std::process::Command;
 
 #[cfg(target_os = "macos")]
-#[tauri::command]
 pub fn is_clamshell() -> Result<bool, String> {
     let output = Command::new("ioreg")
         .args(["-r", "-k", "AppleClamshellState", "-d", "4"])
@@ -36,7 +35,6 @@ pub fn is_laptop() -> Result<bool, String> {
 }
 
 #[cfg(not(target_os = "macos"))]
-#[tauri::command]
 pub fn is_clamshell() -> Result<bool, String> {
     Ok(false)
 }

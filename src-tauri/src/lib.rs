@@ -521,7 +521,7 @@ pub fn run() {
                     }),
                     // File logs follow FILE_LOG_LEVEL from settings.
                     Target::new(TargetKind::LogDir {
-                        file_name: Some("handy".into()),
+                        file_name: Some("echo".into()),
                     })
                     .filter(|metadata| {
                         let file_level = FILE_LOG_LEVEL.load(Ordering::Relaxed);
@@ -628,10 +628,8 @@ pub fn run() {
             shortcut::bindings::reset_binding,
             shortcut::bindings::suspend_binding,
             shortcut::bindings::resume_binding,
-            shortcut::check_wayland_shortcut_conflict,
             shortcut::is_wayland_session,
             shortcut::get_wayland_shortcuts,
-            shortcut::open_wayland_shortcut_settings,
             shortcut::failures::get_shortcut_failures,
             shortcut::overlay_keys::hold_overlay_key,
             shortcut::overlay_keys::release_overlay_key,
@@ -701,10 +699,7 @@ pub fn run() {
             commands::models::reveal_legacy_model_files,
             commands::models::delete_legacy_model_files,
             commands::models::get_transcription_model_status,
-            commands::models::is_model_loading,
             commands::models::has_any_models_available,
-            commands::models::has_any_models_or_downloads,
-            commands::models::get_recommended_first_model,
             features::polish::manager::get_polish_status,
             features::polish::manager::chat_with_polish_model,
             features::polish::manager::stop_polish_chat,
@@ -727,7 +722,6 @@ pub fn run() {
             commands::audio::check_custom_sounds,
             commands::audio::get_microphone_permission_status,
             commands::audio::open_microphone_settings,
-            helpers::clamshell::is_clamshell,
             helpers::clamshell::is_laptop,
             commands::transcription::prewarm_models,
             commands::transcription::start_transcription_from_overlay,
@@ -747,7 +741,6 @@ pub fn run() {
             commands::history::get_history_entry_transcription,
             commands::history::update_history_limit,
             commands::history::update_recording_retention_period,
-            commands::file_transcription::transcribe_audio_file,
             commands::input_tracking::get_input_entries,
             commands::input_tracking::delete_input_entry,
             commands::input_tracking::clear_all_input_entries,
@@ -766,7 +759,6 @@ pub fn run() {
             shortcut::settings::polish::change_polish_level_setting,
             commands::meeting::start_meeting,
             commands::meeting::stop_meeting,
-            commands::meeting::get_meeting_status,
             commands::meeting::get_active_meeting,
             commands::meeting::get_meeting,
             commands::meeting::get_meeting_segments,
@@ -774,7 +766,6 @@ pub fn run() {
             commands::meeting::delete_meeting,
             commands::meeting::export_meeting,
             commands::meeting::rename_meeting_speaker,
-            commands::meeting::is_system_audio_available,
             commands::meeting::get_meeting_audio_path,
             commands::meeting::retranscribe_meeting,
             commands::meeting::get_meeting_transcript_for_summary,

@@ -5,24 +5,17 @@
 
 # Echo
 
-**A free, open source, and extensible speech-to-text application that works completely offline.**
+**Private, on-device dictation and meeting transcription for macOS, Windows and Linux.**
 
-Echo is a cross-platform desktop application built with Tauri (Rust + React/TypeScript) that provides simple, privacy-focused speech transcription. Press a shortcut, speak, and have your words appear in any text field—all without sending your voice to the cloud.
-
-## About Echo
-
-Echo was mainly built on top of [Handy](https://github.com/cjpais/Handy), an excellent open source speech-to-text application. We're grateful to the Handy project and its contributors for creating such a solid foundation.
+Echo is a desktop application built with Tauri (Rust + React/TypeScript). Press a shortcut, speak, and your words appear in the text field you are typing in. Audio is transcribed on your computer and never sent to a server.
 
 ## Why Echo?
 
-Echo was created to fill the gap for a truly open source, extensible speech-to-text tool. As stated on [handy.computer](https://handy.computer):
-
-- **Free**: Accessibility tooling belongs in everyone's hands, not behind a paywall
-- **Open Source**: Together we can build further. Extend Echo for yourself and contribute to something bigger
-- **Private**: Your voice stays on your computer. Get transcriptions without sending audio to the cloud
-- **Simple**: One tool, one job. Transcribe what you say and put it into a text box
-
-Echo isn't trying to be the best speech-to-text app—it's trying to be the most forkable one.
+- **Dictation**: Whisper (Small, Medium or Large) turns what you say into text and pastes it into the focused app.
+- **Meetings**: Echo records your microphone and, optionally, system audio, transcribes live with Voxtral Mini 4B Realtime on Apple Silicon Macs with 16 GB of memory (Whisper elsewhere) and labels speakers with Sortformer diarization.
+- **Polish and chat**: Qwen3 4B cleans up transcripts, summarizes meetings and answers in the built-in chat.
+- **On-device**: every model is downloaded once and runs locally.
+- **Free and open source**: MIT-licensed.
 
 ## How It Works
 
@@ -151,15 +144,18 @@ If you're behind a proxy, firewall, or in a restricted network environment where
 The typical paths are:
 - **macOS**: `~/Library/Application Support/com.damien-schneider.echo/`
 - **Windows**: `C:\Users\{username}\AppData\Roaming\com.damien-schneider.echo\`
-- **Linux**: `~/.config/com.damien-schneider.echo/`
+- **Linux**: `~/.local/share/com.damien-schneider.echo/` (or `$XDG_DATA_HOME/com.damien-schneider.echo/`)
 
 #### Step 2: Create Models Directory
 
 Inside your app data directory, create a `models` folder if it doesn't already exist:
 
 ```bash
-# macOS/Linux
+# macOS
 mkdir -p ~/Library/Application\ Support/com.damien-schneider.echo/models
+
+# Linux
+mkdir -p ~/.local/share/com.damien-schneider.echo/models
 
 # Windows (PowerShell)
 New-Item -ItemType Directory -Force -Path "$env:APPDATA\com.damien-schneider.echo\models"
@@ -202,22 +198,16 @@ Restart Echo after placing the files.
 3. **Test thoroughly** on your target platform
 4. **Submit a pull request** with clear description of changes
 
-The goal is to create both a useful tool and a foundation for others to build upon—a well-patterned, simple codebase that serves the community.
-
 ## License
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
-- **Handy** by [cjpais](https://github.com/cjpais/Handy) - Echo was built on top of this excellent foundation
+- **Handy** by [cjpais](https://github.com/cjpais/Handy), the open source project Echo started from
 - **Whisper** by OpenAI for the speech recognition model
 - **Voxtral Mini 4B Realtime** by Mistral AI for live meeting transcription
 - **transcribe.cpp, whisper.cpp and ggml** for cross-platform Whisper inference/acceleration and the Whisper model files
 - **Silero** for great lightweight VAD
 - **Tauri** team for the excellent Rust-based app framework
 - **Community contributors** helping make Echo better
-
----
-
-*"Your search for the right speech-to-text tool can end here—not because Echo is perfect, but because you can make it perfect for you."*

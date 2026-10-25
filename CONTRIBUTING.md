@@ -41,13 +41,7 @@ Before you begin, ensure you have the following installed:
    bun install
    ```
 
-5. **Download required models**:
-   ```bash
-   mkdir -p src-tauri/resources/models
-   curl -o src-tauri/resources/models/silero_vad_v4.onnx https://blob.handy.computer/silero_vad_v4.onnx
-   ```
-
-6. **Run in development mode**:
+5. **Run in development mode**:
    ```bash
    bun run tauri:dev
    ```

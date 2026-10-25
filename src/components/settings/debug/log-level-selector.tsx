@@ -39,7 +39,7 @@ export const LogLevelSelector: React.FC = () => {
   };
   return (
     <SettingRow
-      description="Choose how verbose Handy should be while logging to disk"
+      description="Choose how verbose Echo should be while logging to disk"
       layout="horizontal"
       title="Log Level"
     >

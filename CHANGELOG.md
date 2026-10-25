@@ -4,6 +4,7 @@
 
 ### Changed
 - The Clean up setting now says what it does: "Replace misheard words with the spellings in your dictionary." Phrases Whisper invents over silence, like "Thanks for watching", are removed whether it is on or off.
+- Echo writes its log to `echo.log` in its logs folder. An older `handy.log` there is no longer written to and can be deleted.
 
 ### Removed
 - The Pop sound theme. Its sounds never shipped, so choosing it played nothing. Settings that used it switch to Marimba.

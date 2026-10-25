@@ -36,9 +36,9 @@ const forwardToLocalModel = async (
 };
 
 const localProvider = createOpenAICompatible({
-  baseURL: "http://echo-4b.invalid/v1",
+  baseURL: "http://qwen3-4b.invalid/v1",
   fetch: forwardToLocalModel,
   name: "echo",
 });
 
-export const localLlmModel: LanguageModel = localProvider("echo-4b");
+export const localLlmModel: LanguageModel = localProvider("qwen3-4b");
