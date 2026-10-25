@@ -207,7 +207,6 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
 
     features::polish::idle_release::watch_idle_runtime(&polish_manager);
 
-    app_handle.manage(commands::cleanup::new_state());
     app_handle.manage(shortcut::failures::ShortcutFailures::default());
 
     {
@@ -659,7 +658,6 @@ pub fn run() {
             shortcut::settings::post_process::set_post_process_selected_prompt,
             shortcut::settings::post_process::change_voice_commands_enabled_setting,
             shortcut::settings::cleanup::change_cleanup_enabled_setting,
-            shortcut::settings::cleanup::change_cleanup_app_context_enabled_setting,
             shortcut::settings::cleanup::update_cleanup_dictionary,
             shortcut::settings::input_tracking::change_input_tracking_setting,
             shortcut::settings::input_tracking::change_input_tracking_excluded_apps,

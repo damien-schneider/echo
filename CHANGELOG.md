@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- The Clean up setting now says what it does: "Replace misheard words with the spellings in your dictionary." Phrases Whisper invents over silence, like "Thanks for watching", are removed whether it is on or off.
+
+### Removed
+- The Pop sound theme. Its sounds never shipped, so choosing it played nothing. Settings that used it switch to Marimba.
+
+### Fixed
+- A dictionary spelling containing `$`, such as `$ECHO`, is now inserted as written.
+
 ## [0.8.14] - 2026-10-24
 
 ### Changed

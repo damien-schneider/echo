@@ -135,7 +135,6 @@ export const SettingsSchema = z.object({
   autostart_enabled: z.boolean().optional().default(false),
   bindings: ShortcutBindingsMapSchema,
   clamshell_microphone: z.string().nullable().optional(),
-  cleanup_app_context_enabled: z.boolean().optional().default(false),
   cleanup_dictionary: z.array(DictionaryEntrySchema).optional().default([]),
   cleanup_enabled: z.boolean().optional().default(false),
   clipboard_handling: ClipboardHandlingSchema.optional().default("dont_modify"),
@@ -166,10 +165,7 @@ export const SettingsSchema = z.object({
   selected_language: TranscriptionLanguageSchema,
   selected_microphone: z.string().nullable().optional(),
   selected_output_device: z.string().nullable().optional(),
-  sound_theme: z
-    .enum(["marimba", "pop", "custom"])
-    .optional()
-    .default("marimba"),
+  sound_theme: z.enum(["marimba", "custom"]).optional().default("marimba"),
   start_hidden: z.boolean().optional().default(false),
   transcription_model_size:
     TranscriptionModelSizeSchema.optional().default("medium"),

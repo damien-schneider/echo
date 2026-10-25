@@ -1,244 +1,127 @@
-//! Single policy fork for all transcript emitters.
+use regex::{NoExpand, RegexBuilder};
 
-use log::warn;
-use std::sync::OnceLock;
-
-use crate::commands::cleanup::CleanupState;
-use crate::managers::cleanup_prompt::{apply_dictionary_prepass, CleanupContext};
 use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
-use crate::settings::AppSettings;
+use crate::settings::{AppSettings, DictionaryEntrySetting};
 
-static WARNED_NOT_LOADED: OnceLock<()> = OnceLock::new();
-
-/// build_ctx lazy so AppHandle::state lookup skipped on every decode.
-pub fn cleanup_or_filter<F>(
-    text: &str,
-    filter: HallucinationFilter,
-    cleanup_state: &CleanupState,
-    settings: &AppSettings,
-    build_ctx: F,
-) -> String
-where
-    F: FnOnce() -> CleanupContext,
-{
+pub fn clean_transcript(text: &str, filter: HallucinationFilter, settings: &AppSettings) -> String {
     if is_hallucination(text, filter) {
         return String::new();
     }
     if !settings.cleanup_enabled {
         return text.to_string();
     }
+    apply_dictionary(text, &settings.cleanup_dictionary)
+}
 
-    let ctx = build_ctx();
-
-    // Pre-pass runs even when LLM not loaded so name fixes work during loading window.
-    let prepassed = apply_dictionary_prepass(text, &ctx.dictionary);
-
-    // Never block transcription on optional cleanup state.
-    let guard = match cleanup_state.try_read() {
-        Ok(g) => g,
-        Err(_) => {
-            return prepassed;
-        }
-    };
-
-    let mgr = match guard.as_ref() {
-        Some(m) => m,
-        None => {
-            WARNED_NOT_LOADED.get_or_init(|| {
-                warn!(
-                    "[cleanup] applying deterministic dictionary pre-pass without a cleanup model"
-                );
-            });
-            return prepassed;
-        }
-    };
-
-    let started = std::time::Instant::now();
-    match mgr.clean_blocking(&prepassed, &ctx) {
-        Ok(cleaned) => {
-            let elapsed_ms = started.elapsed().as_millis();
-            log::debug!(
-                "[cleanup] latency: {elapsed_ms}ms (raw_len={})",
-                prepassed.len()
-            );
-            cleaned
-        }
-        Err(e) => {
-            warn!("[cleanup] clean_blocking failed, returning pre-passed raw: {e:#}");
-            prepassed
+fn apply_dictionary(text: &str, dictionary: &[DictionaryEntrySetting]) -> String {
+    let mut out = text.to_string();
+    for entry in dictionary {
+        for variant in entry.variants.iter().filter(|variant| !variant.is_empty()) {
+            let pattern = format!(r"\b{}\b", regex::escape(variant));
+            let Ok(re) = RegexBuilder::new(&pattern).case_insensitive(true).build() else {
+                continue;
+            };
+            out = re
+                .replace_all(&out, NoExpand(&entry.canonical))
+                .into_owned();
         }
     }
+    out
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::settings::get_default_settings;
-    use std::sync::Arc;
-    use tokio::sync::RwLock;
     use HallucinationFilter::Strict;
 
-    fn settings_with_cleanup(enabled: bool) -> AppSettings {
+    fn settings(cleanup_enabled: bool, dictionary: &[(&str, &[&str])]) -> AppSettings {
         let mut s = get_default_settings();
-        s.cleanup_enabled = enabled;
+        s.cleanup_enabled = cleanup_enabled;
+        s.cleanup_dictionary = dictionary
+            .iter()
+            .map(|(canonical, variants)| DictionaryEntrySetting {
+                canonical: (*canonical).to_string(),
+                variants: variants.iter().map(|v| (*v).to_string()).collect(),
+            })
+            .collect();
         s
     }
 
-    fn empty_state() -> CleanupState {
-        Arc::new(RwLock::new(None))
-    }
-
-    fn default_ctx() -> CleanupContext {
-        CleanupContext::default()
-    }
-
     #[test]
-    fn passes_through_empty_input() {
-        let state = empty_state();
-        let settings = settings_with_cleanup(false);
-        let out = cleanup_or_filter("", Strict, &state, &settings, default_ctx);
-        assert_eq!(out, "");
-    }
-
-    #[test]
-    fn passes_through_when_disabled() {
-        let state = empty_state();
-        let settings = settings_with_cleanup(false);
-        let out = cleanup_or_filter(
+    fn real_speech_passes_through_when_cleanup_is_off() {
+        let out = clean_transcript(
             "Hello world, this is real speech",
             Strict,
-            &state,
-            &settings,
-            default_ctx,
+            &settings(false, &[]),
         );
         assert_eq!(out, "Hello world, this is real speech");
     }
 
     #[test]
-    fn returns_empty_on_hallucination_when_disabled() {
-        let state = empty_state();
-        let settings = settings_with_cleanup(false);
-        let out = cleanup_or_filter(
-            "Thanks for watching!",
-            Strict,
-            &state,
-            &settings,
-            default_ctx,
-        );
-        assert_eq!(out, "");
-    }
-
-    #[test]
-    fn returns_empty_on_hallucination_when_enabled() {
-        // Model must never see attractor string.
-        let state = empty_state();
-        let settings = settings_with_cleanup(true);
-        let out = cleanup_or_filter(
-            "Thank you for watching.",
-            Strict,
-            &state,
-            &settings,
-            default_ctx,
-        );
-        assert_eq!(out, "");
-    }
-
-    #[test]
-    fn returns_raw_when_manager_not_loaded_and_enabled() {
-        let state = empty_state(); // None inside RwLock
-        let settings = settings_with_cleanup(true);
-        let out = cleanup_or_filter(
-            "Let's talk about the deadline next week",
-            Strict,
-            &state,
-            &settings,
-            default_ctx,
-        );
-        assert_eq!(out, "Let's talk about the deadline next week");
-    }
-
-    /// Disabled path must skip RwLock entirely.
-    #[test]
-    fn disabled_path_does_not_touch_state() {
-        // Held write lock would deadlock a blocking read.
-        let state: CleanupState = Arc::new(RwLock::new(None));
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let _guard = rt.block_on(async { state.write().await });
-        let settings = settings_with_cleanup(false);
-        let out = cleanup_or_filter("plain text", Strict, &state, &settings, default_ctx);
-        assert_eq!(out, "plain text");
-    }
-
-    /// Test would hang if try_read became read().await.
-    #[test]
-    fn returns_raw_when_write_lock_contended() {
-        let state: CleanupState = Arc::new(RwLock::new(None));
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let _guard = rt.block_on(async { state.write().await });
-        let settings = settings_with_cleanup(true);
-        let out = cleanup_or_filter(
-            "real speech that should not be lost",
-            Strict,
-            &state,
-            &settings,
-            default_ctx,
-        );
-        assert_eq!(out, "real speech that should not be lost");
-    }
-
-    fn ctx_with_dict(canonical: &str, variants: &[&str]) -> CleanupContext {
-        use crate::managers::cleanup_prompt::DictionaryEntry;
-        CleanupContext {
-            dictionary: vec![DictionaryEntry {
-                canonical: canonical.to_string(),
-                variants: variants.iter().map(|v| (*v).to_string()).collect(),
-            }],
-            ..CleanupContext::default()
+    fn hallucinations_are_dropped_whether_cleanup_is_on_or_off() {
+        for enabled in [false, true] {
+            let s = settings(enabled, &[("Damien", &["Damian"])]);
+            assert_eq!(clean_transcript("Thanks for watching!", Strict, &s), "");
+            assert_eq!(clean_transcript("Thank you for watching.", Strict, &s), "");
         }
     }
 
     #[test]
-    fn prepass_applies_when_manager_not_loaded_and_enabled() {
-        let state = empty_state();
-        let settings = settings_with_cleanup(true);
-        let out = cleanup_or_filter("I met Damian today", Strict, &state, &settings, || {
-            ctx_with_dict("Damien", &["Damian"])
-        });
-        assert_eq!(out, "I met Damien today");
-    }
-
-    #[test]
-    fn prepass_applies_when_write_lock_contended() {
-        let state: CleanupState = Arc::new(RwLock::new(None));
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let _guard = rt.block_on(async { state.write().await });
-        let settings = settings_with_cleanup(true);
-        let out = cleanup_or_filter("talked with Damian", Strict, &state, &settings, || {
-            ctx_with_dict("Damien", &["Damian"])
-        });
-        assert_eq!(out, "talked with Damien");
-    }
-
-    /// Zero overhead when cleanup disabled.
-    #[test]
-    fn prepass_does_not_run_when_cleanup_disabled() {
-        let state = empty_state();
-        let settings = settings_with_cleanup(false);
-        let out = cleanup_or_filter("I met Damian today", Strict, &state, &settings, || {
-            ctx_with_dict("Damien", &["Damian"])
-        });
+    fn dictionary_is_applied_only_when_cleanup_is_on() {
+        let dictionary: &[(&str, &[&str])] = &[("Damien", &["Damian"])];
         assert_eq!(
-            out, "I met Damian today",
-            "cleanup disabled must skip the pre-pass entirely"
+            clean_transcript("I met Damian today", Strict, &settings(true, dictionary)),
+            "I met Damien today"
+        );
+        assert_eq!(
+            clean_transcript("I met Damian today", Strict, &settings(false, dictionary)),
+            "I met Damian today"
+        );
+    }
+
+    #[test]
+    fn dictionary_matches_whole_words_in_any_case() {
+        let s = settings(true, &[("Damien", &["Damian", "Demian"])]);
+        assert_eq!(
+            clean_transcript("damian and DEMIAN, not Damianic", Strict, &s),
+            "Damien and Damien, not Damianic"
+        );
+    }
+
+    #[test]
+    fn dictionary_applies_every_entry() {
+        let s = settings(
+            true,
+            &[("Damien", &["Damian"]), ("Anthropic", &["anthropics"])],
+        );
+        assert_eq!(
+            clean_transcript("Damian works at anthropics", Strict, &s),
+            "Damien works at Anthropic"
+        );
+    }
+
+    #[test]
+    fn dictionary_respects_unicode_word_boundaries() {
+        let s = settings(true, &[("Damien", &["damien"])]);
+        assert_eq!(
+            clean_transcript("j'ai vu damien", Strict, &s),
+            "j'ai vu Damien"
+        );
+    }
+
+    #[test]
+    fn an_empty_variant_changes_nothing() {
+        let s = settings(true, &[("Damien", &[""])]);
+        assert_eq!(clean_transcript("hello world", Strict, &s), "hello world");
+    }
+
+    #[test]
+    fn a_canonical_spelling_with_a_dollar_sign_is_inserted_as_written() {
+        let s = settings(true, &[("$ECHO", &["echo ticker"])]);
+        assert_eq!(
+            clean_transcript("buy echo ticker now", Strict, &s),
+            "buy $ECHO now"
         );
     }
 }

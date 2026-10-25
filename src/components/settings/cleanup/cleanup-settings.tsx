@@ -15,7 +15,7 @@ const CleanupEnabledToggle = () => {
   const updateSetting = useSettingsStore((state) => state.updateSetting);
   return (
     <SettingRow
-      description="Remove stray phrases and apply your dictionary on this device."
+      description="Replace misheard words with the spellings in your dictionary."
       icon={<SparkleIcon className="h-4 w-4" />}
       title="Clean up transcriptions"
     >

@@ -22,8 +22,7 @@ pub struct ToolResult {
 pub fn execute_change_sound_theme(app: AppHandle) -> ToolResult {
     let current_theme = settings::get_settings(&app).sound_theme;
     let next_theme = match current_theme {
-        SoundTheme::Marimba => SoundTheme::Pop,
-        SoundTheme::Pop => SoundTheme::Custom,
+        SoundTheme::Marimba => SoundTheme::Custom,
         SoundTheme::Custom => SoundTheme::Marimba,
     };
 
@@ -33,7 +32,6 @@ pub fn execute_change_sound_theme(app: AppHandle) -> ToolResult {
 
     let label = match next_theme {
         SoundTheme::Marimba => "Marimba",
-        SoundTheme::Pop => "Pop",
         SoundTheme::Custom => "Custom",
     };
 

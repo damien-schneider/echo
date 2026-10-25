@@ -76,7 +76,6 @@ pub fn get_default_settings() -> AppSettings {
         meeting_auto_summary: false,
         meeting_chunk_duration_secs: default_meeting_chunk_duration_secs(),
         cleanup_enabled: default_cleanup_enabled(),
-        cleanup_app_context_enabled: default_cleanup_app_context_enabled(),
         cleanup_dictionary: Vec::new(),
     }
 }
@@ -176,8 +175,7 @@ fn apply_settings_migrations_from_raw(
         updated = true;
     }
 
-    // drops bindings retired in older versions ('cancel')
-    let valid_binding_ids = ["transcribe", "polish", "test"];
+    let valid_binding_ids = ["transcribe", "polish"];
     let original_count = settings.bindings.len();
     settings.bindings.retain(|id, _| {
         let is_valid = valid_binding_ids.contains(&id.as_str());
@@ -224,17 +222,34 @@ fn apply_settings_migrations_from_raw(
     updated
 }
 
+fn retire_removed_sound_themes(raw: &mut serde_json::Value) -> bool {
+    match raw.get_mut("sound_theme") {
+        Some(theme) if theme == "pop" => {
+            *theme = serde_json::json!("marimba");
+            true
+        }
+        _ => false,
+    }
+}
+
+fn load_stored_settings(mut raw: serde_json::Value) -> serde_json::Result<(AppSettings, bool)> {
+    let retired_theme = retire_removed_sound_themes(&mut raw);
+    let mut settings = AppSettings::deserialize(&raw)?;
+    let updated = apply_settings_migrations_from_raw(&mut settings, Some(&raw));
+    Ok((settings, retired_theme || updated))
+}
+
 pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
 
     let settings = if let Some(settings_value) = store.get("settings") {
-        match serde_json::from_value::<AppSettings>(settings_value.clone()) {
-            Ok(mut settings) => {
+        match load_stored_settings(settings_value) {
+            Ok((settings, updated)) => {
                 #[cfg(debug_assertions)]
                 debug!("Found existing settings: {:?}", settings);
-                if apply_settings_migrations_from_raw(&mut settings, Some(&settings_value)) {
+                if updated {
                     if let Some(value) = serialize_settings(&settings) {
                         store.set("settings", value);
                     }

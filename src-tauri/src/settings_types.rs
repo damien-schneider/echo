@@ -159,7 +159,6 @@ impl Default for ClipboardHandling {
 #[serde(rename_all = "snake_case")]
 pub enum SoundTheme {
     Marimba,
-    Pop,
     Custom,
 }
 
@@ -167,7 +166,6 @@ impl SoundTheme {
     fn as_str(&self) -> &'static str {
         match self {
             SoundTheme::Marimba => "marimba",
-            SoundTheme::Pop => "pop",
             SoundTheme::Custom => "custom",
         }
     }
@@ -181,7 +179,6 @@ impl SoundTheme {
     }
 }
 
-/* still echo for composing the initial JSON in the store ------------- */
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AppSettings {
     pub bindings: HashMap<String, ShortcutBinding>,
@@ -262,12 +259,8 @@ pub struct AppSettings {
     pub meeting_auto_summary: bool,
     #[serde(default = "default_meeting_chunk_duration_secs")]
     pub meeting_chunk_duration_secs: u32,
-    /// Qwen 2.5 1.5B GGUF; defaults off (privacy).
     #[serde(default = "default_cleanup_enabled")]
     pub cleanup_enabled: bool,
-    /// Off by default (privacy).
-    #[serde(default = "default_cleanup_app_context_enabled")]
-    pub cleanup_app_context_enabled: bool,
     #[serde(default)]
     pub cleanup_dictionary: Vec<DictionaryEntrySetting>,
 }

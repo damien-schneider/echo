@@ -12,7 +12,7 @@ type ToolResultPayload = z.infer<typeof ToolResultSchema>;
 export const voiceTools = {
   cycle_feedback_sounds: tool({
     description:
-      "Switch Echo's feedback sounds to the next sound theme, thème sonore (Marimba -> Pop -> Custom -> Marimba).",
+      "Switch Echo's feedback sounds to the next sound theme, thème sonore (Marimba -> Custom -> Marimba).",
     inputSchema: z.object({}),
   }),
 

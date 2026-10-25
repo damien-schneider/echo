@@ -28,7 +28,6 @@ export const SoundPicker: React.FC<SoundPickerProps> = ({
   const hasCustomSounds = customSounds.start && customSounds.stop;
   const soundOptions = [
     { value: "marimba", label: "Marimba" },
-    { value: "pop", label: "Pop" },
     ...(hasCustomSounds ? [{ value: "custom" as const, label: "Custom" }] : []),
   ] satisfies { value: Settings["sound_theme"]; label: string }[];
   const handlePlayBothSounds = async () => {

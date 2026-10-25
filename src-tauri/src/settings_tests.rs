@@ -90,10 +90,6 @@ mod tests {
     fn default_cleanup_disabled() {
         let s = get_default_settings();
         assert!(!s.cleanup_enabled, "cleanup_enabled must default to false");
-        assert!(
-            !s.cleanup_app_context_enabled,
-            "cleanup_app_context_enabled must default to false"
-        );
         assert!(s.cleanup_dictionary.is_empty());
     }
 
@@ -122,7 +118,6 @@ mod tests {
     fn cleanup_settings_survive_full_settings_roundtrip() {
         let mut s = get_default_settings();
         s.cleanup_enabled = true;
-        s.cleanup_app_context_enabled = true;
         s.cleanup_dictionary.push(DictionaryEntrySetting {
             canonical: "Echo".to_string(),
             variants: vec!["eko".to_string()],
@@ -132,7 +127,6 @@ mod tests {
         let back: AppSettings = serde_json::from_value(json).unwrap();
 
         assert!(back.cleanup_enabled);
-        assert!(back.cleanup_app_context_enabled);
         assert_eq!(back.cleanup_dictionary.len(), 1);
         assert_eq!(back.cleanup_dictionary[0].canonical, "Echo");
     }
@@ -374,5 +368,35 @@ mod tests {
         for key in REMOVED_PROVIDER_KEYS {
             assert!(rewritten.get(key).is_none(), "{key} should not be written back");
         }
+    }
+
+    #[test]
+    fn a_stored_pop_sound_theme_loads_as_marimba_and_is_rewritten() {
+        let mut raw = serde_json::to_value(get_default_settings()).unwrap();
+        raw["sound_theme"] = serde_json::json!("pop");
+
+        let (settings, rewrite) = load_stored_settings(raw).unwrap();
+
+        assert_eq!(settings.sound_theme, SoundTheme::Marimba);
+        assert!(rewrite);
+    }
+
+    #[test]
+    fn a_stored_test_shortcut_is_dropped() {
+        let mut settings = get_default_settings();
+        let transcribe = settings.bindings["transcribe"].clone();
+        settings.bindings.insert(
+            "test".to_string(),
+            ShortcutBinding {
+                id: "test".to_string(),
+                ..transcribe
+            },
+        );
+        let raw = serde_json::to_value(&settings).unwrap();
+
+        let (loaded, rewrite) = load_stored_settings(raw).unwrap();
+
+        assert!(!loaded.bindings.contains_key("test"));
+        assert!(rewrite);
     }
 }

@@ -1,6 +1,4 @@
-//! Focused-app detection for cleanup register. Hot path: must stay <5ms.
-
-use crate::managers::cleanup_prompt::Register;
+//! Focused-app detection. Hot path: must stay <5ms.
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct FocusedApp {
@@ -36,126 +34,6 @@ impl FocusedAppProvider for PlatformFocusedAppProvider {
             None
         }
     }
-}
-
-/// Highest priority; stable across localisations/macOS versions.
-const BUNDLE_ID_EXACT: &[(&str, Register)] = &[
-    ("com.tinyspeck.slackmacgap", Register::Casual),
-    ("com.hnc.Discord", Register::Casual),
-    ("com.apple.MobileSMS", Register::Casual),
-    ("net.whatsapp.WhatsApp", Register::Casual),
-    ("ph.telegra.Telegraph", Register::Casual),
-    ("com.facebook.archon", Register::Casual),
-    ("org.whispersystems.signal-desktop", Register::Casual),
-    ("com.apple.mail", Register::Formal),
-    ("com.microsoft.Outlook", Register::Formal),
-    ("notion.id", Register::Formal),
-    ("com.linear", Register::Formal),
-    ("com.atlassian.confluence", Register::Formal),
-    ("com.apple.iWork.Pages", Register::Formal),
-    ("md.obsidian", Register::Formal),
-    ("com.microsoft.Word", Register::Formal),
-    ("com.microsoft.VSCode", Register::Code),
-    ("com.microsoft.VSCodeInsiders", Register::Code),
-    ("com.todesktop.230313mzl4w4u92", Register::Code),
-    ("com.apple.dt.Xcode", Register::Code),
-    ("com.jetbrains.intellij", Register::Code),
-    ("com.jetbrains.pycharm", Register::Code),
-    ("com.jetbrains.webstorm", Register::Code),
-    ("com.googlecode.iterm2", Register::Code),
-    ("com.apple.Terminal", Register::Code),
-    ("dev.warp.Warp-Stable", Register::Code),
-    ("com.mitchellh.ghostty", Register::Code),
-    ("net.kovidgoyal.kitty", Register::Code),
-    ("io.alacritty", Register::Code),
-    ("dev.zed.Zed", Register::Code),
-    ("com.sublimetext.4", Register::Code),
-];
-
-/// Case-insensitive fallback; first hit wins.
-const CASUAL_SUBSTRINGS: &[&str] = &[
-    "slack",
-    "discord",
-    "messages",
-    "whatsapp",
-    "telegram",
-    "messenger",
-    "imessage",
-    "signal",
-];
-
-const FORMAL_SUBSTRINGS: &[&str] = &[
-    "mail",
-    "outlook",
-    "notion",
-    "linear",
-    "confluence",
-    "docs.google",
-    "microsoft word",
-    "pages",
-    "obsidian",
-];
-
-const CODE_SUBSTRINGS: &[&str] = &[
-    "vscode",
-    "visual studio code",
-    "code-insiders",
-    "cursor",
-    "xcode",
-    "intellij",
-    "pycharm",
-    "webstorm",
-    "iterm",
-    "terminal",
-    "warp",
-    "ghostty",
-    "kitty",
-    "alacritty",
-    "vim",
-    "nvim",
-    "helix",
-    "zed",
-    "sublime_text",
-];
-
-/// Exact bundle → bundle substring → process name substring → Neutral.
-pub fn classify_register(app: &FocusedApp) -> Register {
-    if let Some(bundle_id) = app.bundle_id.as_deref() {
-        for (id, reg) in BUNDLE_ID_EXACT {
-            if bundle_id.eq_ignore_ascii_case(id) {
-                return *reg;
-            }
-        }
-        if let Some(reg) = match_substring(bundle_id) {
-            return reg;
-        }
-    }
-    if let Some(process_name) = app.process_name.as_deref() {
-        if let Some(reg) = match_substring(process_name) {
-            return reg;
-        }
-    }
-    Register::Neutral
-}
-
-fn match_substring(haystack: &str) -> Option<Register> {
-    let lower = haystack.to_lowercase();
-    for needle in CASUAL_SUBSTRINGS {
-        if lower.contains(needle) {
-            return Some(Register::Casual);
-        }
-    }
-    for needle in FORMAL_SUBSTRINGS {
-        if lower.contains(needle) {
-            return Some(Register::Formal);
-        }
-    }
-    for needle in CODE_SUBSTRINGS {
-        if lower.contains(needle) {
-            return Some(Register::Code);
-        }
-    }
-    None
 }
 
 #[cfg(target_os = "macos")]
@@ -299,7 +177,7 @@ fn current_windows() -> Option<FocusedApp> {
     }
 }
 
-/// X11/Wayland focused-window detection skipped → Neutral fallback.
+/// X11/Wayland focused-window detection skipped.
 #[cfg(target_os = "linux")]
 #[allow(dead_code)]
 fn current_linux() -> Option<FocusedApp> {
@@ -309,65 +187,6 @@ fn current_linux() -> Option<FocusedApp> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn app_with_bundle(bid: &str) -> FocusedApp {
-        FocusedApp {
-            bundle_id: Some(bid.to_string()),
-            process_name: None,
-            window_title: None,
-        }
-    }
-
-    fn app_with_name(name: &str) -> FocusedApp {
-        FocusedApp {
-            bundle_id: None,
-            process_name: Some(name.to_string()),
-            window_title: None,
-        }
-    }
-
-    #[test]
-    fn classify_slack_as_casual() {
-        let app = app_with_bundle("com.tinyspeck.slackmacgap");
-        assert_eq!(classify_register(&app), Register::Casual);
-    }
-
-    #[test]
-    fn classify_vscode_as_code() {
-        let app = app_with_name("Visual Studio Code");
-        assert_eq!(classify_register(&app), Register::Code);
-    }
-
-    #[test]
-    fn classify_mail_as_formal() {
-        let app = app_with_bundle("com.apple.mail");
-        assert_eq!(classify_register(&app), Register::Formal);
-    }
-
-    #[test]
-    fn classify_unknown_as_neutral() {
-        let app = app_with_bundle("com.example.something");
-        assert_eq!(classify_register(&app), Register::Neutral);
-    }
-
-    #[test]
-    fn classify_substring_iterm() {
-        let app = app_with_bundle("foo.bar.iterm.baz");
-        assert_eq!(classify_register(&app), Register::Code);
-    }
-
-    #[test]
-    fn classify_no_bundle_id_uses_process_name() {
-        let app = app_with_name("WhatsApp");
-        assert_eq!(classify_register(&app), Register::Casual);
-    }
-
-    #[test]
-    fn classify_empty_app_is_neutral() {
-        let app = FocusedApp::default();
-        assert_eq!(classify_register(&app), Register::Neutral);
-    }
-
     /// CI has no GUI; just verify no panic.
     #[cfg(target_os = "macos")]
     #[test]

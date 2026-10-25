@@ -24,7 +24,6 @@ const DEFAULT_SETTINGS: Partial<Settings> = {
   audio_feedback_volume: 1.0,
   autostart_enabled: false,
   clamshell_microphone: "Default",
-  cleanup_app_context_enabled: false,
   cleanup_dictionary: [],
   cleanup_enabled: false,
   custom_words: [],

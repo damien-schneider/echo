@@ -3,13 +3,12 @@
 use anyhow::Result;
 use log::{debug, error};
 use rusqlite::params;
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 
-use super::hallucination::{is_hallucination, HallucinationFilter};
+use super::cleanup_apply::clean_transcript;
+use super::hallucination::HallucinationFilter;
 use super::meeting::{MeetingManager, MeetingSegment};
 use super::meeting_batch_plan::{ChunkOutcome, PendingSegment};
-use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
-use crate::managers::cleanup_apply::cleanup_or_filter;
 use crate::settings;
 
 impl MeetingManager {
@@ -19,7 +18,8 @@ impl MeetingManager {
         pending: PendingSegment,
         filter: HallucinationFilter,
     ) -> ChunkOutcome {
-        let cleaned = self.apply_cleanup_filter(text.trim(), filter);
+        let settings = settings::get_settings(&self.app_handle);
+        let cleaned = clean_transcript(text.trim(), filter, &settings);
         if cleaned.is_empty() {
             debug!(
                 "Skipped chunk at {}ms (empty or hallucination): {:?}",
@@ -66,20 +66,5 @@ impl MeetingManager {
             ],
         )?;
         Ok(())
-    }
-
-    fn apply_cleanup_filter(&self, text: &str, filter: HallucinationFilter) -> String {
-        let settings = settings::get_settings(&self.app_handle);
-        let Some(cleanup_state) = self.app_handle.try_state::<CleanupState>() else {
-            // Test harness: hallucination filter only.
-            if is_hallucination(text, filter) {
-                return String::new();
-            }
-            return text.to_string();
-        };
-        let cleanup_state = cleanup_state.inner().clone();
-        cleanup_or_filter(text, filter, &cleanup_state, &settings, || {
-            build_context_from_app_settings(&settings)
-        })
     }
 }

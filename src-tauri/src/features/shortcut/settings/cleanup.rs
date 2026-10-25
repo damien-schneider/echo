@@ -10,18 +10,6 @@ pub fn change_cleanup_enabled_setting(app: AppHandle, enabled: bool) -> Result<(
     Ok(())
 }
 
-/// Stored only — the prompt builder does not consume this yet.
-#[tauri::command]
-pub fn change_cleanup_app_context_enabled_setting(
-    app: AppHandle,
-    enabled: bool,
-) -> Result<(), String> {
-    settings::update_settings(&app, |s| {
-        s.cleanup_app_context_enabled = enabled;
-    });
-    Ok(())
-}
-
 /// Full-list replace — the frontend owns the editing UX.
 #[tauri::command]
 pub fn update_cleanup_dictionary(

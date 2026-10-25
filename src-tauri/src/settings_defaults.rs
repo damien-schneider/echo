@@ -80,10 +80,6 @@ pub(super) fn default_cleanup_enabled() -> bool {
     false
 }
 
-pub(super) fn default_cleanup_app_context_enabled() -> bool {
-    false
-}
-
 pub(super) fn default_debug_logging_enabled() -> bool {
     false
 }

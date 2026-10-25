@@ -169,7 +169,7 @@ export const DictionaryEditor = () => {
   return (
     <>
       <SettingRow
-        description="Names and terms to preserve verbatim in cleaned transcripts. Add the canonical spelling and any variants (commonly misheard or misspelled forms) — variants are rewritten to the canonical before the cleanup model runs."
+        description="Add the correct spelling of a name or term and the ways it gets misheard. While cleanup is on, each variant is replaced with the correct spelling."
         icon={<BookOpenTextIcon className="h-4 w-4" />}
         layout="stacked"
         title="Custom Dictionary"

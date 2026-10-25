@@ -16,8 +16,6 @@ const settingUpdaters: {
     invoke("set_clamshell_microphone", {
       deviceName: value === "Default" ? "default" : value,
     }),
-  cleanup_app_context_enabled: (value) =>
-    invoke("change_cleanup_app_context_enabled_setting", { enabled: value }),
   cleanup_dictionary: (value) =>
     invoke("update_cleanup_dictionary", { dictionary: value }),
   cleanup_enabled: (value) =>

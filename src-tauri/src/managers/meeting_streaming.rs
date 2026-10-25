@@ -14,12 +14,10 @@ const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 
 use super::streaming::{trim_backlog, PipelineEvent, StreamingConfig, StreamingPipeline};
 use super::transcription::{StreamingTranscriber, TranscriptionManager};
-use crate::commands::cleanup::{build_context_from_app_settings, CleanupState};
-use crate::managers::cleanup_apply::cleanup_or_filter;
-use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
+use crate::managers::cleanup_apply::clean_transcript;
+use crate::managers::hallucination::HallucinationFilter;
 use crate::managers::model::transcription_profile_id;
 use crate::settings;
-use tauri::Manager as _;
 
 /// USB-mic noise floor (~-40 dBFS); below this Whisper hallucinates YouTube attractors.
 pub(crate) const SILENCE_RMS_THRESHOLD: f32 = 0.01;
@@ -242,10 +240,6 @@ fn run_worker(
     let mut sys_chunks = 0usize;
     let mut decode_errs = 0usize;
     let mut decode_oks = 0usize;
-    // Best-effort; test harness falls back to hallucination filter only.
-    let cleanup_state: Option<CleanupState> = app_handle
-        .try_state::<CleanupState>()
-        .map(|s| s.inner().clone());
     let app_handle_for_decode = app_handle.clone();
     let mut decode_with = |transcriber: &StreamingTranscriber, samples: &[f32]| -> String {
         match transcriber.transcribe(samples.to_vec()) {
@@ -253,19 +247,8 @@ fn run_worker(
                 decode_oks += 1;
                 // Re-read so mid-meeting cleanup toggle takes effect.
                 let settings_snapshot = settings::get_settings(&app_handle_for_decode);
-                let cleaned = if let Some(state) = cleanup_state.as_ref() {
-                    cleanup_or_filter(
-                        &text,
-                        HallucinationFilter::Strict,
-                        state,
-                        &settings_snapshot,
-                        || build_context_from_app_settings(&settings_snapshot),
-                    )
-                } else if is_hallucination(&text, HallucinationFilter::Strict) {
-                    String::new()
-                } else {
-                    text.clone()
-                };
+                let cleaned =
+                    clean_transcript(&text, HallucinationFilter::Strict, &settings_snapshot);
                 if cleaned.is_empty() && !text.is_empty() {
                     debug!("dropped whisper hallucination or cleanup-empty: {text:?}");
                 }
