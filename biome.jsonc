@@ -5,7 +5,9 @@
     {
       "includes": ["src/**", "!src/overlay/**", "!src/features/overlay-*/**"],
       "plugins": [
-        "./node_modules/@ctrl-ui/react/lint/no-component-style-classes.grit"
+        "./node_modules/@ctrl-ui/react/lint/no-component-style-classes.grit",
+        "./node_modules/@ctrl-ui/react/lint/no-component-style-props.grit",
+        "./node_modules/@ctrl-ui/react/lint/no-component-part-css.grit"
       ]
     },
     {
