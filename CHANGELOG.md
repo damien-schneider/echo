@@ -10,6 +10,7 @@
 - The Pop sound theme. Its sounds never shipped, so choosing it played nothing. Settings that used it switch to Marimba.
 
 ### Fixed
+- A meeting cut short by a crash, a forced quit or a relaunch (such as macOS restarting Echo after you grant Screen Recording) keeps its recorded audio on both tracks, minus at most the last quarter second. Before, a meeting cut short in its first 10 seconds came back with no audio, and later ones lost up to their last 10 seconds.
 - A dictionary spelling containing `$`, such as `$ECHO`, is now inserted as written.
 
 ## [0.8.14] - 2026-10-24

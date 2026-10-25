@@ -1,24 +1,23 @@
 //! Streaming WAV sink for a meeting: hours of audio land on disk as they arrive, never in memory.
 
-use anyhow::Result;
+use anyhow::{Context, Result};
+use hound::WavReader;
 use log::{error, info, warn};
+use std::fs::OpenOptions;
+use std::io::{BufReader, Seek, SeekFrom, Write};
 use std::path::Path;
 use std::sync::Mutex;
 
 use crate::audio_toolkit::audio::{create_wav_file, write_wav_samples, WavSink};
 use crate::managers::meeting_types::SAMPLE_RATE;
 
-/// hound only writes the real header on `finalize()`, so a `kill -9` used to leave an hour of PCM
-/// behind a zero-length header. Flushing rewrites it: the file stays readable to within 10 s.
-const FLUSH_INTERVAL_SAMPLES: usize = 10 * SAMPLE_RATE;
-
 /// Meetings run for hours with no VAD to compress them: keeping a stream in memory would grow
 /// 230 MB an hour per source. Chunks land in the meeting's WAV as they arrive instead.
 pub(super) struct MeetingAudioSink {
+    /// A kill loses only hound's 8 KiB write buffer (~0.25 s); `seal_interrupted_track` keeps the rest.
     writer: WavSink,
     file_name: String,
     samples_written: usize,
-    samples_since_flush: usize,
     /// A stream that can no longer be written stops taking samples but keeps what it already has.
     failed: bool,
 }
@@ -30,7 +29,6 @@ impl MeetingAudioSink {
             writer,
             file_name,
             samples_written: 0,
-            samples_since_flush: 0,
             failed: false,
         })
     }
@@ -38,11 +36,6 @@ impl MeetingAudioSink {
     fn write(&mut self, chunk: &[f32]) -> Result<()> {
         write_wav_samples(&mut self.writer, chunk)?;
         self.samples_written += chunk.len();
-        self.samples_since_flush += chunk.len();
-        if self.samples_since_flush >= FLUSH_INTERVAL_SAMPLES {
-            self.samples_since_flush = 0;
-            self.writer.flush()?;
-        }
         Ok(())
     }
 
@@ -95,11 +88,36 @@ pub(super) fn write_to_sink(sink: &Mutex<Option<MeetingAudioSink>>, chunk: &[f32
     open.mark_failed()
 }
 
+/// A killed sink never wrote its header: the recording is every whole sample that reached the disk.
+pub(super) fn seal_interrupted_track(path: &Path) -> Result<usize> {
+    let mut file = OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(path)
+        .with_context(|| format!("open {}", path.display()))?;
+    let file_len = file.metadata()?.len();
+    if file_len == 0 {
+        return Ok(0);
+    }
+    let (data_start, frame_bytes) = {
+        let mut reader = BufReader::new(&file);
+        let spec = WavReader::new(&mut reader)?.spec();
+        let frame_bytes = u64::from(spec.channels * spec.bits_per_sample / 8);
+        (reader.stream_position()?, frame_bytes)
+    };
+    let data_len = (file_len - data_start) / frame_bytes * frame_bytes;
+    file.set_len(data_start + data_len)?;
+    file.seek(SeekFrom::Start(4))?;
+    file.write_all(&u32::try_from(data_start + data_len - 8)?.to_le_bytes())?;
+    file.seek(SeekFrom::Start(data_start - 4))?;
+    file.write_all(&u32::try_from(data_len)?.to_le_bytes())?;
+    Ok(usize::try_from(data_len / frame_bytes)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::audio_toolkit::audio::load_wav_file;
-    use hound::WavReader;
     use tempfile::TempDir;
 
     fn silence(len: usize) -> Vec<f32> {
@@ -123,20 +141,22 @@ mod tests {
         assert!(!dir.path().join("empty.wav").exists());
     }
 
-    /// The crash drill: `finish()` never runs, so only what was flushed survives.
+    /// A kill can cut the last write mid-sample; decoders reject the file until that half is dropped.
     #[test]
-    fn a_killed_recording_is_still_readable_up_to_the_last_flush() {
+    fn sealing_a_killed_track_drops_a_sample_cut_in_half() {
         let dir = TempDir::new().unwrap();
-        let path = dir.path().join("killed.wav");
-        let mut sink = MeetingAudioSink::create(dir.path(), "killed.wav".into()).unwrap();
-        sink.write(&silence(2 * FLUSH_INTERVAL_SAMPLES)).unwrap();
+        let path = dir.path().join("torn.wav");
+        let mut sink = MeetingAudioSink::create(dir.path(), "torn.wav".into()).unwrap();
+        sink.write(&silence(16_000)).unwrap();
         std::mem::forget(sink);
+        let mut file = OpenOptions::new().append(true).open(&path).unwrap();
+        file.write_all(&[0x7f]).unwrap();
 
-        let readable = WavReader::open(&path).unwrap().duration() as usize;
-        assert!(
-            readable >= FLUSH_INTERVAL_SAMPLES,
-            "expected at least one flushed interval, got {readable} samples"
-        );
+        let sealed = seal_interrupted_track(&path).unwrap();
+        let mut reader = WavReader::open(&path).unwrap();
+        assert!(sealed > 0);
+        assert_eq!(reader.duration() as usize, sealed);
+        assert!(reader.samples::<i16>().all(|sample| sample.is_ok()));
     }
 
     /// A full disk fails on every chunk that follows: the user is told once, not 200 times a
