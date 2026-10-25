@@ -12,9 +12,9 @@ use wasapi::{initialize_mta, DeviceEnumerator, Direction, SampleType, StreamMode
 
 use super::SystemAudioCapture;
 use crate::audio_toolkit::audio::FrameResampler;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 
 const NATIVE_SAMPLE_RATE: u32 = 48_000;
-const TARGET_SAMPLE_RATE: u32 = 16_000;
 const NATIVE_CHANNELS: u16 = 2;
 
 pub struct WindowsSystemCapture {
@@ -121,7 +121,7 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
 
     let mut resampler = FrameResampler::new(
         NATIVE_SAMPLE_RATE as usize,
-        TARGET_SAMPLE_RATE as usize,
+        SAMPLE_RATE,
         Duration::from_millis(100),
     );
 

@@ -11,4 +11,4 @@ pub use audio::{
 };
 pub use text::apply_custom_words;
 pub use utils::get_cpal_host;
-pub use vad::{SileroVad, VoiceActivityDetector};
+pub use vad::VoiceActivityDetector;

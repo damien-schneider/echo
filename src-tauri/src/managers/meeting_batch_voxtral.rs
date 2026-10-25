@@ -6,7 +6,9 @@ use transcribe_cpp::Model;
 use super::hallucination::HallucinationFilter;
 use super::meeting::{BatchPhase, MeetingManager};
 use super::meeting_batch::wav_sample_count;
-use super::meeting_batch_plan::{BatchFiles, BatchOutcome, BatchPass, ChunkOutcome, PassProgress};
+use super::meeting_batch_plan::{
+    BatchFiles, BatchOutcome, BatchPass, ChunkOutcome, PassProgress, StreamPass,
+};
 use super::meeting_types::samples_to_ms;
 use super::meeting_voxtral::{transcribe_file, SourceTranscript, TimedChunk};
 use super::meeting_voxtral_assembly::assemble_segments;
@@ -65,58 +67,72 @@ impl MeetingManager {
         outcome
     }
 
-    /// Sources run one after another: a model serves a single stream at a time.
-    pub(super) fn voxtral_file_transcripts(
+    /// Stop and Retranscribe pick engines alike: every stream without complete Voxtral text gets
+    /// Voxtral's file pass, one after another since a model serves a single stream at a time.
+    pub(super) fn voxtral_transcripts(
         &self,
         meeting_id: i64,
         files: &BatchFiles,
+        mut transcripts: Vec<SourceTranscript>,
     ) -> Vec<SourceTranscript> {
+        let missing = files.streams_without_voxtral_text(&transcripts);
+        if missing.is_empty() {
+            return transcripts;
+        }
         let Some(model_path) = self.voxtral_model_path() else {
-            return Vec::new();
+            return transcripts;
         };
         let model = match Model::load(&model_path) {
             Ok(model) => model,
             Err(e) => {
-                warn!("Failed to load Voxtral, Whisper retranscribes meeting {meeting_id}: {e:#}");
-                return Vec::new();
+                warn!("Failed to load Voxtral, Whisper transcribes meeting {meeting_id}: {e:#}");
+                return transcripts;
             }
         };
-        files
-            .streams()
-            .iter()
-            .filter_map(|stream| {
-                let audio = self.meetings_dir.join(&stream.file_name);
-                let total_samples = wav_sample_count(&audio).ok()?;
-                let pass = BatchPass {
-                    meeting_id,
-                    audio,
-                    total_samples,
-                    stream,
-                };
-                let total_ms = usize::try_from(samples_to_ms(total_samples)).unwrap_or(0);
-                let steps_total = total_ms.div_ceil(FILE_PROGRESS_STEP_MS);
-                let mut steps_done = 0;
-                let mut on_fed_ms = |fed_ms: i64| {
-                    let fed_steps = usize::try_from(fed_ms).unwrap_or(0) / FILE_PROGRESS_STEP_MS;
-                    if fed_steps > steps_done {
-                        steps_done = fed_steps.min(steps_total);
-                        pass.emit_progress(
-                            &self.app_handle,
-                            PassProgress {
-                                phase: BatchPhase::Transcribing,
-                                done: steps_done,
-                                total: steps_total,
-                            },
-                        );
-                    }
-                };
-                Some(transcribe_file(
-                    &model,
-                    &pass.audio,
-                    stream.source.clone(),
-                    &mut on_fed_ms,
-                ))
-            })
-            .collect()
+        transcripts.extend(
+            missing
+                .iter()
+                .filter_map(|stream| self.voxtral_file_transcript(&model, meeting_id, stream)),
+        );
+        transcripts
+    }
+
+    fn voxtral_file_transcript(
+        &self,
+        model: &Model,
+        meeting_id: i64,
+        stream: &StreamPass,
+    ) -> Option<SourceTranscript> {
+        let audio = self.meetings_dir.join(&stream.file_name);
+        let total_samples = wav_sample_count(&audio).ok()?;
+        let pass = BatchPass {
+            meeting_id,
+            audio,
+            total_samples,
+            stream,
+        };
+        let total_ms = usize::try_from(samples_to_ms(total_samples)).unwrap_or(0);
+        let steps_total = total_ms.div_ceil(FILE_PROGRESS_STEP_MS);
+        let mut steps_done = 0;
+        let mut on_fed_ms = |fed_ms: i64| {
+            let fed_steps = usize::try_from(fed_ms).unwrap_or(0) / FILE_PROGRESS_STEP_MS;
+            if fed_steps > steps_done {
+                steps_done = fed_steps.min(steps_total);
+                pass.emit_progress(
+                    &self.app_handle,
+                    PassProgress {
+                        phase: BatchPhase::Transcribing,
+                        done: steps_done,
+                        total: steps_total,
+                    },
+                );
+            }
+        };
+        Some(transcribe_file(
+            model,
+            &pass.audio,
+            stream.source.clone(),
+            &mut on_fed_ms,
+        ))
     }
 }

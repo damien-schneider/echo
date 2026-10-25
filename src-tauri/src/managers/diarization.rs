@@ -8,6 +8,7 @@ use std::sync::Arc;
 use tauri::AppHandle;
 
 use super::model::ModelManager;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 
 pub const DIARIZATION_MODEL_ID: &str = "diarization-sortformer";
 
@@ -83,7 +84,7 @@ impl DiarizationManager {
         info!(
             "Diarization produced {} segments over {:.1}s of audio",
             result.len(),
-            fed_samples as f32 / 16_000.0
+            fed_samples as f32 / SAMPLE_RATE as f32
         );
         Ok(result)
     }

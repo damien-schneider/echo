@@ -199,8 +199,10 @@ impl MeetingManager {
             let guard = BatchGuard::new(manager.clone(), meeting_id);
             let status = match manager.models_ready() {
                 Ok(()) => {
+                    let transcripts =
+                        manager.voxtral_transcripts(meeting_id, &files, live_transcripts);
                     manager
-                        .run_batch_transcription(meeting_id, files, live_transcripts, 0)
+                        .run_batch_transcription(meeting_id, files, transcripts, 0)
                         .await
                 }
                 Err(reason) => {

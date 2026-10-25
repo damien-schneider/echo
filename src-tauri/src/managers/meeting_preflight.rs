@@ -9,10 +9,10 @@ use tauri::Manager;
 
 use super::diarization::DiarizationManager;
 use super::meeting::MeetingManager;
-use super::meeting_types::SAMPLE_RATE;
 use super::meeting_voxtral::voxtral_supported;
 use super::model::{ModelManager, VOXTRAL_MODEL_ID};
 use super::transcription_profiles::transcription_profile_id;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::settings;
 
 /// Both tracks are 16-bit mono at 16 kHz, and the playback mix writes a third copy of them.

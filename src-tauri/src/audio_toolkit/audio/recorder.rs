@@ -261,12 +261,10 @@ impl AudioRecorder {
         let supported_configs = device.supported_input_configs()?;
 
         for config_range in supported_configs {
-            if config_range.min_sample_rate().0 <= constants::WHISPER_SAMPLE_RATE
-                && config_range.max_sample_rate().0 >= constants::WHISPER_SAMPLE_RATE
+            let rate = constants::SAMPLE_RATE as u32;
+            if config_range.min_sample_rate().0 <= rate && config_range.max_sample_rate().0 >= rate
             {
-                return Ok(
-                    config_range.with_sample_rate(cpal::SampleRate(constants::WHISPER_SAMPLE_RATE))
-                );
+                return Ok(config_range.with_sample_rate(cpal::SampleRate(rate)));
             }
         }
 
@@ -338,8 +336,8 @@ fn start_input_stream(
     })
 }
 
-const LONG_PAUSE_MIN_SAMPLES: usize = constants::WHISPER_SAMPLE_RATE as usize / 2;
-pub(crate) const PAUSE_SEPARATOR_SAMPLES: usize = constants::WHISPER_SAMPLE_RATE as usize * 3 / 10;
+const LONG_PAUSE_MIN_SAMPLES: usize = constants::SAMPLE_RATE / 2;
+pub(crate) const PAUSE_SEPARATOR_SAMPLES: usize = constants::SAMPLE_RATE * 3 / 10;
 
 /// Below this a sample is not quiet but absent — the pipe delivers digital zeros when macOS denies
 /// the microphone or the device is muted at the source.
@@ -468,7 +466,7 @@ fn run_consumer(
 ) {
     let mut frame_resampler = FrameResampler::new(
         in_sample_rate as usize,
-        constants::WHISPER_SAMPLE_RATE as usize,
+        constants::SAMPLE_RATE,
         Duration::from_millis(30),
     );
 
@@ -555,7 +553,7 @@ fn run_consumer(
 
                     let captured = recorded_audio.take_recording();
                     let sample_count = captured.samples.len();
-                    let audio_duration_secs = sample_count as f32 / 16_000.0;
+                    let audio_duration_secs = sample_count as f32 / constants::SAMPLE_RATE as f32;
                     debug!(
                         "AudioRecorder stop: returning {} samples ({:.1}s of audio)",
                         sample_count, audio_duration_secs
@@ -572,9 +570,6 @@ fn run_consumer(
         let raw = match sample_rx.recv_timeout(Duration::from_millis(100)) {
             Ok(s) => s,
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                if let Ok(Cmd::Shutdown) = cmd_rx.try_recv() {
-                    return;
-                }
                 if recording && !stall_reported && last_sample_at.elapsed() > STREAM_STALL_BUDGET {
                     stall_reported = true;
                     warn!("Audio device stopped delivering samples mid-recording");

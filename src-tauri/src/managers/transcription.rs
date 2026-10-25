@@ -1,4 +1,5 @@
 use crate::audio_toolkit::apply_custom_words;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
 use crate::managers::model::transcription_profile_id;
 use crate::managers::model::{EngineType, ModelManager};
@@ -16,10 +17,8 @@ use std::thread;
 use std::time::Duration;
 use transcribe_cpp::CancelToken;
 
-/// 16 kHz mono f32 — whisper + parakeet input format.
-pub const WHISPER_SAMPLE_RATE: usize = 16_000;
 /// A pin needs a window long enough for Whisper's pick to mean something.
-const PIN_MIN_WINDOW_SAMPLES: usize = 5 * WHISPER_SAMPLE_RATE;
+const PIN_MIN_WINDOW_SAMPLES: usize = 5 * SAMPLE_RATE;
 
 /// Prewarmed decode is ~1s, so this floor surfaces a hang fast; longer clips scale by the multiplier below.
 pub const MIN_TRANSCRIPTION_TIMEOUT_SECS: u64 = 8;
@@ -29,7 +28,7 @@ pub const TRANSCRIPTION_TIMEOUT_MULTIPLIER: u64 = 3;
 
 /// 1s silence to warm the ggml Metal pipeline before first real decode.
 pub fn build_warmup_audio() -> Vec<f32> {
-    vec![0.0_f32; WHISPER_SAMPLE_RATE]
+    vec![0.0_f32; SAMPLE_RATE]
 }
 
 /// RAII flag resetter; covers early-return + panic.
@@ -50,7 +49,7 @@ pub fn try_acquire_once_flag(flag: &AtomicBool) -> Option<OnceFlagGuard<'_>> {
 
 /// Wall-clock cap for one transcribe call. Input is sample count at 16 kHz mono.
 pub fn transcription_timeout(audio_len_samples: usize) -> Duration {
-    let audio_secs = (audio_len_samples / WHISPER_SAMPLE_RATE) as u64;
+    let audio_secs = (audio_len_samples / SAMPLE_RATE) as u64;
     let scaled = audio_secs.saturating_mul(TRANSCRIPTION_TIMEOUT_MULTIPLIER);
     Duration::from_secs(scaled.max(MIN_TRANSCRIPTION_TIMEOUT_SECS))
 }
@@ -158,7 +157,6 @@ pub struct TranscriptionManager {
     app_handle: AppHandle,
     is_loading: Arc<Mutex<bool>>,
     loading_condvar: Arc<Condvar>,
-    /// Dedups concurrent prewarm calls racing on ONNX backend.
     prewarm_in_progress: Arc<AtomicBool>,
 }
 

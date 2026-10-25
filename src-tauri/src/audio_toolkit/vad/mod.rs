@@ -1,4 +1,5 @@
 use anyhow::Result;
+use std::path::Path;
 
 pub enum VadFrame<'a> {
     /// Speech – may aggregate several frames (prefill + current + hangover)
@@ -25,8 +26,15 @@ pub trait VoiceActivityDetector: Send + Sync {
     fn reset(&mut self) {}
 }
 
+mod frames;
 mod silero;
 mod smoothed;
 
-pub use silero::SileroVad;
+pub use frames::SpeechFrames;
+use silero::SileroVad;
 pub use smoothed::SmoothedVad;
+
+pub fn speech_vad(model_path: &Path) -> Result<SmoothedVad> {
+    let silero = SileroVad::new(model_path, 0.3)?;
+    Ok(SmoothedVad::new(Box::new(silero), 15, 15, 2))
+}

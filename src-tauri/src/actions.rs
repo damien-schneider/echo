@@ -1,4 +1,5 @@
 use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::features::polish::manager::PolishManager;
 use crate::managers::audio::{AudioRecordingManager, RecordedDictation, RecordingAttempt};
 use crate::managers::cleanup_apply::clean_transcript;
@@ -805,7 +806,7 @@ impl ShortcutAction for TranscribeAction {
                 "stop: stop_recording returned in {:?} — {} samples ({:.1}s audio), present={}",
                 stop_recording_time.elapsed(),
                 recording.samples.len(),
-                recording.samples.len() as f32 / 16000.0,
+                recording.samples.len() as f32 / SAMPLE_RATE as f32,
                 samples_present
             );
 

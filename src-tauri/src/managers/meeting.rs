@@ -246,7 +246,7 @@ impl MeetingManager {
         self.set_meeting_status(meeting_id, &MeetingStatus::Processing);
         self.emit_status_changed(MeetingStatus::Processing);
 
-        let voxtral_transcripts = self.voxtral_file_transcripts(meeting_id, &files);
+        let voxtral_transcripts = self.voxtral_transcripts(meeting_id, &files, Vec::new());
         let status = self
             .run_batch_transcription(
                 meeting_id,

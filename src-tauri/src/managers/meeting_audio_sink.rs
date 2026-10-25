@@ -9,7 +9,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use crate::audio_toolkit::audio::{create_wav_file, write_wav_samples, WavSink};
-use crate::managers::meeting_types::SAMPLE_RATE;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 
 /// Meetings run for hours with no VAD to compress them: keeping a stream in memory would grow
 /// 230 MB an hour per source. Chunks land in the meeting's WAV as they arrive instead.

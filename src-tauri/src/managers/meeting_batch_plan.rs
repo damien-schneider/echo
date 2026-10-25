@@ -5,7 +5,9 @@ use tauri::Emitter;
 
 use super::diarization::DiarizationSegment;
 use super::meeting::{AudioSource, BatchPhase, MeetingBatchProgress, MeetingStatus};
-use super::meeting_types::{ms_to_samples, SAMPLE_RATE};
+use super::meeting_types::ms_to_samples;
+use super::meeting_voxtral::{complete_transcript, SourceTranscript};
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 
 pub(super) const MIN_TRANSCRIBABLE_SAMPLES: usize = 1600;
 
@@ -60,6 +62,16 @@ impl BatchFiles {
             base_offset_ms: self.system_offset_ms,
         });
         mic.chain(system).collect()
+    }
+
+    pub(super) fn streams_without_voxtral_text(
+        &self,
+        transcripts: &[SourceTranscript],
+    ) -> Vec<StreamPass> {
+        self.streams()
+            .into_iter()
+            .filter(|stream| complete_transcript(transcripts, &stream.source).is_none())
+            .collect()
     }
 }
 

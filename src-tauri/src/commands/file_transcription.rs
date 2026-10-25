@@ -1,4 +1,4 @@
-use crate::audio_toolkit::audio::decode_audio_file;
+use crate::audio_toolkit::{audio::decode_audio_file, constants::SAMPLE_RATE};
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::{transcription_timeout, TranscriptionManager};
 use log::{error, info};
@@ -96,7 +96,7 @@ pub async fn transcribe_audio_file(
         return Err(err);
     }
 
-    let duration_secs = audio_samples.len() / 16000;
+    let duration_secs = audio_samples.len() / SAMPLE_RATE;
     let duration_mins = duration_secs / 60;
     let duration_secs_remainder = duration_secs % 60;
 

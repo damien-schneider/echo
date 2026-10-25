@@ -15,10 +15,11 @@ use super::meeting_batch_plan::{
     PassProgress, PendingSegment, MIN_TRANSCRIBABLE_SAMPLES,
 };
 use super::meeting_mixdown::{mix_file_name, write_mixdown, MixSources};
-use super::meeting_types::{ms_to_samples, samples_to_ms, SAMPLE_RATE};
-use super::meeting_voxtral::SourceTranscript;
+use super::meeting_types::{ms_to_samples, samples_to_ms};
+use super::meeting_voxtral::{complete_transcript, SourceTranscript};
 use super::transcription::{transcription_timeout, TranscriptionManager};
 use crate::audio_toolkit::audio::{read_wav_range, WavWindows};
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::settings;
 
 const DIARIZATION_WINDOW_SAMPLES: usize = 30 * SAMPLE_RATE;
@@ -50,13 +51,11 @@ impl MeetingManager {
                         total_samples,
                         stream: &stream,
                     };
-                    let voxtral_text = voxtral_transcripts.iter().find(|transcript| {
-                        transcript.complete && transcript.source == stream.source
-                    });
-                    let pass_outcome = match voxtral_text {
-                        Some(transcript) => self.store_voxtral_text(&pass, &transcript.chunks),
-                        None => self.diarize_and_transcribe(&pass).await,
-                    };
+                    let pass_outcome =
+                        match complete_transcript(&voxtral_transcripts, &stream.source) {
+                            Some(transcript) => self.store_voxtral_text(&pass, &transcript.chunks),
+                            None => self.diarize_and_transcribe(&pass).await,
+                        };
                     outcome = outcome.merged(pass_outcome);
                 }
                 Err(e) => {

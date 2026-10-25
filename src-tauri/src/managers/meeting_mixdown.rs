@@ -4,8 +4,9 @@ use anyhow::Result;
 use std::path::Path;
 
 use crate::audio_toolkit::audio::{create_wav_file, read_wav_range, write_wav_samples};
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::managers::meeting_batch::wav_sample_count;
-use crate::managers::meeting_types::{ms_to_samples, SAMPLE_RATE};
+use crate::managers::meeting_types::ms_to_samples;
 
 /// Hours of meeting are mixed a window at a time: neither track is ever held whole in memory.
 const MIX_WINDOW_SAMPLES: usize = 30 * SAMPLE_RATE;

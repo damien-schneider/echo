@@ -1,4 +1,5 @@
 use super::*;
+use std::thread;
 use std::time::Instant;
 
 #[test]
@@ -208,4 +209,39 @@ fn a_streaming_recorder_keeps_no_samples() {
     });
 
     assert!(recorded.take_recording().samples.is_empty());
+}
+
+/// A Bluetooth mic switching profiles sends nothing for a while: a start arriving then was dropped.
+#[test]
+fn a_start_sent_while_the_device_is_silent_still_records() {
+    let (sample_tx, sample_rx) = mpsc::channel::<Vec<f32>>();
+    let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
+    let consumer = thread::spawn(move || {
+        run_consumer(
+            constants::SAMPLE_RATE as u32,
+            None,
+            sample_rx,
+            cmd_rx,
+            None,
+            None,
+        )
+    });
+    thread::sleep(Duration::from_millis(30));
+    let (frame_tx, frame_rx) = mpsc::channel();
+    cmd_tx
+        .send(Cmd::Start {
+            chunk_tx: Some(frame_tx),
+            retain: false,
+        })
+        .unwrap();
+    thread::sleep(Duration::from_millis(250));
+
+    sample_tx
+        .send(vec![0.1; constants::SAMPLE_RATE / 10])
+        .unwrap();
+
+    let frame = frame_rx.recv_timeout(Duration::from_secs(1));
+    cmd_tx.send(Cmd::Shutdown).unwrap();
+    consumer.join().unwrap();
+    assert!(frame.is_ok(), "the start was swallowed: {frame:?}");
 }

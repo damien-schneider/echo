@@ -1,6 +1,7 @@
+use crate::audio_toolkit::constants::SAMPLE_RATE;
+use crate::audio_toolkit::vad::{speech_vad, SmoothedVad};
 use crate::audio_toolkit::{
-    list_input_devices, vad::SmoothedVad, AudioRecorder, CapturedAudioFrame, SelectedDeviceCache,
-    SileroVad,
+    list_input_devices, AudioRecorder, CapturedAudioFrame, SelectedDeviceCache,
 };
 use crate::helpers::clamshell;
 use crate::managers::dictation_streaming::{DictationStreamingHandle, DictationStreamingWorker};
@@ -89,8 +90,6 @@ fn set_mute(mute: bool) {
         let _ = Command::new("osascript").args(["-e", &script]).output();
     }
 }
-
-const WHISPER_SAMPLE_RATE: usize = 16000;
 
 /* ──────────────────────────────────────────────────────────────── */
 
@@ -330,17 +329,21 @@ impl PreparedDictationStream {
 
 /* ──────────────────────────────────────────────────────────────── */
 
-fn create_audio_recorder(
-    vad_path: &str,
-    app_handle: &tauri::AppHandle,
-) -> Result<AudioRecorder, anyhow::Error> {
-    let silero = SileroVad::new(vad_path, 0.3)
-        .map_err(|e| anyhow::anyhow!("Failed to create SileroVad: {}", e))?;
-    let smoothed_vad = SmoothedVad::new(Box::new(silero), 15, 15, 2);
+pub(crate) fn load_speech_vad(app_handle: &tauri::AppHandle) -> anyhow::Result<SmoothedVad> {
+    let model_path = app_handle
+        .path()
+        .resolve(
+            "resources/models/silero_vad_v4.onnx",
+            tauri::path::BaseDirectory::Resource,
+        )
+        .context("resolve the VAD model")?;
+    speech_vad(&model_path).context("load the VAD model")
+}
 
+fn create_audio_recorder(app_handle: &tauri::AppHandle) -> Result<AudioRecorder, anyhow::Error> {
     let recorder = AudioRecorder::new()
         .map_err(|e| anyhow::anyhow!("Failed to create AudioRecorder: {}", e))?
-        .with_vad(Box::new(smoothed_vad))
+        .with_vad(Box::new(load_speech_vad(app_handle)?))
         .with_level_callback({
             let app_handle = app_handle.clone();
             move |levels| {
@@ -460,21 +463,7 @@ impl AudioRecordingManager {
             return Ok(());
         }
 
-        let vad_path = self
-            .app_handle
-            .path()
-            .resolve(
-                "resources/models/silero_vad_v4.onnx",
-                tauri::path::BaseDirectory::Resource,
-            )
-            .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {}", e))?;
-
-        debug!("Preloading VAD model from {:?}", vad_path);
-
-        let vad_path = vad_path
-            .to_str()
-            .context("VAD model path is not valid UTF-8")?;
-        *recorder = Some(create_audio_recorder(vad_path, &self.app_handle)?);
+        *recorder = Some(create_audio_recorder(&self.app_handle)?);
         debug!("Audio recorder preloaded successfully");
 
         Ok(())
@@ -552,21 +541,9 @@ impl AudioRecordingManager {
         let start_time = Instant::now();
         *lock(&self.did_mute) = false;
 
-        let vad_path = self
-            .app_handle
-            .path()
-            .resolve(
-                "resources/models/silero_vad_v4.onnx",
-                tauri::path::BaseDirectory::Resource,
-            )
-            .map_err(|e| anyhow::anyhow!("Failed to resolve VAD path: {}", e))?;
         let mut recorder_opt = lock(&self.recorder);
-
         if recorder_opt.is_none() {
-            let vad_path = vad_path
-                .to_str()
-                .context("VAD model path is not valid UTF-8")?;
-            *recorder_opt = Some(create_audio_recorder(vad_path, &self.app_handle)?);
+            *recorder_opt = Some(create_audio_recorder(&self.app_handle)?);
         }
 
         let settings = get_settings(&self.app_handle);
@@ -835,17 +812,17 @@ impl AudioRecordingManager {
 /// Whisper decodes sub-second clips unreliably; an empty buffer stays empty so it has nothing to hallucinate over.
 pub fn pad_short_samples(samples: Vec<f32>) -> Vec<f32> {
     let len = samples.len();
-    if len == 0 || len >= WHISPER_SAMPLE_RATE {
+    if len == 0 || len >= SAMPLE_RATE {
         return samples;
     }
     let mut padded = samples;
-    padded.resize(WHISPER_SAMPLE_RATE * 5 / 4, 0.0);
+    padded.resize(SAMPLE_RATE * 5 / 4, 0.0);
     padded
 }
 
 #[cfg(test)]
 mod pad_tests {
-    use super::{pad_short_samples, WHISPER_SAMPLE_RATE};
+    use super::{pad_short_samples, SAMPLE_RATE};
 
     #[test]
     fn empty_input_stays_empty() {
@@ -856,28 +833,27 @@ mod pad_tests {
 
     #[test]
     fn input_below_one_second_pads_to_one_and_a_quarter_seconds() {
-        let v: Vec<f32> = vec![0.1; WHISPER_SAMPLE_RATE / 2]; // 0.5s
+        let v: Vec<f32> = vec![0.1; SAMPLE_RATE / 2]; // 0.5s
         let padded = pad_short_samples(v);
-        assert_eq!(padded.len(), WHISPER_SAMPLE_RATE * 5 / 4);
-        for &s in &padded[..WHISPER_SAMPLE_RATE / 2] {
+        assert_eq!(padded.len(), SAMPLE_RATE * 5 / 4);
+        for &s in &padded[..SAMPLE_RATE / 2] {
             assert_eq!(s, 0.1);
         }
-        for &s in &padded[WHISPER_SAMPLE_RATE / 2..] {
+        for &s in &padded[SAMPLE_RATE / 2..] {
             assert_eq!(s, 0.0);
         }
     }
 
     #[test]
     fn input_exactly_one_second_is_not_padded() {
-        // guard is strict `<` — exactly 16_000 samples must pass through
-        let v: Vec<f32> = vec![0.2; WHISPER_SAMPLE_RATE];
+        let v: Vec<f32> = vec![0.2; SAMPLE_RATE];
         let padded = pad_short_samples(v.clone());
         assert_eq!(padded, v);
     }
 
     #[test]
     fn input_above_one_second_is_not_padded() {
-        let v: Vec<f32> = vec![0.3; WHISPER_SAMPLE_RATE * 3];
+        let v: Vec<f32> = vec![0.3; SAMPLE_RATE * 3];
         let padded = pad_short_samples(v.clone());
         assert_eq!(padded.len(), v.len());
         assert_eq!(padded, v);
@@ -887,7 +863,7 @@ mod pad_tests {
     fn single_sample_input_is_padded() {
         let v: Vec<f32> = vec![0.4];
         let padded = pad_short_samples(v);
-        assert_eq!(padded.len(), WHISPER_SAMPLE_RATE * 5 / 4);
+        assert_eq!(padded.len(), SAMPLE_RATE * 5 / 4);
         assert_eq!(padded[0], 0.4);
     }
 }

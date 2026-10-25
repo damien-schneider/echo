@@ -5,6 +5,8 @@ use std::fs::File;
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
+use crate::audio_toolkit::constants::SAMPLE_RATE;
+
 pub fn load_wav_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let reader = WavReader::open(file_path.as_ref())
         .with_context(|| format!("Failed to open WAV file: {:?}", file_path.as_ref()))?;
@@ -37,7 +39,7 @@ pub fn load_wav_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
 /// Every recording Echo writes shares this format; readers assume it.
 const SPEC: WavSpec = WavSpec {
     channels: 1,
-    sample_rate: 16000,
+    sample_rate: SAMPLE_RATE as u32,
     bits_per_sample: 16,
     sample_format: hound::SampleFormat::Int,
 };

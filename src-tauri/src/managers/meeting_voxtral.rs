@@ -9,21 +9,46 @@ use transcribe_cpp::{
     VoxtralRealtimeStreamOptions,
 };
 
+use super::meeting_streaming::StreamingSource;
 use super::meeting_types::{samples_to_ms, AudioSource};
 use crate::audio_toolkit::audio::WavWindows;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 
-/// 480 ms: Voxtral's 80 ms token grid times the six delay tokens of the stream.
-pub(super) const FEED_SAMPLES: usize = 7_680;
+/// Voxtral's 80 ms token grid times the six delay tokens of the stream.
 const STREAM_DELAY_MS: i64 = 480;
+pub(super) const FEED_SAMPLES: usize = SAMPLE_RATE * STREAM_DELAY_MS as usize / 1000;
 const MIN_VOXTRAL_MEMORY_BYTES: u64 = 16 * 1024 * 1024 * 1024;
+/// Each live stream loads its own model (~1.8 GB resident): one model serves one stream at a time.
+const MIN_DUAL_VOXTRAL_MEMORY_BYTES: u64 = 24 * 1024 * 1024 * 1024;
 
 pub fn voxtral_supported() -> bool {
     cfg!(all(target_os = "macos", target_arch = "aarch64"))
         && physical_memory_bytes() >= MIN_VOXTRAL_MEMORY_BYTES
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum LiveEngine {
+    Voxtral,
+    Whisper,
+}
+
+pub(super) fn live_engine(
+    source: StreamingSource,
+    voxtral_ready: bool,
+    memory_bytes: u64,
+) -> LiveEngine {
+    match source {
+        _ if !voxtral_ready => LiveEngine::Whisper,
+        StreamingSource::Mic => LiveEngine::Voxtral,
+        StreamingSource::System if memory_bytes >= MIN_DUAL_VOXTRAL_MEMORY_BYTES => {
+            LiveEngine::Voxtral
+        }
+        StreamingSource::System => LiveEngine::Whisper,
+    }
+}
+
 #[cfg(target_os = "macos")]
-fn physical_memory_bytes() -> u64 {
+pub(super) fn physical_memory_bytes() -> u64 {
     let mut bytes: u64 = 0;
     let mut size = std::mem::size_of::<u64>();
     // SAFETY: hw.memsize is a u64 and `size` is the size of the buffer it is written to.
@@ -44,7 +69,7 @@ fn physical_memory_bytes() -> u64 {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn physical_memory_bytes() -> u64 {
+pub(super) fn physical_memory_bytes() -> u64 {
     0
 }
 
@@ -56,7 +81,7 @@ pub(super) struct TimedChunk {
     pub(super) text: String,
 }
 
-/// An incomplete source lost audio on the way, so its text must not replace Whisper's pass.
+/// An incomplete source lost audio on the way, so its text must not replace a fresh pass.
 #[derive(Debug)]
 pub(super) struct SourceTranscript {
     pub(super) source: AudioSource,
@@ -72,6 +97,15 @@ impl SourceTranscript {
             complete: false,
         }
     }
+}
+
+pub(super) fn complete_transcript<'a>(
+    transcripts: &'a [SourceTranscript],
+    source: &AudioSource,
+) -> Option<&'a SourceTranscript> {
+    transcripts
+        .iter()
+        .find(|transcript| transcript.complete && &transcript.source == source)
 }
 
 /// Voxtral reports no timestamps: text committed once `fed_ms` of audio went in was heard up to
@@ -206,7 +240,36 @@ fn stream_file(
 
 #[cfg(test)]
 mod tests {
-    use super::chunk_span;
+    use super::*;
+
+    const GIB: u64 = 1024 * 1024 * 1024;
+
+    #[test]
+    fn the_guest_streams_through_its_own_voxtral_on_a_24_gb_mac() {
+        assert_eq!(
+            live_engine(StreamingSource::System, true, 24 * GIB),
+            LiveEngine::Voxtral
+        );
+    }
+
+    #[test]
+    fn below_24_gb_the_guest_keeps_the_whisper_preview_and_the_mic_keeps_voxtral() {
+        assert_eq!(
+            live_engine(StreamingSource::System, true, 16 * GIB),
+            LiveEngine::Whisper
+        );
+        assert_eq!(
+            live_engine(StreamingSource::Mic, true, 16 * GIB),
+            LiveEngine::Voxtral
+        );
+    }
+
+    #[test]
+    fn without_voxtral_both_sources_use_the_whisper_preview() {
+        for source in [StreamingSource::Mic, StreamingSource::System] {
+            assert_eq!(live_engine(source, false, 64 * GIB), LiveEngine::Whisper);
+        }
+    }
 
     #[test]
     fn a_chunk_covers_the_delay_window_before_the_audio_fed() {

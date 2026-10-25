@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-pub(super) const SAMPLE_RATE: usize = 16_000;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 
 pub(super) fn ms_to_samples(ms: i64) -> usize {
     usize::try_from(ms.max(0)).unwrap_or(0) * SAMPLE_RATE / 1000

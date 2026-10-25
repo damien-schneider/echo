@@ -1,11 +1,11 @@
 #[cfg(test)]
 mod warmup_tests {
-    use super::{build_warmup_audio, WHISPER_SAMPLE_RATE};
+    use super::{build_warmup_audio, SAMPLE_RATE};
 
     #[test]
     fn warmup_audio_is_one_second_of_silence() {
         let buf = build_warmup_audio();
-        assert_eq!(buf.len(), WHISPER_SAMPLE_RATE);
+        assert_eq!(buf.len(), SAMPLE_RATE);
         assert!(buf.iter().all(|s| *s == 0.0));
     }
 }
@@ -116,7 +116,7 @@ mod once_flag_tests {
 mod timeout_tests {
     use super::{
         transcription_timeout, MIN_TRANSCRIPTION_TIMEOUT_SECS, TRANSCRIPTION_TIMEOUT_MULTIPLIER,
-        WHISPER_SAMPLE_RATE,
+        SAMPLE_RATE,
     };
     use std::time::Duration;
 
@@ -131,7 +131,7 @@ mod timeout_tests {
     #[test]
     fn timeout_uses_floor_for_short_audio_under_floor() {
         // 1s × 3 = 3s, under 30s floor.
-        let one_second = WHISPER_SAMPLE_RATE;
+        let one_second = SAMPLE_RATE;
         assert_eq!(
             transcription_timeout(one_second),
             Duration::from_secs(MIN_TRANSCRIPTION_TIMEOUT_SECS)
@@ -141,7 +141,7 @@ mod timeout_tests {
     #[test]
     fn timeout_scales_with_long_audio_above_floor() {
         // 60s × 3 = 180s.
-        let sixty_seconds = WHISPER_SAMPLE_RATE * 60;
+        let sixty_seconds = SAMPLE_RATE * 60;
         assert_eq!(
             transcription_timeout(sixty_seconds),
             Duration::from_secs(60 * TRANSCRIPTION_TIMEOUT_MULTIPLIER)
@@ -153,13 +153,13 @@ mod timeout_tests {
         // floor saturates at floor/multiplier; expressed relative to the const so a bump stays correct
         let boundary_secs =
             (MIN_TRANSCRIPTION_TIMEOUT_SECS / TRANSCRIPTION_TIMEOUT_MULTIPLIER) as usize;
-        let at_boundary = WHISPER_SAMPLE_RATE * boundary_secs;
+        let at_boundary = SAMPLE_RATE * boundary_secs;
         assert_eq!(
             transcription_timeout(at_boundary),
             Duration::from_secs(MIN_TRANSCRIPTION_TIMEOUT_SECS)
         );
         let just_past_secs = (boundary_secs + 5) as u64;
-        let just_past = WHISPER_SAMPLE_RATE * just_past_secs as usize;
+        let just_past = SAMPLE_RATE * just_past_secs as usize;
         assert_eq!(
             transcription_timeout(just_past),
             Duration::from_secs(just_past_secs * TRANSCRIPTION_TIMEOUT_MULTIPLIER)

@@ -21,9 +21,9 @@ use libpulse_binding::{
 
 use super::SystemAudioCapture;
 use crate::audio_toolkit::audio::FrameResampler;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 
 const NATIVE_SAMPLE_RATE: u32 = 48_000;
-const TARGET_SAMPLE_RATE: u32 = 16_000;
 
 pub struct LinuxSystemCapture {
     shutdown: Arc<AtomicBool>,
@@ -190,7 +190,7 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
     // read callback runs on the mainloop thread; this thread owns the stream under the lock
     let resampler = Rc::new(RefCell::new(FrameResampler::new(
         NATIVE_SAMPLE_RATE as usize,
-        TARGET_SAMPLE_RATE as usize,
+        SAMPLE_RATE,
         Duration::from_millis(100),
     )));
 

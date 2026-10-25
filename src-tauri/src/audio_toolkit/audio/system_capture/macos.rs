@@ -10,9 +10,9 @@ use screencapturekit::prelude::*;
 
 use super::SystemAudioCapture;
 use crate::audio_toolkit::audio::FrameResampler;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 
 const NATIVE_SAMPLE_RATE: u32 = 48_000;
-const TARGET_SAMPLE_RATE: u32 = 16_000;
 
 pub struct MacOsSystemCapture {
     stream: Option<SCStream>,
@@ -94,7 +94,7 @@ impl AudioHandler {
     fn new(tx: mpsc::Sender<Vec<f32>>) -> Self {
         let resampler = FrameResampler::new(
             NATIVE_SAMPLE_RATE as usize,
-            TARGET_SAMPLE_RATE as usize,
+            SAMPLE_RATE,
             Duration::from_millis(100),
         );
         Self {

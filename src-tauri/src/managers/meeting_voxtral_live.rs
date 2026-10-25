@@ -10,10 +10,12 @@ use std::thread;
 use std::time::Duration;
 use transcribe_cpp::{Model, Session};
 
-use super::meeting_streaming::{rms, StreamingSource, SILENCE_RMS_THRESHOLD};
-use super::meeting_types::{AudioSource, SAMPLE_RATE};
+use super::meeting_streaming::StreamingSource;
+use super::meeting_types::AudioSource;
 use super::meeting_voxtral::{SourceTranscript, TimedChunk, TimedStream, FEED_SAMPLES};
 use super::streaming::PipelineEvent;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
+use crate::audio_toolkit::vad::SpeechFrames;
 
 /// Past a minute behind, the live text is no longer live and the stop pass would wait on it.
 const MAX_BACKLOG_SAMPLES: usize = 60 * SAMPLE_RATE;
@@ -44,41 +46,43 @@ pub struct VoxtralWorkerHandle {
 
 pub(super) type LiveEventSink = Box<dyn Fn(Vec<PipelineEvent>) + Send>;
 
+/// Without `speech` a pause goes unheard: lines close only once they span long enough.
+pub(super) struct LiveSource {
+    pub(super) meeting_id: i64,
+    pub(super) source: StreamingSource,
+    pub(super) model_path: PathBuf,
+    pub(super) emit: LiveEventSink,
+    pub(super) speech: Option<SpeechFrames>,
+}
+
 struct SourceStream {
-    meeting_id: i64,
-    source: StreamingSource,
-    model_path: PathBuf,
-    emit: LiveEventSink,
+    live: LiveSource,
     cmd_rx: mpsc::Receiver<Cmd>,
     queued_samples: Arc<AtomicUsize>,
     accepting: Arc<AtomicBool>,
 }
 
 impl VoxtralWorker {
-    pub(super) fn spawn(
-        meeting_id: i64,
-        source: StreamingSource,
-        model_path: PathBuf,
-        emit: LiveEventSink,
-    ) -> std::io::Result<(Arc<Self>, VoxtralWorkerHandle)> {
+    pub(super) fn spawn(live: LiveSource) -> std::io::Result<(Arc<Self>, VoxtralWorkerHandle)> {
         let (cmd_tx, cmd_rx) = mpsc::channel();
         let (result_tx, result_rx) = mpsc::channel();
         let queued_samples = Arc::new(AtomicUsize::new(0));
         let accepting = Arc::new(AtomicBool::new(true));
+        let source = live.source;
+        let thread_name = format!(
+            "meeting-voxtral-{}-{}",
+            live.meeting_id,
+            audio_source(source).as_str()
+        );
         let stream = SourceStream {
-            meeting_id,
-            source,
-            model_path,
-            emit,
+            live,
             cmd_rx,
             queued_samples: queued_samples.clone(),
             accepting: accepting.clone(),
         };
-        thread::Builder::new()
-            .name(format!("meeting-voxtral-{meeting_id}"))
-            .spawn(move || {
-                let _ = result_tx.send(stream.run());
-            })?;
+        thread::Builder::new().name(thread_name).spawn(move || {
+            let _ = result_tx.send(stream.run());
+        })?;
         let worker = Arc::new(Self {
             cmd_tx: cmd_tx.clone(),
             queued_samples,
@@ -111,16 +115,16 @@ impl VoxtralWorkerHandle {
         let transcript = self.result_rx.recv_timeout(STOP_BUDGET);
         self.accepting.store(false, Ordering::Relaxed);
         transcript.unwrap_or_else(|_| {
-            warn!("Voxtral did not finish its stream within {STOP_BUDGET:?}, Whisper takes it");
+            warn!("Voxtral did not finish its stream within {STOP_BUDGET:?}, the stop pass transcribes it again");
             SourceTranscript::incomplete(audio_source(self.source))
         })
     }
 }
 
 impl SourceStream {
-    fn run(self) -> SourceTranscript {
-        let source = audio_source(self.source);
-        let outcome = Model::load(&self.model_path)
+    fn run(mut self) -> SourceTranscript {
+        let source = audio_source(self.live.source);
+        let outcome = Model::load(&self.live.model_path)
             .context("load Voxtral model")
             .and_then(|model| self.stream_until_finish(&model));
         match outcome {
@@ -131,7 +135,7 @@ impl SourceStream {
             },
             Err(e) => {
                 warn!(
-                    "Voxtral {} stream is incomplete, Whisper transcribes it at stop: {e:#}",
+                    "Voxtral {} stream is incomplete, the stop pass transcribes it again: {e:#}",
                     source.as_str()
                 );
                 self.accepting.store(false, Ordering::Relaxed);
@@ -141,16 +145,16 @@ impl SourceStream {
         }
     }
 
-    fn stream_until_finish(&self, model: &Model) -> Result<Vec<TimedChunk>> {
+    fn stream_until_finish(&mut self, model: &Model) -> Result<Vec<TimedChunk>> {
         let mut session = model.session().context("open Voxtral session")?;
         info!(
             "Voxtral live stream started for meeting {} ({})",
-            self.meeting_id,
-            audio_source(self.source).as_str()
+            self.live.meeting_id,
+            audio_source(self.live.source).as_str()
         );
         let mut line = LiveLine::default();
         let streamed = self.feed_until_finish(&mut session, &mut line);
-        (self.emit)(line.close());
+        (self.live.emit)(line.close());
         let chunks = streamed?;
         anyhow::ensure!(
             !session.was_truncated(),
@@ -160,7 +164,7 @@ impl SourceStream {
     }
 
     fn feed_until_finish(
-        &self,
+        &mut self,
         session: &mut Session,
         line: &mut LiveLine,
     ) -> Result<Vec<TimedChunk>> {
@@ -180,7 +184,8 @@ impl SourceStream {
             while pending.len() >= FEED_SAMPLES {
                 let piece: Vec<f32> = pending.drain(..FEED_SAMPLES).collect();
                 let chunk = stream.feed(&piece)?;
-                (self.emit)(line.fed(chunk.as_ref(), rms(&piece)));
+                let heard_speech = self.heard_speech(&piece);
+                (self.live.emit)(line.fed(chunk.as_ref(), heard_speech));
                 chunks.extend(chunk);
             }
         }
@@ -190,10 +195,19 @@ impl SourceStream {
             stream.feed(&pending)?
         };
         for chunk in tail.into_iter().chain(stream.finalize()?) {
-            (self.emit)(line.fed(Some(&chunk), 0.0));
+            (self.live.emit)(line.fed(Some(&chunk), false));
             chunks.push(chunk);
         }
         Ok(chunks)
+    }
+
+    fn heard_speech(&mut self, piece: &[f32]) -> bool {
+        let Some(speech) = self.live.speech.as_mut() else {
+            return true;
+        };
+        let mut heard = false;
+        speech.push(piece, &mut |_, is_speech| heard |= is_speech);
+        heard
     }
 }
 
@@ -213,7 +227,7 @@ struct LiveLine {
 }
 
 impl LiveLine {
-    fn fed(&mut self, chunk: Option<&TimedChunk>, piece_rms: f32) -> Vec<PipelineEvent> {
+    fn fed(&mut self, chunk: Option<&TimedChunk>, heard_speech: bool) -> Vec<PipelineEvent> {
         let mut events = Vec::new();
         if let Some(chunk) = chunk {
             let starts_word = chunk.text.starts_with(char::is_whitespace);
@@ -236,10 +250,10 @@ impl LiveLine {
             });
             self.silent_ms = 0;
         }
-        self.silent_ms = if piece_rms < SILENCE_RMS_THRESHOLD {
-            self.silent_ms + FEED_MS
-        } else {
+        self.silent_ms = if heard_speech {
             0
+        } else {
+            self.silent_ms + FEED_MS
         };
         if self.silent_ms >= LINE_SILENCE_CLOSE_MS {
             events.extend(self.close());
@@ -277,8 +291,6 @@ fn as_event_ms(ms: i64) -> u64 {
 mod tests {
     use super::*;
 
-    const SPEECH_RMS: f32 = 1.0;
-
     fn final_lines(texts: &[&str]) -> Vec<(String, i64)> {
         let mut line = LiveLine::default();
         let fed_ms = |index: usize| i64::try_from(index).unwrap() * FEED_MS;
@@ -291,7 +303,7 @@ mod tests {
                     end_ms: fed_ms(index + 1),
                     text: (*text).to_string(),
                 };
-                line.fed(Some(&chunk), SPEECH_RMS)
+                line.fed(Some(&chunk), true)
             })
             .filter_map(|event| match event {
                 PipelineEvent::Final {

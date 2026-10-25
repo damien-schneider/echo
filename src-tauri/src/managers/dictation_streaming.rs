@@ -1,5 +1,6 @@
 //! Realtime preview pipeline for dictation (PTT).
 
+use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::audio_toolkit::CapturedAudioFrame;
 use anyhow::Context;
 use log::{debug, info, warn};
@@ -431,7 +432,7 @@ fn run_worker(
                 let transcript = if dropped_samples > 0 {
                     warn!(
                         "dictation preview fell behind and dropped {:.1}s of audio — falling back to the batch decode",
-                        dropped_samples as f32 / 16_000.0
+                        dropped_samples as f32 / SAMPLE_RATE as f32
                     );
                     String::new()
                 } else {

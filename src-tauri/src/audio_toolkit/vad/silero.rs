@@ -6,9 +6,8 @@ use vad_rs::Vad;
 use super::{VadFrame, VoiceActivityDetector};
 use crate::audio_toolkit::constants;
 
-const SILERO_FRAME_MS: u32 = 30;
-const SILERO_FRAME_SAMPLES: usize =
-    (constants::WHISPER_SAMPLE_RATE * SILERO_FRAME_MS / 1000) as usize;
+const SILERO_FRAME_MS: usize = 30;
+pub(crate) const SILERO_FRAME_SAMPLES: usize = constants::SAMPLE_RATE * SILERO_FRAME_MS / 1000;
 
 pub struct SileroVad {
     engine: Vad,
@@ -22,7 +21,7 @@ impl SileroVad {
         }
 
         Ok(Self {
-            engine: Vad::new(&model_path, constants::WHISPER_SAMPLE_RATE as usize)
+            engine: Vad::new(&model_path, constants::SAMPLE_RATE)
                 .map_err(|e| anyhow::anyhow!("Failed to create VAD: {e}"))?,
             threshold,
         })

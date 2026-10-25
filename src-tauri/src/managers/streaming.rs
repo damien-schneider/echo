@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use crate::audio_toolkit::constants::SAMPLE_RATE;
+
 /// Punctuation stays attached so commit comparisons survive Whisper comma drift.
 pub fn split_words(text: &str) -> Vec<String> {
     text.split_whitespace().map(|w| w.to_string()).collect()
@@ -50,7 +52,7 @@ impl LocalAgreementCommitter {
     }
 }
 
-/// 16 kHz mono — 1s = 16_000 samples.
+/// Sample counts at [`SAMPLE_RATE`].
 #[derive(Debug, Clone, Copy)]
 pub struct StreamingConfig {
     pub min_window_samples: usize,
@@ -62,19 +64,18 @@ pub struct StreamingConfig {
 
 impl Default for StreamingConfig {
     fn default() -> Self {
-        // 640ms first text, 400ms partials, 300ms silence flush, 8s hard cap.
         Self {
-            min_window_samples: 10_240,
-            step_samples: 6_400,
-            max_window_samples: 8 * 16_000,
-            silence_flush_samples: 4_800,
+            min_window_samples: SAMPLE_RATE * 640 / 1000,
+            step_samples: SAMPLE_RATE * 400 / 1000,
+            max_window_samples: 8 * SAMPLE_RATE,
+            silence_flush_samples: SAMPLE_RATE * 300 / 1000,
         }
     }
 }
 
 /// Live preview is disposable: past this a backlogged worker drops the oldest audio instead of
 /// falling further behind on every decode, which is how a long recording used to spiral.
-pub const MAX_BACKLOG_SAMPLES: usize = 30 * 16_000;
+pub const MAX_BACKLOG_SAMPLES: usize = 30 * SAMPLE_RATE;
 
 /// Keeps the newest [`MAX_BACKLOG_SAMPLES`]; returns how many were dropped.
 pub fn trim_backlog(samples: &mut Vec<f32>) -> usize {
@@ -128,7 +129,7 @@ impl StreamingPipeline {
     }
 
     fn samples_to_ms(samples: u64) -> u64 {
-        samples * 1000 / 16_000
+        samples * 1000 / SAMPLE_RATE as u64
     }
 
     fn buffer_duration_ms(&self) -> u64 {
@@ -388,10 +389,10 @@ mod tests {
 
     fn cfg_for_tests() -> StreamingConfig {
         StreamingConfig {
-            min_window_samples: 16_000,
+            min_window_samples: SAMPLE_RATE,
             step_samples: 8_000,
-            max_window_samples: 5 * 16_000,
-            silence_flush_samples: 16_000 / 2,
+            max_window_samples: 5 * SAMPLE_RATE,
+            silence_flush_samples: SAMPLE_RATE / 2,
         }
     }
 
@@ -465,7 +466,7 @@ mod tests {
             o.remove(0)
         };
         // One decode per push: the window opens at 1s, then advances a step at a time.
-        speech(&mut p, 16_000, &mut decode);
+        speech(&mut p, SAMPLE_RATE, &mut decode);
         let e2 = speech(&mut p, 8_000, &mut decode);
         let e3 = speech(&mut p, 8_000, &mut decode);
         let last2 = match &e2[0] {
@@ -501,7 +502,7 @@ mod tests {
             String::from("text")
         };
         // A worker that fell a minute behind hands its whole backlog over in one push.
-        speech(&mut p, 60 * 16_000, &mut decode);
+        speech(&mut p, 60 * SAMPLE_RATE, &mut decode);
 
         assert!(
             *widest.borrow() <= cfg.max_window_samples,
@@ -524,10 +525,10 @@ mod tests {
 
     #[test]
     fn trim_backlog_leaves_a_short_queue_alone() {
-        let mut samples = vec![0.5f32; 16_000];
+        let mut samples = vec![0.5f32; SAMPLE_RATE];
 
         assert_eq!(trim_backlog(&mut samples), 0);
-        assert_eq!(samples.len(), 16_000);
+        assert_eq!(samples.len(), SAMPLE_RATE);
     }
 
     #[test]
@@ -540,7 +541,7 @@ mod tests {
         };
         // 2s speech then 0.6s silence triggers flush.
         speech(&mut p, 32_000, &mut decode);
-        let events = silence(&mut p, (0.6 * 16_000.0) as usize, &mut decode);
+        let events = silence(&mut p, SAMPLE_RATE * 6 / 10, &mut decode);
         assert!(!events.is_empty());
         let final_ev = events
             .iter()
@@ -561,7 +562,7 @@ mod tests {
     #[test]
     fn pipeline_hard_cap_force_finalizes() {
         let mut cfg = cfg_for_tests();
-        cfg.max_window_samples = 2 * 16_000;
+        cfg.max_window_samples = 2 * SAMPLE_RATE;
         let mut p = StreamingPipeline::new(cfg);
         let mut decode = |_buf: &[f32]| "speech here".to_string();
         // 2.5s speech → Final at 2s cap.
@@ -576,9 +577,9 @@ mod tests {
         let mut p = StreamingPipeline::new(cfg_for_tests());
         let mut decode = |_buf: &[f32]| "text".to_string();
         speech(&mut p, 32_000, &mut decode);
-        silence(&mut p, (0.6 * 16_000.0) as usize, &mut decode);
+        silence(&mut p, SAMPLE_RATE * 6 / 10, &mut decode);
         speech(&mut p, 32_000, &mut decode);
-        let events = silence(&mut p, (0.6 * 16_000.0) as usize, &mut decode);
+        let events = silence(&mut p, SAMPLE_RATE * 6 / 10, &mut decode);
         let second_final = events.iter().find_map(|e| match e {
             PipelineEvent::Final {
                 start_ms, end_ms, ..
@@ -617,7 +618,7 @@ mod tests {
         let mut p = StreamingPipeline::new(cfg_for_tests());
         let mut decode = |_buf: &[f32]| String::new();
         speech(&mut p, 32_000, &mut decode);
-        let events = silence(&mut p, (0.6 * 16_000.0) as usize, &mut decode);
+        let events = silence(&mut p, SAMPLE_RATE * 6 / 10, &mut decode);
         assert!(events
             .iter()
             .all(|e| !matches!(e, PipelineEvent::Final { .. })));
@@ -632,7 +633,7 @@ mod tests {
             "x".to_string()
         };
         // Pure silence: silence-flush branch decodes once to catch misclassified speech.
-        let _ = silence(&mut p, 3 * 16_000, &mut decode);
+        let _ = silence(&mut p, 3 * SAMPLE_RATE, &mut decode);
         assert!(
             calls <= 1,
             "pure silence should decode at most once for the flush"

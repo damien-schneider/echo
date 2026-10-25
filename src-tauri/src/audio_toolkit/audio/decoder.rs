@@ -13,6 +13,8 @@ use symphonia::core::{
     probe::Hint,
 };
 
+use crate::audio_toolkit::constants::SAMPLE_RATE;
+
 pub enum AudioFormat {
     Wav,
     Mp3,
@@ -42,7 +44,7 @@ impl AudioFormat {
     }
 }
 
-const TARGET_SAMPLE_RATE: u32 = 16000;
+const TARGET_SAMPLE_RATE: u32 = SAMPLE_RATE as u32;
 
 pub fn decode_audio_file<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     let format = AudioFormat::from_path(&file_path);
@@ -68,6 +70,7 @@ fn decode_video_with_ffmpeg<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     info!("Extracting audio from video file using FFmpeg: {:?}", path);
 
     let ffmpeg_path = find_ffmpeg()?;
+    let sample_rate = SAMPLE_RATE.to_string();
 
     let output = Command::new(&ffmpeg_path)
         .args([
@@ -79,7 +82,7 @@ fn decode_video_with_ffmpeg<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
             "-acodec",
             "pcm_s16le",
             "-ar",
-            "16000",
+            sample_rate.as_str(),
             "-ac",
             "1",
             "-",

@@ -2,14 +2,20 @@
 
 ## [Unreleased]
 
+### Added
+- On Macs with 24 GB of memory or more, the guest side of a meeting (system audio) gets its own live Voxtral Realtime stream, like your microphone. Below 24 GB the guest keeps the Whisper live preview.
+
 ### Changed
 - The Clean up setting now says what it does: "Replace misheard words with the spellings in your dictionary." Phrases Whisper invents over silence, like "Thanks for watching", are removed whether it is on or off.
 - Echo writes its log to `echo.log` in its logs folder. An older `handy.log` there is no longer written to and can be deleted.
+- Stopping a meeting transcribes like Retranscribe: a track without complete live Voxtral text is transcribed with Voxtral instead of Whisper. A track Voxtral already transcribed live is not transcribed again.
 
 ### Removed
 - The Pop sound theme. Its sounds never shipped, so choosing it played nothing. Settings that used it switch to Marimba.
 
 ### Fixed
+- Live meeting text now appears for quiet speakers. The live preview judged speech by loudness, so a guest whose audio came in quietly got no live text until Stop; it now uses Silero speech detection, as dictation does.
+- A recording, in a meeting or in dictation, could stay empty when the microphone had briefly stopped sending audio at the moment recording started.
 - A meeting cut short by a crash, a forced quit or a relaunch (such as macOS restarting Echo after you grant Screen Recording) keeps its recorded audio on both tracks, minus at most the last quarter second. Before, a meeting cut short in its first 10 seconds came back with no audio, and later ones lost up to their last 10 seconds.
 - A dictionary spelling containing `$`, such as `$ECHO`, is now inserted as written.
 

@@ -156,4 +156,45 @@ mod tests {
 
         assert_eq!(spans(&clipped), vec![(0, 5_000, 0), (5_000, 9_000, 1)]);
     }
+
+    fn recorded_meeting() -> BatchFiles {
+        BatchFiles {
+            mic: Some("meeting-1-mic.wav".to_string()),
+            system: Some("meeting-1-system.wav".to_string()),
+            system_offset_ms: 0,
+        }
+    }
+
+    fn live_transcript(source: AudioSource, complete: bool) -> SourceTranscript {
+        SourceTranscript {
+            source,
+            chunks: Vec::new(),
+            complete,
+        }
+    }
+
+    fn sources(streams: &[StreamPass]) -> Vec<AudioSource> {
+        streams.iter().map(|stream| stream.source.clone()).collect()
+    }
+
+    #[test]
+    fn stop_sends_only_the_streams_without_complete_live_voxtral_text_to_voxtral() {
+        let live = [live_transcript(AudioSource::Mic, true)];
+
+        let missing = recorded_meeting().streams_without_voxtral_text(&live);
+
+        assert_eq!(sources(&missing), vec![AudioSource::System]);
+    }
+
+    #[test]
+    fn a_live_stream_that_lost_audio_is_transcribed_again() {
+        let live = [
+            live_transcript(AudioSource::Mic, false),
+            live_transcript(AudioSource::System, true),
+        ];
+
+        let missing = recorded_meeting().streams_without_voxtral_text(&live);
+
+        assert_eq!(sources(&missing), vec![AudioSource::Mic]);
+    }
 }

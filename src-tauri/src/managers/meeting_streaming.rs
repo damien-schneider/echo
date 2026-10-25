@@ -9,8 +9,9 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
-/// A live decode in flight runs to its end — past this budget the worker thread is detached, not joined.
-const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
+use super::audio::load_speech_vad;
+use crate::audio_toolkit::constants::SAMPLE_RATE;
+use crate::audio_toolkit::vad::SpeechFrames;
 
 use super::streaming::{trim_backlog, PipelineEvent, StreamingConfig, StreamingPipeline};
 use super::transcription::{StreamingTranscriber, TranscriptionManager};
@@ -18,6 +19,9 @@ use crate::managers::cleanup_apply::clean_transcript;
 use crate::managers::hallucination::HallucinationFilter;
 use crate::managers::model::transcription_profile_id;
 use crate::settings;
+
+/// A live decode in flight runs to its end — past this budget the worker thread is detached, not joined.
+const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 
 /// USB-mic noise floor (~-40 dBFS); below this Whisper hallucinates YouTube attractors.
 pub(crate) const SILENCE_RMS_THRESHOLD: f32 = 0.01;
@@ -73,6 +77,16 @@ impl StreamingWorker {
         meeting_id: i64,
         transcription_manager: Arc<TranscriptionManager>,
     ) -> std::io::Result<(Arc<Self>, StreamingWorkerHandle)> {
+        let cfg = StreamingConfig::default();
+        let preview_for = || -> std::io::Result<SourcePreview> {
+            let vad = load_speech_vad(&app_handle)
+                .map_err(|e| std::io::Error::other(format!("{e:#}")))?;
+            Ok(SourcePreview::new(SpeechFrames::new(Box::new(vad)), cfg))
+        };
+        let previews = SourcePreviews {
+            mic: preview_for()?,
+            system: preview_for()?,
+        };
         let settings_snapshot = settings::get_settings(&app_handle);
         let realtime_model =
             transcription_profile_id(settings_snapshot.transcription_model_size).to_string();
@@ -89,7 +103,6 @@ impl StreamingWorker {
         };
 
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
-        let cfg = StreamingConfig::default();
         let shutdown_flag = Arc::new(AtomicBool::new(false));
         let shutdown_flag_for_thread = shutdown_flag.clone();
         let join = thread::Builder::new()
@@ -99,16 +112,16 @@ impl StreamingWorker {
                     app_handle,
                     meeting_id,
                     transcribers,
+                    previews,
                     cmd_rx,
                     shutdown_flag_for_thread,
-                    cfg,
                 );
             })?;
         info!(
-            "Streaming worker started for meeting {meeting_id} (window {}s, step {}s, silence-flush {}ms, model {realtime_model})",
-            cfg.max_window_samples / 16_000,
-            cfg.step_samples / 16_000,
-            cfg.silence_flush_samples * 1000 / 16_000
+            "Streaming worker started for meeting {meeting_id} (window {}ms, step {}ms, silence-flush {}ms, model {realtime_model})",
+            cfg.max_window_samples * 1000 / SAMPLE_RATE,
+            cfg.step_samples * 1000 / SAMPLE_RATE,
+            cfg.silence_flush_samples * 1000 / SAMPLE_RATE
         );
         let worker = Arc::new(Self {
             cmd_tx: cmd_tx.clone(),
@@ -197,7 +210,7 @@ pub(crate) fn drain_commands(cmd_rx: &mpsc::Receiver<Cmd>) -> (Vec<f32>, Vec<f32
     if dropped > 0 {
         warn!(
             "meeting streaming fell behind — dropped {:.1}s of preview audio to catch up",
-            dropped as f32 / 16_000.0
+            dropped as f32 / SAMPLE_RATE as f32
         );
     }
     (mic, sys, shutdown)
@@ -223,18 +236,48 @@ struct SourceTranscribers {
     system: StreamingTranscriber,
 }
 
+/// Speech is judged per 30 ms frame: a backlogged buffer spans pauses, and a pause flushes the line.
+struct SourcePreview {
+    speech: SpeechFrames,
+    pipeline: StreamingPipeline,
+}
+
+impl SourcePreview {
+    fn new(speech: SpeechFrames, cfg: StreamingConfig) -> Self {
+        Self {
+            speech,
+            pipeline: StreamingPipeline::new(cfg),
+        }
+    }
+
+    fn push<D: FnMut(&[f32]) -> String>(
+        &mut self,
+        samples: &[f32],
+        decode: &mut D,
+    ) -> Vec<PipelineEvent> {
+        let Self { speech, pipeline } = self;
+        let mut events = Vec::new();
+        speech.push(samples, &mut |frame, is_speech| {
+            events.extend(pipeline.push(frame, is_speech, decode));
+        });
+        events
+    }
+}
+
+struct SourcePreviews {
+    mic: SourcePreview,
+    system: SourcePreview,
+}
+
 fn run_worker(
     app_handle: AppHandle,
     meeting_id: i64,
     transcribers: SourceTranscribers,
+    mut previews: SourcePreviews,
     cmd_rx: mpsc::Receiver<Cmd>,
     shutdown_flag: Arc<AtomicBool>,
-    cfg: StreamingConfig,
 ) {
     debug!("streaming worker for meeting {meeting_id} entering main loop");
-
-    let mut mic_pipeline = StreamingPipeline::new(cfg);
-    let mut sys_pipeline = StreamingPipeline::new(cfg);
 
     let mut mic_chunks = 0usize;
     let mut sys_chunks = 0usize;
@@ -276,16 +319,14 @@ fn run_worker(
 
         if !mic_buf.is_empty() {
             mic_chunks += 1;
-            let is_speech = rms(&mic_buf) > SILENCE_RMS_THRESHOLD;
-            let events = mic_pipeline.push(&mic_buf, is_speech, &mut |samples| {
+            let events = previews.mic.push(&mic_buf, &mut |samples| {
                 decode_with(&transcribers.mic, samples)
             });
             emit_events(&app_handle, meeting_id, StreamingSource::Mic, events);
         }
         if !sys_buf.is_empty() {
             sys_chunks += 1;
-            let is_speech = rms(&sys_buf) > SILENCE_RMS_THRESHOLD;
-            let events = sys_pipeline.push(&sys_buf, is_speech, &mut |samples| {
+            let events = previews.system.push(&sys_buf, &mut |samples| {
                 decode_with(&transcribers.system, samples)
             });
             emit_events(&app_handle, meeting_id, StreamingSource::System, events);
@@ -348,150 +389,5 @@ pub(super) fn emit_events(
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn rms_zero_for_empty() {
-        assert_eq!(rms(&[]), 0.0);
-    }
-
-    #[test]
-    fn rms_matches_constant() {
-        let s = vec![0.1f32; 1000];
-        assert!((rms(&s) - 0.1).abs() < 1e-6);
-    }
-
-    #[test]
-    fn rms_silence_below_threshold() {
-        let s = vec![0.0f32; 1000];
-        assert!(rms(&s) < SILENCE_RMS_THRESHOLD);
-    }
-
-    #[test]
-    fn rms_speech_above_threshold() {
-        let s = vec![0.05f32; 1000];
-        assert!(rms(&s) > SILENCE_RMS_THRESHOLD);
-    }
-
-    #[test]
-    fn rms_quiet_speech_just_above_threshold() {
-        // -35 dBFS conversational speech.
-        let s = vec![0.018f32; 1000];
-        assert!(rms(&s) > SILENCE_RMS_THRESHOLD);
-    }
-
-    #[test]
-    fn rms_room_tone_filtered_out() {
-        // -45 dBFS USB-mic noise floor — else whisper hallucinates.
-        let s = vec![0.0056f32; 1000];
-        assert!(rms(&s) < SILENCE_RMS_THRESHOLD);
-    }
-
-    #[test]
-    fn rms_alternating_signal() {
-        // Square wave RMS = peak; tolerate f32 accumulation drift.
-        let mut s = Vec::with_capacity(1000);
-        for i in 0..1000 {
-            s.push(if (i as usize).is_multiple_of(2) {
-                0.2
-            } else {
-                -0.2
-            });
-        }
-        assert!((rms(&s) - 0.2).abs() < 1e-3);
-    }
-
-    #[test]
-    fn drain_commands_returns_shutdown_when_disconnected() {
-        let (tx, rx) = mpsc::channel::<Cmd>();
-        drop(tx);
-        let (mic, sys, sd) = drain_commands(&rx);
-        assert!(mic.is_empty());
-        assert!(sys.is_empty());
-        assert!(sd);
-    }
-
-    #[test]
-    fn drain_commands_coalesces_multiple_audio_chunks_per_source() {
-        let (tx, rx) = mpsc::channel::<Cmd>();
-        tx.send(Cmd::Audio {
-            source: StreamingSource::Mic,
-            samples: vec![0.1; 4],
-        })
-        .unwrap();
-        tx.send(Cmd::Audio {
-            source: StreamingSource::Mic,
-            samples: vec![0.2; 3],
-        })
-        .unwrap();
-        tx.send(Cmd::Audio {
-            source: StreamingSource::System,
-            samples: vec![0.3; 2],
-        })
-        .unwrap();
-        let (mic, sys, sd) = drain_commands(&rx);
-        assert_eq!(mic.len(), 7);
-        assert_eq!(sys.len(), 2);
-        assert!(!sd);
-    }
-
-    /// A worker that fell an hour behind used to materialize the whole queue before trimming it.
-    #[test]
-    fn a_long_backlog_never_grows_past_the_cap_while_it_drains() {
-        let (tx, rx) = mpsc::channel::<Cmd>();
-        let frame = crate::managers::streaming::MAX_BACKLOG_SAMPLES / 4;
-        for _ in 0..40 {
-            tx.send(Cmd::Audio {
-                source: StreamingSource::Mic,
-                samples: vec![0.1; frame],
-            })
-            .unwrap();
-        }
-        drop(tx);
-
-        let (mic, _sys, _sd) = drain_commands(&rx);
-
-        // Capacity is what the buffer actually peaked at; trimming only shrinks the length.
-        assert!(
-            mic.capacity() <= 2 * crate::managers::streaming::MAX_BACKLOG_SAMPLES,
-            "backlog peaked at {} samples, cap is {}",
-            mic.capacity(),
-            crate::managers::streaming::MAX_BACKLOG_SAMPLES
-        );
-    }
-
-    #[test]
-    fn drain_commands_surfaces_shutdown_mid_backlog() {
-        let (tx, rx) = mpsc::channel::<Cmd>();
-        tx.send(Cmd::Audio {
-            source: StreamingSource::Mic,
-            samples: vec![0.1; 4],
-        })
-        .unwrap();
-        tx.send(Cmd::Shutdown).unwrap();
-        tx.send(Cmd::Audio {
-            source: StreamingSource::Mic,
-            samples: vec![0.2; 4],
-        })
-        .unwrap();
-        let (mic, _sys, sd) = drain_commands(&rx);
-        assert!(sd, "shutdown should be reported even mid-backlog");
-        // Surface all drained audio; worker decides whether to process.
-        assert_eq!(mic.len(), 8);
-    }
-
-    #[test]
-    fn drain_commands_returns_after_first_when_queue_drains() {
-        let (tx, rx) = mpsc::channel::<Cmd>();
-        tx.send(Cmd::Audio {
-            source: StreamingSource::Mic,
-            samples: vec![0.5; 10],
-        })
-        .unwrap();
-        let (mic, sys, sd) = drain_commands(&rx);
-        assert_eq!(mic.len(), 10);
-        assert!(sys.is_empty());
-        assert!(!sd);
-    }
-}
+#[path = "meeting_streaming_tests.rs"]
+mod tests;

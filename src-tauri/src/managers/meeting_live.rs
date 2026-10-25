@@ -1,17 +1,20 @@
-//! Where each source's audio goes while a meeting records: the microphone streams through Voxtral
-//! on a Mac that runs it, everything else through the Whisper preview worker.
+//! Where each source's audio goes while a meeting records: a source streams through its own
+//! Voxtral model where the Mac runs one for it, everything else through the Whisper preview worker.
 
 use log::{info, warn};
+use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
 
+use super::audio::load_speech_vad;
 use super::meeting::MeetingManager;
 use super::meeting_streaming::{
     emit_events, StreamingSource, StreamingWorker, StreamingWorkerHandle,
 };
-use super::meeting_voxtral::SourceTranscript;
-use super::meeting_voxtral_live::{VoxtralWorker, VoxtralWorkerHandle};
+use super::meeting_voxtral::{live_engine, physical_memory_bytes, LiveEngine, SourceTranscript};
+use super::meeting_voxtral_live::{LiveSource, VoxtralWorker, VoxtralWorkerHandle};
 use super::transcription::TranscriptionManager;
+use crate::audio_toolkit::vad::SpeechFrames;
 
 #[derive(Clone)]
 pub(super) enum LiveWorker {
@@ -52,18 +55,26 @@ pub(super) struct LiveWorkers {
 }
 
 impl MeetingManager {
-    /// One Voxtral model takes 1.8 GB and serves a single stream, so the system track keeps the
-    /// Whisper preview rather than load a second one.
     pub(super) fn spawn_live_workers(&self, meeting_id: i64, captures_system: bool) -> LiveWorkers {
-        let voxtral = self.spawn_voxtral_mic(meeting_id);
-        let whisper = if voxtral.is_none() || captures_system {
-            self.spawn_whisper_preview(meeting_id)
-        } else {
-            None
+        let voxtral_model = self.voxtral_model_path();
+        let memory_bytes = physical_memory_bytes();
+        let voxtral_for = |source: StreamingSource| -> Option<LiveWorker> {
+            if live_engine(source, voxtral_model.is_some(), memory_bytes) != LiveEngine::Voxtral {
+                return None;
+            }
+            self.spawn_voxtral(meeting_id, source, voxtral_model.clone()?)
         };
+        let mic = voxtral_for(StreamingSource::Mic);
+        let system = captures_system
+            .then(|| voxtral_for(StreamingSource::System))
+            .flatten();
+        let needs_whisper = mic.is_none() || (captures_system && system.is_none());
+        let whisper = needs_whisper
+            .then(|| self.spawn_whisper_preview(meeting_id))
+            .flatten();
         LiveWorkers {
-            mic: voxtral.or_else(|| whisper.clone()),
-            system: whisper,
+            mic: mic.or_else(|| whisper.clone()),
+            system: system.or(whisper.filter(|_| captures_system)),
         }
     }
 
@@ -75,13 +86,25 @@ impl MeetingManager {
             .collect()
     }
 
-    fn spawn_voxtral_mic(&self, meeting_id: i64) -> Option<LiveWorker> {
-        let model_path = self.voxtral_model_path()?;
+    fn spawn_voxtral(
+        &self,
+        meeting_id: i64,
+        source: StreamingSource,
+        model_path: PathBuf,
+    ) -> Option<LiveWorker> {
         let app_handle = self.app_handle.clone();
-        let emit = Box::new(move |events| {
-            emit_events(&app_handle, meeting_id, StreamingSource::Mic, events);
-        });
-        match VoxtralWorker::spawn(meeting_id, StreamingSource::Mic, model_path, emit) {
+        let speech = load_speech_vad(&self.app_handle)
+            .inspect_err(|e| warn!("Voxtral live lines close without pause detection: {e:#}"))
+            .ok()
+            .map(|vad| SpeechFrames::new(Box::new(vad)));
+        let live = LiveSource {
+            meeting_id,
+            source,
+            model_path,
+            emit: Box::new(move |events| emit_events(&app_handle, meeting_id, source, events)),
+            speech,
+        };
+        match VoxtralWorker::spawn(live) {
             Ok((worker, handle)) => {
                 self.keep_live_handle(LiveWorkerHandle::Voxtral(handle));
                 Some(LiveWorker::Voxtral(worker))
@@ -112,7 +135,7 @@ impl MeetingManager {
                 Some(LiveWorker::Whisper(worker))
             }
             Err(e) => {
-                warn!("Failed to spawn streaming worker: {e:#}");
+                warn!("Meeting {meeting_id} records without a Whisper preview: {e:#}");
                 None
             }
         }
