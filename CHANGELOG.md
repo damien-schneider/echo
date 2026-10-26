@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.8.16] - 2026-10-26
 
 ### Changed
 - When you release the dictation shortcut, Echo stops the live preview instead of waiting for it to catch up. With the Medium model, that wait could take up to 8 seconds before the final transcription even started. The final transcription now starts right away.
