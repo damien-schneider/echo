@@ -43,7 +43,7 @@
         "react-dom": "^19.2.8",
         "react-hotkeys-hook": "^5.3.2",
         "react-resizable-panels": "^4.12.2",
-        "reflet-sdk": "^0.7.14",
+        "reflet-sdk": "^0.8.0",
         "remark-gfm": "^4.0.1",
         "sonner": "^2.0.7",
         "streamdown": "^2.5.0",
@@ -1985,7 +1985,7 @@
 
     "readdirp": ["readdirp@5.0.0", "", {}, "sha512-9u/XQ1pvrQtYyMpZe7DXKv2p5CNvyVwzUB6uhLAnQwHMSgKMBR62lc7AHljaeteeHXn11XTAaLLUVZYVZyuRBQ=="],
 
-    "reflet-sdk": ["reflet-sdk@0.7.14", "", { "dependencies": { "@base-ui/react": "^1.8.0", "@zumer/snapdom": "^3.0.0", "zod": "^4.6.5" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0", "vite": ">=5.0.0" }, "optionalPeers": ["react", "react-dom", "vite"] }, "sha512-6OzeD7V2NKrZZ49jD4DiUWpvysBkJYGzLVMVkunYbLUO3U6Ql4nTdX4RNUPWOdcMahY1SE9JxO17KEusVKfpnA=="],
+    "reflet-sdk": ["reflet-sdk@0.8.0", "", { "dependencies": { "@base-ui/react": "^1.9.0", "@zumer/snapdom": "^3.0.0", "zod": "^4.6.5" }, "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0", "vite": ">=5.0.0" }, "optionalPeers": ["react", "react-dom", "vite"] }, "sha512-rz3XFaqdBRGNJxZjXpXGzTPNkU670K4DwOllb0v/RxGyxDrTpSGYvyydPc39AEb24idsoj/6xTakA9pNtw7n4A=="],
 
     "regex": ["regex@6.1.0", "", { "dependencies": { "regex-utilities": "^2.3.0" } }, "sha512-6VwtthbV4o/7+OaAF9I5L5V3llLEsoPyq9P1JVXkedTP33c7MfCG0/5NOPcSJn0TzXcG9YUrR0gQSWioew3LDg=="],
 
