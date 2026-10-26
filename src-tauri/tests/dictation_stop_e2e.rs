@@ -365,66 +365,41 @@ fn decoder_errors_do_not_kill_worker() {
     assert!(cleanup_flag.load(Ordering::SeqCst));
 }
 
+/// Releasing the shortcut must not wait for a preview decode nobody will read.
 #[test]
-fn finish_flushes_short_final_frame_and_returns_transcript() {
-    let decoder = ScriptedDecoder::with_latency(Duration::ZERO);
-    let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let cleanup_flag = Arc::new(AtomicBool::new(false));
-    let (worker, handle) = spawn(
-        decoder.clone() as Arc<dyn DictationDecoder>,
-        sink,
-        cleanup_flag.clone(),
-    );
-
-    worker.push_frame(CapturedAudioFrame {
-        is_speech: true,
-        samples: vec![0.1; 8_000],
-    });
-    let transcript = handle.finish().expect("finish streaming session");
-
-    assert_eq!(transcript, "hello world");
-    assert_eq!(decoder.count(), 1);
-    assert!(cleanup_flag.load(Ordering::SeqCst));
-}
-
-#[test]
-fn finish_drains_all_frames_queued_before_it() {
-    struct SampleCountingDecoder {
-        sample_count: AtomicUsize,
+fn stop_cancels_the_decode_in_flight_instead_of_waiting_for_it() {
+    struct CancellableDecoder {
+        cancelled: AtomicBool,
     }
 
-    impl DictationDecoder for SampleCountingDecoder {
-        fn transcribe_chunk(&self, audio: Vec<f32>) -> anyhow::Result<String> {
-            self.sample_count.store(audio.len(), Ordering::SeqCst);
-            Ok(format!("{} samples", audio.len()))
+    impl DictationDecoder for CancellableDecoder {
+        fn transcribe_chunk(&self, _audio: Vec<f32>) -> anyhow::Result<String> {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            while !self.cancelled.load(Ordering::SeqCst) && Instant::now() < deadline {
+                thread::sleep(Duration::from_millis(5));
+            }
+            Ok(String::new())
+        }
+
+        fn cancel(&self) {
+            self.cancelled.store(true, Ordering::SeqCst);
         }
     }
 
-    let decoder = Arc::new(SampleCountingDecoder {
-        sample_count: AtomicUsize::new(0),
+    let decoder = Arc::new(CancellableDecoder {
+        cancelled: AtomicBool::new(false),
     });
     let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let cleanup_flag = Arc::new(AtomicBool::new(false));
-    let (worker, handle) = spawn(
-        decoder.clone() as Arc<dyn DictationDecoder>,
-        sink,
-        cleanup_flag,
+    let (worker, handle) = spawn(decoder, sink, Arc::new(AtomicBool::new(false)));
+    worker.push_frame(speech(vec![0.1; 16_000]));
+    thread::sleep(Duration::from_millis(100));
+
+    let stop_start = Instant::now();
+    handle.stop();
+    let elapsed = stop_start.elapsed();
+
+    assert!(
+        elapsed < Duration::from_millis(300),
+        "stop waited {elapsed:?} on a decode it should have cancelled"
     );
-
-    worker.push_frame(CapturedAudioFrame {
-        is_speech: true,
-        samples: vec![0.1; 4_000],
-    });
-    worker.push_frame(CapturedAudioFrame {
-        is_speech: false,
-        samples: vec![0.0; 2_000],
-    });
-    worker.push_frame(CapturedAudioFrame {
-        is_speech: true,
-        samples: vec![0.1; 4_000],
-    });
-    let transcript = handle.finish().expect("finish streaming session");
-
-    assert_eq!(transcript, "10000 samples");
-    assert_eq!(decoder.sample_count.load(Ordering::SeqCst), 10_000);
 }

@@ -14,6 +14,7 @@ mod logging;
 #[cfg(target_os = "macos")]
 mod macos_accessibility;
 pub mod managers;
+pub mod model_pass;
 mod overlay;
 mod paste_promise;
 mod process_exit;
@@ -28,6 +29,8 @@ mod utils;
 mod wayland;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod window_chrome;
+#[cfg(target_os = "windows")]
+mod windows_accessibility;
 
 use features::shortcut;
 
@@ -654,7 +657,7 @@ pub fn run() {
             shortcut::settings::post_process::update_post_process_prompt,
             shortcut::settings::post_process::delete_post_process_prompt,
             shortcut::settings::post_process::set_post_process_selected_prompt,
-            shortcut::settings::post_process::change_voice_commands_enabled_setting,
+            shortcut::settings::post_process::change_voice_commands_setting,
             shortcut::settings::cleanup::change_cleanup_enabled_setting,
             shortcut::settings::cleanup::update_cleanup_dictionary,
             shortcut::settings::input_tracking::change_input_tracking_setting,
@@ -770,7 +773,6 @@ pub fn run() {
             commands::meeting::retranscribe_meeting,
             commands::meeting::get_meeting_transcript_for_summary,
             commands::meeting::save_meeting_summary,
-            commands::tts::preview_tts,
             commands::voice_tools::execute_change_sound_theme,
             commands::voice_tools::execute_create_note,
             commands::voice_tools::execute_open_application,

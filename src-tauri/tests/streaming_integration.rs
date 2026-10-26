@@ -113,7 +113,6 @@ fn long_meeting_simulation_does_not_leak_or_starve() {
             elapsed_samples = 0;
         }
     }
-    events.extend(pipeline.flush(&mut decode));
 
     let finals = events
         .iter()
@@ -397,14 +396,4 @@ fn committer_handles_unrealistically_long_decode() {
     assert_eq!(d1.committed_text, "");
     let d2 = committer.observe(words.clone());
     assert_eq!(d2.committed_text.split_whitespace().count(), 1000);
-}
-
-#[test]
-fn rapid_stop_start_no_audio_is_safe() {
-    let mut pipeline = StreamingPipeline::new(StreamingConfig::default());
-    let mut decode = |_: &[f32]| "x".to_string();
-    assert!(pipeline.flush(&mut decode).is_empty());
-    let _ = pipeline.push(&sine_seconds(220.0, 2.0), true, &mut decode);
-    let evs = pipeline.flush(&mut decode);
-    assert!(!evs.is_empty());
 }

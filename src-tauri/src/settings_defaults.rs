@@ -68,7 +68,7 @@ pub(super) fn default_input_tracking_idle_timeout() -> Option<u64> {
     Some(2) // Default 2 seconds
 }
 
-pub(super) fn default_voice_commands_enabled() -> bool {
+pub(super) fn default_voice_commands() -> bool {
     true
 }
 

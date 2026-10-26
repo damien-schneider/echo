@@ -2,7 +2,6 @@
 
 use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::audio_toolkit::CapturedAudioFrame;
-use anyhow::Context;
 use log::{debug, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -11,9 +10,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 use tauri::AppHandle;
 
-/// Whisper FFI decode is non-cancellable — past this budget the worker thread is detached, not joined.
+/// Past this budget a decode that ignored the cancel is detached, not joined.
 const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
-const WORKER_FINISH_BUDGET: Duration = Duration::from_secs(8);
 
 use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
 use crate::managers::model::transcription_profile_id;
@@ -28,18 +26,12 @@ mod dictation_accumulator;
 pub use dictation_accumulator::DictationAccumulator;
 enum Cmd {
     Audio(CapturedAudioFrame),
-    Finish(mpsc::Sender<String>),
-    Shutdown,
-}
-
-enum TerminalCommand {
-    Finish(mpsc::Sender<String>),
     Shutdown,
 }
 
 struct CoalescedAudioBacklog {
     frames: Vec<CapturedAudioFrame>,
-    terminal: Option<TerminalCommand>,
+    shutdown: bool,
 }
 
 fn append_audio_frame(frames: &mut Vec<CapturedAudioFrame>, mut frame: CapturedAudioFrame) {
@@ -58,27 +50,22 @@ fn coalesce_audio_backlog(
 ) -> CoalescedAudioBacklog {
     let mut frames = Vec::new();
     append_audio_frame(&mut frames, first);
-    let mut terminal = None;
+    let mut shutdown = false;
     loop {
         match receiver.try_recv() {
             Ok(Cmd::Audio(frame)) => append_audio_frame(&mut frames, frame),
-            Ok(Cmd::Finish(result_tx)) => {
-                terminal = Some(TerminalCommand::Finish(result_tx));
-                break;
-            }
             Ok(Cmd::Shutdown) => {
-                terminal = Some(TerminalCommand::Shutdown);
+                shutdown = true;
                 break;
             }
             Err(mpsc::TryRecvError::Empty | mpsc::TryRecvError::Disconnected) => break,
         }
     }
-    CoalescedAudioBacklog { frames, terminal }
+    CoalescedAudioBacklog { frames, shutdown }
 }
 
-/// Keeps the newest [`MAX_BACKLOG_SAMPLES`]; returns how many were dropped. Dropping here would
-/// silently truncate the dictation transcript, so the worker reports the loss and lets the caller
-/// fall back to the batch decode of the full recording.
+/// Keeps the newest [`MAX_BACKLOG_SAMPLES`]; returns how many were dropped. The preview only has to
+/// catch up with what is being said now.
 fn trim_frame_backlog(frames: &mut Vec<CapturedAudioFrame>) -> usize {
     let total: usize = frames.iter().map(|frame| frame.samples.len()).sum();
     let dropped = total.saturating_sub(MAX_BACKLOG_SAMPLES);
@@ -104,6 +91,8 @@ pub trait DictationDecoder: Send + Sync + 'static {
     fn language_is_pinned(&self) -> bool {
         true
     }
+    /// Aborts the decode in flight, so stopping never waits on a preview nobody reads.
+    fn cancel(&self) {}
 }
 
 pub trait ProgressSink: Send + Sync + 'static {
@@ -143,6 +132,10 @@ impl DictationDecoder for StreamingTranscriber {
     fn transcribe_chunk(&self, audio: Vec<f32>) -> anyhow::Result<String> {
         self.transcribe(audio)
     }
+
+    fn cancel(&self) {
+        StreamingTranscriber::cancel(self);
+    }
 }
 
 pub struct DictationStreamingWorker {
@@ -153,6 +146,7 @@ pub struct DictationStreamingWorker {
 pub struct DictationStreamingHandle {
     cmd_tx: mpsc::Sender<Cmd>,
     shutdown_flag: Arc<AtomicBool>,
+    decoder: Arc<dyn DictationDecoder>,
     join: Option<thread::JoinHandle<()>>,
     on_cleanup: Option<Box<dyn FnOnce() + Send>>,
 }
@@ -256,6 +250,7 @@ impl DictationStreamingWorker {
         let handle = DictationStreamingHandle {
             cmd_tx,
             shutdown_flag,
+            decoder,
             join: Some(join),
             on_cleanup: Some(cleanup_guard.disarm()),
         };
@@ -272,48 +267,21 @@ impl DictationStreamingWorker {
 }
 
 impl DictationStreamingHandle {
-    pub fn finish(mut self) -> anyhow::Result<String> {
-        let (result_tx, result_rx) = mpsc::channel();
-        self.cmd_tx
-            .send(Cmd::Finish(result_tx))
-            .context("finish dictation streaming worker")?;
-        let transcript = match result_rx.recv_timeout(WORKER_FINISH_BUDGET) {
-            Ok(transcript) => transcript,
-            Err(error) => {
-                self.stop_in_place();
-                return Err(anyhow::anyhow!(
-                    "dictation streaming finish failed: {error}"
-                ));
-            }
-        };
-        self.join_finished_worker()?;
-        self.run_cleanup();
-        Ok(transcript)
-    }
-
     /// Releases streaming engine + keepalive. Shutdown flag short-circuits in-flight decodes.
     pub fn stop(mut self) {
         self.stop_in_place();
     }
 
-    /// Idempotent. Bounded by [`WORKER_JOIN_BUDGET`] — an un-preemptable decode gets detached, never joined.
+    /// Idempotent. Bounded by [`WORKER_JOIN_BUDGET`] — a decode that ignores the cancel gets detached, never joined.
     fn stop_in_place(&mut self) {
         if self.join.is_none() && self.on_cleanup.is_none() {
             return;
         }
         self.shutdown_flag.store(true, Ordering::SeqCst);
+        self.decoder.cancel();
         let _ = self.cmd_tx.send(Cmd::Shutdown);
         self.join_cancelled_worker();
         self.run_cleanup();
-    }
-
-    fn join_finished_worker(&mut self) -> anyhow::Result<()> {
-        let Some(handle) = self.join.take() else {
-            return Ok(());
-        };
-        handle
-            .join()
-            .map_err(|error| anyhow::anyhow!("dictation streaming worker panicked: {error:?}"))
     }
 
     fn join_cancelled_worker(&mut self) {
@@ -373,6 +341,7 @@ where
                 text
             }
         }
+        Err(_) if shutdown_flag.load(Ordering::Relaxed) => String::new(),
         Err(e) => {
             *decode_errs += 1;
             if *decode_errs <= 3 || decode_errs.is_multiple_of(50) {
@@ -393,7 +362,6 @@ fn run_worker(
     let mut pipeline = StreamingPipeline::new(cfg);
     let mut accumulator = DictationAccumulator::new();
     let mut decode_errs = 0usize;
-    let mut dropped_samples = 0usize;
 
     let decoder_for_decode = decoder.clone();
     let shutdown_for_decode = shutdown_flag.clone();
@@ -406,16 +374,15 @@ fn run_worker(
     while let Ok(command) = cmd_rx.recv() {
         let mut backlog = match command {
             Cmd::Audio(frame) => coalesce_audio_backlog(frame, &cmd_rx),
-            Cmd::Finish(result_tx) => CoalescedAudioBacklog {
-                frames: Vec::new(),
-                terminal: Some(TerminalCommand::Finish(result_tx)),
-            },
-            Cmd::Shutdown => CoalescedAudioBacklog {
-                frames: Vec::new(),
-                terminal: Some(TerminalCommand::Shutdown),
-            },
+            Cmd::Shutdown => break,
         };
-        dropped_samples += trim_frame_backlog(&mut backlog.frames);
+        let dropped = trim_frame_backlog(&mut backlog.frames);
+        if dropped > 0 {
+            debug!(
+                "dictation preview skipped {:.1}s of backlog",
+                dropped as f32 / SAMPLE_RATE as f32
+            );
+        }
         for frame in backlog.frames {
             if shutdown_flag.load(Ordering::Relaxed) {
                 break;
@@ -424,25 +391,8 @@ fn run_worker(
             let events = pipeline.push(&frame.samples, is_speech, &mut decode);
             emit_events(events, &mut accumulator, &sink);
         }
-        match backlog.terminal {
-            Some(TerminalCommand::Finish(result_tx)) => {
-                emit_events(pipeline.flush(&mut decode), &mut accumulator, &sink);
-                // An incomplete preview must never stand in for the transcript — empty sends the
-                // stop flow to the batch decode of the full recording.
-                let transcript = if dropped_samples > 0 {
-                    warn!(
-                        "dictation preview fell behind and dropped {:.1}s of audio — falling back to the batch decode",
-                        dropped_samples as f32 / SAMPLE_RATE as f32
-                    );
-                    String::new()
-                } else {
-                    accumulator.transcript()
-                };
-                let _ = result_tx.send(transcript);
-                break;
-            }
-            Some(TerminalCommand::Shutdown) => break,
-            None => {}
+        if backlog.shutdown {
+            break;
         }
     }
     debug!("dictation streaming worker exiting");

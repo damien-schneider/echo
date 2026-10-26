@@ -5,7 +5,6 @@ pub mod input_tracking;
 pub mod meeting;
 pub mod models;
 pub mod transcription;
-pub mod tts;
 pub mod voice_tools;
 
 use crate::settings;

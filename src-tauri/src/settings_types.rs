@@ -240,8 +240,8 @@ pub struct AppSettings {
     pub post_process_prompts: Vec<LLMPrompt>,
     #[serde(default)]
     pub post_process_selected_prompt_id: Option<String>,
-    #[serde(default = "default_voice_commands_enabled")]
-    pub voice_commands_enabled: bool,
+    #[serde(default = "default_voice_commands")]
+    pub voice_commands: bool,
     #[serde(default)]
     pub mute_while_recording: bool,
     #[serde(default)]

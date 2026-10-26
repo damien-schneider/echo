@@ -119,7 +119,6 @@ fn long_pause_inserts_a_bounded_separator_between_utterances() {
         &recorded.samples[2 + PAUSE_SEPARATOR_SAMPLES..],
         &[0.3, 0.4]
     );
-    assert!(recorded.had_long_pause);
 }
 
 #[test]
@@ -143,13 +142,11 @@ fn short_pause_keeps_the_fast_contiguous_audio_path() {
     }
 
     assert_eq!(recorded.samples, vec![0.1, 0.2]);
-    assert!(!recorded.had_long_pause);
 }
 
 #[test]
-fn taking_a_recording_resets_pause_metadata_and_pending_silence() {
+fn taking_a_recording_resets_pending_silence() {
     let mut recorded = RecordedAudioBuffer {
-        had_long_pause: true,
         pending_silence_samples: LONG_PAUSE_MIN_SAMPLES,
         samples: vec![0.1],
         ..Default::default()
@@ -157,9 +154,7 @@ fn taking_a_recording_resets_pause_metadata_and_pending_silence() {
 
     let captured = recorded.take_recording();
 
-    assert!(captured.had_long_pause);
-    assert_eq!(captured.samples, vec![0.1]);
-    assert!(!recorded.had_long_pause);
+    assert_eq!(captured, vec![0.1]);
     assert_eq!(recorded.pending_silence_samples, 0);
     assert!(recorded.samples.is_empty());
 }
@@ -208,7 +203,7 @@ fn a_streaming_recorder_keeps_no_samples() {
         is_speech: true,
     });
 
-    assert!(recorded.take_recording().samples.is_empty());
+    assert!(recorded.take_recording().is_empty());
 }
 
 /// A Bluetooth mic switching profiles sends nothing for a while: a start arriving then was dropped.

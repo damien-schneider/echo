@@ -2,6 +2,7 @@
 //! it, or Echo's own hands when there is nowhere to put it.
 
 use crate::caret::CaretSight;
+use crate::model_pass::DictationTarget;
 use crate::overlay;
 use crate::settings::OverlayPosition;
 use log::error;
@@ -190,6 +191,27 @@ fn frontmost_identity() -> Option<String> {
     use crate::managers::app_context::{FocusedAppProvider, PlatformFocusedAppProvider};
     let app = PlatformFocusedAppProvider.current()?;
     app.bundle_id.or(app.process_name)
+}
+
+/// The verdict that raises the held card at once also marks speech no text field can take.
+pub(crate) fn target(app_handle: &AppHandle) -> DictationTarget {
+    if routes_to_chat() {
+        return DictationTarget::Chat;
+    }
+    let sight = combined_caret_sight();
+    let frontmost = frontmost_identity();
+    let refuses_text = sight == CaretSight::DeniedByRole
+        || frontmost_is_paste_deaf(
+            frontmost.as_deref(),
+            &tauri::Manager::config(app_handle).identifier,
+            sight == CaretSight::Affirmed,
+        );
+    log::info!("target: caret sight {sight:?}, frontmost {frontmost:?}");
+    if refuses_text {
+        DictationTarget::NoTextField
+    } else {
+        DictationTarget::TextField
+    }
 }
 
 /// Fires from the paste settlement task when no app took the paste, so the hop back to the main

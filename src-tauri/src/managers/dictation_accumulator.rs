@@ -9,9 +9,6 @@ pub struct DictationAccumulator {
     last_emitted: Option<String>,
 }
 
-#[cfg(test)]
-include!("dictation_accumulator_tests.rs");
-
 impl DictationAccumulator {
     pub fn new() -> Self {
         Self::default()
@@ -68,10 +65,6 @@ impl DictationAccumulator {
         parts.join(" ")
     }
 
-    pub fn transcript(&self) -> String {
-        self.build_display()
-    }
-
     fn maybe_emit(&mut self) -> Option<String> {
         let display = self.build_display();
         if display.is_empty() {
@@ -84,3 +77,6 @@ impl DictationAccumulator {
         Some(display)
     }
 }
+
+#[cfg(test)]
+include!("dictation_accumulator_tests.rs");

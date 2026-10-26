@@ -66,7 +66,7 @@ pub fn get_default_settings() -> AppSettings {
         post_process_enabled: false,
         post_process_prompts: default_post_process_prompts(),
         post_process_selected_prompt_id: None,
-        voice_commands_enabled: default_voice_commands_enabled(),
+        voice_commands: default_voice_commands(),
         mute_while_recording: false,
         input_tracking_enabled: false,
         input_tracking_excluded_apps: Vec::new(),
@@ -141,12 +141,29 @@ fn migrate_shortcuts_to_profile_defaults(settings: &mut AppSettings) -> bool {
     updated
 }
 
+/// Commands used to run only inside post-processing, so an upgrade must not switch them on alone.
+fn migrate_voice_commands_out_of_post_processing(
+    settings: &mut AppSettings,
+    raw_settings: Option<&serde_json::Value>,
+) -> bool {
+    let Some(raw) = raw_settings.filter(|raw| raw.get("voice_commands").is_none()) else {
+        return false;
+    };
+    let ran_with_post_processing = raw
+        .get("voice_commands_enabled")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(true);
+    settings.voice_commands = ran_with_post_processing && settings.post_process_enabled;
+    true
+}
+
 fn apply_settings_migrations_from_raw(
     settings: &mut AppSettings,
     raw_settings: Option<&serde_json::Value>,
 ) -> bool {
     let mut updated = migrate_shortcuts_to_profile_defaults(settings);
     updated |= has_removed_provider_keys(raw_settings);
+    updated |= migrate_voice_commands_out_of_post_processing(settings, raw_settings);
 
     let has_transcription_model_size = raw_settings
         .and_then(|raw| raw.get("transcription_model_size"))

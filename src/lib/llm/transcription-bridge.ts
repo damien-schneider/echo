@@ -1,88 +1,84 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { z } from "zod";
 import type { Settings } from "@/lib/types";
-import { runPostProcess } from "./post-process";
+import {
+  type PostProcessResult,
+  rewriteTranscript,
+  runVoiceCommand,
+  selectedPromptText,
+  unchangedTranscript,
+} from "./post-process";
 
-interface TranscriptionReadyPayload {
-  op_generation: number;
-  post_process_timeout_ms: number;
-  transcription: string;
-}
+const TranscriptionReadyPayloadSchema = z.object({
+  op_generation: z.number(),
+  pass: z.enum(["rewrite", "command"]),
+  post_process_timeout_ms: z.number(),
+  transcription: z.string(),
+});
 
-// Bridge Rust transcription → frontend AI SDK post-process → Rust finalize (paste/history/overlay).
+type TranscriptionReadyPayload = z.infer<
+  typeof TranscriptionReadyPayloadSchema
+>;
+
+const runModelPass = (
+  payload: TranscriptionReadyPayload,
+  settings: Settings
+): Promise<PostProcessResult> => {
+  const abortSignal = AbortSignal.timeout(payload.post_process_timeout_ms);
+  return payload.pass === "command"
+    ? runVoiceCommand(payload.transcription, abortSignal)
+    : rewriteTranscript(payload.transcription, settings, abortSignal);
+};
+
+const finalize = (
+  payload: TranscriptionReadyPayload,
+  result: PostProcessResult,
+  postProcessPrompt: string | null
+) =>
+  invoke("finalize_transcription", {
+    kind: result.kind,
+    opGeneration: payload.op_generation,
+    originalTranscription: payload.transcription,
+    postProcessPrompt,
+    text: result.content,
+    toolMessage: result.toolMessage ?? null,
+  });
+
+// Any failure still finalizes with the raw text, so the overlay recovers before the watchdog fires.
+const handleTranscriptionReady = async (
+  payload: TranscriptionReadyPayload,
+  settings: Settings | null
+) => {
+  const raw = unchangedTranscript(payload.transcription);
+  if (!settings) {
+    await finalize(payload, raw, null);
+    return;
+  }
+  try {
+    const result = await runModelPass(payload, settings);
+    const prompt = result.kind === "text" ? selectedPromptText(settings) : null;
+    await finalize(payload, result, prompt);
+  } catch (error) {
+    console.error("Post-processing failed, falling back to raw paste:", error);
+    await finalize(payload, raw, null).catch((finalizeError: unknown) => {
+      console.error(
+        "Fallback finalize_transcription also failed:",
+        finalizeError
+      );
+    });
+  }
+};
+
 export function mountTranscriptionBridge(
   getSettings: () => Settings | null
 ): Promise<UnlistenFn> {
-  return listen<TranscriptionReadyPayload>(
-    "transcription-ready",
-    async (event) => {
-      const { transcription, op_generation, post_process_timeout_ms } =
-        event.payload;
-
-      const settings = getSettings();
-      if (!settings) {
-        // Settings not loaded — paste raw.
-        await invoke("finalize_transcription", {
-          kind: "empty",
-          opGeneration: op_generation,
-          originalTranscription: transcription,
-          postProcessPrompt: null,
-          text: transcription,
-          toolMessage: null,
-        });
-        return;
-      }
-
-      // On post-process error: still finalize with raw text so watchdog doesn't fire + overlay recovers.
-      try {
-        const result = await runPostProcess(
-          transcription,
-          settings,
-          AbortSignal.timeout(post_process_timeout_ms)
-        );
-
-        let postProcessPrompt: string | null = null;
-        if (
-          result.kind === "text" &&
-          settings.post_process_selected_prompt_id
-        ) {
-          const prompt = settings.post_process_prompts.find(
-            (p) => p.id === settings.post_process_selected_prompt_id
-          );
-          if (prompt) {
-            postProcessPrompt = prompt.prompt;
-          }
-        }
-
-        await invoke("finalize_transcription", {
-          kind: result.kind,
-          opGeneration: op_generation,
-          originalTranscription: transcription,
-          postProcessPrompt,
-          text: result.content,
-          toolMessage: result.toolMessage ?? null,
-        });
-      } catch (error) {
-        console.error(
-          "Post-processing failed, falling back to raw paste:",
-          error
-        );
-        try {
-          await invoke("finalize_transcription", {
-            kind: "empty",
-            opGeneration: op_generation,
-            originalTranscription: transcription,
-            postProcessPrompt: null,
-            text: transcription,
-            toolMessage: null,
-          });
-        } catch (finalizeError) {
-          console.error(
-            "Fallback finalize_transcription also failed:",
-            finalizeError
-          );
-        }
-      }
+  return listen<unknown>("transcription-ready", async (event) => {
+    const payload = TranscriptionReadyPayloadSchema.safeParse(event.payload);
+    if (!payload.success) {
+      console.error("Malformed transcription-ready payload:", payload.error);
+      return;
     }
-  );
+    await handleTranscriptionReady(payload.data, getSettings());
+  });
 }

@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- When you release the dictation shortcut, Echo stops the live preview instead of waiting for it to catch up. With the Medium model, that wait could take up to 8 seconds before the final transcription even started. The final transcription now starts right away.
+- The live preview keeps up while you speak: when it falls behind, it transcribes only the latest audio instead of every step it missed.
+- Rewriting and voice commands are now separate:
+  - Voice commands run only when no text field has focus, such as on the desktop, in Finder or in File Explorer. Anything you say there that isn't a command is offered as text.
+  - A dictation into a text field never runs a command; it is rewritten first if Rewrite before pasting is on.
+  - Chat dictations go straight to chat without a rewrite.
+  - Voice commands no longer need post-processing turned on. If post-processing was off, the update turns voice commands off too, so commands never start running without you choosing them.
+  - Echo only calls Qwen3 4B when one of these applies.
+- On Windows, Echo asks UI Automation what has focus, so it can tell a text field from the desktop, a file list or a button.
+- Text to speech now reads out what a voice command did, such as "Opened Safari", instead of your dictated text. Its switch, Speak replies, is under Post-processing → Voice commands.
+
+### Removed
+- The Text to speech page and its voice preview.
+- Voice commands on Linux, where Echo can't tell whether a text field has focus.
+
+### Fixed
+- Reprocessing a history entry could run a voice command, such as opening an app, instead of rewriting the text.
+- Rewrites, voice commands and chat answers from Qwen3 4B had no length limit, so one that kept repeating itself could run past the 30-second limit and leave you with the raw text. Every answer now stops at 2,048 tokens, as Polish already did.
+
 ## [0.8.15] - 2026-10-25
 
 ### Added

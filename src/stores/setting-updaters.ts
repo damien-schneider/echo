@@ -76,8 +76,8 @@ const settingUpdaters: {
     invoke("change_translate_to_english_setting", { enabled: value }),
   tts_enabled: (value) =>
     invoke("change_tts_enabled_setting", { enabled: value }),
-  voice_commands_enabled: (value) =>
-    invoke("change_voice_commands_enabled_setting", { enabled: value }),
+  voice_commands: (value) =>
+    invoke("change_voice_commands_setting", { enabled: value }),
   word_correction_threshold: (value) =>
     invoke("change_word_correction_threshold_setting", { threshold: value }),
 };

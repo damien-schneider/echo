@@ -112,6 +112,7 @@ impl StreamingLanguageState {
 pub struct StreamingTranscriber {
     manager: Arc<TranscriptionManager>,
     state: Mutex<StreamingLanguageState>,
+    cancel: CancelToken,
 }
 
 impl StreamingTranscriber {
@@ -123,7 +124,13 @@ impl StreamingTranscriber {
                 language,
                 candidate: None,
             }),
+            cancel: CancelToken::new(),
         })
+    }
+
+    /// Aborts the decode in flight and every later one.
+    pub fn cancel(&self) {
+        self.cancel.cancel();
     }
 
     fn lock_state(&self) -> std::sync::MutexGuard<'_, StreamingLanguageState> {
@@ -143,7 +150,7 @@ impl StreamingTranscriber {
             audio,
             preview_thread_count(),
             language.as_deref(),
-            None,
+            Some(self.cancel.clone()),
         )?;
         self.lock_state().observe_decode(window_samples, &decoded);
         Ok(decoded.text)

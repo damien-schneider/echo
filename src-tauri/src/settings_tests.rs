@@ -399,4 +399,48 @@ mod tests {
         assert!(!loaded.bindings.contains_key("test"));
         assert!(rewrite);
     }
+
+    fn a_store_from_before_voice_commands_stood_alone(
+        post_process: bool,
+        voice_commands: bool,
+    ) -> serde_json::Value {
+        let mut raw = serde_json::to_value(get_default_settings()).unwrap();
+        let fields = raw.as_object_mut().unwrap();
+        fields.remove("voice_commands");
+        fields.insert("post_process_enabled".into(), serde_json::json!(post_process));
+        fields.insert("voice_commands_enabled".into(), serde_json::json!(voice_commands));
+        raw
+    }
+
+    #[test]
+    fn an_upgrade_keeps_voice_commands_only_where_post_processing_ran_them() {
+        for (post_process, stored, expected) in [
+            (false, true, false),
+            (true, true, true),
+            (true, false, false),
+            (false, false, false),
+        ] {
+            let raw = a_store_from_before_voice_commands_stood_alone(post_process, stored);
+
+            let (loaded, rewrite) = load_stored_settings(raw).unwrap();
+
+            assert_eq!(
+                loaded.voice_commands, expected,
+                "post-processing {post_process}, stored voice commands {stored}"
+            );
+            assert!(rewrite);
+        }
+    }
+
+    #[test]
+    fn voice_commands_chosen_after_the_upgrade_stay_as_chosen() {
+        let mut settings = get_default_settings();
+        settings.post_process_enabled = false;
+        settings.voice_commands = true;
+        let raw = serde_json::to_value(&settings).unwrap();
+
+        let (loaded, _) = load_stored_settings(raw).unwrap();
+
+        assert!(loaded.voice_commands);
+    }
 }

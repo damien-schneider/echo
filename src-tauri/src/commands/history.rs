@@ -1,7 +1,5 @@
 use crate::managers::history::{HistoryEntry, HistoryManager};
 use crate::managers::transcription::{transcription_timeout, TranscriptionManager};
-use crate::managers::tts::TtsManager;
-use crate::settings::get_settings;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
 
@@ -131,15 +129,11 @@ pub async fn update_recording_retention_period(
 
 #[tauri::command]
 pub async fn reprocess_history_entry(
-    app: AppHandle,
     history_manager: State<'_, Arc<HistoryManager>>,
-    tts_manager: State<'_, Arc<TtsManager>>,
     id: i64,
     post_processed_text: Option<String>,
     post_process_prompt: Option<String>,
 ) -> Result<String, String> {
-    use log::{error, info};
-
     let entry = history_manager
         .get_entry_by_id(id)
         .await
@@ -151,21 +145,9 @@ pub async fn reprocess_history_entry(
         .unwrap_or_else(|| entry.transcription_text.clone());
 
     history_manager
-        .update_post_processed_text(id, post_processed_text.clone(), post_process_prompt)
+        .update_post_processed_text(id, post_processed_text, post_process_prompt)
         .await
         .map_err(|e| format!("Failed to update history entry: {}", e))?;
-
-    let settings = get_settings(&app);
-    if settings.tts_enabled && post_processed_text.is_some() {
-        let tts_manager_clone = Arc::clone(&tts_manager);
-        let text_to_speak = final_text.clone();
-        info!("Triggering TTS for reprocessed text: {}", text_to_speak);
-        std::thread::spawn(move || {
-            if let Err(e) = tts_manager_clone.speak(&text_to_speak) {
-                error!("TTS failed: {}", e);
-            }
-        });
-    }
 
     Ok(final_text)
 }

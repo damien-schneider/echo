@@ -80,9 +80,9 @@ pub fn set_post_process_selected_prompt(app: AppHandle, id: Option<String>) -> R
 }
 
 #[tauri::command]
-pub fn change_voice_commands_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+pub fn change_voice_commands_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     settings::update_settings(&app, |s| {
-        s.voice_commands_enabled = enabled;
+        s.voice_commands = enabled;
     });
     Ok(())
 }

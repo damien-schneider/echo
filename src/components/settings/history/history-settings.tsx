@@ -12,7 +12,7 @@ import {
   useEffectEvent,
   useState,
 } from "react";
-import { runPostProcess } from "@/lib/llm/post-process";
+import { rewriteTranscript, selectedPromptText } from "@/lib/llm/post-process";
 import { cn } from "@/lib/utils";
 import { useSettingsStore } from "@/stores/settings-store";
 import {
@@ -105,18 +105,11 @@ export const HistorySettings = () => {
         "get_history_entry_transcription",
         { id }
       );
-      const result = await runPostProcess(transcription, settings);
+      const result = await rewriteTranscript(transcription, settings);
       const postProcessedText = result.kind === "text" ? result.content : null;
-      let postProcessPrompt: string | null = null;
-      if (postProcessedText && settings.post_process_selected_prompt_id) {
-        const prompts = settings.post_process_prompts ?? [];
-        const prompt = prompts.find(
-          (p) => p.id === settings.post_process_selected_prompt_id
-        );
-        if (prompt) {
-          postProcessPrompt = prompt.prompt;
-        }
-      }
+      const postProcessPrompt = postProcessedText
+        ? selectedPromptText(settings)
+        : null;
       await invoke("reprocess_history_entry", {
         id,
         postProcessedText,

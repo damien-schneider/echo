@@ -22,7 +22,6 @@ import {
   ListChecksIcon,
   SlidersHorizontalIcon,
   SparkleIcon,
-  SpeakerHighIcon,
   UsersIcon,
   WaveformIcon,
 } from "@phosphor-icons/react";
@@ -40,7 +39,6 @@ import { KeyboardTrackingSettings } from "@/components/settings/keyboard-trackin
 import { ModelsSettings } from "@/components/settings/models/models-settings";
 import { PostProcessingSettings } from "@/components/settings/post-processing/post-processing-settings";
 import { TranscriptionSettings } from "@/components/settings/transcription/transcription-settings";
-import { TtsSettingsPage } from "@/components/settings/tts-settings-page";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import {
   usesNativeTrafficLights,
@@ -96,11 +94,6 @@ export const SECTIONS_CONFIG = {
     component: PostProcessingSettings,
     icon: SparkleIcon,
     label: "Post-processing",
-  },
-  "text-to-speech": {
-    component: TtsSettingsPage,
-    icon: SpeakerHighIcon,
-    label: "Text to speech",
   },
   transcription: {
     component: TranscriptionSettings,

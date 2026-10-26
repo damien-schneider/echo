@@ -14,6 +14,7 @@ impl DictationStreamingHandle {
         Self {
             cmd_tx,
             shutdown_flag,
+            decoder: Arc::new(NoOpDecoder),
             join: Some(join),
             on_cleanup: Some(Box::new(|| {})),
         }
@@ -37,10 +38,6 @@ impl DictationStreamingHandle {
                     match cmd_rx.recv() {
                         Ok(Cmd::Shutdown) => break,
                         Ok(Cmd::Audio(_)) => continue,
-                        Ok(Cmd::Finish(result_tx)) => {
-                            let _ = result_tx.send(String::new());
-                            break;
-                        }
                         Err(_) => break,
                     }
                 }
@@ -49,6 +46,7 @@ impl DictationStreamingHandle {
         Self {
             cmd_tx,
             shutdown_flag,
+            decoder: Arc::new(NoOpDecoder),
             join: Some(join),
             on_cleanup: Some(Box::new(on_cleanup)),
         }
@@ -109,8 +107,7 @@ mod shutdown_aware_decode_tests {
 #[cfg(test)]
 mod audio_backlog_tests {
     use super::{
-        coalesce_audio_backlog, trim_frame_backlog, CapturedAudioFrame, Cmd, TerminalCommand,
-        MAX_BACKLOG_SAMPLES,
+        coalesce_audio_backlog, trim_frame_backlog, CapturedAudioFrame, Cmd, MAX_BACKLOG_SAMPLES,
     };
     use std::sync::mpsc;
 
@@ -135,7 +132,7 @@ mod audio_backlog_tests {
         assert!(backlog.frames[0].is_speech);
         assert_eq!(backlog.frames[1].samples.len(), 12);
         assert!(!backlog.frames[1].is_speech);
-        assert!(backlog.terminal.is_none());
+        assert!(!backlog.shutdown);
     }
 
     #[test]
@@ -170,19 +167,15 @@ mod audio_backlog_tests {
     }
 
     #[test]
-    fn preserves_finish_after_all_queued_audio() {
+    fn keeps_shutdown_after_all_queued_audio() {
         let (tx, rx) = mpsc::channel();
-        let (result_tx, _result_rx) = mpsc::channel();
         tx.send(Cmd::Audio(frame(3, true))).expect("speech frame");
-        tx.send(Cmd::Finish(result_tx)).expect("finish command");
+        tx.send(Cmd::Shutdown).expect("shutdown command");
 
         let backlog = coalesce_audio_backlog(frame(2, true), &rx);
 
         assert_eq!(backlog.frames[0].samples.len(), 5);
-        assert!(matches!(
-            backlog.terminal,
-            Some(TerminalCommand::Finish(_))
-        ));
+        assert!(backlog.shutdown);
     }
 }
 

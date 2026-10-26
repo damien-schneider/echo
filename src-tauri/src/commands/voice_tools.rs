@@ -209,6 +209,20 @@ pub enum PostProcessKind {
     Empty,
 }
 
+/// Only a command's reply is spoken: dictated text already lands where the user reads it.
+fn speak_reply(app: &AppHandle, message: &str) {
+    if message.is_empty() || !settings::get_settings(app).tts_enabled {
+        return;
+    }
+    let tts = app.state::<Arc<TtsManager>>().inner().clone();
+    let message = message.to_string();
+    std::thread::spawn(move || {
+        if let Err(e) = tts.speak(&message) {
+            error!("TTS failed: {e}");
+        }
+    });
+}
+
 #[tauri::command]
 pub async fn finalize_transcription(
     app: AppHandle,
@@ -234,7 +248,6 @@ pub async fn finalize_transcription(
     let original_transcription = sanitize_dictation_output(&original_transcription);
 
     let hm = app.state::<Arc<HistoryManager>>();
-    let tts_manager = app.state::<Arc<TtsManager>>();
 
     match kind {
         PostProcessKind::Tool => {
@@ -252,24 +265,12 @@ pub async fn finalize_transcription(
             });
 
             if OPERATION_GENERATION.load(Ordering::SeqCst) == op_generation {
+                speak_reply(&app, &message);
                 show_tool_overlay(&app, &message);
                 change_tray_icon(&app, TrayIconState::Idle);
             }
         }
         PostProcessKind::Text => {
-            let settings = settings::get_settings(&app);
-
-            if settings.tts_enabled {
-                let tts_clone = tts_manager.inner().clone();
-                let text_to_speak = text.clone();
-                info!("Triggering TTS with text: {}", text_to_speak);
-                std::thread::spawn(move || {
-                    if let Err(e) = tts_clone.speak(&text_to_speak) {
-                        error!("TTS failed: {}", e);
-                    }
-                });
-            }
-
             let hm_clone = Arc::clone(&hm);
             let transcription_for_history = original_transcription.clone();
             let post_processed = Some(text.clone());
@@ -295,8 +296,6 @@ pub async fn finalize_transcription(
             crate::actions::deliver_transcript(&app, text, op_generation);
         }
         PostProcessKind::Empty => {
-            let settings = settings::get_settings(&app);
-
             let hm_clone = Arc::clone(&hm);
             let transcription_for_history = original_transcription.clone();
             tauri::async_runtime::spawn(async move {
@@ -311,16 +310,6 @@ pub async fn finalize_transcription(
             if OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
                 debug!("Operation became stale during finalization, skipping paste");
                 return Ok(());
-            }
-
-            if settings.tts_enabled {
-                let tts_clone = tts_manager.inner().clone();
-                let text_to_speak = text.clone();
-                std::thread::spawn(move || {
-                    if let Err(e) = tts_clone.speak(&text_to_speak) {
-                        error!("TTS failed: {}", e);
-                    }
-                });
             }
 
             crate::actions::deliver_transcript(&app, text, op_generation);

@@ -267,48 +267,15 @@ pub enum MicrophoneMode {
     OnDemand,
 }
 
-pub struct RecordedDictation {
-    pub had_long_pause: bool,
-    pub samples: Vec<f32>,
-    pub streaming_transcript: Option<String>,
-}
-
-struct ActiveDictationStreaming {
-    handle: DictationStreamingHandle,
-    forwarder: std::thread::JoinHandle<()>,
-}
-
 struct PreparedDictationStream {
     chunk_tx: Option<std::sync::mpsc::Sender<CapturedAudioFrame>>,
-    session: Option<ActiveDictationStreaming>,
+    session: Option<DictationStreamingHandle>,
 }
 
 struct ReservedRecordingStart {
     attempt: RecordingAttempt,
     binding_id: String,
     stream: PreparedDictationStream,
-}
-
-impl ActiveDictationStreaming {
-    fn finish(self) -> Option<String> {
-        let Self { handle, forwarder } = self;
-        if let Err(error) = forwarder.join() {
-            log::error!("Dictation forwarder panicked: {error:?}");
-            handle.stop();
-            return None;
-        }
-        match handle.finish() {
-            Ok(transcript) => Some(transcript),
-            Err(error) => {
-                log::error!("Failed to finish dictation streaming: {error:#}");
-                None
-            }
-        }
-    }
-
-    fn cancel(self) {
-        self.handle.stop();
-    }
 }
 
 impl PreparedDictationStream {
@@ -322,7 +289,7 @@ impl PreparedDictationStream {
     fn cancel(self) {
         drop(self.chunk_tx);
         if let Some(session) = self.session {
-            session.cancel();
+            session.stop();
         }
     }
 }
@@ -379,7 +346,7 @@ pub struct AudioRecordingManager {
     /// Lock-free mirror of `is_recording` — idle watcher polls it from another thread.
     recording_signal: RecordingActiveSignal,
     did_mute: Arc<Mutex<bool>>,
-    dictation_streaming: Arc<Mutex<Option<ActiveDictationStreaming>>>,
+    dictation_streaming: Arc<Mutex<Option<DictationStreamingHandle>>>,
 }
 
 impl AudioRecordingManager {
@@ -663,7 +630,7 @@ impl AudioRecordingManager {
             }
         };
         let binding_id = binding_id.to_string();
-        let forwarder = std::thread::spawn(move || {
+        std::thread::spawn(move || {
             while let Ok(frame) = chunk_rx.recv() {
                 worker.push_frame(frame);
             }
@@ -671,7 +638,7 @@ impl AudioRecordingManager {
         });
         PreparedDictationStream {
             chunk_tx: Some(chunk_tx),
-            session: Some(ActiveDictationStreaming { handle, forwarder }),
+            session: Some(handle),
         }
     }
 
@@ -696,7 +663,7 @@ impl AudioRecordingManager {
         }
         if let Some(previous) = current_stream.take() {
             log::warn!("Replacing live dictation stream");
-            previous.cancel();
+            previous.stop();
         }
         *current_stream = start.stream.session.take();
         self.set_is_recording(true);
@@ -723,11 +690,7 @@ impl AudioRecordingManager {
         Ok(())
     }
 
-    pub(crate) fn stop_recording(
-        &self,
-        binding_id: &str,
-        stop: RecordingStop,
-    ) -> Option<RecordedDictation> {
+    pub(crate) fn stop_recording(&self, binding_id: &str, stop: RecordingStop) -> Option<Vec<f32>> {
         let (attempt, has_audio) = match stop {
             RecordingStop::Active { attempt } => (attempt, true),
             RecordingStop::Pending { attempt } => (attempt, false),
@@ -745,20 +708,16 @@ impl AudioRecordingManager {
             return None;
         }
 
-        let captured = self.stop_recorder();
-        let streaming_transcript = self.finish_dictation_streaming();
+        let samples = self.stop_recorder();
+        self.cancel_dictation_streaming();
         self.set_is_recording(false);
         self.remove_mute();
         if self.is_on_demand() {
             self.stop_microphone_stream();
         }
         self.finish_recording_teardown(attempt);
-        debug!("Got {} samples", captured.samples.len());
-        Some(RecordedDictation {
-            had_long_pause: captured.had_long_pause,
-            samples: pad_short_samples(captured.samples),
-            streaming_transcript,
-        })
+        debug!("Got {} samples", samples.len());
+        Some(pad_short_samples(samples))
     }
 
     pub fn cancel_recording(&self) {
@@ -766,9 +725,7 @@ impl AudioRecordingManager {
             return;
         };
 
-        if let Some(session) = lock(&self.dictation_streaming).take() {
-            session.cancel();
-        }
+        self.cancel_dictation_streaming();
 
         if let Some(rec) = lock(&self.recorder).as_ref() {
             let _ = rec.stop();
@@ -783,25 +740,23 @@ impl AudioRecordingManager {
         self.finish_recording_teardown(attempt);
     }
 
-    fn stop_recorder(&self) -> crate::audio_toolkit::audio::recorder::RecordedAudio {
+    fn stop_recorder(&self) -> Vec<f32> {
         let recorder = lock(&self.recorder);
         let Some(recorder) = recorder.as_ref() else {
             log::error!("Recorder not available");
-            return crate::audio_toolkit::audio::recorder::RecordedAudio::default();
+            return Vec::new();
         };
-        match recorder.stop_with_metadata() {
-            Ok(recording) => recording,
-            Err(error) => {
-                log::error!("stop() failed: {error}");
-                crate::audio_toolkit::audio::recorder::RecordedAudio::default()
-            }
-        }
+        recorder.stop().unwrap_or_else(|error| {
+            log::error!("stop() failed: {error}");
+            Vec::new()
+        })
     }
 
-    fn finish_dictation_streaming(&self) -> Option<String> {
-        lock(&self.dictation_streaming)
-            .take()
-            .and_then(ActiveDictationStreaming::finish)
+    /// The preview only ever shows progress, so stopping drops it rather than waiting for it.
+    fn cancel_dictation_streaming(&self) {
+        if let Some(session) = lock(&self.dictation_streaming).take() {
+            session.stop();
+        }
     }
 
     fn finish_recording_teardown(&self, attempt: RecordingAttempt) {

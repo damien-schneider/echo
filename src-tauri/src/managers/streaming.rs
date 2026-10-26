@@ -138,18 +138,20 @@ impl StreamingPipeline {
 
     /// Caller does VAD; decode closure returns empty on no result.
     ///
-    /// A backlogged worker hands over seconds of coalesced audio at once; splitting it here keeps the
-    /// window at its configured size instead of growing one decode long enough to never catch up.
+    /// A backlogged worker hands over seconds of coalesced audio at once: slicing keeps each window at
+    /// its configured size, and only the newest window gets an interim decode — older ones would be
+    /// stale before they render.
     pub fn push<D: FnMut(&[f32]) -> String>(
         &mut self,
         frame: &[f32],
         is_speech: bool,
         decode: &mut D,
     ) -> Vec<PipelineEvent> {
-        let mut events = Vec::new();
-        for slice in frame.chunks(self.cfg.step_samples.max(1)) {
-            events.extend(self.push_slice(slice, is_speech, decode));
-        }
+        let mut events: Vec<PipelineEvent> = frame
+            .chunks(self.cfg.step_samples.max(1))
+            .filter_map(|slice| self.push_slice(slice, is_speech, decode))
+            .collect();
+        events.extend(self.interim_if_due(decode));
         events
     }
 
@@ -158,9 +160,9 @@ impl StreamingPipeline {
         frame: &[f32],
         is_speech: bool,
         decode: &mut D,
-    ) -> Vec<PipelineEvent> {
+    ) -> Option<PipelineEvent> {
         if frame.is_empty() {
-            return Vec::new();
+            return None;
         }
         self.total_samples += frame.len() as u64;
         self.buffer.extend_from_slice(frame);
@@ -172,16 +174,11 @@ impl StreamingPipeline {
             self.silence_run_samples += frame.len();
         }
 
-        let mut events = Vec::new();
-
         if self.had_speech_in_buffer
             && self.buffer.len() >= self.cfg.min_window_samples
             && self.silence_run_samples >= self.cfg.silence_flush_samples
         {
-            if let Some(ev) = self.finalize_now(decode) {
-                events.push(ev);
-            }
-            return events;
+            return self.finalize_now(decode);
         }
 
         // silence-only buffer never reaches whisper
@@ -190,44 +187,34 @@ impl StreamingPipeline {
             self.samples_since_decode = 0;
             self.silence_run_samples = 0;
             self.segment_start_ms = Self::samples_to_ms(self.total_samples);
-            return events;
+            return None;
         }
 
         // speech-gated — an empty buffer would emit an empty Final
         if self.had_speech_in_buffer && self.buffer.len() >= self.cfg.max_window_samples {
-            if let Some(ev) = self.finalize_now(decode) {
-                events.push(ev);
-            }
-            return events;
+            return self.finalize_now(decode);
         }
-
-        if self.had_speech_in_buffer
-            && self.buffer.len() >= self.cfg.min_window_samples
-            && self.samples_since_decode >= self.cfg.step_samples
-        {
-            self.samples_since_decode = 0;
-            let text = decode(&self.buffer);
-            let words = split_words(&text);
-            let delta = self.committer.observe(words);
-            events.push(PipelineEvent::Interim {
-                committed_text: delta.committed_text,
-                tentative_text: delta.tentative_text,
-                segment_start_ms: self.segment_start_ms,
-            });
-        }
-
-        events
+        None
     }
 
-    /// Call on stop.
-    pub fn flush<D: FnMut(&[f32]) -> String>(&mut self, decode: &mut D) -> Vec<PipelineEvent> {
-        if self.buffer.is_empty() {
-            return Vec::new();
+    fn interim_if_due<D: FnMut(&[f32]) -> String>(
+        &mut self,
+        decode: &mut D,
+    ) -> Option<PipelineEvent> {
+        if !self.had_speech_in_buffer
+            || self.buffer.len() < self.cfg.min_window_samples
+            || self.samples_since_decode < self.cfg.step_samples
+        {
+            return None;
         }
-        match self.finalize_now(decode) {
-            Some(ev) => vec![ev],
-            None => Vec::new(),
-        }
+        self.samples_since_decode = 0;
+        let text = decode(&self.buffer);
+        let delta = self.committer.observe(split_words(&text));
+        Some(PipelineEvent::Interim {
+            committed_text: delta.committed_text,
+            tentative_text: delta.tentative_text,
+            segment_start_ms: self.segment_start_ms,
+        })
     }
 
     fn finalize_now<D: FnMut(&[f32]) -> String>(
@@ -454,6 +441,20 @@ mod tests {
     }
 
     #[test]
+    fn a_backlog_spanning_several_steps_decodes_only_its_newest_window() {
+        let mut p = StreamingPipeline::new(cfg_for_tests());
+        let decoded = std::cell::RefCell::new(vec![]);
+        let mut decode = |buf: &[f32]| {
+            decoded.borrow_mut().push(buf.len());
+            "the quick brown fox".to_string()
+        };
+        let events = speech(&mut p, 3 * SAMPLE_RATE, &mut decode);
+        assert_eq!(events.len(), 1);
+        assert!(matches!(events[0], PipelineEvent::Interim { .. }));
+        assert_eq!(*decoded.borrow(), vec![3 * SAMPLE_RATE]);
+    }
+
+    #[test]
     fn pipeline_promotes_interim_to_committed_on_agreement() {
         let mut p = StreamingPipeline::new(cfg_for_tests());
         let decode_outputs = std::cell::RefCell::new(vec![
@@ -592,24 +593,6 @@ mod tests {
             "second segment should start after first (got {start}ms)"
         );
         assert!(end > start);
-    }
-
-    #[test]
-    fn pipeline_flush_emits_remaining_buffer() {
-        let mut p = StreamingPipeline::new(cfg_for_tests());
-        let mut decode = |_buf: &[f32]| "tail words".to_string();
-        speech(&mut p, 32_000, &mut decode);
-        let events = p.flush(&mut decode);
-        assert_eq!(events.len(), 1);
-        assert!(matches!(events[0], PipelineEvent::Final { .. }));
-    }
-
-    #[test]
-    fn pipeline_flush_empty_buffer_is_noop() {
-        let mut p = StreamingPipeline::new(cfg_for_tests());
-        let mut decode = |_buf: &[f32]| "x".to_string();
-        let events = p.flush(&mut decode);
-        assert!(events.is_empty());
     }
 
     #[test]

@@ -171,7 +171,7 @@ export const SettingsSchema = z.object({
     TranscriptionModelSizeSchema.optional().default("medium"),
   translate_to_english: z.boolean(),
   tts_enabled: z.boolean().optional().default(false),
-  voice_commands_enabled: z.boolean().optional().default(true),
+  voice_commands: z.boolean().optional().default(true),
   word_correction_threshold: z.number().optional().default(0.18),
 });
 

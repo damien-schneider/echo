@@ -19,6 +19,7 @@ use echo_app_lib::actions::{
 };
 use echo_app_lib::managers::timeout::{run_with_timeout, TimedOut};
 use echo_app_lib::managers::transcription::TranscribeError;
+use echo_app_lib::model_pass::ModelPass;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -68,7 +69,7 @@ fn hallucination_filtering_cleanup(text: &str) -> String {
 }
 
 /// Drive `run_with_timeout` like the dictation stop flow would, then run the
-/// outcome through the classifier. Returns the chosen action.
+/// outcome through the classifier with the rewrite pass on. Returns the chosen action.
 fn run_stop_flow(
     decode: impl FnOnce() -> Result<String, TranscribeError> + Send + 'static,
     timeout: Duration,
@@ -82,13 +83,13 @@ fn run_stop_flow(
         Err(TimedOut) => Err(TranscribeError::TimedOut),
     };
     let outcome = into_outcome(raw, cleanup, chinese_variant);
-    decide_end_of_recording(samples_present, outcome)
+    decide_end_of_recording(samples_present, outcome, Some(ModelPass::Rewrite))
 }
 
 // ── Happy path ────────────────────────────────────────────────────────────
 
 #[test]
-fn valid_speech_routes_to_post_process() {
+fn valid_speech_routes_to_the_model_pass() {
     let action = run_stop_flow(
         || Ok("hello world".to_string()),
         Duration::from_secs(2),
@@ -97,8 +98,11 @@ fn valid_speech_routes_to_post_process() {
         true,
     );
     match action {
-        EndOfRecordingAction::PostProcess(text) => assert_eq!(text, "hello world"),
-        other => panic!("expected PostProcess, got {other:?}"),
+        EndOfRecordingAction::RunModel { transcript, pass } => {
+            assert_eq!(transcript, "hello world");
+            assert_eq!(pass, ModelPass::Rewrite);
+        }
+        other => panic!("expected RunModel, got {other:?}"),
     }
 }
 
@@ -272,7 +276,7 @@ fn silent_audio_skips_decode_and_routes_to_nothing_to_paste_within_budget() {
         cleaned: String::new(),
         chinese_variant: None,
     });
-    let action = decide_end_of_recording(true, outcome);
+    let action = decide_end_of_recording(true, outcome, Some(ModelPass::Rewrite));
     let elapsed = start.elapsed();
     assert!(
         matches!(action, EndOfRecordingAction::NothingToPaste),

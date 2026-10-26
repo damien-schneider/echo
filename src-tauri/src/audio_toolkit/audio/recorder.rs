@@ -30,7 +30,7 @@ enum Cmd {
         chunk_tx: Option<mpsc::Sender<CapturedAudioFrame>>,
         retain: bool,
     },
-    Stop(mpsc::Sender<RecordedAudio>),
+    Stop(mpsc::Sender<Vec<f32>>),
     Shutdown,
 }
 
@@ -38,12 +38,6 @@ enum Cmd {
 pub struct CapturedAudioFrame {
     pub samples: Vec<f32>,
     pub is_speech: bool,
-}
-
-#[derive(Debug, Default)]
-pub(crate) struct RecordedAudio {
-    pub had_long_pause: bool,
-    pub samples: Vec<f32>,
 }
 
 pub struct AudioRecorder {
@@ -179,20 +173,16 @@ impl AudioRecorder {
     }
 
     pub fn stop(&self) -> Result<Vec<f32>, Box<dyn std::error::Error>> {
-        self.stop_with_metadata().map(|recording| recording.samples)
-    }
-
-    pub(crate) fn stop_with_metadata(&self) -> Result<RecordedAudio, Box<dyn std::error::Error>> {
         let (resp_tx, resp_rx) = mpsc::channel();
         // no `cmd_tx` means nothing will ever answer `resp_rx` — bail instead of blocking forever
         let Some(tx) = &self.cmd_tx else {
             debug!("AudioRecorder::stop() called with no open stream — returning empty buffer");
-            return Ok(RecordedAudio::default());
+            return Ok(Vec::new());
         };
         tx.send(Cmd::Stop(resp_tx))?;
         // bounded — a wedged device must surface fast, not stall the caller
         match resp_rx.recv_timeout(Duration::from_millis(1500)) {
-            Ok(recording) => Ok(recording),
+            Ok(samples) => Ok(samples),
             Err(mpsc::RecvTimeoutError::Timeout) => Err("recorder stop timed out".into()),
             Err(mpsc::RecvTimeoutError::Disconnected) => {
                 Err("recorder worker disconnected before replying".into())
@@ -389,7 +379,6 @@ impl SilenceWatchdog {
 struct RecordedAudioBuffer {
     retain: bool,
     pending_silence_samples: usize,
-    had_long_pause: bool,
     samples: Vec<f32>,
 }
 
@@ -398,7 +387,6 @@ impl Default for RecordedAudioBuffer {
         Self {
             retain: true,
             pending_silence_samples: 0,
-            had_long_pause: false,
             samples: Vec::new(),
         }
     }
@@ -407,7 +395,6 @@ impl Default for RecordedAudioBuffer {
 impl RecordedAudioBuffer {
     fn clear(&mut self) {
         self.pending_silence_samples = 0;
-        self.had_long_pause = false;
         self.samples.clear();
     }
 
@@ -417,7 +404,6 @@ impl RecordedAudioBuffer {
         }
         if frame.is_speech {
             if !self.samples.is_empty() && self.pending_silence_samples >= LONG_PAUSE_MIN_SAMPLES {
-                self.had_long_pause = true;
                 self.samples
                     .resize(self.samples.len() + PAUSE_SEPARATOR_SAMPLES, 0.0);
             }
@@ -432,16 +418,13 @@ impl RecordedAudioBuffer {
         }
     }
 
-    fn take_recording(&mut self) -> RecordedAudio {
-        let recording = RecordedAudio {
-            had_long_pause: self.had_long_pause,
-            samples: std::mem::take(&mut self.samples),
-        };
+    fn take_recording(&mut self) -> Vec<f32> {
+        let samples = std::mem::take(&mut self.samples);
         *self = Self {
             retain: self.retain,
             ..Self::default()
         };
-        recording
+        samples
     }
 }
 
@@ -552,7 +535,7 @@ fn run_consumer(
                     });
 
                     let captured = recorded_audio.take_recording();
-                    let sample_count = captured.samples.len();
+                    let sample_count = captured.len();
                     let audio_duration_secs = sample_count as f32 / constants::SAMPLE_RATE as f32;
                     debug!(
                         "AudioRecorder stop: returning {} samples ({:.1}s of audio)",
