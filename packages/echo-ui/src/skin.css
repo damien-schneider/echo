@@ -31,7 +31,6 @@
   --active-fill: #e3e3e3;
   --shadow-color: #000000;
   --surface-group: rgb(0 0 0 / 0.035);
-  --surface-divider: rgb(0 0 0 / 0.06);
   --panel-shadow:
     0 0 0 1px rgb(0 0 0 / 0.04), 0 1px 2px rgb(0 0 0 / 0.04),
     0 8px 24px -12px rgb(0 0 0 / 0.1);
@@ -87,7 +86,6 @@
   --active-fill: #333333;
   --shadow-color: #000000;
   --surface-group: rgb(255 255 255 / 0.035);
-  --surface-divider: rgb(255 255 255 / 0.06);
   --panel-shadow: 0 0 0 1px rgb(255 255 255 / 0.07);
 }
 
@@ -116,20 +114,36 @@
   :where(
     [data-control-family="field"][data-field-kind="field"][data-slot="group"][data-variant="card"]
   ) {
-  --cui-field-group-background: var(--surface-group);
+  --cui-field-group-background: transparent;
   --cui-field-group-border-width: 0px;
   --cui-field-group-radius: var(--radius-panel);
-  --cui-field-group-separator-color: var(--surface-divider);
+  --cui-field-group-separator-color: transparent;
+  gap: 1px;
+}
+
+[data-skin="echo"]
+  :where(
+    [data-control-family="field"][data-field-kind="field"][data-slot="group"][data-variant="card"]
+      > *
+  ) {
+  background: var(--surface-group);
 }
 
 [data-skin="echo"]
   :where(
     [data-control-family="field"][data-slot="group"][data-variant="card"]
       > [data-control-family="field"][data-slot="root"]
+      > [data-control-family="field"][data-slot="label"],
+    [data-control-family="field"][data-slot="group"][data-variant="card"]
+      > [data-control-family="field"][data-slot="root"]
       > [data-control-family="field"][data-slot="content"]
       > [data-control-family="field"][data-slot="label"]
   ) {
   --cui-field-label-font-weight: 400;
+}
+
+[data-skin="echo"] :where([data-control-family="switch"][data-slot="root"]) {
+  --cui-switch-border-color: var(--control-rim);
 }
 
 [data-skin="echo"] :where([data-control-ui="sidebar"][data-slot="trigger"]) {

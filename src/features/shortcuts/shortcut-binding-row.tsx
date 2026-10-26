@@ -4,7 +4,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@ctrl-ui/react/ui/tooltip";
-import { ArrowCounterClockwiseIcon, WarningIcon } from "@phosphor-icons/react";
+import {
+  ArrowCounterClockwiseIcon,
+  KeyboardIcon,
+  WarningIcon,
+} from "@phosphor-icons/react";
+import { SettingRow } from "@/features/settings/setting-row";
 import type { ShortcutBinding } from "@/lib/types";
 import { formatKeyCombination, type OSType } from "@/lib/utils/keyboard";
 
@@ -30,14 +35,12 @@ export const ShortcutBindingRow = ({
   setRef,
   showWaylandWarning,
 }: ShortcutBindingRowProps) => (
-  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-2 first:pt-0 last:pb-0">
-    <div className="min-w-0 flex-1 basis-32">
-      <p className="text-label">{binding.name}</p>
-      <p className="text-pretty text-caption text-muted-foreground">
-        {binding.description}
-      </p>
-    </div>
-    <div className="flex shrink-0 items-center space-x-1">
+  <SettingRow
+    description={binding.description}
+    icon={<KeyboardIcon className="h-4 w-4" />}
+    title={binding.name}
+  >
+    <div className="flex items-center space-x-1">
       {isEditing ? (
         <Button
           render={<div ref={(ref) => setRef(binding.id, ref)} />}
@@ -75,5 +78,5 @@ export const ShortcutBindingRow = ({
         </Tooltip>
       ) : null}
     </div>
-  </div>
+  </SettingRow>
 );

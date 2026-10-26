@@ -24,20 +24,27 @@ export function SettingRow({
   disabled = false,
   icon,
 }: SettingRowProps) {
+  const label = (
+    <FieldLabel className="flex items-center gap-2">
+      {icon && (
+        <span className="flex shrink-0 text-muted-foreground">{icon}</span>
+      )}
+      {title}
+    </FieldLabel>
+  );
   return (
     <Field
       disabled={disabled}
       orientation={layout === "stacked" ? "vertical" : "responsive"}
     >
-      <FieldContent>
-        <FieldLabel className="flex items-center gap-2">
-          {icon && (
-            <span className="flex shrink-0 text-muted-foreground">{icon}</span>
-          )}
-          {title}
-        </FieldLabel>
-        {description && <FieldDescription>{description}</FieldDescription>}
-      </FieldContent>
+      {description ? (
+        <FieldContent>
+          {label}
+          <FieldDescription>{description}</FieldDescription>
+        </FieldContent>
+      ) : (
+        label
+      )}
       <div
         className={cn(
           "min-w-0 max-w-full shrink-0",

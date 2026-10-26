@@ -284,28 +284,18 @@ export const EchoShortcut: React.FC = () => {
     const info = getWaylandShortcut(id);
     return info?.has_printable_key ?? false;
   };
-  return (
-    <SettingRow
-      icon={<KeyboardIcon className="h-4 w-4" />}
-      layout="stacked"
-      title="Shortcuts"
-    >
-      <div className="w-full divide-y divide-border">
-        {orderedShortcutBindings(bindings).map((binding) => (
-          <ShortcutBindingRow
-            binding={binding}
-            currentKeys={formatCurrentKeys()}
-            isEditing={editingShortcutId === binding.id}
-            isUpdating={Boolean(isUpdatingMap[`binding_${binding.id}`])}
-            key={binding.id}
-            onEdit={startRecording}
-            onReset={resetBinding}
-            osType={osType}
-            setRef={setShortcutRef}
-            showWaylandWarning={isWayland && getWaylandWarning(binding.id)}
-          />
-        ))}
-      </div>
-    </SettingRow>
-  );
+  return orderedShortcutBindings(bindings).map((binding) => (
+    <ShortcutBindingRow
+      binding={binding}
+      currentKeys={formatCurrentKeys()}
+      isEditing={editingShortcutId === binding.id}
+      isUpdating={Boolean(isUpdatingMap[`binding_${binding.id}`])}
+      key={binding.id}
+      onEdit={startRecording}
+      onReset={resetBinding}
+      osType={osType}
+      setRef={setShortcutRef}
+      showWaylandWarning={isWayland && getWaylandWarning(binding.id)}
+    />
+  ));
 };

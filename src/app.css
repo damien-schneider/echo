@@ -53,7 +53,5 @@
 }
 
 [data-control-family="sidebar"][data-slot="skip-link"] {
-  inset-block-start: calc(var(--spacing) * 3);
-  inset-inline-start: calc(50% + var(--sidebar-width) / 2);
-  translate: -50% 0;
+  display: none;
 }
