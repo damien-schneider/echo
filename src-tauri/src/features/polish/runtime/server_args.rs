@@ -38,6 +38,8 @@ pub(super) fn server_arguments(binding: ServerBinding<'_>) -> Vec<String> {
         &CONTEXT_TOKENS.to_string(),
         "--threads",
         &threads.to_string(),
+        "--n-predict",
+        &MAX_RESPONSE_TOKENS.to_string(),
         "--api-key",
         binding.api_key,
         "--no-webui",
@@ -122,5 +124,21 @@ mod tests {
             .expect("the server is told how many threads it may use");
 
         assert_eq!(threads, &polish_thread_count(available_cores()).to_string());
+    }
+
+    #[test]
+    fn every_completion_stops_at_the_response_budget() {
+        let arguments = server_arguments(ServerBinding {
+            model_path: "/models/polish.gguf",
+            port: 1,
+            api_key: "key",
+        });
+        let cap = arguments
+            .iter()
+            .position(|argument| argument == "--n-predict")
+            .and_then(|index| arguments.get(index + 1))
+            .expect("the server caps every completion");
+
+        assert_eq!(cap, &MAX_RESPONSE_TOKENS.to_string());
     }
 }
