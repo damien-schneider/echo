@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.8.17] - 2026-11-01
+
+### Fixed
+- On Windows, holding the dictation shortcut down could start and stop dictation over and over, so nothing was pasted. Holding it now counts as one press.
+- On Windows, the recording overlay could fall behind other apps. It comes back on top each time you switch apps and each time it appears.
+
 ## [0.8.16] - 2026-10-26
 
 ### Changed
