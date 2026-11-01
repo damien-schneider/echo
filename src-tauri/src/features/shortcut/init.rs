@@ -84,7 +84,7 @@ where
     Ok(())
 }
 
-/// Windows lets a held key's auto-repeat through as fresh presses; a toggle flipped on each one.
+/// Windows can re-fire a held shortcut's press, and sends one release per press; count each edge once.
 fn is_key_edge(state: &ManagedToggleState, binding_id: &str, event: ShortcutEvent) -> bool {
     let Ok(mut states) = state.lock() else {
         return true;

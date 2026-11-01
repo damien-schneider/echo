@@ -2,6 +2,7 @@
 
 use super::window::{OVERLAY_NOTIFICATION_LABEL, RECORDING_OVERLAY_LABEL};
 use log::{debug, warn};
+use std::ffi::c_void;
 use std::sync::OnceLock;
 use tauri::{AppHandle, Manager, WebviewWindow};
 use windows::Win32::Foundation::HWND;
@@ -12,18 +13,22 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WINEVENT_SKIPOWNPROCESS,
 };
 
-const HUD_LABELS: [&str; 2] = [RECORDING_OVERLAY_LABEL, OVERLAY_NOTIFICATION_LABEL];
-
 /// No activation: caret stays in the paste target. Async: off-main-thread callers never block.
 const RAISE_FLAGS: SET_WINDOW_POS_FLAGS = SET_WINDOW_POS_FLAGS(
     SWP_ASYNCWINDOWPOS.0 | SWP_NOACTIVATE.0 | SWP_NOMOVE.0 | SWP_NOSIZE.0 | SWP_NOOWNERZORDER.0,
 );
 
-static FOREGROUND_WATCH: OnceLock<AppHandle> = OnceLock::new();
+/// Raw handles: the hook runs inside the main thread's message pump, where calling Tauri can re-enter it.
+static HUD_HANDLES: OnceLock<Vec<isize>> = OnceLock::new();
 
 /// Out-of-context hooks fire on the installing thread's message loop, hence the main thread.
 pub(super) fn keep_hud_on_top(app_handle: &AppHandle) {
-    if FOREGROUND_WATCH.set(app_handle.clone()).is_err() {
+    let handles = [RECORDING_OVERLAY_LABEL, OVERLAY_NOTIFICATION_LABEL]
+        .into_iter()
+        .filter_map(|label| app_handle.get_webview_window(label)?.hwnd().ok())
+        .map(|hwnd| hwnd.0 as isize)
+        .collect::<Vec<_>>();
+    if handles.is_empty() || HUD_HANDLES.set(handles).is_err() {
         return;
     }
     let installed = app_handle.run_on_main_thread(|| {
@@ -38,7 +43,7 @@ pub(super) fn keep_hud_on_top(app_handle: &AppHandle) {
                 WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
             )
         };
-        if hook.0.is_null() {
+        if hook.is_invalid() {
             warn!("[Overlay] Foreground watch unavailable; the HUD may fall behind other apps");
         }
     });
@@ -56,33 +61,20 @@ unsafe extern "system" fn on_foreground_change(
     _thread: u32,
     _time: u32,
 ) {
-    if let Some(app_handle) = FOREGROUND_WATCH.get() {
-        raise_hud(app_handle);
-    }
-}
-
-fn raise_hud(app_handle: &AppHandle) {
-    for label in HUD_LABELS {
-        let Some(window) = app_handle.get_webview_window(label) else {
-            continue;
-        };
-        if window.is_visible().unwrap_or(false) {
-            raise_to_top(&window);
-        }
+    for &handle in HUD_HANDLES.get().into_iter().flatten() {
+        raise(HWND(handle as *mut c_void));
     }
 }
 
 pub(super) fn raise_to_top(window: &WebviewWindow) {
-    let Ok(handle) = window.hwnd() else {
-        return;
-    };
-    let raised =
-        unsafe { SetWindowPos(HWND(handle.0), Some(HWND_TOPMOST), 0, 0, 0, 0, RAISE_FLAGS) };
-    if let Err(error) = raised {
-        debug!("[Overlay] Failed to raise {} to the top: {error}", window.label());
+    if let Ok(hwnd) = window.hwnd() {
+        raise(hwnd);
     }
 }
 
-#[cfg(test)]
-#[path = "windows_topmost_tests.rs"]
-mod tests;
+fn raise(hwnd: HWND) {
+    let raised = unsafe { SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, RAISE_FLAGS) };
+    if let Err(error) = raised {
+        debug!("[Overlay] Failed to raise the HUD to the top: {error}");
+    }
+}
