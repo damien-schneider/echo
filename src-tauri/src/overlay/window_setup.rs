@@ -51,6 +51,8 @@ pub(crate) fn create_recording_overlay(app_handle: &AppHandle) {
         Err(error) => warn!("[Overlay] Failed to create recording overlay window: {error}"),
     }
     create_overlay_notification(app_handle, screen, placement);
+    #[cfg(target_os = "windows")]
+    super::windows_topmost::keep_hud_on_top(app_handle);
 }
 
 /// Own window so activity can open at the notch while the HUD stays put.

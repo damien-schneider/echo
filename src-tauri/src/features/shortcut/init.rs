@@ -84,6 +84,17 @@ where
     Ok(())
 }
 
+/// Windows lets a held key's auto-repeat through as fresh presses; a toggle flipped on each one.
+fn is_key_edge(state: &ManagedToggleState, binding_id: &str, event: ShortcutEvent) -> bool {
+    let Ok(mut states) = state.lock() else {
+        return true;
+    };
+    match event {
+        ShortcutEvent::Pressed => states.held_bindings.insert(binding_id.to_string()),
+        ShortcutEvent::Released => states.held_bindings.remove(binding_id),
+    }
+}
+
 /// Skips bindings with no entry in ACTION_MAP.
 pub fn init_shortcuts(app: &AppHandle) {
     #[cfg(target_os = "linux")]
@@ -251,6 +262,10 @@ fn dispatch_shortcut(invocation: ShortcutInvocation<'_>) {
         );
         return;
     };
+    let state = invocation.app.state::<ManagedToggleState>();
+    if !is_key_edge(&state, invocation.binding_id, invocation.event) {
+        return;
+    }
     let push_to_talk = get_settings(invocation.app).push_to_talk;
     if action.is_one_shot() || push_to_talk {
         let execution = shortcut_transition(ShortcutTransition {
@@ -265,7 +280,6 @@ fn dispatch_shortcut(invocation: ShortcutInvocation<'_>) {
     if invocation.event != ShortcutEvent::Pressed {
         return;
     }
-    let state = invocation.app.state::<ManagedToggleState>();
     let result = execute_toggle_transition(&state, invocation.binding_id, |execution| {
         execute_action(action.as_ref(), &invocation, execution);
     });
