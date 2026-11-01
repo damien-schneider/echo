@@ -18,6 +18,8 @@ mod surface;
 mod window;
 mod window_modes;
 mod window_setup;
+#[cfg(target_os = "windows")]
+mod windows_topmost;
 
 use crate::features::polish::chat_context::{ChatContextCapture, ShownChatContext};
 use crate::features::polish::manager::PolishManager;

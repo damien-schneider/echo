@@ -272,7 +272,10 @@ fn show_overlay_window(
         let _ = app_handle;
         _overlay_window
             .show()
-            .map_err(|error| format!("Failed to show overlay: {error}"))
+            .map_err(|error| format!("Failed to show overlay: {error}"))?;
+        #[cfg(target_os = "windows")]
+        super::windows_topmost::raise_to_top(_overlay_window);
+        Ok(())
     }
 }
 

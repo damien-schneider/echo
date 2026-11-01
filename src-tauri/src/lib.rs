@@ -46,7 +46,7 @@ use managers::model::ModelManager;
 use managers::transcription::TranscriptionManager;
 use managers::tts::TtsManager;
 use startup::show_main_window;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
 
@@ -66,6 +66,7 @@ use tauri_plugin_log::{Builder as LogBuilder, LogLevel, RotationStrategy, Target
 #[derive(Default)]
 struct ShortcutToggleStates {
     active_toggles: HashMap<String, bool>,
+    held_bindings: HashSet<String>,
 }
 
 type ManagedToggleState = Mutex<ShortcutToggleStates>;

@@ -1,5 +1,5 @@
 use super::{
-    execute_toggle_transition, shortcut_transition, ShortcutEvent, ShortcutExecution,
+    execute_toggle_transition, is_key_edge, shortcut_transition, ShortcutEvent, ShortcutExecution,
     ShortcutTransition,
 };
 use crate::ManagedToggleState;
@@ -102,4 +102,37 @@ fn transcription_keeps_hold_and_toggle_semantics() {
         }),
         ShortcutExecution::Stop
     );
+}
+
+fn edges(state: &ManagedToggleState, events: &[ShortcutEvent]) -> Vec<bool> {
+    events
+        .iter()
+        .map(|event| is_key_edge(state, "transcribe", *event))
+        .collect()
+}
+
+#[test]
+fn auto_repeat_of_a_held_shortcut_is_not_a_new_press() {
+    use ShortcutEvent::{Pressed, Released};
+    let state = ManagedToggleState::default();
+    assert_eq!(
+        edges(&state, &[Pressed, Pressed, Pressed, Released, Pressed]),
+        vec![true, false, false, true, true]
+    );
+}
+
+#[test]
+fn each_release_of_a_held_shortcut_counts_once() {
+    use ShortcutEvent::{Pressed, Released};
+    let state = ManagedToggleState::default();
+    assert_eq!(
+        edges(&state, &[Pressed, Pressed, Released, Released]),
+        vec![true, false, true, false]
+    );
+}
+
+#[test]
+fn a_release_never_pressed_is_ignored() {
+    let state = ManagedToggleState::default();
+    assert_eq!(edges(&state, &[ShortcutEvent::Released]), vec![false]);
 }
