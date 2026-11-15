@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.19] - 2026-11-15
+
+### Added
+- A Prompts page lists every prompt in one place: Correct, Natural and Clear (built in, read-only), Translate, and any prompt you write. Under Used by, you choose which prompt Dictation, Polish and Chat each use. Each one keeps its own choice, so setting Chat to Translate doesn't translate your next dictation.
+- Translate, a new prompt that turns French into English and anything else into French. It works on dictations, on Polish, and in chat. Whole sentences translate well; a single ambiguous word can come back with the wrong meaning.
+- Option/Alt+2 opens Echo chat with the text you have selected. You can change the shortcut in Shortcuts.
+- In chat, the button on the left now picks the prompt. Typing / at the start of the message opens the same list. With a prompt chosen, the selected text is sent right away. Text taken from the clipboard is shown as a reference but never sent on its own.
+
+### Changed
+- Polish can use any prompt, not only the three levels. It still defaults to Natural.
+- Rewrite before pasting is now the Dictation choice under Used by; Off pastes what you said as is. Your current setting and your saved prompts carry over.
+- The Post-processing page is now called Prompts, and the Polish level slider is gone from Models.
+
+### Removed
+- The @output placeholder in prompts. The text a prompt works on is always passed separately, so a prompt only needs to say what to do.
+
 ## [0.8.18] - 2026-11-15
 
 ### Changed
