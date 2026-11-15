@@ -33,7 +33,6 @@ mod meeting_voxtral_live;
 pub mod model;
 mod model_catalog;
 mod model_download;
-pub mod signals;
 pub mod streaming;
 pub mod timeout;
 pub mod transcription;

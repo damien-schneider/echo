@@ -30,8 +30,7 @@ pub(super) fn register_panel_window(
     install_hover_key_monitors(window.app_handle().clone())
 }
 
-/// A WKWebView sees no pointer move unless its window owns the keyboard (rdar://88025610), and taking the keyboard
-/// activates Echo under the user's caret — so the panel stays keyboard-free and the webview hovers off these samples.
+/// WKWebView gets pointer moves only with the keyboard (rdar://88025610), which would activate Echo, so hover runs off these samples.
 fn install_hover_key_monitors(app_handle: AppHandle) -> Result<(), String> {
     if HOVER_KEY_MONITORS_INSTALLED.swap(true, Ordering::AcqRel) {
         return Ok(());
@@ -148,9 +147,7 @@ unsafe fn sync_panel_pointer(
     pointer_inside
 }
 
-/// Pointer samples dry up while Echo is the front app without a key window taking mouse moves: the global monitor
-/// skips our own events and there is nothing to dequeue locally. Hover leaves are read from the pointer, not from
-/// the last sample that happened to arrive.
+/// The global monitor skips our own events, so samples dry up while Echo is frontmost; read the pointer instead.
 fn resample_while_hovered(app_handle: &AppHandle) {
     if HOVER_RESAMPLE_ARMED.swap(true, Ordering::AcqRel) {
         return;

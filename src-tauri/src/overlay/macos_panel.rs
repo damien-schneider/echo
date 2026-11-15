@@ -92,8 +92,7 @@ mod snap_preview_panel {
     }
 }
 
-/// Hit testing is the window frame, never a sampled pointer: a click that arrives before the next mouse-moved
-/// sample would otherwise fall through to the app underneath and be spent making the panel reachable.
+/// Hit testing uses the window frame so an early click never falls through to the app underneath.
 fn apply_shared_panel_configuration(panel: &OverlayPanelHandle) -> Result<(), String> {
     panel
         .set_style_mask(StyleMask::empty().nonactivating_panel().into())

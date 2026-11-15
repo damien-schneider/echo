@@ -74,8 +74,8 @@ fn aligned_output_prefixes(input: &[&str], output: &[&str]) -> Vec<usize> {
     for input_index in 0..=input.len() {
         costs[input_index * columns] = input_index;
     }
-    for output_index in 0..=output.len() {
-        costs[output_index] = output_index;
+    for (output_index, cost) in costs.iter_mut().enumerate().take(columns) {
+        *cost = output_index;
     }
     for input_index in 1..=input.len() {
         for output_index in 1..=output.len() {

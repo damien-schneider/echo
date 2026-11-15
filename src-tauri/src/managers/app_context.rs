@@ -19,17 +19,14 @@ impl FocusedAppProvider for PlatformFocusedAppProvider {
     fn current(&self) -> Option<FocusedApp> {
         #[cfg(target_os = "macos")]
         {
-            return current_mac();
+            current_mac()
         }
         #[cfg(target_os = "windows")]
         {
-            return current_windows();
+            current_windows()
         }
-        #[cfg(target_os = "linux")]
-        {
-            return current_linux();
-        }
-        #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+        // X11/Wayland focused-window detection not implemented.
+        #[cfg(not(any(target_os = "macos", target_os = "windows")))]
         {
             None
         }
@@ -175,13 +172,6 @@ fn current_windows() -> Option<FocusedApp> {
             window_title,
         })
     }
-}
-
-/// X11/Wayland focused-window detection skipped.
-#[cfg(target_os = "linux")]
-#[allow(dead_code)]
-fn current_linux() -> Option<FocusedApp> {
-    None
 }
 
 #[cfg(test)]

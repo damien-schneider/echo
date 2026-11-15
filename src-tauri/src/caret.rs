@@ -1,10 +1,6 @@
-//! What the focus probe could establish about the caret a dictation is aimed at. Each platform
-//! answers with what it can prove: macOS reads the focused element's accessibility role, Windows
-//! its Win32 caret and then its UI Automation control type, and X11 says nothing at all — there
-//! the receipt names the client that pasted, which settles it after the fact instead.
+//! What the focus probe could establish about the caret a dictation is aimed at, per platform.
 
-/// Never a gate on the paste: it weighs the receipt, raises the held-out card, and marks speech
-/// with nowhere to land as a voice command.
+/// Never gates the paste: it only weighs the receipt and decides the held-out card.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum CaretSight {
     /// Nothing usable: no permission, no focused element, or a platform that cannot say.

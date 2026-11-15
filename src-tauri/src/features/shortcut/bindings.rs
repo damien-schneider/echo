@@ -115,7 +115,8 @@ fn do_change_binding_x11(
 
 #[tauri::command]
 pub async fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, String> {
-    let binding = settings::get_stored_binding(&app, &id);
+    let binding =
+        settings::get_stored_binding(&app, &id).ok_or_else(|| format!("Unknown binding '{id}'"))?;
     change_binding(app, id, binding.default_binding).await
 }
 

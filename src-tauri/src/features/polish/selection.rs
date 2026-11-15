@@ -39,6 +39,8 @@ pub(super) trait FocusPort: Send + Sync {
     fn focused_application(&self) -> Option<String>;
 }
 
+// async_trait's expansion adds a #[must_use] clippy flags as redundant.
+#[allow(clippy::double_must_use)]
 #[async_trait]
 pub(super) trait InferencePort: Send + Sync {
     async fn token_count(&self, text: &str) -> Result<usize>;

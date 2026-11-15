@@ -43,8 +43,7 @@ const PASTE_DEAF_CONTROLS: &[UIA_CONTROLTYPE_ID] = &[
     UIA_TreeItemControlTypeId,
 ];
 
-/// Chromium and WPF edit text without a Win32 caret, so a missing caret falls through to the
-/// focused element's UI Automation control type.
+/// Chromium and WPF edit without a Win32 caret, so fall through to the UI Automation control type.
 pub(crate) fn sight_focused_caret() -> CaretSight {
     let foreground = unsafe { GetForegroundWindow() };
     if foreground.is_invalid() {

@@ -5,8 +5,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::utils;
 
-/// Keys the overlay borrows from the focused app while an operation is running — Escape drops the
-/// dictation, Enter finishes it exactly as the island's button does.
+/// Keys the overlay borrows from the focused app while an operation is running.
 #[derive(Clone, Copy, Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OverlayKey {

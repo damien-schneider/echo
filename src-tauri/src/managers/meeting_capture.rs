@@ -4,6 +4,7 @@ use anyhow::Result;
 use log::{error, info, warn};
 use rusqlite::{params, Connection};
 use std::path::Path;
+use std::sync::PoisonError;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
@@ -38,7 +39,7 @@ impl MeetingManager {
         let (mic_tx, mic_rx) =
             std::sync::mpsc::channel::<crate::audio_toolkit::CapturedAudioFrame>();
         let mic_file_name = format!("meeting-{meeting_id}-mic.wav");
-        *self.mic_sink.lock().unwrap() = Some(
+        *self.mic_sink.lock().unwrap_or_else(PoisonError::into_inner) = Some(
             MeetingAudioSink::create(&self.meetings_dir, mic_file_name.clone())
                 .inspect_err(|_| self.abort_start(meeting_id))?,
         );
@@ -62,14 +63,20 @@ impl MeetingManager {
                 self.abort_start(meeting_id);
                 anyhow::anyhow!("spawn mic collector: {e}")
             })?;
-        *self.mic_collector.lock().unwrap() = Some(handle);
+        *self
+            .mic_collector
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(handle);
 
         let capture_epoch = Instant::now();
         recorder.start_streaming(mic_tx).map_err(|e| {
             self.abort_start(meeting_id);
             anyhow::anyhow!("Failed to start microphone recording: {e}")
         })?;
-        *self.mic_recorder.lock().unwrap() = Some(recorder);
+        *self
+            .mic_recorder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(recorder);
 
         info!("Meeting microphone stream started");
         Ok(capture_epoch)
@@ -103,7 +110,10 @@ impl MeetingManager {
                 let _ = system_capture.stop();
                 self.abort_start(meeting_id);
             })?;
-        *self.system_sink.lock().unwrap() = Some(sink);
+        *self
+            .system_sink
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(sink);
         self.record_file_name(meeting_id, "system_file_name", &system_file_name);
 
         let sink = self.system_sink.clone();
@@ -144,8 +154,14 @@ impl MeetingManager {
                 self.abort_start(meeting_id);
                 anyhow::anyhow!("spawn system capture collector: {e}")
             })?;
-        *self.system_capture.lock().unwrap() = Some(system_capture);
-        *self.system_collector.lock().unwrap() = Some(handle);
+        *self
+            .system_capture
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(system_capture);
+        *self
+            .system_collector
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(handle);
 
         info!("Meeting system audio stream started");
         Ok(())

@@ -148,28 +148,6 @@ pub struct DictationStreamingHandle {
     shutdown_flag: Arc<AtomicBool>,
     decoder: Arc<dyn DictationDecoder>,
     join: Option<thread::JoinHandle<()>>,
-    on_cleanup: Option<Box<dyn FnOnce() + Send>>,
-}
-
-/// Runs `on_cleanup` on drop unless `disarm`ed — releases keepalive if thread spawn bails.
-struct CleanupGuard(Option<Box<dyn FnOnce() + Send>>);
-
-impl CleanupGuard {
-    fn new(on_cleanup: Box<dyn FnOnce() + Send>) -> Self {
-        Self(Some(on_cleanup))
-    }
-
-    fn disarm(mut self) -> Box<dyn FnOnce() + Send> {
-        self.0.take().expect("CleanupGuard disarmed twice")
-    }
-}
-
-impl Drop for CleanupGuard {
-    fn drop(&mut self) {
-        if let Some(cleanup) = self.0.take() {
-            cleanup();
-        }
-    }
 }
 
 impl DictationStreamingWorker {
@@ -195,20 +173,17 @@ impl DictationStreamingWorker {
             }
         };
 
-        let (decoder, on_cleanup): (Arc<dyn DictationDecoder>, Box<dyn FnOnce() + Send>) =
-            if streaming_loaded {
-                let transcriber =
-                    StreamingTranscriber::new(transcription_manager, &settings.selected_language)
-                        .map_err(std::io::Error::other)?;
-                (Arc::new(transcriber), Box::new(|| {}))
-            } else {
-                let noop: Box<dyn FnOnce() + Send> = Box::new(|| {});
-                (Arc::new(NoOpDecoder), noop)
-            };
+        let decoder: Arc<dyn DictationDecoder> = if streaming_loaded {
+            let transcriber =
+                StreamingTranscriber::new(transcription_manager, &settings.selected_language)
+                    .map_err(std::io::Error::other)?;
+            Arc::new(transcriber)
+        } else {
+            Arc::new(NoOpDecoder)
+        };
 
         let sink: Arc<dyn ProgressSink> = Arc::new(AppHandleProgressSink::new(app_handle));
-        let result =
-            Self::spawn_with_decoder(decoder, sink, on_cleanup, StreamingConfig::default());
+        let result = Self::spawn_with_decoder(decoder, sink, StreamingConfig::default());
         if result.is_ok() {
             info!(
                 "Dictation streaming worker started (streaming_loaded={streaming_loaded}, \
@@ -218,15 +193,11 @@ impl DictationStreamingWorker {
         result
     }
 
-    /// Cleanup runs exactly once, on stop or Drop.
     pub fn spawn_with_decoder(
         decoder: Arc<dyn DictationDecoder>,
         sink: Arc<dyn ProgressSink>,
-        on_cleanup: Box<dyn FnOnce() + Send>,
         cfg: StreamingConfig,
     ) -> std::io::Result<(Arc<Self>, DictationStreamingHandle)> {
-        // `?` below bails → guard drops → keepalive acquired in spawn() released, not leaked
-        let cleanup_guard = CleanupGuard::new(on_cleanup);
         let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
         let shutdown_flag = Arc::new(AtomicBool::new(false));
         let decoder_for_thread = decoder.clone();
@@ -252,7 +223,6 @@ impl DictationStreamingWorker {
             shutdown_flag,
             decoder,
             join: Some(join),
-            on_cleanup: Some(cleanup_guard.disarm()),
         };
         Ok((worker, handle))
     }
@@ -267,21 +237,20 @@ impl DictationStreamingWorker {
 }
 
 impl DictationStreamingHandle {
-    /// Releases streaming engine + keepalive. Shutdown flag short-circuits in-flight decodes.
+    /// Shutdown flag short-circuits in-flight decodes.
     pub fn stop(mut self) {
         self.stop_in_place();
     }
 
     /// Idempotent. Bounded by [`WORKER_JOIN_BUDGET`] — a decode that ignores the cancel gets detached, never joined.
     fn stop_in_place(&mut self) {
-        if self.join.is_none() && self.on_cleanup.is_none() {
+        if self.join.is_none() {
             return;
         }
         self.shutdown_flag.store(true, Ordering::SeqCst);
         self.decoder.cancel();
         let _ = self.cmd_tx.send(Cmd::Shutdown);
         self.join_cancelled_worker();
-        self.run_cleanup();
     }
 
     fn join_cancelled_worker(&mut self) {
@@ -303,20 +272,11 @@ impl DictationStreamingHandle {
             WORKER_JOIN_BUDGET
         );
     }
-
-    fn run_cleanup(&mut self) {
-        if let Some(cleanup) = self.on_cleanup.take() {
-            cleanup();
-        }
-    }
 }
 
 impl Drop for DictationStreamingHandle {
     fn drop(&mut self) {
-        // owner may have skipped stop() — release keepalive anyway
-        if self.join.is_some() || self.on_cleanup.is_some() {
-            self.stop_in_place();
-        }
+        self.stop_in_place();
     }
 }
 

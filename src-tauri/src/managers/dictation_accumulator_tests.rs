@@ -27,10 +27,7 @@ mod tests {
     #[test]
     fn first_interim_with_tentative_emits_tentative() {
         let mut acc = DictationAccumulator::new();
-        assert_eq!(
-            acc.push(interim("", "hello")),
-            Some("hello".to_string())
-        );
+        assert_eq!(acc.push(interim("", "hello")), Some("hello".to_string()));
     }
 
     #[test]
@@ -48,7 +45,7 @@ mod tests {
         acc.push(interim("", "first segment"));
         let out = acc.push(final_segment("first segment."));
         assert_eq!(out, Some("first segment.".to_string()));
-        assert_eq!(acc.final_segment_count(), 1);
+        assert_eq!(acc.committed_finals.len(), 1);
     }
 
     #[test]
@@ -77,7 +74,7 @@ mod tests {
         acc.push(interim("", "real text"));
         let out = acc.push(final_segment(""));
         assert_eq!(out, None);
-        assert_eq!(acc.final_segment_count(), 0);
+        assert!(acc.committed_finals.is_empty());
     }
 
     #[test]
@@ -85,7 +82,7 @@ mod tests {
         let mut acc = DictationAccumulator::new();
         let out = acc.push(final_segment("   \t\n"));
         assert_eq!(out, None);
-        assert_eq!(acc.final_segment_count(), 0);
+        assert!(acc.committed_finals.is_empty());
     }
 
     #[test]
@@ -103,16 +100,6 @@ mod tests {
         acc.push(interim("hello", "world"));
         let out = acc.push(interim("hello world", "today"));
         assert_eq!(out, Some("hello world today".to_string()));
-    }
-
-    #[test]
-    fn reset_clears_history_and_last_emit() {
-        let mut acc = DictationAccumulator::new();
-        acc.push(final_segment("session one"));
-        acc.reset();
-        assert_eq!(acc.final_segment_count(), 0);
-        let out = acc.push(interim("", "session one"));
-        assert_eq!(out, Some("session one".to_string()));
     }
 
     #[test]
@@ -139,8 +126,6 @@ mod tests {
                 max_len = disp.len();
             }
         }
-        assert!(acc.final_segment_count() >= 2);
+        assert!(acc.committed_finals.len() >= 2);
     }
 }
-
-

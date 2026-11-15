@@ -72,15 +72,15 @@ mod type_tests {
         ];
         for status in &statuses {
             let s = status.as_str();
-            let recovered = MeetingStatus::from_str(s);
+            let recovered = MeetingStatus::from_db_str(s);
             assert_eq!(*status, recovered);
         }
     }
 
     #[test]
     fn meeting_status_unknown_maps_to_error() {
-        assert_eq!(MeetingStatus::from_str("unknown"), MeetingStatus::Error);
-        assert_eq!(MeetingStatus::from_str(""), MeetingStatus::Error);
+        assert_eq!(MeetingStatus::from_db_str("unknown"), MeetingStatus::Error);
+        assert_eq!(MeetingStatus::from_db_str(""), MeetingStatus::Error);
     }
 
     #[test]

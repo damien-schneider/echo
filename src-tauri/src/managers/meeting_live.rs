@@ -3,7 +3,7 @@
 
 use log::{info, warn};
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError};
 use tauri::Manager;
 
 use super::audio::load_speech_vad;
@@ -79,7 +79,12 @@ impl MeetingManager {
     }
 
     pub(super) fn stop_live_workers(&self) -> Vec<SourceTranscript> {
-        let handles = std::mem::take(&mut *self.live_handles.lock().unwrap());
+        let handles = std::mem::take(
+            &mut *self
+                .live_handles
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner),
+        );
         handles
             .into_iter()
             .filter_map(LiveWorkerHandle::stop)
@@ -142,6 +147,9 @@ impl MeetingManager {
     }
 
     fn keep_live_handle(&self, handle: LiveWorkerHandle) {
-        self.live_handles.lock().unwrap().push(handle);
+        self.live_handles
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(handle);
     }
 }

@@ -16,12 +16,11 @@ impl DictationStreamingHandle {
             shutdown_flag,
             decoder: Arc::new(NoOpDecoder),
             join: Some(join),
-            on_cleanup: Some(Box::new(|| {})),
         }
     }
 
-    /// No-op worker; cleanup observable via injected closure.
-    pub(crate) fn for_testing<F>(on_cleanup: F) -> Self
+    /// No-op worker; `on_exit` runs when its thread finishes.
+    pub(crate) fn for_testing<F>(on_exit: F) -> Self
     where
         F: FnOnce() + Send + 'static,
     {
@@ -41,6 +40,7 @@ impl DictationStreamingHandle {
                         Err(_) => break,
                     }
                 }
+                on_exit();
             })
             .expect("spawn test worker");
         Self {
@@ -48,7 +48,6 @@ impl DictationStreamingHandle {
             shutdown_flag,
             decoder: Arc::new(NoOpDecoder),
             join: Some(join),
-            on_cleanup: Some(Box::new(on_cleanup)),
         }
     }
 }
@@ -78,11 +77,10 @@ mod shutdown_aware_decode_tests {
         let flag = AtomicBool::new(true);
         let mut errs = 0usize;
         let calls = AtomicUsize::new(0);
-        let result =
-            decode_or_skip_on_shutdown(&flag, &[1.0_f32; 16_000], &mut errs, |_s| {
-                calls.fetch_add(1, Ordering::SeqCst);
-                Ok::<String, anyhow::Error>("should not be returned".into())
-            });
+        let result = decode_or_skip_on_shutdown(&flag, &[1.0_f32; 16_000], &mut errs, |_s| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            Ok::<String, anyhow::Error>("should not be returned".into())
+        });
         assert_eq!(result, "");
         assert_eq!(
             calls.load(Ordering::SeqCst),
@@ -100,7 +98,10 @@ mod shutdown_aware_decode_tests {
             Err::<String, _>(anyhow::anyhow!("simulated FFI failure"))
         });
         assert_eq!(result, "");
-        assert_eq!(errs, 1, "error counter must increment so the warn-rate-limit works");
+        assert_eq!(
+            errs, 1,
+            "error counter must increment so the warn-rate-limit works"
+        );
     }
 }
 
@@ -180,50 +181,13 @@ mod audio_backlog_tests {
 }
 
 #[cfg(test)]
-mod cleanup_guard_tests {
-    use super::CleanupGuard;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
-
-    #[test]
-    fn runs_closure_on_drop_when_not_disarmed() {
-        // Spawn-failure path: guard drops before the handle owns cleanup → keepalive must release.
-        let ran = Arc::new(AtomicBool::new(false));
-        let ran_for_closure = ran.clone();
-        {
-            let _guard = CleanupGuard::new(Box::new(move || {
-                ran_for_closure.store(true, Ordering::SeqCst);
-            }));
-        }
-        assert!(ran.load(Ordering::SeqCst), "armed guard must run cleanup on drop");
-    }
-
-    #[test]
-    fn does_not_run_closure_after_disarm() {
-        // Success path: ownership moves to the handle; the guard must stay silent.
-        let ran = Arc::new(AtomicBool::new(false));
-        let ran_for_closure = ran.clone();
-        let guard = CleanupGuard::new(Box::new(move || {
-            ran_for_closure.store(true, Ordering::SeqCst);
-        }));
-        let taken = guard.disarm();
-        assert!(!ran.load(Ordering::SeqCst), "disarm must not run the closure");
-        drop(taken);
-        assert!(
-            !ran.load(Ordering::SeqCst),
-            "dropping a moved-out FnOnce must not run it — the handle decides when"
-        );
-    }
-}
-
-#[cfg(test)]
 mod lifecycle_tests {
     use super::*;
     use std::sync::atomic::AtomicUsize;
     use std::time::{Duration, Instant};
 
     #[test]
-    fn explicit_stop_runs_cleanup_exactly_once() {
+    fn stop_joins_the_worker() {
         let count = Arc::new(AtomicUsize::new(0));
         let count_for_closure = count.clone();
         let handle = DictationStreamingHandle::for_testing(move || {
@@ -235,7 +199,7 @@ mod lifecycle_tests {
 
     /// Regression: pre-Drop-impl, leaked worker starved next stop-flow → 30s TimedOut.
     #[test]
-    fn dropping_handle_without_stop_runs_cleanup() {
+    fn dropping_handle_without_stop_joins_the_worker() {
         let count = Arc::new(AtomicUsize::new(0));
         let count_for_closure = count.clone();
         {
@@ -246,34 +210,7 @@ mod lifecycle_tests {
         assert_eq!(
             count.load(Ordering::SeqCst),
             1,
-            "Drop did not run cleanup — worker thread leaked"
-        );
-    }
-
-    /// Double-cleanup would underflow keepalive AtomicUsize.
-    #[test]
-    fn explicit_stop_then_drop_runs_cleanup_exactly_once() {
-        let count = Arc::new(AtomicUsize::new(0));
-        let count_for_closure = count.clone();
-        let handle = DictationStreamingHandle::for_testing(move || {
-            count_for_closure.fetch_add(1, Ordering::SeqCst);
-        });
-        handle.stop();
-        assert_eq!(count.load(Ordering::SeqCst), 1);
-    }
-
-    /// Pins join-before-cleanup order against future refactor regression.
-    #[test]
-    fn cleanup_runs_after_worker_join() {
-        let worker_alive_at_cleanup = Arc::new(AtomicBool::new(false));
-        let worker_alive_for_closure = worker_alive_at_cleanup.clone();
-        let handle = DictationStreamingHandle::for_testing(move || {
-            worker_alive_for_closure.store(true, Ordering::SeqCst);
-        });
-        handle.stop();
-        assert!(
-            worker_alive_at_cleanup.load(Ordering::SeqCst),
-            "cleanup closure did not run after join"
+            "Drop did not stop the worker — thread leaked"
         );
     }
 
@@ -282,9 +219,7 @@ mod lifecycle_tests {
     fn stop_detaches_when_worker_stuck_in_decode() {
         let start = Instant::now();
         // Worker sleeps 10s ignoring shutdown; stop() must still return fast.
-        let handle = DictationStreamingHandle::for_testing_stuck_in_decode(
-            Duration::from_secs(10),
-        );
+        let handle = DictationStreamingHandle::for_testing_stuck_in_decode(Duration::from_secs(10));
         handle.stop();
         let elapsed = start.elapsed();
         assert!(
@@ -326,7 +261,7 @@ mod lifecycle_tests {
             drop(h);
         }
         let elapsed = start.elapsed();
-        assert_eq!(count.load(Ordering::SeqCst), 50, "missing cleanups");
+        assert_eq!(count.load(Ordering::SeqCst), 50, "workers left running");
         assert!(
             elapsed < Duration::from_secs(5),
             "50 construct/drop cycles took {elapsed:?} — worker is not exiting fast enough"

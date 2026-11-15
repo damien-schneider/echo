@@ -235,8 +235,7 @@ pub async fn finalize_transcription(
 ) -> Result<(), String> {
     let claimed = claim_finalize(op_generation);
 
-    // Stashed by the stop flow; the webview never carries the raw buffer. Taken before the stale
-    // check so an abandoned generation releases it instead of pinning it until the next dictation.
+    // Taken before the stale check so an abandoned generation releases the buffer.
     let audio_samples = crate::actions::take_pending_audio(op_generation);
 
     if !claimed || OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {

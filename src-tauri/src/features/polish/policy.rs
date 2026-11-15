@@ -2,9 +2,9 @@ mod line_structure;
 
 use anyhow::{bail, Result};
 use line_structure::restore_line_structure;
-use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
 use crate::settings::PolishLevel;
 
@@ -172,7 +172,7 @@ fn writing_system(character: char) -> Option<WritingSystem> {
     }
 }
 
-static PROTECTED_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
+static PROTECTED_PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     [
         r"https?://[^\s]+",
         r"[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}",
@@ -190,7 +190,7 @@ static PROTECTED_PATTERNS: Lazy<Vec<Regex>> = Lazy::new(|| {
 });
 
 /// Mid-sentence a capitalised word is a name; opening a sentence it is only capitalisation.
-static CAPITALISED_WORD: Lazy<Regex> = Lazy::new(|| {
+static CAPITALISED_WORD: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"\b\p{Lu}\p{Ll}{2,}\b").expect("static protected-span regex must compile")
 });
 

@@ -5,7 +5,7 @@ use log::{error, info};
 use rusqlite::params;
 use serde::Serialize;
 use serde_json::json;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -23,7 +23,7 @@ pub struct FileTranscriptionProgress {
     pub file_name: Option<String>,
 }
 
-fn is_video_file(path: &PathBuf) -> bool {
+fn is_video_file(path: &Path) -> bool {
     let extension = path
         .extension()
         .and_then(|e| e.to_str())

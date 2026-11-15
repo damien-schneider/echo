@@ -23,15 +23,13 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 use super::{Fetcher, Generation, PromisedTranscript, Receipt};
 
-/// UTF-16 text. An ABI constant, spelled out rather than imported so the clipboard module does not
-/// depend on the OLE feature set.
+/// Spelled out so the clipboard module does not depend on the OLE feature set.
 const CF_UNICODETEXT: u32 = 13;
 /// How long the promise window gets to answer before the paste goes out without a receipt.
 const CLAIM_PATIENCE_MS: u32 = 1_000;
 /// Sent to the promise window to claim the clipboard from the thread that owns it.
 const WM_ECHO_CLAIM: u32 = WM_APP + 1;
-/// Clipboard history and roaming honour this format's presence by skipping the entry — without it
-/// Windows fetches every clipboard change and every dictation would look pasted.
+/// Without it clipboard history fetches every change and every dictation would look pasted.
 const EXCLUDE_FROM_MONITORS: PCWSTR = w!("ExcludeClipboardContentFromMonitorProcessing");
 /// The same request to third-party clipboard managers.
 const VIEWER_IGNORE: PCWSTR = w!("Clipboard Viewer Ignore");
@@ -42,11 +40,9 @@ struct PendingPromise {
 }
 
 static PROMISE: Mutex<Option<PendingPromise>> = Mutex::new(None);
-/// Emptying the clipboard tells its owner so, and Echo is its own owner: without this the claim
-/// would report the transcript it is in the middle of writing as lost.
+/// Echo owns the clipboard, so its own empty would otherwise report the transcript as lost.
 static SELF_EMPTYING: AtomicBool = AtomicBool::new(false);
-/// Ownership is the honest measure of whether the transcript still sits where it was put — the
-/// clipboard's own sequence number moves again when the promise is rendered.
+/// The sequence number moves again on render, so ownership claims track the transcript instead.
 static CLAIM: AtomicU64 = AtomicU64::new(0);
 /// No claim of ours owns the clipboard.
 const FOREIGN_CLIPBOARD: Generation = Generation(0);
@@ -232,8 +228,7 @@ fn mark_as_transient() {
     }
 }
 
-/// Hands the text to whoever asked. `receipted` separates a real paste from the render Windows
-/// requests when the owning window is going away.
+/// `receipted` is false for the render Windows requests when the owning window is going away.
 fn render_transcript(receipted: bool) {
     let Ok(mut promise) = PROMISE.lock() else {
         return;

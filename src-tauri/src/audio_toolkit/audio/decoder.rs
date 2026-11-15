@@ -112,12 +112,10 @@ fn decode_video_with_ffmpeg<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
 }
 
 fn pcm_s16le_to_f32(bytes: &[u8]) -> Vec<f32> {
-    bytes
-        .chunks_exact(2)
-        .map(|chunk| {
-            let sample = i16::from_le_bytes([chunk[0], chunk[1]]);
-            sample as f32 / i16::MAX as f32
-        })
+    let (pairs, _) = bytes.as_chunks::<2>();
+    pairs
+        .iter()
+        .map(|&pair| i16::from_le_bytes(pair) as f32 / i16::MAX as f32)
         .collect()
 }
 

@@ -36,8 +36,7 @@ pub async fn get_polish_model_footprint(
     })
 }
 
-/// What the notch offers when a dictation is blocked: the model Settings already picked, no
-/// settings page to find first.
+/// Offered from the notch when a dictation is blocked, so no settings page is needed first.
 #[tauri::command]
 pub async fn download_configured_transcription_model(
     app_handle: AppHandle,
@@ -87,8 +86,7 @@ pub async fn select_transcription_model_size(
     Ok(())
 }
 
-/// A model still in memory keeps answering from a file that is gone; unload it first. A meeting
-/// reaches for every model when it ends, so none may go while one runs.
+/// A loaded model keeps reading a deleted file, and a running meeting needs every model at its end.
 #[tauri::command]
 pub(crate) async fn delete_model(
     model_manager: State<'_, Arc<ModelManager>>,

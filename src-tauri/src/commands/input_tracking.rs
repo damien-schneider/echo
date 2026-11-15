@@ -130,7 +130,7 @@ fn get_apps_impl() -> Vec<(String, String)> {
     if let Ok(entries) = fs::read_dir(applications_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "app") {
+            if path.extension().is_some_and(|ext| ext == "app") {
                 if let Some(app_info) = get_app_info_from_bundle(&path) {
                     if !apps.iter().any(|(_, b)| b == &app_info.1) {
                         apps.push(app_info);
@@ -161,7 +161,7 @@ fn get_apps_impl() -> Vec<(String, String)> {
         }
     }
 
-    apps.sort_by(|a, b| a.0.to_lowercase().cmp(&b.0.to_lowercase()));
+    apps.sort_by_key(|a| a.0.to_lowercase());
     apps.dedup_by(|a, b| a.1 == b.1);
     apps
 }
@@ -170,7 +170,7 @@ fn get_apps_impl() -> Vec<(String, String)> {
 fn parse_applescript_lists(input: &str) -> Option<(Vec<String>, Vec<String>)> {
     // AppleScript returns names then ids in one flat list: "name1, .., id1, .."
     let items: Vec<&str> = input.split(", ").collect();
-    if items.len() < 2 || items.len() % 2 != 0 {
+    if items.len() < 2 || !items.len().is_multiple_of(2) {
         return None;
     }
 

@@ -64,8 +64,7 @@ fn paste_via_direct_input(text: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Saves clipboard, writes text, pastes, restores — and gives up any receipt: the fallback for
-/// every platform and session that cannot promise.
+/// Receipt-less fallback for every platform and session that cannot promise.
 fn paste_via_clipboard_ctrl_v(text: &str, app_handle: &AppHandle) -> Result<(), String> {
     let clipboard = app_handle.clipboard();
 
@@ -139,8 +138,7 @@ const REREAD_GRACE: std::time::Duration = std::time::Duration::from_millis(200);
 enum PasteOutcome {
     /// The data was requested after the synthetic Cmd+V — the only receipt a paste gets.
     Consumed,
-    /// The single read a promise gets came before the keystroke: a clipboard watcher took it,
-    /// leaving the real paste unobservable.
+    /// A clipboard watcher took the single read before the keystroke, hiding the real paste.
     EatenByWatcher,
     /// Nobody asked within the window.
     Unconsumed,
@@ -148,14 +146,12 @@ enum PasteOutcome {
     ClipboardReplaced,
 }
 
-/// How strongly the delivery vouches for the focused app inserting what it takes — the weight a
-/// fetch of the promised transcript carries as a receipt, ordered from no vouching to full.
+/// How far a fetch of the promised transcript counts as a receipt, ordered from none to full.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PasteConfidence {
     /// Nothing vouches for the paste — a fetch may be a read-and-drop (Finder, focusless Electron).
     Unvouched,
-    /// No caret in sight, but the app is known to insert every paste (terminal class), or the fetch
-    /// itself named a text format only a text paste asks for.
+    /// Known paste-fluent app (terminal class), or the fetch named a text-only format.
     FluentApp,
     /// A text element demonstrably holds the focus.
     AffirmedCaret,
@@ -171,9 +167,7 @@ enum PromiseEnd {
     Silent,
 }
 
-/// Reads the promise's ending as an outcome, and lets the receipt speak for the app when the
-/// platform named it: a fetch by the focused client is the paste itself, a fetch by any other
-/// client is a clipboard manager helping itself, whatever the keystroke timing says.
+/// A fetch by a non-focused client is a clipboard manager, whatever the keystroke timing says.
 fn weigh(
     end: PromiseEnd,
     keystroke: std::time::Instant,
@@ -205,10 +199,7 @@ enum Settlement {
     LeaveUntouched,
 }
 
-/// An affirmed caret means the dictation demonstrably had somewhere to land, so a mute receipt is
-/// read as a slow or unobservable paste, never as a miss: the transcript stays within a Cmd+V's
-/// reach and the card stays away. An unvouched read is the mirror trap — apps with nothing focused
-/// still read the pasteboard on Cmd+V while inserting nothing — so it never counts as a paste.
+/// An affirmed caret reads a mute receipt as a slow paste; an unvouched read never counts as one.
 fn settle(
     outcome: PasteOutcome,
     confidence: PasteConfidence,
@@ -248,9 +239,7 @@ fn settle(
     }
 }
 
-/// The transcript goes out as a pasteboard promise: the target app's own data request confirms the
-/// paste, a silent window means nothing took it — the transcript then stays on the clipboard and
-/// `on_unplaced` offers it back to the user.
+/// The target app's own data request is the paste receipt; silence keeps the transcript on offer.
 fn paste_via_promised_clipboard(
     text: &str,
     app_handle: &AppHandle,
@@ -332,9 +321,7 @@ fn resolved_paste_method(app_handle: &AppHandle) -> PasteMethod {
     method
 }
 
-/// `on_unplaced` fires with the transcript when no app takes the paste. It stays silent wherever
-/// the session cannot serve a promise — a Wayland desktop, or a paste method that bypasses the
-/// clipboard — since a synthetic paste alone gives no receipt at all.
+/// `on_unplaced` stays silent where no promise can be served, since a synthetic paste gives no receipt.
 pub fn paste(
     text: &str,
     app_handle: &AppHandle,
@@ -385,8 +372,7 @@ pub fn paste(
 mod tests {
     use crate::settings::PasteMethod;
 
-    /// Reading the receipt is where a paste is told from a clipboard manager, so each way it can
-    /// come back is pinned here.
+    /// Pins each way a receipt can come back, since that is where a paste is told from a manager.
     mod receipts {
         use super::super::{weigh, PasteConfidence, PasteOutcome, PromiseEnd};
         use crate::paste_promise::{Fetcher, Receipt};
@@ -402,8 +388,7 @@ mod tests {
             (PromiseEnd::Fetched(Receipt { at, by }), keystroke)
         }
 
-        /// X11 names the client that asked: one that is not the focused app is a clipboard manager,
-        /// however well its timing lines up with the keystroke.
+        /// X11 names the requester: anyone but the focused app is a clipboard manager.
         #[test]
         fn a_fetch_by_another_client_is_never_the_paste() {
             let (end, keystroke) = fetched(Fetcher::Foreign, true);
@@ -413,8 +398,7 @@ mod tests {
             );
         }
 
-        /// The focused app taking the transcript is the strongest evidence any platform offers —
-        /// stronger than anything guessed about the app beforehand.
+        /// The focused app's fetch outweighs anything guessed about the app beforehand.
         #[test]
         fn a_fetch_by_the_focused_client_vouches_for_itself() {
             let (end, keystroke) = fetched(Fetcher::Focused, true);
@@ -486,8 +470,7 @@ mod tests {
             );
         }
 
-        /// Finder and focusless Electron windows read the pasteboard on Cmd+V while inserting
-        /// nothing — an unvouched read is no receipt, so the transcript stays in hand and on offer.
+        /// Finder and focusless Electron windows read on Cmd+V while inserting nothing.
         #[test]
         fn an_unvouched_read_never_counts_as_a_paste() {
             assert_eq!(
@@ -516,8 +499,7 @@ mod tests {
             }
         }
 
-        /// A watcher that stole the promise before the keystroke proves nothing about the paste —
-        /// without a caret in sight the transcript is offered, never assumed delivered.
+        /// A pre-keystroke watcher read proves nothing about the paste.
         #[test]
         fn a_receipt_eaten_by_a_watcher_never_counts_as_a_paste() {
             for confidence in [FLUENT, UNVOUCHED] {
@@ -533,8 +515,7 @@ mod tests {
             }
         }
 
-        /// An affirmed caret reads a mute receipt as a slow or unobservable paste: no card, and the
-        /// transcript stays on the clipboard so even a late paste still lands it.
+        /// The transcript stays on the clipboard so even a late paste still lands it.
         #[test]
         fn an_affirmed_caret_holds_the_card_back_and_keeps_the_transcript_in_reach() {
             for outcome in [PasteOutcome::Unconsumed, PasteOutcome::EatenByWatcher] {
@@ -615,7 +596,7 @@ mod tests {
             return false;
         }
 
-        if words.len() % 2 == 0 {
+        if words.len().is_multiple_of(2) {
             let half = words.len() / 2;
             let first_half: String = words[..half].join(" ");
             let second_half: String = words[half..].join(" ");

@@ -159,9 +159,7 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
                         });
                     }
                     Err(e) => log::warn!(
-                        "Realtime model '{}' could not be loaded: {}",
-                        realtime_model_id,
-                        e
+                        "Realtime model '{realtime_model_id}' could not be loaded: {e:#}"
                     ),
                 }
             });
@@ -173,7 +171,7 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
         }
     }
 
-    // pinned by a never-released keepalive so the idle watcher can't evict it cold between dictations
+    // load + compile kernels at boot so the first dictation isn't cold
     let selected_model_id = managers::model::transcription_profile_id(
         settings::get_settings(app_handle).transcription_model_size,
     );
@@ -188,11 +186,8 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
                 log::warn!("Boot prewarm of main engine failed: {e:#}");
                 return;
             }
-            // pin before the decode — `Immediately`-unload would drop the model the instant it returns
             match tm.warmup_decode_dummy() {
-                Ok(()) => log::info!(
-                    "Main transcription engine prewarmed + pinned resident for fast dictation"
-                ),
+                Ok(()) => log::info!("Main transcription engine prewarmed for fast dictation"),
                 Err(e) => log::debug!("Boot warmup decode skipped: {e:#}"),
             }
         });
@@ -235,7 +230,7 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
 
     #[cfg(unix)]
     {
-        if let Ok(signals) = Signals::new(&[SIGUSR2, SIGINT, SIGTERM]) {
+        if let Ok(signals) = Signals::new([SIGUSR2, SIGINT, SIGTERM]) {
             signal_handle::setup_signal_handler(app_handle.clone(), signals);
         } else {
             log::warn!("Failed to register Unix signal handler");
@@ -297,7 +292,7 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
     utils::update_tray_menu(app_handle, &utils::TrayIconState::Idle);
 
     let autostart_manager = app_handle.autolaunch();
-    let settings = settings::get_settings(&app_handle);
+    let settings = settings::get_settings(app_handle);
 
     if settings.autostart_enabled {
         let _ = autostart_manager.enable();
@@ -311,7 +306,6 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub static FILE_LOG_LEVEL: AtomicU8 = AtomicU8::new(log::LevelFilter::Debug as u8);
 
 fn level_filter_from_u8(value: u8) -> log::LevelFilter {
@@ -498,8 +492,6 @@ pub fn run() {
                 show_main_window(app);
             }
         }))
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_clipboard_manager::init())
@@ -542,7 +534,7 @@ pub fn run() {
             #[cfg(debug_assertions)]
             startup_guards::exit_unless_dev_data_is_isolated(&app.config().identifier);
 
-            let settings = settings::get_settings(&app.handle());
+            let settings = settings::get_settings(app.handle());
             logging::set_debug_logging(settings.debug_logging_enabled);
             let file_log_level: log::LevelFilter = match settings.log_level {
                 LogLevel::Error => log::LevelFilter::Error,
@@ -594,7 +586,7 @@ pub fn run() {
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
                 log::info!("Theme changed to: {:?}", theme);
-                utils::change_tray_icon(&window.app_handle(), utils::TrayIconState::Idle);
+                utils::change_tray_icon(window.app_handle(), utils::TrayIconState::Idle);
             }
             tauri::WindowEvent::DragDrop(drag_event) => match drag_event {
                 tauri::DragDropEvent::Enter { .. } => {
@@ -727,7 +719,6 @@ pub fn run() {
             commands::audio::get_microphone_permission_status,
             commands::audio::open_microphone_settings,
             helpers::clamshell::is_laptop,
-            commands::transcription::prewarm_models,
             commands::transcription::start_transcription_from_overlay,
             commands::transcription::stop_transcription_from_overlay,
             commands::transcription::run_polish_from_overlay,

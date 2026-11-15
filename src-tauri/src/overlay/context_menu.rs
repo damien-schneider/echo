@@ -13,8 +13,7 @@ const OPEN_ECHO: &str = "overlay_open_echo";
 const TOGGLE_MEETING: &str = "overlay_toggle_meeting";
 const INSPECT: &str = "overlay_inspect";
 
-/// Sync commands run on the main thread, where `popup` would deadlock waiting for the event loop
-/// it is blocking: the menu's own modal loop needs that thread free.
+/// Async: on the main thread `popup` would deadlock its own modal loop.
 #[tauri::command(async)]
 pub(crate) fn show_overlay_menu(app_handle: AppHandle) -> Result<(), String> {
     let overlay = app_handle
@@ -26,8 +25,7 @@ pub(crate) fn show_overlay_menu(app_handle: AppHandle) -> Result<(), String> {
         .map_err(|error| format!("Failed to open the overlay menu: {error}"))
 }
 
-/// Menu ids are global — the tray handler sees these too, so the overlay claims its own ids here
-/// and leaves the shared ones to it.
+/// Menu ids are global, so the tray handler also sees these; claim only the overlay's own.
 pub(crate) fn handle_menu_event(app_handle: &AppHandle, id: &str) -> bool {
     match id {
         OPEN_ECHO => show_main_window(app_handle),

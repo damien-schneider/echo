@@ -13,21 +13,12 @@
     "core:default",
     "core:window:allow-start-dragging",
     "core:window:allow-minimize",
-    "core:window:allow-maximize",
     "core:window:allow-toggle-maximize",
     "core:window:allow-close",
     "core:window:allow-show",
     "core:window:allow-hide",
-    "core:window:allow-is-maximized",
     "opener:default",
     "store:default",
-    "global-shortcut:allow-is-registered",
-    "global-shortcut:allow-register",
-    "global-shortcut:allow-unregister",
-    "global-shortcut:allow-unregister-all",
-    "macos-permissions:default",
-    "fs:read-files",
-    "fs:allow-resource-read-recursive",
-    "notification:default"
+    "macos-permissions:default"
   ]
 }

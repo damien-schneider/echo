@@ -64,6 +64,7 @@ impl ModifierState {
     }
 }
 
+#[derive(Default)]
 pub struct InputState {
     buffer: String,
     cursor_position: usize,
@@ -72,20 +73,6 @@ pub struct InputState {
     current_app: ActiveAppInfo,
     pub modifiers: ModifierState,
 }
-
-impl Default for InputState {
-    fn default() -> Self {
-        Self {
-            buffer: String::new(),
-            cursor_position: 0,
-            last_keystroke: None,
-            session_start: None,
-            current_app: ActiveAppInfo::default(),
-            modifiers: ModifierState::default(),
-        }
-    }
-}
-
 impl InputState {
     pub fn append_char(&mut self, c: char) {
         if self.session_start.is_none() {

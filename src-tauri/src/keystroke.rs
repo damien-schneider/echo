@@ -4,8 +4,7 @@ pub(crate) enum Shortcut {
     Paste,
 }
 
-/// GPU terminals (Ghostty, Alacritty, kitty) read the modifier off the key event itself and ignore
-/// the ambient flag state, so a separate modifier press reaches them as a bare letter.
+/// GPU terminals (Ghostty, Alacritty, kitty) ignore ambient modifier flags, so the flag rides the key event.
 #[cfg(target_os = "macos")]
 pub(crate) fn send(shortcut: Shortcut) -> Result<(), String> {
     use core_graphics::event::{CGEvent, CGEventFlags, CGEventTapLocation, CGKeyCode};

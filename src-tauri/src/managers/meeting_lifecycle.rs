@@ -5,7 +5,7 @@ use anyhow::Result;
 use chrono::Utc;
 use log::{error, info, warn};
 use rusqlite::params;
-use std::sync::Arc;
+use std::sync::{Arc, PoisonError};
 use tauri::Emitter;
 
 use super::meeting::{
@@ -132,7 +132,10 @@ impl MeetingManager {
             .store(true, std::sync::atomic::Ordering::Relaxed);
         let mic_file = {
             {
-                let mut rec_guard = self.mic_recorder.lock().unwrap();
+                let mut rec_guard = self
+                    .mic_recorder
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner);
                 if let Some(mut recorder) = rec_guard.take() {
                     if let Err(e) = recorder.stop() {
                         error!("Failed to stop meeting mic recorder: {}", e);
@@ -143,28 +146,43 @@ impl MeetingManager {
                     warn!("No mic recorder was active for meeting");
                 }
             }
-            if let Some(handle) = self.mic_collector.lock().unwrap().take() {
+            if let Some(handle) = self
+                .mic_collector
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take()
+            {
                 let _ = handle.join();
             }
             self.mic_sink
                 .lock()
-                .unwrap()
+                .unwrap_or_else(PoisonError::into_inner)
                 .take()
                 .and_then(|sink| sink.finish(&self.meetings_dir))
         };
 
         let sys_file = {
-            if let Some(mut capture) = self.system_capture.lock().unwrap().take() {
+            if let Some(mut capture) = self
+                .system_capture
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take()
+            {
                 if let Err(e) = capture.stop() {
                     warn!("Failed to stop system audio capture: {e:#}");
                 }
             }
-            if let Some(handle) = self.system_collector.lock().unwrap().take() {
+            if let Some(handle) = self
+                .system_collector
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .take()
+            {
                 let _ = handle.join();
             }
             self.system_sink
                 .lock()
-                .unwrap()
+                .unwrap_or_else(PoisonError::into_inner)
                 .take()
                 .and_then(|sink| sink.finish(&self.meetings_dir))
         };
