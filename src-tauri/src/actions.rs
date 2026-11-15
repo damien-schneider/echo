@@ -19,10 +19,9 @@ use crate::utils;
 use crate::ManagedToggleState;
 use ferrous_opencc::{config::BuiltinConfig, OpenCC};
 use log::{debug, error, info, warn};
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use std::time::Instant;
 use tauri::AppHandle;
@@ -297,10 +296,8 @@ fn claim_generation(claimed: &AtomicU64, gen: u64) -> bool {
     claimed.fetch_max(gen, Ordering::SeqCst) < gen
 }
 
-/// Recorded audio waiting for `finalize_transcription`, kept here instead of sent through the webview.
-/// Holds one dictation at most: a new stash replaces the previous, so an abandoned round-trip cannot pile up.
-static PENDING_DICTATION_AUDIO: Lazy<Mutex<Option<PendingDictationAudio>>> =
-    Lazy::new(|| Mutex::new(None));
+/// Kept off the webview; one slot so an abandoned round-trip cannot pile up.
+static PENDING_DICTATION_AUDIO: Mutex<Option<PendingDictationAudio>> = Mutex::new(None);
 
 struct PendingDictationAudio {
     generation: u64,
@@ -316,8 +313,7 @@ fn stash_pending_audio(generation: u64, samples: Vec<f32>) {
     }
 }
 
-/// Takes the stash unconditionally — the slot only ever holds the newest dictation, and leaving a
-/// mismatched buffer behind would pin it until the next recording.
+/// Takes unconditionally: a mismatched buffer left behind would pin it until the next recording.
 pub(crate) fn take_pending_audio(generation: u64) -> Vec<f32> {
     let Ok(mut pending) = PENDING_DICTATION_AUDIO.lock() else {
         return Vec::new();
@@ -337,8 +333,8 @@ const POST_PROCESS_FRONTEND_BUDGET: Duration =
 pub const STOP_RECORDING_CEILING: Duration = Duration::from_secs(10);
 
 /// Aborted on new stop/cancel to halt stale LLM post-process calls.
-pub(crate) static TRANSCRIPTION_TASK: Lazy<Mutex<Option<tauri::async_runtime::JoinHandle<()>>>> =
-    Lazy::new(|| Mutex::new(None));
+pub(crate) static TRANSCRIPTION_TASK: Mutex<Option<tauri::async_runtime::JoinHandle<()>>> =
+    Mutex::new(None);
 
 pub trait ShortcutAction: Send + Sync {
     fn is_one_shot(&self) -> bool {
@@ -461,8 +457,7 @@ pub(crate) enum ModelReadiness {
 }
 
 impl ModelReadiness {
-    /// A message that fades leaves the user exactly where they were: a block the user can lift
-    /// stays on the island with the download that lifts it. `true` when the dictation must not run.
+    /// Liftable blocks stay on the island with their download. `true` when the dictation must not run.
     fn report_block(&self, app: &AppHandle) -> bool {
         let message = match self {
             ModelReadiness::Ready => return false,
@@ -832,7 +827,7 @@ impl ShortcutAction for PolishAction {
     fn stop(&self, _app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {}
 }
 
-pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::new(|| {
+pub static ACTION_MAP: LazyLock<HashMap<String, Arc<dyn ShortcutAction>>> = LazyLock::new(|| {
     let mut map = HashMap::new();
     map.insert(
         "transcribe".to_string(),

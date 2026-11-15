@@ -5,11 +5,11 @@ mod platform;
 mod state;
 mod types;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rdev::{Event, EventType, Key};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{mpsc, Arc, RwLock};
+use std::sync::{mpsc, Arc, PoisonError, RwLock};
 use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
@@ -43,7 +43,7 @@ impl InputTrackerManager {
         let app_data_dir = app_handle
             .path()
             .app_data_dir()
-            .expect("Failed to get app data directory");
+            .context("resolve app data directory")?;
         let db_path = app_data_dir.join("echo.db");
 
         let settings = crate::settings::get_settings(app_handle);
@@ -81,10 +81,12 @@ impl InputTrackerManager {
         );
     }
 
-    fn is_app_excluded(excluded: &[String], app_info: &ActiveAppInfo) -> bool {
-        let by_bundle_id = app_info.bundle_id.as_ref().map_or(false, |id| {
-            excluded.iter().any(|e| e.eq_ignore_ascii_case(id))
-        });
+    fn is_app_excluded(excluded_apps: &RwLock<Vec<String>>, app_info: &ActiveAppInfo) -> bool {
+        let excluded = excluded_apps.read().unwrap_or_else(PoisonError::into_inner);
+        let by_bundle_id = app_info
+            .bundle_id
+            .as_ref()
+            .is_some_and(|id| excluded.iter().any(|e| e.eq_ignore_ascii_case(id)));
         let by_name = excluded
             .iter()
             .any(|e| e.eq_ignore_ascii_case(&app_info.name));
@@ -132,10 +134,7 @@ impl InputTrackerManager {
                                 new_app.name
                             );
 
-                            let prev_excluded = {
-                                let excluded = excluded_apps.read().unwrap();
-                                Self::is_app_excluded(&excluded, &current_app)
-                            };
+                            let prev_excluded = Self::is_app_excluded(&excluded_apps, &current_app);
 
                             if !prev_excluded {
                                 if let Some(entry) = state.take_entry() {
@@ -153,10 +152,7 @@ impl InputTrackerManager {
                         }
                     }
                     InputTrackerEvent::Keystroke(keystroke) => {
-                        let is_excluded = {
-                            let excluded = excluded_apps.read().unwrap();
-                            Self::is_app_excluded(&excluded, &current_app)
-                        };
+                        let is_excluded = Self::is_app_excluded(&excluded_apps, &current_app);
 
                         if is_excluded {
                             continue;
@@ -291,10 +287,7 @@ impl InputTrackerManager {
                         }
                     }
                     InputTrackerEvent::Click => {
-                        let is_excluded = {
-                            let excluded = excluded_apps.read().unwrap();
-                            Self::is_app_excluded(&excluded, &current_app)
-                        };
+                        let is_excluded = Self::is_app_excluded(&excluded_apps, &current_app);
 
                         if !is_excluded {
                             if let Some(entry) = state.take_entry() {
@@ -318,10 +311,7 @@ impl InputTrackerManager {
                     InputTrackerEvent::IdleCheck => {
                         let timeout_secs = idle_timeout_secs.load(Ordering::SeqCst);
                         if timeout_secs > 0 {
-                            let is_excluded = {
-                                let excluded = excluded_apps.read().unwrap();
-                                Self::is_app_excluded(&excluded, &current_app)
-                            };
+                            let is_excluded = Self::is_app_excluded(&excluded_apps, &current_app);
 
                             if !is_excluded
                                 && state.is_idle(Duration::from_secs(timeout_secs))

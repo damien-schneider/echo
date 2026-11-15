@@ -13,8 +13,8 @@ pub use super::model_download::resumable_partial_mb;
 #[cfg(test)]
 pub(super) use super::model_download::verification::verify_file_sha256;
 pub use super::transcription_profiles::{
-    transcription_profile_id, transcription_profile_statuses, transcription_profiles,
-    ProfileArtifact, TranscriptionProfileSpec, TranscriptionProfileStatus,
+    transcription_profile_id, transcription_profile_statuses, ProfileArtifact,
+    TranscriptionProfileStatus,
 };
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum EngineType {

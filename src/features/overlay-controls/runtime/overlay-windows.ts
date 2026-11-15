@@ -52,11 +52,7 @@ export const DictatedTranscriptSchema = z.object({
 export type DictatedTranscript = z.infer<typeof DictatedTranscriptSchema>;
 
 /// The HUD asks for chat and the model panel; Rust alone opens the transcript it could not place.
-export const NotificationRequestSchema = z.enum([
-  "chat",
-  "panel",
-  "transcript",
-]);
+const NotificationRequestSchema = z.enum(["chat", "panel", "transcript"]);
 
 export type NotificationRequest = z.infer<typeof NotificationRequestSchema>;
 export const NotificationRequestEventSchema = z.object({
@@ -68,7 +64,7 @@ export type NotificationRequestEvent = z.infer<
   typeof NotificationRequestEventSchema
 >;
 
-export const ChatTextContextSchema = z.object({
+const ChatTextContextSchema = z.object({
   source: z.enum(["clipboard", "selection"]),
   truncated: z.boolean(),
   text: z.string(),

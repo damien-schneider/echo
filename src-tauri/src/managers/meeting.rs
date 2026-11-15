@@ -5,7 +5,7 @@ use log::{debug, error, info};
 use rusqlite::{params, Connection};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::database;
@@ -124,20 +124,40 @@ impl MeetingManager {
     pub(super) fn abort_start(&self, meeting_id: i64) {
         self.stopping
             .store(true, std::sync::atomic::Ordering::Relaxed);
-        if let Some(mut recorder) = self.mic_recorder.lock().unwrap().take() {
+        if let Some(mut recorder) = self
+            .mic_recorder
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
             let _ = recorder.close();
         }
-        if let Some(mut capture) = self.system_capture.lock().unwrap().take() {
+        if let Some(mut capture) = self
+            .system_capture
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
             let _ = capture.stop();
         }
-        if let Some(handle) = self.system_collector.lock().unwrap().take() {
+        if let Some(handle) = self
+            .system_collector
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
             let _ = handle.join();
         }
-        if let Some(handle) = self.mic_collector.lock().unwrap().take() {
+        if let Some(handle) = self
+            .mic_collector
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take()
+        {
             let _ = handle.join();
         }
         for sink in [&self.mic_sink, &self.system_sink] {
-            if let Some(sink) = sink.lock().unwrap().take() {
+            if let Some(sink) = sink.lock().unwrap_or_else(PoisonError::into_inner).take() {
                 sink.finish(&self.meetings_dir);
             }
         }

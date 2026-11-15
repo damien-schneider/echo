@@ -1,6 +1,7 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import {
   type Dispatch,
+  type RefObject,
   type SetStateAction,
   useEffect,
   useEffectEvent,
@@ -12,7 +13,7 @@ import { z } from "zod";
 const CHECK_INTERVAL_MS = 500;
 const TRANSIENT_FAILURE_LIMIT = 2;
 const PermissionResultSchema = z.boolean();
-export type PermissionState =
+type PermissionState =
   | "check_error"
   | "checking"
   | "denied"
@@ -20,18 +21,10 @@ export type PermissionState =
   | "request_error"
   | "requesting"
   | "verifying";
-type PermissionStateSetter = Dispatch<SetStateAction<PermissionState>>;
-interface PermissionCheckOptions {
-  deniedState: "denied" | "verifying";
-  setState: PermissionStateSetter;
-  tracker: PermissionCheckTracker;
-}
+type DeniedState = "denied" | "verifying";
 interface PermissionCheckTracker {
   failureCount: number;
   requestId: number;
-}
-interface PermissionCheckTrackerRef {
-  current: PermissionCheckTracker;
 }
 export interface MacosPermission {
   check: () => Promise<boolean>;
@@ -46,10 +39,15 @@ export interface MacosPermission {
   label: string;
   request: () => Promise<unknown>;
 }
+interface PermissionSession {
+  permission: MacosPermission;
+  setState: Dispatch<SetStateAction<PermissionState>>;
+  tracker: RefObject<PermissionCheckTracker>;
+}
 const nextCheckedState = (
   current: PermissionState,
   granted: boolean,
-  deniedState: PermissionCheckOptions["deniedState"]
+  deniedState: DeniedState
 ): PermissionState => {
   if (granted) {
     return "granted";
@@ -60,9 +58,10 @@ const nextCheckedState = (
   return current === "verifying" ? "verifying" : deniedState;
 };
 const checkPermission = async (
-  { deniedState, setState, tracker }: PermissionCheckOptions,
-  permission: MacosPermission
+  { permission, setState, tracker: trackerRef }: PermissionSession,
+  deniedState: DeniedState
 ) => {
+  const tracker = trackerRef.current;
   tracker.requestId += 1;
   const requestId = tracker.requestId;
   try {
@@ -95,16 +94,11 @@ const checkPermission = async (
   }
 };
 const usePermissionRefresh = (
-  permission: MacosPermission,
-  state: PermissionState,
-  setState: PermissionStateSetter,
-  tracker: PermissionCheckTrackerRef
+  session: PermissionSession,
+  state: PermissionState
 ) => {
-  const refresh = useEffectEvent((deniedState: "denied" | "verifying") => {
-    checkPermission(
-      { deniedState, setState, tracker: tracker.current },
-      permission
-    );
+  const refresh = useEffectEvent((deniedState: DeniedState) => {
+    checkPermission(session, deniedState);
   });
   useEffect(() => {
     const handleFocus = () => refresh("denied");
@@ -132,43 +126,31 @@ const usePermissionRefresh = (
     return () => window.clearInterval(interval);
   }, [state]);
 };
-const requestPermission = async (
-  permission: MacosPermission,
-  setState: PermissionStateSetter,
-  tracker: PermissionCheckTracker
-) => {
+const requestPermission = async (session: PermissionSession) => {
+  const { permission, setState, tracker } = session;
   setState("requesting");
-  tracker.failureCount = 0;
+  tracker.current.failureCount = 0;
   try {
     await permission.request();
     setState((current) => (current === "granted" ? current : "verifying"));
-    await checkPermission(
-      { deniedState: "verifying", setState, tracker },
-      permission
-    );
+    await checkPermission(session, "verifying");
   } catch {
     setState((current) => (current === "granted" ? current : "request_error"));
   }
 };
 const runPermissionAction = async (
-  permission: MacosPermission,
-  state: PermissionState,
-  setState: PermissionStateSetter,
-  tracker: PermissionCheckTracker
+  session: PermissionSession,
+  state: PermissionState
 ) => {
   if (state === "check_error" || state === "verifying") {
     await checkPermission(
-      {
-        deniedState: state === "verifying" ? "verifying" : "denied",
-        setState,
-        tracker,
-      },
-      permission
+      session,
+      state === "verifying" ? "verifying" : "denied"
     );
     return;
   }
   if (state === "denied" || state === "request_error") {
-    await requestPermission(permission, setState, tracker);
+    await requestPermission(session);
   }
 };
 const usePermissionLifecycle = (permission: MacosPermission) => {
@@ -177,16 +159,9 @@ const usePermissionLifecycle = (permission: MacosPermission) => {
     failureCount: 0,
     requestId: 0,
   });
-  const trackedPermission = useRef(permission);
-  trackedPermission.current = permission;
-  usePermissionRefresh(trackedPermission.current, state, setState, tracker);
-  const act = () =>
-    runPermissionAction(
-      trackedPermission.current,
-      state,
-      setState,
-      tracker.current
-    );
+  const session = { permission, setState, tracker };
+  usePermissionRefresh(session, state);
+  const act = () => runPermissionAction(session, state);
   return { act, state };
 };
 export const PermissionGate = ({

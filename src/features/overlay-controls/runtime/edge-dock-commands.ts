@@ -7,9 +7,6 @@ export const OVERLAY_DRAG_COMMAND = {
   snap: "snap_recording_overlay_to_nearest_edge",
 } as const;
 
-export type OverlayDragCommand =
-  (typeof OVERLAY_DRAG_COMMAND)[keyof typeof OVERLAY_DRAG_COMMAND];
-
 /// Native mouse-up owns the drop: the webview never sees it mid-drag.
 export const OVERLAY_DRAG_SETTLED_EVENT = "overlay-drag-settled";
 

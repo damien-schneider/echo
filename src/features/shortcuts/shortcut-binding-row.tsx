@@ -11,7 +11,6 @@ import {
 } from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
 import type { ShortcutBinding } from "@/lib/types";
-import { formatKeyCombination, type OSType } from "@/lib/utils/keyboard";
 
 interface ShortcutBindingRowProps {
   binding: ShortcutBinding;
@@ -20,7 +19,6 @@ interface ShortcutBindingRowProps {
   isUpdating: boolean;
   onEdit: (id: string) => Promise<void>;
   onReset: (id: string) => Promise<void>;
-  osType: OSType;
   setRef: (id: string, ref: HTMLDivElement | null) => void;
   showWaylandWarning: boolean;
 }
@@ -31,7 +29,6 @@ export const ShortcutBindingRow = ({
   isUpdating,
   onEdit,
   onReset,
-  osType,
   setRef,
   showWaylandWarning,
 }: ShortcutBindingRowProps) => (
@@ -51,7 +48,7 @@ export const ShortcutBindingRow = ({
         </Button>
       ) : (
         <Button onClick={() => onEdit(binding.id)} size="sm" variant="surface">
-          {formatKeyCombination(binding.current_binding, osType)}
+          {binding.current_binding}
         </Button>
       )}
       <Button

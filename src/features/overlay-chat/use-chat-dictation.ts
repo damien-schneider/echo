@@ -10,7 +10,7 @@ import {
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import { listenCancellable } from "@/lib/tauri-listener";
 
-export type ChatDictationState = "idle" | "recording" | "transcribing";
+type ChatDictationState = "idle" | "recording" | "transcribing";
 
 export interface ChatDictation {
   state: ChatDictationState;

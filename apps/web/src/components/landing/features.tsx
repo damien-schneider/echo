@@ -15,6 +15,7 @@ import {
 import { motion, useInView, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 import EchoLogo from "@/components/icons/echo-logo";
+import { cn } from "@/lib/utils";
 
 function MiniNotch() {
   return (
@@ -106,7 +107,10 @@ function MiniVadWaveform() {
                   ? { height: [`${h * 80}%`, `${h * 100}%`, `${h * 80}%`] }
                   : {}
               }
-              className={`w-1 rounded-full ${isVoice ? "bg-foreground/60" : "bg-foreground/15"}`}
+              className={cn(
+                "w-1 rounded-full",
+                isVoice ? "bg-foreground/60" : "bg-foreground/15"
+              )}
               key={`vad-${i.toString()}`}
               style={{ height: `${h * 100}%` }}
               transition={
@@ -367,7 +371,11 @@ function FeatureCard({
   return (
     <motion.div
       animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
-      className={`group relative overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-500 hover:border-foreground/15 hover:shadow-foreground/[0.02] hover:shadow-lg ${feature.className} ${feature.hero ? "p-8" : "p-6"}`}
+      className={cn(
+        "group relative overflow-hidden rounded-2xl border border-border/60 bg-card transition-all duration-500 hover:border-foreground/15 hover:shadow-foreground/[0.02] hover:shadow-lg",
+        feature.className,
+        feature.hero ? "p-8" : "p-6"
+      )}
       initial={{ opacity: 0, y: 30 }}
       ref={cardRef}
       transition={{
@@ -380,14 +388,21 @@ function FeatureCard({
       {/* Hover gradient overlay */}
       <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-foreground/[0.01] to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
 
-      <div className={`relative z-10 ${feature.hero ? "mb-6" : "mb-4"}`}>
+      <div className={cn("relative z-10", feature.hero ? "mb-6" : "mb-4")}>
         <h3
-          className={`mb-1.5 font-display font-semibold tracking-tight ${feature.hero ? "text-base" : "text-sm"} text-foreground`}
+          className={cn(
+            "mb-1.5 font-display font-semibold tracking-tight",
+            feature.hero ? "text-base" : "text-sm",
+            "text-foreground"
+          )}
         >
           {feature.name}
         </h3>
         <p
-          className={`text-muted-foreground leading-relaxed ${feature.hero ? "text-sm" : "text-xs"}`}
+          className={cn(
+            "text-muted-foreground leading-relaxed",
+            feature.hero ? "text-sm" : "text-xs"
+          )}
         >
           {feature.description}
         </p>

@@ -2,6 +2,7 @@
 
 import { motion, useInView, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
+import { cn } from "@/lib/utils";
 
 function FlowNode({
   label,
@@ -28,11 +29,12 @@ function FlowNode({
       transition={{ delay, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
     >
       <div
-        className={`flex h-20 w-20 items-center justify-center rounded-2xl border md:h-24 md:w-24 ${
+        className={cn(
+          "flex h-20 w-20 items-center justify-center rounded-2xl border md:h-24 md:w-24",
           muted
             ? "border-white/5 bg-white/[0.02]"
             : "border-white/10 bg-white/[0.04]"
-        }`}
+        )}
         style={glow ? { boxShadow: `0 0 40px ${glow}` } : undefined}
       >
         <span className="text-2xl">{label}</span>

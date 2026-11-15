@@ -38,7 +38,8 @@ impl MeetingStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Self {
+    /// Unknown stored values read as `Error`.
+    pub fn from_db_str(s: &str) -> Self {
         match s {
             "recording" => MeetingStatus::Recording,
             "processing" => MeetingStatus::Processing,

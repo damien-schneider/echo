@@ -19,8 +19,7 @@ use macos as platform;
 #[cfg(target_os = "windows")]
 use windows as platform;
 
-/// Who took the promised bytes. X11 names the requesting client; macOS and Windows hand them over
-/// anonymously, so there the receipt says only that someone did.
+/// Only X11 names the requesting client; macOS and Windows fetch anonymously.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub enum Fetcher {
@@ -37,20 +36,17 @@ pub struct Receipt {
     pub by: Fetcher,
 }
 
-/// Which revision of the clipboard the promise wrote. A different one later means the clipboard
-/// moved on and the transcript is no longer Echo's to restore.
+/// A later mismatch means the clipboard moved on and the transcript is no longer Echo's to restore.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Generation(u64);
 
 pub struct PromisedTranscript {
-    /// Resolves on the first fetch of the promised text; closes unresolved when the clipboard is
-    /// taken over before anyone pastes.
+    /// Closes unresolved when the clipboard is taken over before anyone pastes.
     pub consumed: oneshot::Receiver<Receipt>,
     pub generation: Generation,
 }
 
-/// Whether this platform can serve a promise at all — a Wayland session or a headless X display
-/// cannot, and neither can an OS Echo has no promise protocol for.
+/// False on Wayland, headless X, and OSes without a promise protocol.
 pub fn is_available() -> bool {
     platform::is_available()
 }

@@ -12,7 +12,7 @@ export type ResidentHoverEvent =
   | { type: "native-pointer-boundary"; inside: boolean }
   | { type: "pointer-down" };
 
-export type ResidentHoverIntent = "collapse" | "reveal" | null;
+type ResidentHoverIntent = "collapse" | "reveal" | null;
 
 export interface ResidentHoverTransition {
   intent: ResidentHoverIntent;

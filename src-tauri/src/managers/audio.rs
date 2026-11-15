@@ -5,7 +5,6 @@ use crate::audio_toolkit::{
 };
 use crate::helpers::clamshell;
 use crate::managers::dictation_streaming::{DictationStreamingHandle, DictationStreamingWorker};
-use crate::managers::signals::RecordingActiveSignal;
 use crate::managers::transcription::TranscriptionManager;
 use crate::settings::{get_settings, AppSettings};
 use crate::utils;
@@ -343,8 +342,6 @@ pub struct AudioRecordingManager {
     selected_device_cache: SelectedDeviceCache<cpal::Device>,
     is_open: Arc<Mutex<bool>>,
     is_recording: Arc<Mutex<bool>>,
-    /// Lock-free mirror of `is_recording` — idle watcher polls it from another thread.
-    recording_signal: RecordingActiveSignal,
     did_mute: Arc<Mutex<bool>>,
     dictation_streaming: Arc<Mutex<Option<DictationStreamingHandle>>>,
 }
@@ -369,7 +366,6 @@ impl AudioRecordingManager {
             selected_device_cache: SelectedDeviceCache::default(),
             is_open: Arc::new(Mutex::new(false)),
             is_recording: Arc::new(Mutex::new(false)),
-            recording_signal: RecordingActiveSignal::new(),
             did_mute: Arc::new(Mutex::new(false)),
             dictation_streaming: Arc::new(Mutex::new(None)),
         };
@@ -387,10 +383,6 @@ impl AudioRecordingManager {
         }
 
         Ok(manager)
-    }
-
-    pub fn recording_signal_handle(&self) -> RecordingActiveSignal {
-        self.recording_signal.clone()
     }
 
     pub fn active_binding_id(&self) -> Option<String> {
@@ -418,10 +410,8 @@ impl AudioRecordingManager {
         claim_recording_stop(&mut lock(&self.state), binding_id)
     }
 
-    /// Only way to flip the flag — updating the `Mutex<bool>` without its signal mirror re-opens the eviction race.
     fn set_is_recording(&self, active: bool) {
         *lock(&self.is_recording) = active;
-        self.recording_signal.set(active);
     }
 
     fn preload_recorder(&self) -> Result<(), anyhow::Error> {
@@ -589,13 +579,13 @@ impl AudioRecordingManager {
             }
         }
 
-        let start = ReservedRecordingStart {
+        let mut start = ReservedRecordingStart {
             attempt,
             binding_id: binding_id.to_string(),
             stream: self.prepare_dictation_streaming(binding_id),
         };
-        if let Err(cancelled) = self.commit_reserved_recording(start) {
-            cancelled.stream.cancel();
+        if !self.commit_reserved_recording(&mut start) {
+            start.stream.cancel();
             if on_demand {
                 self.close_microphone_if_idle();
             }
@@ -642,24 +632,22 @@ impl AudioRecordingManager {
         }
     }
 
-    fn commit_reserved_recording(
-        &self,
-        mut start: ReservedRecordingStart,
-    ) -> Result<(), ReservedRecordingStart> {
+    /// False leaves `start.stream` for the caller to cancel outside the state locks.
+    fn commit_reserved_recording(&self, start: &mut ReservedRecordingStart) -> bool {
         let mut state = lock(&self.state);
         if !is_reserved_recording(&state, &start.binding_id, start.attempt) {
-            return Err(start);
+            return false;
         }
         let recorder = lock(&self.recorder);
         let Some(recorder) = recorder.as_ref() else {
             *state = RecordingState::Idle;
-            return Err(start);
+            return false;
         };
         let mut current_stream = lock(&self.dictation_streaming);
         if let Err(error) = recorder.start(start.stream.chunk_tx.take()) {
             log::error!("Failed to start recorder: {error}");
             *state = RecordingState::Idle;
-            return Err(start);
+            return false;
         }
         if let Some(previous) = current_stream.take() {
             log::warn!("Replacing live dictation stream");
@@ -669,10 +657,10 @@ impl AudioRecordingManager {
         self.set_is_recording(true);
         *state = RecordingState::Recording {
             attempt: start.attempt,
-            binding_id: start.binding_id,
+            binding_id: std::mem::take(&mut start.binding_id),
         };
         debug!("Recording started");
-        Ok(())
+        true
     }
 
     fn close_microphone_if_idle(&self) {

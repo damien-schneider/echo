@@ -211,8 +211,7 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   },
   setElapsedMs: (ms) => set({ elapsedMs: ms }),
 
-  // An open live line is never finalized once capture stops; finished ones stay until the batch
-  // rows of their source replace them.
+  // Open live lines are never finalized after capture stops; finished ones wait for batch rows.
   setStatus: (status) =>
     set(
       status === "processing"

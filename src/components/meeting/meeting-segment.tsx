@@ -26,14 +26,13 @@ export const MeetingSegmentItem = ({
   return (
     <button
       className={cn(
-        "flex w-full gap-3 rounded-md px-2 py-1.5 text-left",
+        "flex w-full gap-3 rounded-md px-2 py-1.5 text-left [contain-intrinsic-size:auto_36px] [content-visibility:auto]",
         isClickable
           ? "cursor-pointer hover:bg-foreground/10 active:bg-foreground/15"
           : "hover:bg-foreground/5"
       )}
       disabled={!isClickable}
       onClick={() => onSeek?.(segment.start_ms)}
-      style={{ containIntrinsicSize: "auto 36px", contentVisibility: "auto" }}
       type="button"
     >
       <span className="shrink-0 font-mono text-muted-foreground text-xs leading-6">

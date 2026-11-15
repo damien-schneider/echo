@@ -1,7 +1,6 @@
 # https://www.robotstxt.org/robotstxt.html
 User-agent: *
 Allow: /
-Disallow: /demo/
 
 # AI search engine bots — allow full crawl for citation indexing
 User-agent: GPTBot

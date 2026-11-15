@@ -1,21 +1,17 @@
 import { z } from "zod";
 
 /// Mirrors the Rust `UpdateSnapshot` — one owner publishes, every window renders.
-export const UpdatePhaseSchema = z.enum([
-  "available",
-  "checking",
-  "downloading",
-  "error",
-  "idle",
-  "installing",
-  "unsupported",
-]);
-
-export type UpdatePhase = z.infer<typeof UpdatePhaseSchema>;
-
 export const UpdateSnapshotSchema = z.object({
   error: z.string().nullable(),
-  phase: UpdatePhaseSchema,
+  phase: z.enum([
+    "available",
+    "checking",
+    "downloading",
+    "error",
+    "idle",
+    "installing",
+    "unsupported",
+  ]),
   progress: z.number().int().min(0).max(100).nullable(),
   version: z.string().nullable(),
 });
@@ -49,9 +45,6 @@ export const parseUpdateSnapshot = (
   const parsed = UpdateSnapshotSchema.safeParse(payload);
   return parsed.success ? parsed.data : updateBridgeFailure(previous);
 };
-
-export const isUpdateBusy = (phase: UpdatePhase) =>
-  phase === "checking" || phase === "downloading" || phase === "installing";
 
 export const canInstallUpdate = (snapshot: UpdateSnapshot) => {
   if (snapshot.phase === "available") {

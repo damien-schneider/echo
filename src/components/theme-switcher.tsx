@@ -6,11 +6,10 @@ import {
   DropdownMenuTrigger,
 } from "@ctrl-ui/react/ui/dropdown-menu";
 import { MonitorIcon, MoonIcon, SunIcon } from "@phosphor-icons/react";
-import { useState } from "react";
-import { useTheme } from "@/providers/theme-provider";
+import { useTheme } from "next-themes";
+
 export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme();
-  const [open, setOpen] = useState(false);
   const getThemeIcon = () => {
     switch (theme) {
       case "light":
@@ -22,7 +21,7 @@ export function ThemeSwitcher() {
     }
   };
   return (
-    <DropdownMenu onOpenChange={setOpen} open={open}>
+    <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="Theme"
         iconOnly

@@ -1,6 +1,6 @@
 use std::{
     io::Error,
-    sync::{mpsc, Arc, Mutex},
+    sync::{mpsc, Arc, Mutex, PoisonError},
     time::{Duration, Instant},
 };
 
@@ -474,7 +474,7 @@ fn run_consumer(
         }
 
         if let Some(vad_arc) = vad {
-            let mut det = vad_arc.lock().unwrap();
+            let mut det = vad_arc.lock().unwrap_or_else(PoisonError::into_inner);
             match det.push_frame(samples).unwrap_or(VadFrame::Speech(samples)) {
                 VadFrame::Speech(buf) => record_captured_frame(
                     CapturedAudioFrame {
@@ -523,7 +523,7 @@ fn run_consumer(
                     last_sample_at = Instant::now();
                     stall_reported = false;
                     if let Some(v) = &vad {
-                        v.lock().unwrap().reset();
+                        v.lock().unwrap_or_else(PoisonError::into_inner).reset();
                     }
                 }
                 Cmd::Stop(reply_tx) => {

@@ -2,13 +2,14 @@ import { Button } from "@ctrl-ui/react/ui/button";
 import { ArrowClockwiseIcon, ArrowLeftIcon } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
+import { MeetingAudioPlayer } from "@/components/meeting/meeting-audio-player";
+import { MeetingExport } from "@/components/meeting/meeting-export";
+import { MeetingSummary } from "@/components/meeting/meeting-summary";
+import { MeetingTranscript } from "@/components/meeting/meeting-transcript";
 import { useMeetingModels } from "@/features/meeting/use-meeting-models";
 import { cn, errorMessage } from "@/lib/utils";
 import { useMeetingStore } from "@/stores/meeting-store";
-import { MeetingAudioPlayer } from "./meeting-audio-player";
-import { MeetingExport } from "./meeting-export";
-import { MeetingSummary } from "./meeting-summary";
-import { MeetingTranscript } from "./meeting-transcript";
+
 export const MeetingDetail = () => {
   const meeting = useMeetingStore((s) => s.selectedMeeting);
   const segments = useMeetingStore((s) => s.selectedSegments);

@@ -27,7 +27,7 @@ impl MeetingManager {
                     mic_file_name: row.get(5)?,
                     system_file_name: row.get(6)?,
                     summary: row.get(7)?,
-                    status: MeetingStatus::from_str(&status_str),
+                    status: MeetingStatus::from_db_str(&status_str),
                 })
             },
         )
@@ -74,7 +74,7 @@ impl MeetingManager {
                     mic_file_name: row.get(5)?,
                     system_file_name: row.get(6)?,
                     summary: row.get(7)?,
-                    status: MeetingStatus::from_str(&status_str),
+                    status: MeetingStatus::from_db_str(&status_str),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()

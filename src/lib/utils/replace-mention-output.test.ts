@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   hasTranscriptPlaceholder,
   replaceMentionOutputInMarkdown,
-} from "./replace-mention-output";
+} from "@/lib/utils/replace-mention-output";
 
 const TEMPLATE_PLACEHOLDER = ["$", "{output}"].join("");
 

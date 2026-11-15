@@ -14,9 +14,7 @@ const AX_ROLE_ATTRIBUTE: &str = "AXRole";
 const AX_SELECTED_TEXT_ATTRIBUTE: &str = "AXSelectedText";
 
 const TEXT_INPUT_ROLES: &[&str] = &["AXTextArea", "AXTextField", "AXComboBox", "AXSearchField"];
-/// Roles that demonstrably hold the focus yet cannot take a text paste. AXWebArea sits here on
-/// purpose: Chromium's web area answers AXSelectedTextRange even on a page with nothing editable,
-/// while a real web input gets its own AXTextField/AXTextArea element.
+/// Focus holders that cannot take text; Chromium's AXWebArea answers AXSelectedTextRange even with nothing editable.
 const PASTE_DEAF_ROLES: &[&str] = &[
     "AXWebArea",
     "AXScrollArea",
@@ -96,8 +94,7 @@ fn element_belongs_to_echo(element: &CFType) -> bool {
     element_pid(element).is_some_and(|pid| Some(pid) == echo_pid)
 }
 
-/// Electron apps grow an accessibility tree only once asked — asked here, at dictation start, so
-/// the tree exists by the time the delivery probe looks. Best effort: silence on every failure.
+/// Electron builds its AX tree only once asked, so ask at dictation start; best effort.
 pub(crate) fn coax_frontmost_into_answering() {
     if !is_trusted() {
         return;
@@ -148,8 +145,7 @@ pub(crate) fn sight_focused_caret() -> CaretSight {
     if element_belongs_to_echo(&focused) {
         return CaretSight::Blind;
     }
-    // Only the role affirms — Finder's desktop answers AXSelectedTextRange on a plain AXGroup, so
-    // a selection range proves nothing about a caret.
+    // Finder's desktop answers AXSelectedTextRange on a plain AXGroup, so only the role affirms.
     match focused_role(&focused).as_deref() {
         Some(role) if role_is_text_input(role) => CaretSight::Affirmed,
         Some(role) if role_is_paste_deaf(role) => CaretSight::DeniedByRole,
@@ -254,8 +250,7 @@ mod tests {
         }
     }
 
-    /// A bare window or group says nothing — AX-poor apps (terminals, Zed) look like this while
-    /// taking pastes perfectly well, so they must stay blind, never denied.
+    /// AX-poor apps (terminals, Zed) look like this yet take pastes, so they stay blind, never denied.
     #[test]
     fn uninformative_roles_stay_blind() {
         for role in ["AXWindow", "AXGroup", "AXSplitGroup", "AXUnknown"] {

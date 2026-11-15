@@ -1,5 +1,6 @@
 #[cfg(target_os = "linux")]
 use log::{debug, error, info, warn};
+#[cfg(target_os = "linux")]
 use tauri::{Runtime, WebviewWindow};
 
 #[cfg(target_os = "linux")]
@@ -8,12 +9,6 @@ pub fn is_wayland() -> bool {
         || std::env::var("XDG_SESSION_TYPE")
             .map(|v| v.eq_ignore_ascii_case("wayland"))
             .unwrap_or(false)
-}
-
-#[cfg(not(target_os = "linux"))]
-#[allow(dead_code)]
-pub fn is_wayland() -> bool {
-    false
 }
 
 #[cfg(target_os = "linux")]
@@ -74,15 +69,6 @@ pub fn init_layer_shell<R: Runtime>(
     Ok(())
 }
 
-#[cfg(not(target_os = "linux"))]
-#[allow(dead_code)]
-pub fn init_layer_shell<R: Runtime>(
-    _window: &WebviewWindow<R>,
-    _anchors: (bool, bool, bool, bool),
-) -> Result<(), String> {
-    Ok(())
-}
-
 #[cfg(target_os = "linux")]
 pub fn configure_gnome_overlay<R: Runtime>(window: &WebviewWindow<R>) {
     use gtk::prelude::*;
@@ -130,14 +116,6 @@ pub fn present_gnome_overlay<R: Runtime>(window: &WebviewWindow<R>) {
     // show() not present() — present() steals keyboard focus on GNOME
     gtk_window.show();
 }
-
-#[cfg(not(target_os = "linux"))]
-#[allow(dead_code)]
-pub fn configure_gnome_overlay<R: Runtime>(_window: &WebviewWindow<R>) {}
-
-#[cfg(not(target_os = "linux"))]
-#[allow(dead_code)]
-pub fn present_gnome_overlay<R: Runtime>(_window: &WebviewWindow<R>) {}
 
 #[derive(Debug, PartialEq)]
 #[cfg(any(target_os = "linux", test))]

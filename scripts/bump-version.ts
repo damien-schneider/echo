@@ -7,30 +7,36 @@ import { join } from "node:path";
 
 const rootDir = join(import.meta.dirname, "..");
 
+const SEMVER_REGEX = /^(\d+)\.(\d+)\.(\d+)$/;
+const BUMP_TYPES = ["major", "minor", "patch"] as const;
+type BumpType = (typeof BUMP_TYPES)[number];
 const VERSION_REGEX = /^(version\s*=\s*")[\d.]+(")/m;
-const SEMVER_REGEX = /^\d+\.\d+\.\d+$/;
 
 const PACKAGE_JSON = join(rootDir, "package.json");
 const CARGO_TOML = join(rootDir, "src-tauri/Cargo.toml");
 const TAURI_CONF = join(rootDir, "src-tauri/tauri.conf.json");
 
+function isBumpType(value: string): value is BumpType {
+  return BUMP_TYPES.some((type) => type === value);
+}
+
 function getCurrentVersion(): string {
-  const packageJson = JSON.parse(readFileSync(PACKAGE_JSON, "utf-8"));
-  return packageJson.version;
+  const { version } = JSON.parse(readFileSync(PACKAGE_JSON, "utf-8"));
+  if (typeof version !== "string") {
+    throw new Error("package.json has no version");
+  }
+  return version;
 }
 
 function parseVersion(version: string): [number, number, number] {
-  const parts = version.split(".").map(Number);
-  if (parts.length !== 3 || parts.some(Number.isNaN)) {
+  const match = SEMVER_REGEX.exec(version);
+  if (!match) {
     throw new Error(`Invalid version format: ${version}`);
   }
-  return parts as [number, number, number];
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
 }
 
-function bumpVersion(
-  current: string,
-  type: "major" | "minor" | "patch"
-): string {
+function bumpVersion(current: string, type: BumpType): string {
   const [major, minor, patch] = parseVersion(current);
 
   switch (type) {
@@ -38,10 +44,8 @@ function bumpVersion(
       return `${major + 1}.0.0`;
     case "minor":
       return `${major}.${minor + 1}.0`;
-    case "patch":
-      return `${major}.${minor}.${patch + 1}`;
     default:
-      throw new Error(`Unknown bump type: ${type}`);
+      return `${major}.${minor}.${patch + 1}`;
   }
 }
 
@@ -82,12 +86,12 @@ function main(): void {
     process.exit(0);
   }
 
-  const input = args[0];
+  const input = args[0] ?? "";
   let newVersion: string;
 
-  if (["major", "minor", "patch"].includes(input)) {
+  if (isBumpType(input)) {
     const current = getCurrentVersion();
-    newVersion = bumpVersion(current, input as "major" | "minor" | "patch");
+    newVersion = bumpVersion(current, input);
     console.log(`Bumping ${input}: ${current} → ${newVersion}\n`);
   } else if (SEMVER_REGEX.test(input)) {
     newVersion = input;

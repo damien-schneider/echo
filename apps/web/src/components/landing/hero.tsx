@@ -125,6 +125,7 @@ function ShaderBackground({ isActive }: { isActive: boolean }) {
 }
 
 const BAR_COUNT = 28;
+const BAR_KEYS = Array.from({ length: BAR_COUNT }, (_, i) => `wb-${i}`);
 
 function WaveBar({ index }: { index: number }) {
   const center = (BAR_COUNT - 1) / 2;
@@ -162,9 +163,8 @@ function HeroNotch() {
           variant="sm"
         />
         <div className="mx-auto flex h-8 items-center gap-[3px]">
-          {Array.from({ length: BAR_COUNT }, (_, i) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: static bar count, never reorders
-            <WaveBar index={i} key={`wb-${i}`} />
+          {BAR_KEYS.map((barKey, i) => (
+            <WaveBar index={i} key={barKey} />
           ))}
         </div>
 

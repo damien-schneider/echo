@@ -14,7 +14,8 @@ import {
   type TranscriptionProfileStatus,
   TranscriptionProfileStatusSchema,
 } from "@/lib/types";
-export type ModelStatus =
+
+type ModelStatus =
   | "ready"
   | "loading"
   | "downloading"

@@ -45,13 +45,10 @@ impl FrameResampler {
             src = &src[take..];
 
             if self.in_buf.len() == self.chunk_in {
-                if let Ok(out) = self
-                    .resampler
-                    .as_mut()
-                    .unwrap()
-                    .process(&[&self.in_buf[..]], None)
-                {
-                    self.emit_frames(&out[0], &mut emit);
+                if let Some(resampler) = self.resampler.as_mut() {
+                    if let Ok(out) = resampler.process(&[&self.in_buf[..]], None) {
+                        self.emit_frames(&out[0], &mut emit);
+                    }
                 }
                 self.in_buf.clear();
             }

@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 
-export interface ProgressData {
+interface ProgressData {
   id: string;
   label?: string;
   percentage: number;

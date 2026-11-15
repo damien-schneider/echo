@@ -29,11 +29,11 @@ impl SpeechFrames {
             self.pending = frame;
             self.pending.clear();
         }
-        let mut frames = samples.chunks_exact(SILERO_FRAME_SAMPLES);
-        for frame in &mut frames {
+        let (frames, remainder) = samples.as_chunks::<SILERO_FRAME_SAMPLES>();
+        for frame in frames {
             on_frame(frame, self.is_speech(frame));
         }
-        self.pending.extend_from_slice(frames.remainder());
+        self.pending.extend_from_slice(remainder);
     }
 
     fn is_speech(&mut self, frame: &[f32]) -> bool {

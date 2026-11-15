@@ -15,7 +15,7 @@ ReactDOM.createRoot(rootElement).render(
     <LazyMotion features={domAnimation} strict={true}>
       <MotionConfig reducedMotion="user">
         <EchoSkin>
-          <ThemeProvider defaultTheme="system" storageKey="echo-ui-theme">
+          <ThemeProvider>
             <RecordingOverlay />
           </ThemeProvider>
         </EchoSkin>

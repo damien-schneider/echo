@@ -151,12 +151,6 @@ export const getKeyName = (
   return `unknown-${e.keyCode || e.which || 0}`;
 };
 
-// getKeyName already returns platform-specific names — passthrough.
-export const formatKeyCombination = (
-  combination: string,
-  _osType: OSType
-): string => combination;
-
 export const normalizeKey = (key: string): string => {
   // Strip left/right modifier prefix.
   if (key.startsWith("left ") || key.startsWith("right ")) {

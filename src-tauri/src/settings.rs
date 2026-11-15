@@ -1,7 +1,6 @@
 #[cfg(debug_assertions)]
 use log::debug;
 use log::warn;
-use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -10,7 +9,7 @@ use tauri_plugin_log::LogLevel;
 use tauri_plugin_store::StoreExt;
 
 /// Serialises read-modify-write against concurrent command clobbers.
-static SETTINGS_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
 
 #[path = "settings_types.rs"]
 mod settings_types;
@@ -367,12 +366,8 @@ pub fn get_bindings(app: &AppHandle) -> HashMap<String, ShortcutBinding> {
     settings.bindings
 }
 
-pub fn get_stored_binding(app: &AppHandle, id: &str) -> ShortcutBinding {
-    let bindings = get_bindings(app);
-
-    let binding = bindings.get(id).unwrap().clone();
-
-    binding
+pub fn get_stored_binding(app: &AppHandle, id: &str) -> Option<ShortcutBinding> {
+    get_bindings(app).remove(id)
 }
 
 pub fn get_history_limit(app: &AppHandle) -> usize {

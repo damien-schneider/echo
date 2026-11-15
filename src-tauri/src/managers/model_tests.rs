@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod transcription_profile_tests {
     use super::*;
+    use crate::managers::transcription_profiles::transcription_profiles;
     use crate::settings::TranscriptionModelSize;
 
     #[test]
@@ -76,7 +77,10 @@ mod transcription_profile_tests {
     #[test]
     fn profile_ids_match_persisted_size_values() {
         for profile in transcription_profiles() {
-            assert_eq!(profile.id, profile.size.as_str());
+            assert_eq!(
+                serde_json::to_value(profile.size).ok(),
+                Some(serde_json::Value::from(profile.id))
+            );
         }
     }
 
@@ -117,11 +121,10 @@ mod transcription_profile_tests {
 
     #[test]
     fn profile_status_serialization_hides_engine_details() {
-        let status =
-            transcription_profile_statuses(TranscriptionModelSize::Small, |_| {
-                ProfileArtifact::default()
-            })
-                .remove(0);
+        let status = transcription_profile_statuses(TranscriptionModelSize::Small, |_| {
+            ProfileArtifact::default()
+        })
+        .remove(0);
         let json = serde_json::to_value(status).unwrap();
         let object = json.as_object().unwrap();
 
@@ -163,8 +166,7 @@ mod transcription_profile_tests {
     fn development_and_production_share_one_model_store() {
         let data_root = std::path::Path::new("/data");
         let production = shared_models_dir(&data_root.join(SHARED_MODELS_APP_ID));
-        let development =
-            shared_models_dir(&data_root.join("com.damien-schneider.echo-dev"));
+        let development = shared_models_dir(&data_root.join("com.damien-schneider.echo-dev"));
 
         assert_eq!(development, production);
         assert_eq!(

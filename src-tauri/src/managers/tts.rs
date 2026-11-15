@@ -1,21 +1,23 @@
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
-use std::sync::Mutex;
-use tts::{Features, Tts, Voice};
+use std::sync::{Mutex, MutexGuard, PoisonError};
+use tts::{Tts, Voice};
 use whichlang::detect_language;
 
+#[derive(Default)]
 pub struct TtsManager {
     system_tts: Mutex<Option<Tts>>,
-    #[allow(dead_code)]
-    features: Mutex<Option<Features>>,
 }
 
 impl TtsManager {
     pub fn new() -> Self {
-        Self {
-            system_tts: Mutex::new(None),
-            features: Mutex::new(None),
-        }
+        Self::default()
+    }
+
+    fn system_tts(&self) -> MutexGuard<'_, Option<Tts>> {
+        self.system_tts
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     pub fn initialize(&self) -> Result<()> {
@@ -29,15 +31,14 @@ impl TtsManager {
             features.rate, features.pitch, features.volume
         );
 
-        *self.system_tts.lock().unwrap() = Some(tts);
-        *self.features.lock().unwrap() = Some(features);
+        *self.system_tts() = Some(tts);
 
         info!("Native TTS engine initialized successfully");
         Ok(())
     }
 
     pub fn is_ready(&self) -> bool {
-        self.system_tts.lock().unwrap().is_some()
+        self.system_tts().is_some()
     }
 
     fn detect_language(&self, text: &str) -> Option<String> {
@@ -76,7 +77,7 @@ impl TtsManager {
             }
         }
 
-        let guard = self.system_tts.lock().unwrap();
+        let guard = self.system_tts();
         let tts = guard.as_ref()?;
         let voices = tts.voices().ok()?;
 
@@ -95,7 +96,7 @@ impl TtsManager {
 
         if let Some(detected_lang) = self.detect_language(text) {
             if let Some(voice) = self.find_voice_for_language(&detected_lang) {
-                let mut guard = self.system_tts.lock().unwrap();
+                let mut guard = self.system_tts();
                 let tts = guard.as_mut().context("TTS not initialized")?;
 
                 info!(
@@ -114,7 +115,7 @@ impl TtsManager {
         }
 
         debug!("Falling back to default voice");
-        let mut guard = self.system_tts.lock().unwrap();
+        let mut guard = self.system_tts();
         let tts = guard.as_mut().context("TTS not initialized")?;
         tts.speak(text, false).context("Failed to speak text")?;
         Ok(())

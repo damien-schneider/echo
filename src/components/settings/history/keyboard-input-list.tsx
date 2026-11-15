@@ -3,8 +3,12 @@ import { KeyboardIcon, TrashIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useEffectEvent, useState } from "react";
+import {
+  type InputEntry,
+  KeyboardInputEntry,
+} from "@/components/settings/history/keyboard-input-entry";
 import { useSecondClickConfirmation } from "@/hooks/use-second-click-confirmation";
-import { type InputEntry, KeyboardInputEntry } from "./keyboard-input-entry";
+
 export const KeyboardInputList = () => {
   const [entries, setEntries] = useState<InputEntry[]>([]);
   const [loading, setLoading] = useState(true);

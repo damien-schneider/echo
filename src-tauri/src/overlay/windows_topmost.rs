@@ -68,7 +68,8 @@ unsafe extern "system" fn on_foreground_change(
 
 pub(super) fn raise_to_top(window: &WebviewWindow) {
     if let Ok(hwnd) = window.hwnd() {
-        raise(hwnd);
+        // Tauri's HWND comes from its own `windows` crate version, not ours
+        raise(HWND(hwnd.0));
     }
 }
 

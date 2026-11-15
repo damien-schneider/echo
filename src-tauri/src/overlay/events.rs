@@ -255,7 +255,6 @@ pub(crate) fn show_preparing_overlay(app_handle: &AppHandle) {
     }
 }
 
-/// Microphone is capturing at last — the island stops preparing and starts listening.
 /// Rides the main thread so it always lands after the preparing show it replaces.
 pub(crate) fn mark_recording_live(app_handle: &AppHandle) {
     let app_handle = app_handle.clone();

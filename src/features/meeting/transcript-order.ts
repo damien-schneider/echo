@@ -6,8 +6,7 @@ import type {
 
 const SOURCES: StreamingSource[] = ["mic", "system"];
 
-// Each source keeps its live text until its own batch rows start: the mic stream is transcribed
-// while the system stream is still being diarized.
+// a source keeps live text until its own batch rows start — mic transcribes while system still diarizes
 export function visibleTranscript(
   streamingFinals: MeetingSegment[],
   batchSegments: MeetingSegment[],

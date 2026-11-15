@@ -12,7 +12,7 @@ use anyhow::Result;
 use log::{debug, error, info, warn};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 use std::thread;
 use std::time::Duration;
 use transcribe_cpp::CancelToken;
@@ -134,9 +134,7 @@ impl StreamingTranscriber {
     }
 
     fn lock_state(&self) -> std::sync::MutexGuard<'_, StreamingLanguageState> {
-        self.state
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     pub fn language_is_pinned(&self) -> bool {
@@ -278,7 +276,7 @@ impl TranscriptionManager {
         );
     }
 
-    /// Idempotent. Streaming engine is never idle-evicted — caller owns unload on shutdown.
+    /// Idempotent.
     pub fn load_streaming_model(&self, model_id: &str) -> Result<()> {
         self.load_model(model_id)
     }
@@ -297,10 +295,7 @@ impl TranscriptionManager {
         let settings = get_settings(&self.app_handle);
         let model_id = transcription_profile_id(settings.transcription_model_size);
         if !self.is_streaming_loaded_with_id(model_id) {
-            if let Err(e) = self.load_model(model_id) {
-                warn!("prewarm: main model load failed: {}", e);
-                return Ok(());
-            }
+            self.load_model(model_id)?;
         }
         Ok(())
     }
@@ -320,14 +315,17 @@ impl TranscriptionManager {
                 Ok(())
             }
             Err(e) => {
-                warn!("Warmup decode failed (non-fatal): {}", e);
+                warn!("Warmup decode failed (non-fatal): {e:#}");
                 Ok(())
             }
         }
     }
 
     pub fn initiate_model_load(&self) {
-        let mut is_loading = self.is_loading.lock().unwrap();
+        let mut is_loading = self
+            .is_loading
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         if *is_loading || self.is_model_loaded() {
             return;
         }
@@ -340,7 +338,10 @@ impl TranscriptionManager {
             if let Err(e) = self_clone.load_model(model_id) {
                 error!("Failed to load model: {}", e);
             }
-            let mut is_loading = self_clone.is_loading.lock().unwrap();
+            let mut is_loading = self_clone
+                .is_loading
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             *is_loading = false;
             self_clone.loading_condvar.notify_all();
         });
@@ -416,9 +417,15 @@ impl TranscriptionManager {
         }
 
         {
-            let mut is_loading = self.is_loading.lock().unwrap();
+            let mut is_loading = self
+                .is_loading
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
             while *is_loading {
-                is_loading = self.loading_condvar.wait(is_loading).unwrap();
+                is_loading = self
+                    .loading_condvar
+                    .wait(is_loading)
+                    .unwrap_or_else(PoisonError::into_inner);
             }
 
             if !self.engine.is_loaded() {

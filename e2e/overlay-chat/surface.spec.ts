@@ -144,9 +144,18 @@ test("chat exposes missing Accessibility access beside the preview", async ({
   await expect
     .poll(() => invokedCommands(page))
     .toContain("plugin:macos-permissions|request_accessibility_permission");
-  await expect
-    .poll(() => invokedCommands(page))
-    .toContain("refresh_overlay_chat_context");
+
+  await emitTauriEvent(page, "overlay-chat-context", {
+    context: {
+      source: "selection",
+      text: "Granted selection",
+      truncated: false,
+    },
+    generation: 2,
+    state: "ready",
+  });
+  await expect(reference).toContainText("Granted selection");
+  await expect(reference).not.toContainText("Accessibility access needed");
 });
 
 const requiredBox = async (locator: Locator, label: string) => {

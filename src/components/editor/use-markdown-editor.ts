@@ -30,8 +30,11 @@ import type { SlateEditor, Value } from "platejs";
 import { usePlateEditor } from "platejs/react";
 import { useEffect, useRef, useState } from "react";
 import remarkGfm from "remark-gfm";
+import {
+  MentionElement,
+  MentionInputElement,
+} from "@/components/editor/mention-node";
 import { replaceMentionOutputInMarkdown } from "@/lib/utils/replace-mention-output";
-import { MentionElement, MentionInputElement } from "./mention-node";
 
 const MENTION_TRIGGER_PATTERN = /^$|^[\s"']$/;
 const OUTPUT_MENTION_MARKDOWN = "[output](mention:output)";

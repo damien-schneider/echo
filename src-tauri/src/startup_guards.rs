@@ -1,7 +1,6 @@
 use std::panic;
 
-/// A panic on the main thread aborts before anything reaches the log file, which leaves a crash
-/// loop with nothing to read but a system report.
+/// A main-thread panic aborts before anything reaches the log file.
 pub(crate) fn log_panics() {
     let default_hook = panic::take_hook();
     panic::set_hook(Box::new(move |info| {
@@ -15,10 +14,7 @@ fn dev_data_is_isolated(identifier: &str) -> bool {
     identifier.ends_with("-dev")
 }
 
-/// A debug build carrying the production identifier writes into the installed app's data
-/// directory, and a migration applied there is one the installed app cannot undo. Exits instead
-/// of panicking: this runs inside `did_finish_launching`, where a panic aborts with a backtrace
-/// wall that buries the one line that matters.
+/// Production identifier would migrate the installed app's data; exits since a panic here buries the message.
 #[cfg(debug_assertions)]
 pub(crate) fn exit_unless_dev_data_is_isolated(identifier: &str) {
     if dev_data_is_isolated(identifier) {
@@ -44,8 +40,7 @@ mod tests {
     }
 }
 
-/// A manager that cannot start leaves Echo with no window and no tray: without this the user sees
-/// a dock icon blink and nothing else, and the reason lives only in a system crash report.
+/// Without a window or tray the user would only see a dock icon blink.
 pub(crate) fn report_unstartable(error: &anyhow::Error) -> ! {
     log::error!("Echo cannot start: {error:#}");
     rfd::MessageDialog::new()

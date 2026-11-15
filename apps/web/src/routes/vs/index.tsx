@@ -4,6 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
 import EchoFooter from "@/components/landing/footer";
+import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/vs/")({
   component: VsIndexPage,
   head: () => ({
@@ -229,7 +230,11 @@ function ComparisonGroups() {
           <div className="mb-6">
             <div className="mb-2 flex items-center gap-3">
               <span
-                className={`rounded-full border px-2.5 py-0.5 font-body font-medium text-xs ${CATEGORY_CLASSES[group.category] ?? "border-border bg-muted text-muted-foreground"}`}
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 font-body font-medium text-xs",
+                  CATEGORY_CLASSES[group.category] ??
+                    "border-border bg-muted text-muted-foreground"
+                )}
               >
                 {group.label}
               </span>

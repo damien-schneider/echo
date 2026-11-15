@@ -8,12 +8,7 @@ import { toast } from "sonner";
 import { SettingRow } from "@/features/settings/setting-row";
 import { ShortcutBindingRow } from "@/features/shortcuts/shortcut-binding-row";
 import { orderedShortcutBindings } from "@/features/shortcuts/shortcut-rows";
-import {
-  formatKeyCombination,
-  getKeyName,
-  normalizeKey,
-  type OSType,
-} from "@/lib/utils/keyboard";
+import { getKeyName, normalizeKey, type OSType } from "@/lib/utils/keyboard";
 import {
   useSetting,
   useSettingsActions,
@@ -244,7 +239,7 @@ export const EchoShortcut: React.FC = () => {
     if (recordedKeys.length === 0) {
       return "Press keys...";
     }
-    return formatKeyCombination(recordedKeys.join("+"), osType);
+    return recordedKeys.join("+");
   };
   const setShortcutRef = (id: string, ref: HTMLDivElement | null) => {
     shortcutRefs.current.set(id, ref);
@@ -293,7 +288,6 @@ export const EchoShortcut: React.FC = () => {
       key={binding.id}
       onEdit={startRecording}
       onReset={resetBinding}
-      osType={osType}
       setRef={setShortcutRef}
       showWaylandWarning={isWayland && getWaylandWarning(binding.id)}
     />

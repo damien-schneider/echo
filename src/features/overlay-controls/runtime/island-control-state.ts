@@ -1,5 +1,5 @@
 /// Only whether the action row is out — chat and the model panel are notification state.
-export interface IslandControlState {
+interface IslandControlState {
   isControlsOpen: boolean;
 }
 
@@ -9,12 +9,8 @@ export type IslandControlMotionState = IslandControlState & {
   motionPhase: IslandControlMotionPhase;
 };
 
-export const initialIslandControlState: IslandControlState = {
-  isControlsOpen: false,
-};
-
 export const initialIslandControlMotionState: IslandControlMotionState = {
-  ...initialIslandControlState,
+  isControlsOpen: false,
   motionPhase: "compact",
 };
 

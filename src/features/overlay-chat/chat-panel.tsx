@@ -18,6 +18,7 @@ import type {
   ChatTextContext,
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import { polishModelName } from "@/features/polish/polish-model-state";
+import { cn } from "@/lib/utils";
 import "@/features/overlay-chat/chat-panel.css";
 
 interface ChatPanelProps {
@@ -62,7 +63,10 @@ const ChatPanelShell = ({
 }: ChatPanelShellProps) => (
   <IslandHud
     bodyClassName="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
-    className={`echo-island-chat min-h-0 min-w-0 max-w-full p-3 ${panelHeightClass}`}
+    className={cn(
+      "echo-island-chat min-h-0 min-w-0 max-w-full p-3",
+      panelHeightClass
+    )}
     hasFlanks={hasFlanks}
     layout="chat"
     leftFlank={<ChatModelLabel />}

@@ -1,8 +1,8 @@
 import { InputGroup } from "@ctrl-ui/react/ui/input-group";
 import { Plate, PlateContent } from "platejs/react";
-import { EditorToolbar } from "./toolbar";
-import { useMarkdownEditor } from "./use-markdown-editor";
-import "./editor.css";
+import { EditorToolbar } from "@/components/editor/toolbar";
+import { useMarkdownEditor } from "@/components/editor/use-markdown-editor";
+import "@/components/editor/editor.css";
 
 interface MarkdownEditorProps {
   labelledBy: string;

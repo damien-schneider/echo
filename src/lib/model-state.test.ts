@@ -4,7 +4,7 @@ import {
   type ModelState,
   type ModelStateEvent,
   nextModelState,
-} from "./model-state";
+} from "@/lib/model-state";
 
 describe("initialModelState", () => {
   it("starts as Unloaded", () => {
@@ -71,9 +71,8 @@ describe("nextModelState", () => {
 
   it("ignores unknown event types", () => {
     // Forward-compat: unknown future Rust events must not wedge FSM.
-    const evt = {
-      event_type: "warming_started",
-    } as unknown as ModelStateEvent;
+    const evt: ModelStateEvent = { event_type: "unloaded" };
+    Reflect.set(evt, "event_type", "warming_started");
     expect(nextModelState("Loading", evt)).toBe<ModelState>("Loading");
   });
 });

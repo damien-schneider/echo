@@ -41,11 +41,6 @@
     app-region: drag !important;
   }
 
-  [data-tauri-drag-region-with-children] {
-    -webkit-app-region: drag !important;
-    app-region: drag !important;
-  }
-
   [data-tauri-drag-region] * {
     -webkit-app-region: no-drag;
     app-region: no-drag;

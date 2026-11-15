@@ -1,6 +1,6 @@
 import { describe, expect, it, spyOn } from "bun:test";
 import type { UnlistenFn } from "@tauri-apps/api/event";
-import { listenCancellable } from "./tauri-listener";
+import { listenCancellable } from "@/lib/tauri-listener";
 
 const flushMicrotasks = () =>
   new Promise<void>((resolve) => setTimeout(resolve, 0));

@@ -4,7 +4,7 @@ import {
   hoverPaint,
 } from "@/features/overlay-controls/runtime/native-hover";
 
-const element = (name: string) => ({ name }) as unknown as Element;
+const element = (name: string) => ({ name });
 
 describe("native hover", () => {
   test("a pointer outside the panel hovers nothing", () => {

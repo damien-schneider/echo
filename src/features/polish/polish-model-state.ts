@@ -41,8 +41,6 @@ export const parsePolishDownloadProgress = (payload: unknown) => {
   return parsed.data.percentage;
 };
 
-export const parsePolishVerificationProgress = parsePolishDownloadProgress;
-
 export const polishModelFailure = (operation: "download" | "setup") =>
   failureStatuses[operation];
 
@@ -168,11 +166,11 @@ interface HandleDownloadProgressOptions {
 const reportsProgress = (state: PolishStatus["state"] | undefined) =>
   state === "downloading" || state === "verifying";
 
+const isPastProgress = (state: PolishStatus["state"] | undefined) =>
+  state === "loading" || state === "ready" || state === "repair";
+
 const blocksEarlierProgress = (state: PolishStatus["state"] | undefined) =>
-  state === "verifying" ||
-  state === "loading" ||
-  state === "ready" ||
-  state === "repair";
+  state === "verifying" || isPastProgress(state);
 
 export const handlePolishDownloadProgress = ({
   payload,
@@ -198,13 +196,10 @@ export const handlePolishVerificationProgress = ({
   setProgress,
   statusSynchronizer,
 }: HandleDownloadProgressOptions) => {
-  const progress = parsePolishVerificationProgress(payload);
-  const state = statusSynchronizer.currentState();
+  const progress = parsePolishDownloadProgress(payload);
   if (
     progress === undefined ||
-    state === "loading" ||
-    state === "ready" ||
-    state === "repair"
+    isPastProgress(statusSynchronizer.currentState())
   ) {
     return;
   }

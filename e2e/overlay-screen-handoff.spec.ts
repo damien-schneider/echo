@@ -51,6 +51,9 @@ test("fades the island out before the window changes screens", async ({
   await emitTauriEvent(page, HANDOFF_EVENT, null);
   await expect(root).toHaveAttribute("data-handoff", "leaving");
   const fading = await commandsWhileFading(page);
+  if (!fading) {
+    throw new Error("Island never faded");
+  }
   expect(fading.commands).not.toContain(MOVE_COMMAND);
 
   await expect

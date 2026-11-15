@@ -1,9 +1,9 @@
 import type { OverlayMode } from "@/features/overlay-controls/recording-overlay-state";
 
-export type NativeOverlayTransitionPhase = "idle" | "morphing" | "preparing";
+type NativeOverlayTransitionPhase = "idle" | "morphing" | "preparing";
 
 /// Per-window mode alphabet — a staged mode never widens to the other window's surfaces.
-export interface StagedNativeOverlayTransition<Mode extends OverlayMode> {
+interface StagedNativeOverlayTransition<Mode extends OverlayMode> {
   generation: number;
   mode: Mode;
 }

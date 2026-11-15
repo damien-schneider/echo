@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import EchoFooter from "@/components/landing/footer";
 import { blogPosts } from "@/data/blog-posts";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/blog/")({
   component: BlogIndexPage,
@@ -102,7 +103,10 @@ function BlogIndexPage() {
                   {/* Category + reading time */}
                   <div className="mb-4 flex items-center justify-between">
                     <span
-                      className={`rounded-full border px-2.5 py-0.5 font-body font-medium text-xs ${getCategoryClasses(post.category)}`}
+                      className={cn(
+                        "rounded-full border px-2.5 py-0.5 font-body font-medium text-xs",
+                        getCategoryClasses(post.category)
+                      )}
                     >
                       {post.category}
                     </span>

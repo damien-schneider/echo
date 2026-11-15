@@ -17,7 +17,6 @@ const viewportSurface = () =>
     width: window.innerWidth,
   });
 
-/// Activity, transcript, microphone level and model downloads all arrive here.
 export const useOverlayEvents = (
   microphoneRef: RefObject<HTMLSpanElement | null>
 ) => {

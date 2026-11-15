@@ -37,7 +37,6 @@ const onStatusChanged = async (status: MeetingStatus) => {
     return;
   }
   const finishedMeetingId = store.getState().currentMeetingId;
-  // Reset live state for clean next start_meeting.
   useMeetingStore.setState(idleState());
   if (status === "error") {
     toast.error(
@@ -151,7 +150,6 @@ export function useMeetingListener() {
       listen<StreamingInterim>("meeting-streaming-interim", (e) =>
         store.getState().applyStreamingInterim(e.payload)
       ),
-      // LA-2 commit during recording.
       listen<StreamingFinal>("meeting-streaming-final", (e) =>
         store.getState().applyStreamingFinal(e.payload)
       ),
@@ -173,7 +171,7 @@ export function useMeetingListener() {
       ),
     ]).then((fns) => {
       unlisten = fns;
-      // Unmounting mid-registration used to leave every listener resolved after it behind.
+      // Unmounted mid-registration: drop listeners that resolved after teardown.
       if (cancelled) {
         release();
         return;

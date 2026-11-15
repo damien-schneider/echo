@@ -1,11 +1,4 @@
-//! End-to-end coverage of the dictation streaming lifecycle.
-//!
-//! Drives `DictationStreamingWorker` with an injectable `DictationDecoder` so
-//! we can deterministically reproduce the production stop-flow timing without
-//! a real model file or AppHandle. Every test asserts a wall-clock upper bound
-//! — these tests must catch any regression that re-introduces the 30 s timeout
-//! observed in production (worker leak, in-flight decode that doesn't bail on
-//! shutdown, stop join blocking on decoder lock contention, etc.).
+//! Dictation stop-flow timing; each test bounds wall-clock to catch the 30 s stop regression.
 
 use echo_app_lib::audio_toolkit::CapturedAudioFrame;
 use echo_app_lib::managers::dictation_streaming::{
@@ -71,36 +64,20 @@ impl ProgressSink for CaptureSink {
 fn spawn(
     decoder: Arc<dyn DictationDecoder>,
     sink: Arc<dyn ProgressSink>,
-    cleanup_flag: Arc<AtomicBool>,
 ) -> (
     Arc<DictationStreamingWorker>,
     echo_app_lib::managers::dictation_streaming::DictationStreamingHandle,
 ) {
-    let cleanup_for_closure = cleanup_flag.clone();
-    let on_cleanup: Box<dyn FnOnce() + Send> = Box::new(move || {
-        cleanup_for_closure.store(true, Ordering::SeqCst);
-    });
-    DictationStreamingWorker::spawn_with_decoder(
-        decoder,
-        sink,
-        on_cleanup,
-        StreamingConfig::default(),
-    )
-    .expect("spawn worker")
+    DictationStreamingWorker::spawn_with_decoder(decoder, sink, StreamingConfig::default())
+        .expect("spawn worker")
 }
 
-/// Production regression: stop must NOT block for >1s even with an in-flight
-/// 500ms decode. Reproduces the "release shortcut → 30 s TimedOut" path.
+/// Stop must not block >1s behind an in-flight 500ms decode.
 #[test]
 fn stop_completes_within_one_second_with_in_flight_slow_decode() {
     let decoder = ScriptedDecoder::with_latency(Duration::from_millis(500));
     let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let cleanup_flag = Arc::new(AtomicBool::new(false));
-    let (worker, handle) = spawn(
-        decoder.clone() as Arc<dyn DictationDecoder>,
-        sink,
-        cleanup_flag.clone(),
-    );
+    let (worker, handle) = spawn(decoder.clone() as Arc<dyn DictationDecoder>, sink);
 
     // 1s of speech amplitude — ensures the pipeline routes to decode.
     worker.push_frame(speech(vec![0.1; 16_000]));
@@ -115,10 +92,6 @@ fn stop_completes_within_one_second_with_in_flight_slow_decode() {
         elapsed < Duration::from_secs(1),
         "handle.stop() blocked for {elapsed:?} — production timeout regression"
     );
-    assert!(
-        cleanup_flag.load(Ordering::SeqCst),
-        "on_cleanup never ran — release_keepalive / unload would leak"
-    );
 }
 
 /// Many queued chunks: stop must bail mid-batch, not drain the queue.
@@ -126,12 +99,7 @@ fn stop_completes_within_one_second_with_in_flight_slow_decode() {
 fn stop_bails_with_many_queued_chunks() {
     let decoder = ScriptedDecoder::with_latency(Duration::from_millis(200));
     let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let cleanup_flag = Arc::new(AtomicBool::new(false));
-    let (worker, handle) = spawn(
-        decoder.clone() as Arc<dyn DictationDecoder>,
-        sink,
-        cleanup_flag.clone(),
-    );
+    let (worker, handle) = spawn(decoder.clone() as Arc<dyn DictationDecoder>, sink);
 
     // Queue 20 chunks (~4s of decode work) before stopping.
     for _ in 0..20 {
@@ -152,20 +120,14 @@ fn stop_bails_with_many_queued_chunks() {
         "expected bail before full drain — got {} decodes",
         decoder.count()
     );
-    assert!(cleanup_flag.load(Ordering::SeqCst));
 }
 
-/// Drop without explicit stop: Drop impl must still run cleanup + join worker.
+/// Drop without explicit stop must still stop the worker promptly.
 #[test]
-fn dropping_handle_without_stop_runs_cleanup_promptly() {
+fn dropping_handle_without_stop_stops_promptly() {
     let decoder = ScriptedDecoder::with_latency(Duration::from_millis(100));
     let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let cleanup_flag = Arc::new(AtomicBool::new(false));
-    let (_worker, handle) = spawn(
-        decoder as Arc<dyn DictationDecoder>,
-        sink,
-        cleanup_flag.clone(),
-    );
+    let (_worker, handle) = spawn(decoder as Arc<dyn DictationDecoder>, sink);
 
     let drop_start = Instant::now();
     drop(handle);
@@ -175,23 +137,15 @@ fn dropping_handle_without_stop_runs_cleanup_promptly() {
         elapsed < Duration::from_secs(1),
         "Drop blocked for {elapsed:?} — worker leaked"
     );
-    assert!(cleanup_flag.load(Ordering::SeqCst));
 }
 
-/// Rapid stop-then-spawn cycle: simulates user mashing the shortcut.
-/// Production bug: the second start could find a half-cleaned-up handle and
-/// stall the next stop.
+/// Shortcut mashing: a half-stopped previous handle must not stall the next stop.
 #[test]
 fn rapid_stop_then_respawn_never_deadlocks() {
     for iteration in 0..5 {
         let decoder = ScriptedDecoder::with_latency(Duration::from_millis(50));
         let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-        let cleanup_flag = Arc::new(AtomicBool::new(false));
-        let (worker, handle) = spawn(
-            decoder as Arc<dyn DictationDecoder>,
-            sink,
-            cleanup_flag.clone(),
-        );
+        let (worker, handle) = spawn(decoder as Arc<dyn DictationDecoder>, sink);
         worker.push_frame(speech(vec![0.1; 8_000]));
         thread::sleep(Duration::from_millis(20));
         let stop_start = Instant::now();
@@ -201,28 +155,20 @@ fn rapid_stop_then_respawn_never_deadlocks() {
             "iteration {iteration}: stop took {:?}",
             stop_start.elapsed()
         );
-        assert!(cleanup_flag.load(Ordering::SeqCst), "iteration {iteration}");
     }
 }
 
-/// Stop while decoder is blocked on a held mutex (simulates engine.lock taken
-/// by a concurrent main-engine call). Verifies the in-flight decode releases
-/// promptly once we let it through.
+/// Decode blocked on a held mutex (engine.lock contention) must release once the gate opens.
 #[test]
 fn stop_does_not_block_on_decoder_contention_after_gate_releases() {
     let decoder = ScriptedDecoder::with_latency(Duration::from_millis(50));
     let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let cleanup_flag = Arc::new(AtomicBool::new(false));
 
     // External hold on the gate — simulates a concurrent transcribe holding
     // engine.lock(). We release it after starting stop.
     let gate_holder = decoder.block_gate.lock().unwrap();
 
-    let (worker, handle) = spawn(
-        decoder.clone() as Arc<dyn DictationDecoder>,
-        sink,
-        cleanup_flag.clone(),
-    );
+    let (worker, handle) = spawn(decoder.clone() as Arc<dyn DictationDecoder>, sink);
     // >= min_window_samples (16k) so the pipeline actually routes to decode and hits the gate;
     // a sub-window push never decodes, leaving the contention path untested.
     worker.push_frame(speech(vec![0.1; 16_000]));
@@ -248,25 +194,18 @@ fn stop_does_not_block_on_decoder_contention_after_gate_releases() {
         "stop blocked for {elapsed:?} after contention released"
     );
     assert!(stop_done.load(Ordering::SeqCst));
-    assert!(cleanup_flag.load(Ordering::SeqCst));
     assert!(
         decoder.count() >= 1,
         "decode never ran — gate contention was never exercised, so the test proves nothing"
     );
 }
 
-/// Push_audio after stop must be a no-op (production: forwarder thread races
-/// with stop).
+/// Forwarder thread races stop: push after stop must be a no-op.
 #[test]
 fn push_after_stop_is_safe_noop() {
     let decoder = ScriptedDecoder::with_latency(Duration::from_millis(10));
     let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let cleanup_flag = Arc::new(AtomicBool::new(false));
-    let (worker, handle) = spawn(
-        decoder.clone() as Arc<dyn DictationDecoder>,
-        sink,
-        cleanup_flag,
-    );
+    let (worker, handle) = spawn(decoder.clone() as Arc<dyn DictationDecoder>, sink);
     handle.stop();
     // These must not panic, deadlock, or revive the worker.
     for _ in 0..10 {
@@ -280,12 +219,7 @@ fn push_after_stop_is_safe_noop() {
     assert_eq!(n1, n2, "decoder kept running after stop ({n1} -> {n2})");
 }
 
-/// Regression: when streaming model fails to load, the per-chunk decoder
-/// must NOT silently fall back to the main engine — that path contends
-/// engine.lock with the post-stop final transcribe, which in production
-/// produces a 30 s TimedOut on release. We model the contract here: a
-/// `StreamingUnavailable` decoder returns empty without touching shared
-/// state.
+/// Missing streaming model yields empty previews; never borrows the main engine.
 #[test]
 fn streaming_unavailable_decoder_returns_empty_without_contention() {
     struct StreamingUnavailable {
@@ -305,12 +239,7 @@ fn streaming_unavailable_decoder_returns_empty_without_contention() {
         calls: AtomicUsize::new(0),
     });
     let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let cleanup_flag = Arc::new(AtomicBool::new(false));
-    let (worker, handle) = spawn(
-        decoder.clone() as Arc<dyn DictationDecoder>,
-        sink,
-        cleanup_flag.clone(),
-    );
+    let (worker, handle) = spawn(decoder.clone() as Arc<dyn DictationDecoder>, sink);
 
     for _ in 0..8 {
         worker.push_frame(speech(vec![0.1; 8_000]));
@@ -328,10 +257,9 @@ fn streaming_unavailable_decoder_returns_empty_without_contention() {
         decoder.calls.load(Ordering::SeqCst) >= 1,
         "expected at least one call to the decoder"
     );
-    assert!(cleanup_flag.load(Ordering::SeqCst));
 }
 
-/// Decoder error must be tolerated; worker keeps going (production behavior).
+/// Decode errors are tolerated; the worker keeps going.
 #[test]
 fn decoder_errors_do_not_kill_worker() {
     struct ErroringDecoder {
@@ -347,12 +275,7 @@ fn decoder_errors_do_not_kill_worker() {
         count: AtomicUsize::new(0),
     });
     let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let cleanup_flag = Arc::new(AtomicBool::new(false));
-    let (worker, handle) = spawn(
-        decoder.clone() as Arc<dyn DictationDecoder>,
-        sink,
-        cleanup_flag.clone(),
-    );
+    let (worker, handle) = spawn(decoder.clone() as Arc<dyn DictationDecoder>, sink);
 
     for _ in 0..5 {
         worker.push_frame(speech(vec![0.1; 8_000]));
@@ -362,7 +285,6 @@ fn decoder_errors_do_not_kill_worker() {
     handle.stop();
     assert!(stop_start.elapsed() < Duration::from_secs(1));
     assert!(decoder.count.load(Ordering::SeqCst) >= 1);
-    assert!(cleanup_flag.load(Ordering::SeqCst));
 }
 
 /// Releasing the shortcut must not wait for a preview decode nobody will read.
@@ -390,7 +312,7 @@ fn stop_cancels_the_decode_in_flight_instead_of_waiting_for_it() {
         cancelled: AtomicBool::new(false),
     });
     let sink: Arc<dyn ProgressSink> = Arc::new(CaptureSink::default());
-    let (worker, handle) = spawn(decoder, sink, Arc::new(AtomicBool::new(false)));
+    let (worker, handle) = spawn(decoder, sink);
     worker.push_frame(speech(vec![0.1; 16_000]));
     thread::sleep(Duration::from_millis(100));
 

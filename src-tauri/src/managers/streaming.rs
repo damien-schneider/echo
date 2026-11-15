@@ -1,7 +1,5 @@
 //! LocalAgreement-2 rolling-window pipeline (Macháček 2023, arXiv 2307.14743). Model injected as closure.
 
-use std::time::Duration;
-
 use crate::audio_toolkit::constants::SAMPLE_RATE;
 
 /// Punctuation stays attached so commit comparisons survive Whisper comma drift.
@@ -241,11 +239,6 @@ impl StreamingPipeline {
         self.committer.reset();
         self.segment_start_ms = Self::samples_to_ms(self.total_samples);
         event
-    }
-
-    #[allow(dead_code)]
-    pub fn buffer_duration(&self) -> Duration {
-        Duration::from_millis(self.buffer_duration_ms())
     }
 }
 

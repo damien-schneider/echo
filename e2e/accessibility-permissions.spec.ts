@@ -44,6 +44,13 @@ const waitForPendingAccessibilityChecks = (page: Page, count: number) =>
     count
   );
 
+// The microphone gate renders its own "Try again" card; target the Accessibility one.
+const expectRetryCard = async (page: Page, title: string) => {
+  const card = page.getByRole("alert").filter({ hasText: title });
+  await expect(card).toBeVisible();
+  await expect(card.getByRole("button", { name: "Try again" })).toBeVisible();
+};
+
 test("accepts a valid permission result on initial mount", async ({ page }) => {
   await page.goto("/?accessibility=granted");
 
@@ -148,10 +155,7 @@ test("ignores an older granted response after a newer denied response", async ({
 test("shows a retry state when checking access fails", async ({ page }) => {
   await page.goto(`/?reject=${encodeURIComponent(permissionCheckCommand)}`);
 
-  await expect(
-    page.getByText("Couldn’t check Accessibility access")
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expectRetryCard(page, "Couldn’t check Accessibility access");
 });
 
 test("shows an actionable error when access cannot be requested", async ({
@@ -164,10 +168,7 @@ test("shows an actionable error when access cannot be requested", async ({
     .getByRole("button", { name: "Request Accessibility Access" })
     .click();
 
-  await expect(
-    page.getByText("Couldn’t request Accessibility access")
-  ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  await expectRetryCard(page, "Couldn’t request Accessibility access");
 });
 
 test("rejects a malformed native permission response", async ({ page }) => {

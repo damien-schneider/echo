@@ -5,6 +5,19 @@ interface GitHubReleaseAsset {
   name: string;
 }
 
+function isReleaseAssetList(value: unknown): value is GitHubReleaseAsset[] {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (asset) =>
+        typeof asset === "object" &&
+        asset !== null &&
+        typeof asset.name === "string" &&
+        typeof asset.browser_download_url === "string"
+    )
+  );
+}
+
 interface GithubData {
   downloadLinks: {
     macSilicon: string;
@@ -43,11 +56,10 @@ export function useGithubData() {
     fetch("https://api.github.com/repos/damien-schneider/Echo/releases/latest")
       .then((res) => res.json())
       .then((releaseData) => {
-        const assets = releaseData.assets as GitHubReleaseAsset[];
-        if (!assets) {
+        const assets: unknown = releaseData.assets;
+        if (!isReleaseAssetList(assets)) {
           return;
         }
-
         const links = {
           linuxAppImage:
             assets.find((a) => a.name.endsWith(".AppImage"))

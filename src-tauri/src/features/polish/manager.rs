@@ -527,8 +527,7 @@ pub(crate) async fn repair_polish_model(
 mod selection_read_tests {
     use super::*;
 
-    /// Polish and the double-Shift capture read through this one answer, so a selection the
-    /// accessibility tree hands over must reach Polish exactly like a copied one.
+    /// An accessibility selection must reach Polish exactly like a copied one.
     #[test]
     fn accessibility_and_copy_reads_hand_back_the_same_text() {
         assert_eq!(

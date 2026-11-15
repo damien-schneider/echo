@@ -7,7 +7,6 @@ import {
 } from "@e2e/fixtures";
 import { expect } from "@playwright/test";
 
-// Side-dock and native-pointer behaviour lives in overlay-side-dock / overlay-native-pointer specs.
 const overlayUrl = "/src/overlay/index.html?overlayPlacement=bottom";
 const readyOverlayUrl = `${overlayUrl}&polish=ready`;
 

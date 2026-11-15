@@ -1,7 +1,6 @@
 use crate::actions::{check_model_readiness, ModelReadiness, ACTION_MAP};
 use crate::dictation::CHAT_BINDING_ID;
 use crate::managers::audio::AudioRecordingManager;
-use crate::managers::transcription::TranscriptionManager;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
@@ -84,18 +83,6 @@ fn run_after_focus_release(
 ) -> Result<(), String> {
     release_focus()?;
     run_action()
-}
-
-/// Warms models off-thread before likely dictation without blocking IPC.
-#[tauri::command]
-pub(crate) fn prewarm_models(app: AppHandle) -> Result<(), String> {
-    let tm = app.state::<Arc<TranscriptionManager>>().inner().clone();
-    std::thread::spawn(move || {
-        if let Err(e) = tm.prewarm() {
-            log::warn!("UI-triggered prewarm failed: {}", e);
-        }
-    });
-    Ok(())
 }
 
 #[cfg(test)]

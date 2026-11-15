@@ -12,14 +12,14 @@ import {
   useEffectEvent,
   useState,
 } from "react";
-import { rewriteTranscript, selectedPromptText } from "@/lib/llm/post-process";
-import { cn } from "@/lib/utils";
-import { useSettingsStore } from "@/stores/settings-store";
 import {
   type HistoryEntry,
   HistoryEntryComponent,
-} from "./history-entry-component";
-import { KeyboardInputList } from "./keyboard-input-list";
+} from "@/components/settings/history/history-entry-component";
+import { KeyboardInputList } from "@/components/settings/history/keyboard-input-list";
+import { rewriteTranscript, selectedPromptText } from "@/lib/llm/post-process";
+import { cn } from "@/lib/utils";
+import { useSettingsStore } from "@/stores/settings-store";
 
 type HistoryTab = "transcriptions" | "keyboard";
 export const HistorySettings = () => {

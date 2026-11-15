@@ -31,10 +31,7 @@ interface SummaryEngine {
   run: (prompt: string) => Promise<string>;
 }
 
-/**
- * Splits on segment boundaries so no utterance is cut in half. A single segment longer than the
- * budget is kept whole — losing a sentence is worse than one oversized call.
- */
+// Oversized single segment stays whole: losing a sentence is worse than one oversized call.
 export function splitTranscript(
   transcript: string,
   charBudget: number

@@ -105,8 +105,7 @@ fn revision_of(pasteboard: &NSPasteboard) -> Generation {
 mod tests {
     use super::{write_promised_to, NSPasteboard, NSPasteboardTypeString, NSString};
 
-    /// The whole design rests on this receipt: a read of the promised type must both deliver the
-    /// text and fire the consumption signal — and silence must stay silent until then.
+    /// The whole design rests on this receipt: a read must deliver the text and fire the signal.
     #[test]
     fn a_pasteboard_read_delivers_the_text_and_fires_the_receipt() {
         let name = NSString::from_str("echo.tests.transcript-promise");

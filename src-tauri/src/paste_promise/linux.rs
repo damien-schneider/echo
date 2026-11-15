@@ -19,13 +19,9 @@ use x11rb::COPY_FROM_PARENT;
 
 use super::{Fetcher, Generation, PromisedTranscript, Receipt};
 
-/// A selection is served in a single reply here; anything longer would need the INCR protocol, and
-/// a dictation that size belongs on the clipboard the plain way.
+/// Single-reply serving only; longer text would need the INCR protocol.
 const LONGEST_SERVABLE_TRANSCRIPT: usize = 100_000;
-/// Owning the selection is Echo's only claim to the clipboard; counting the claims lets a later
-/// look tell whether the transcript still sits where it was put. The claim itself goes out with
-/// `CURRENT_TIME`: a timestamp taken once at startup goes stale the moment anything else is copied,
-/// and the server then ignores the claim outright.
+/// Counts selection claims (sent with `CURRENT_TIME`, since a stale timestamp gets ignored) to tell if the transcript still sits there.
 static CLAIM: AtomicU64 = AtomicU64::new(0);
 /// No claim of ours owns the clipboard.
 const FOREIGN_CLIPBOARD: Generation = Generation(0);
@@ -266,8 +262,7 @@ fn answer(
     let _ = connection.flush();
 }
 
-/// The one branch that is a paste: text left the promise, so the receipt fires — named with the
-/// client that asked, which the X server hands over for free.
+/// The only branch that is a paste, so the receipt fires here with the requesting client.
 fn serve_transcript(
     connection: &RustConnection,
     window: Window,
@@ -320,8 +315,7 @@ fn fetcher_of(connection: &RustConnection, window: Window, requestor: Window) ->
     }
 }
 
-/// X namespaces resource ids per client, so two windows sharing the high bits belong to one
-/// application.
+/// X namespaces resource ids per client, so shared high bits mean one application.
 fn same_client(one: Window, other: Window, client_mask: u32) -> bool {
     (one & !client_mask) == (other & !client_mask)
 }

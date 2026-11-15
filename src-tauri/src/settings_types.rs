@@ -41,37 +41,15 @@ pub enum OverlayDockEdge {
     Bottom,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum TranscriptionModelSize {
     Small,
+    #[default]
     Medium,
     Large,
-}
-
-impl TranscriptionModelSize {
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Small => "small",
-            Self::Medium => "medium",
-            Self::Large => "large",
-        }
-    }
-
-    pub fn from_model_id(model_id: &str) -> Option<Self> {
-        match model_id {
-            "small" => Some(Self::Small),
-            "medium" => Some(Self::Medium),
-            "large" => Some(Self::Large),
-            _ => None,
-        }
-    }
-}
-
-impl Default for TranscriptionModelSize {
-    fn default() -> Self {
-        Self::Medium
-    }
 }
 
 pub fn transcription_model_size_from_legacy(model_id: &str) -> TranscriptionModelSize {
@@ -94,9 +72,10 @@ pub enum PasteMethod {
     ClipboardOnly,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ClipboardHandling {
+    #[default]
     DontModify,
     CopyToClipboard,
 }
@@ -146,12 +125,6 @@ impl Default for PasteMethod {
         }
         #[cfg(not(target_os = "linux"))]
         return PasteMethod::CtrlV;
-    }
-}
-
-impl Default for ClipboardHandling {
-    fn default() -> Self {
-        ClipboardHandling::DontModify
     }
 }
 

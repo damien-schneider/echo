@@ -39,12 +39,12 @@ pub fn save_entry_to_db(db_path: &PathBuf, entry: &InputEntry, app_handle: &AppH
                 // app_pid arrived in a later version
                 let has_app_pid: bool = conn
                     .prepare("PRAGMA table_info(input_entries)")
-                    .and_then(|mut stmt| {
+                    .map(|mut stmt| {
                         let columns: Vec<String> = stmt
                             .query_map([], |row| row.get::<_, String>(1))
                             .map(|iter| iter.filter_map(|r| r.ok()).collect())
                             .unwrap_or_default();
-                        Ok(columns.iter().any(|c| c == "app_pid"))
+                        columns.iter().any(|c| c == "app_pid")
                     })
                     .unwrap_or(false);
 

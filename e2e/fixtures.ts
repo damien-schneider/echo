@@ -12,15 +12,14 @@ interface EchoTestApi {
   deferNextOverlayModePreflights: (count: number) => void;
   emit: (event: string, payload: unknown) => void;
   failNextAccessibilityChecks: (count: number) => void;
-  holdChatContextRefresh: () => void;
+  holdChatReply: () => void;
   invocations: EchoInvocation[];
   listenerCount: (event: string) => number;
   pendingAccessibilityCheckCount: () => number;
   pendingOverlayModePreflightCount: () => number;
-  releaseChatContextRefresh: () => void;
+  releaseChatReply: () => void;
   resolveAccessibilityCheck: (index: number, granted: boolean) => void;
   resolveOverlayModePreflight: (index: number) => void;
-  resolveOverlaySurface: () => void;
   setAccessibilityPermission: (granted: boolean) => void;
   setOverlayAnchor: (anchor: string, presentation: string) => void;
   setOverlayNotch: (notch: OverlayNotchGeometry | null) => void;
@@ -33,20 +32,20 @@ export interface OverlayNotchGeometry {
   width: number;
 }
 
-export interface EchoTestState {
+interface EchoTestState {
   accessibilityCheckFailuresRemaining: number;
   accessibilityCheckResolvers: Array<(granted: boolean) => void>;
   accessibilityChecksToDefer: number;
   accessibilityPermission: unknown;
   buildOverlaySurface: (mode: string) => unknown;
   callbacks: Map<number, (payload: unknown) => void>;
-  chatContextRefreshResolvers: Array<() => void>;
   chatContextResponse: unknown;
   chatReply: string;
+  chatReplyResolvers: Array<() => void>;
   commands: string[];
   emitOverlaySurface: (mode: string) => void;
   eventListeners: Map<string, Map<number, (payload: unknown) => void>>;
-  holdsChatContextRefresh: boolean;
+  holdsChatReply: boolean;
   invocations: EchoInvocation[];
   invokeDefaults: Record<string, unknown>;
   nextCallbackId: number;
@@ -58,8 +57,6 @@ export interface EchoTestState {
   overlayModePreflightsToDefer: number;
   overlayNotch: OverlayNotchGeometry | null;
   overlayPresentation: string;
-  overlaySurfaceDeferred: boolean;
-  overlaySurfaceResolver: ((surface: unknown) => void) | null;
   polishStatus: string;
   registerEvent: (args: unknown) => number;
   respond: (command: string, args?: unknown) => unknown;
@@ -90,12 +87,10 @@ const setupEchoTestState = () => {
   }
   window.__ECHO_TEST_STATE__ = {
     accessibilityCheckFailuresRemaining: 0,
-    chatContextRefreshResolvers: [],
     chatReply:
       new URLSearchParams(window.location.search).get("chatReply") ??
       "Qwen3 4B reply",
     chatReplyResolvers: [],
-    holdsChatContextRefresh: false,
     holdsChatReply: false,
     accessibilityCheckResolvers: [],
     accessibilityChecksToDefer: 0,
@@ -157,10 +152,6 @@ const setupEchoTestState = () => {
     overlayModePreflightsToDefer: 0,
     overlayNotch: null,
     overlayPresentation: "docked",
-    overlaySurfaceDeferred: new URLSearchParams(window.location.search).has(
-      "deferPlacement"
-    ),
-    overlaySurfaceResolver: null,
     polishStatus:
       new URLSearchParams(window.location.search).get("polish") ??
       "not_downloaded",
@@ -278,19 +269,6 @@ const setupCommandResponder = () => {
         });
       },
     ],
-    [
-      "refresh_overlay_chat_context",
-      () => {
-        if (!state.holdsChatContextRefresh) {
-          return state.chatContextResponse;
-        }
-        return new Promise<unknown>((resolve) => {
-          state.chatContextRefreshResolvers.push(() =>
-            resolve(state.chatContextResponse)
-          );
-        });
-      },
-    ],
     ["get_overlay_chat_context", () => state.chatContextResponse],
     ["download_polish_model", () => new Promise(() => undefined)],
     ["repair_polish_model", () => new Promise(() => undefined)],
@@ -301,14 +279,7 @@ const setupCommandResponder = () => {
     ["plugin:event|unlisten", state.unregisterEvent],
     [
       "get_recording_overlay_surface",
-      () => {
-        if (state.overlaySurfaceDeferred) {
-          return new Promise<unknown>((resolve) => {
-            state.overlaySurfaceResolver = resolve;
-          });
-        }
-        return state.buildOverlaySurface(state.overlayMode);
-      },
+      () => state.buildOverlaySurface(state.overlayMode),
     ],
     ["set_recording_overlay_mode", prepareMode],
     ["settle_recording_overlay_mode", () => null],
@@ -367,6 +338,7 @@ const setupCommandResponder = () => {
       },
     ],
     ["warn_from_overlay", () => null],
+    ["get_shortcut_failures", () => []],
   ]);
   state.respond = (command, args) => {
     state.commands.push(command);
@@ -406,21 +378,12 @@ const setupEchoTestApi = () => {
     failNextAccessibilityChecks: (count) => {
       state.accessibilityCheckFailuresRemaining = count;
     },
-    holdChatContextRefresh: () => {
-      state.holdsChatContextRefresh = true;
-    },
     holdChatReply: () => {
       state.holdsChatReply = true;
     },
     releaseChatReply: () => {
       state.holdsChatReply = false;
       for (const resolve of state.chatReplyResolvers.splice(0)) {
-        resolve();
-      }
-    },
-    releaseChatContextRefresh: () => {
-      state.holdsChatContextRefresh = false;
-      for (const resolve of state.chatContextRefreshResolvers.splice(0)) {
         resolve();
       }
     },
@@ -436,13 +399,6 @@ const setupEchoTestApi = () => {
     resolveOverlayModePreflight: (index) => {
       const [resolve] = state.overlayModePreflightResolvers.splice(index, 1);
       resolve?.();
-    },
-    resolveOverlaySurface: () => {
-      state.overlaySurfaceDeferred = false;
-      state.overlaySurfaceResolver?.(
-        state.buildOverlaySurface(state.overlayMode)
-      );
-      state.overlaySurfaceResolver = null;
     },
     setOverlayAnchor: (anchor, presentation) => {
       state.overlayAnchor = anchor;
@@ -550,12 +506,6 @@ export const requestNotificationSurface = (
     surface,
   });
 
-export const holdChatContextRefresh = (page: Page) =>
-  page.evaluate(() => window.__ECHO_TEST__.holdChatContextRefresh());
-
-export const releaseChatContextRefresh = (page: Page) =>
-  page.evaluate(() => window.__ECHO_TEST__.releaseChatContextRefresh());
-
 export const holdChatReply = (page: Page) =>
   page.evaluate(() => window.__ECHO_TEST__.holdChatReply());
 
@@ -614,9 +564,6 @@ export const setOverlayNotch = (
     (nextNotch) => window.__ECHO_TEST__.setOverlayNotch(nextNotch),
     notch
   );
-
-export const resolveOverlaySurface = (page: Page) =>
-  page.evaluate(() => window.__ECHO_TEST__.resolveOverlaySurface());
 
 export const setAccessibilityPermission = (page: Page, granted: boolean) =>
   page.evaluate(

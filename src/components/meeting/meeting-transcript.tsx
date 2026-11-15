@@ -1,8 +1,8 @@
 import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
 import { useEffect, useRef } from "react";
+import { MeetingSegmentItem } from "@/components/meeting/meeting-segment";
 import type { MeetingSegment } from "@/lib/types";
 import type { InterimSegmentState } from "@/stores/meeting-store";
-import { MeetingSegmentItem } from "./meeting-segment";
 
 interface MeetingTranscriptProps {
   autoScroll?: boolean;

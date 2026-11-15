@@ -36,19 +36,6 @@ impl DictationAccumulator {
         self.maybe_emit()
     }
 
-    #[allow(dead_code)]
-    pub fn reset(&mut self) {
-        self.committed_finals.clear();
-        self.interim_committed.clear();
-        self.interim_tentative.clear();
-        self.last_emitted = None;
-    }
-
-    #[allow(dead_code)]
-    pub fn final_segment_count(&self) -> usize {
-        self.committed_finals.len()
-    }
-
     fn build_display(&self) -> String {
         let mut parts: Vec<&str> = Vec::with_capacity(self.committed_finals.len() + 2);
         for f in &self.committed_finals {

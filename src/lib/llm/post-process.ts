@@ -1,9 +1,9 @@
 import { generateText } from "ai";
+import { localLlmModel } from "@/lib/llm/local-model";
+import { VOICE_COMMAND_SYSTEM_PROMPT } from "@/lib/llm/post-process-prompt";
+import { runVoiceTool, type VoiceToolCall, voiceTools } from "@/lib/llm/tools";
 import type { Settings } from "@/lib/types";
 import { replaceMentionOutputInMarkdown } from "@/lib/utils/replace-mention-output";
-import { localLlmModel } from "./local-model";
-import { VOICE_COMMAND_SYSTEM_PROMPT } from "./post-process-prompt";
-import { runVoiceTool, type VoiceToolCall, voiceTools } from "./tools";
 
 const POST_PROCESS_RESULT_KINDS = {
   empty: "empty",

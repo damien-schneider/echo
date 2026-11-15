@@ -6,7 +6,7 @@ pub mod system_capture;
 mod utils;
 mod visualizer;
 
-pub use decoder::{decode_audio_file, AudioFormat};
+pub use decoder::decode_audio_file;
 pub(crate) use device::SelectedDeviceCache;
 pub use device::{list_input_devices, list_output_devices, CpalDeviceInfo};
 pub use recorder::{AudioRecorder, CapturedAudioFrame};

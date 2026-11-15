@@ -169,7 +169,7 @@ fn la2_does_not_commit_whisper_hallucinations() {
             PipelineEvent::Interim { committed_text, .. } => Some(committed_text.clone()),
             _ => None,
         })
-        .last()
+        .next_back()
         .unwrap_or_default();
     assert!(
         !last_committed.contains("Amara") && !last_committed.contains("Thank"),
@@ -369,7 +369,7 @@ fn parallel_pipelines_are_isolated() {
             PipelineEvent::Interim { committed_text, .. } => Some(committed_text.clone()),
             _ => None,
         })
-        .last()
+        .next_back()
         .unwrap_or_default();
     let sys_committed = sys_events
         .iter()
@@ -377,7 +377,7 @@ fn parallel_pipelines_are_isolated() {
             PipelineEvent::Interim { committed_text, .. } => Some(committed_text.clone()),
             _ => None,
         })
-        .last()
+        .next_back()
         .unwrap_or_default();
     if !mic_committed.is_empty() {
         assert!(!mic_committed.contains("bob"));

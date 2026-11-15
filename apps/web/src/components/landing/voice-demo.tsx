@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useInView } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import EchoLogo from "@/components/icons/echo-logo";
+import { cn } from "@/lib/utils";
 
 const SCENES = [
   {
@@ -174,7 +175,11 @@ function DesktopScene({ scene }: { scene: (typeof SCENES)[number] }) {
 
         {/* Content */}
         <div
-          className={`p-5 ${isCodeScene ? "font-mono" : ""} text-sm leading-relaxed`}
+          className={cn(
+            "p-5",
+            isCodeScene && "font-mono",
+            "text-sm leading-relaxed"
+          )}
           style={{ minHeight: 220 }}
         >
           {scene.lines.map((line, i) => {
@@ -252,12 +257,6 @@ function Cursor() {
   );
 }
 
-const notchCSS = `
-@keyframes scene-notch-pulse {
-  0%, 100% { height: 20%; opacity: 0.3; }
-  50% { height: 55%; opacity: 0.6; }
-}`;
-
 export default function VoiceDemo() {
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
@@ -265,9 +264,6 @@ export default function VoiceDemo() {
 
   return (
     <section className="bg-background py-24 md:py-36" ref={ref}>
-      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: local CSS keyframes */}
-      <style dangerouslySetInnerHTML={{ __html: notchCSS }} />
-
       <div className="container mx-auto px-4">
         <motion.div
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -297,11 +293,12 @@ export default function VoiceDemo() {
           <div className="inline-flex gap-1 rounded-full border border-border/60 bg-secondary/50 p-1">
             {SCENES.map((s, i) => (
               <button
-                className={`relative cursor-pointer rounded-full px-5 py-2 text-sm transition-colors duration-200 ${
+                className={cn(
+                  "relative cursor-pointer rounded-full px-5 py-2 text-sm transition-colors duration-200",
                   i === active
                     ? "text-foreground"
                     : "text-muted-foreground hover:text-foreground/70"
-                }`}
+                )}
                 key={s.id}
                 onClick={() => setActive(i)}
                 type="button"

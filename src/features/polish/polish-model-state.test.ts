@@ -316,7 +316,7 @@ describe("Polish model state", () => {
   });
 
   test("clears stale progress when a live status leaves downloading", () => {
-    const progress: Array<number | undefined> = [];
+    const progress: Array<PolishModelProgress | undefined> = [];
     const received: PolishStatus[] = [];
 
     acceptPolishModelStatus({

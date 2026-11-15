@@ -50,8 +50,7 @@ pub(crate) enum Landing {
     Held,
 }
 
-/// A caret dictation always pastes — predicting the caret proved unreliable, so the clipboard is
-/// the net instead. Only a chat transcript that lost its composer is held out to the user.
+/// Caret prediction proved unreliable, so only a chat transcript that lost its composer is held out.
 pub(crate) fn landing_for(destination: Destination, chat_is_open: bool) -> Landing {
     match destination {
         Destination::Chat if chat_is_open => Landing::ChatComposer,
@@ -113,27 +112,19 @@ pub(crate) fn hand_over_as_question() {
     }
 }
 
-/// The caret Echo was spoken into counts as much as the one at delivery: by then Echo's own surface
-/// may hold the focus, and an app that only builds its accessibility tree once asked answers on the
-/// second read. The two probes combine by the most they could establish.
+/// The delivery-time focus may be Echo's own surface, so the dictation-start probe counts too.
 fn combined_caret_sight() -> CaretSight {
     let spoken = sight_from_rank(SPOKEN_CARET_SIGHT.load(Ordering::Acquire));
     spoken.max(crate::caret::sight_focused_caret())
 }
 
-/// Frontmost surfaces a text Cmd+V cannot land in — yet Finder still reads the pasteboard on the
-/// keystroke, faking the paste receipt. With no text field affirmed either, pasting is pointless:
-/// the transcript goes straight to the held-out card instead. Elsewhere a paste nobody can take is
-/// simply a paste nobody fetches, which the receipt already reports.
+/// These read the pasteboard on Cmd+V without inserting text, faking the paste receipt.
 #[cfg(target_os = "macos")]
 const PASTE_DEAF_APPS: &[&str] = &["com.apple.finder", "com.apple.dock"];
 #[cfg(not(target_os = "macos"))]
 const PASTE_DEAF_APPS: &[&str] = &[];
 
-/// Blind to accessibility yet demonstrably paste-fluent: these render their own text and expose no
-/// caret, but their Cmd+V inserts every paste — so their pasteboard read is a real receipt. Any
-/// blind app not on this list gets the paste and the card both, since on macOS a read alone proves
-/// nothing. Windows and X11 hand out a text format instead, which vouches on its own.
+/// AX-blind but insert every paste, so their pasteboard read is a real receipt on macOS.
 #[cfg(target_os = "macos")]
 const PASTE_FLUENT_APPS: &[&str] = &[
     "com.apple.Terminal",
@@ -151,9 +142,7 @@ const PASTE_FLUENT_APPS: &[&str] = &[
 #[cfg(not(target_os = "macos"))]
 const PASTE_FLUENT_APPS: &[&str] = &[];
 
-/// What a fetch of the transcript is worth when nothing about the focus is known. macOS promises
-/// one untyped string and apps take it without pasting it; Windows and X11 negotiate a format, and
-/// only a text paste ever asks for text.
+/// macOS apps fetch the untyped promise without pasting it; elsewhere only a text paste asks for text.
 #[cfg(target_os = "macos")]
 const BLIND_FETCH: crate::clipboard::PasteConfidence = crate::clipboard::PasteConfidence::Unvouched;
 #[cfg(not(target_os = "macos"))]
@@ -185,8 +174,7 @@ fn frontmost_is_paste_deaf(
     frontmost.is_some_and(|app| PASTE_DEAF_APPS.contains(&app) || app == echo_identifier)
 }
 
-/// How the frontmost app names itself: its bundle id where there is one, its process name
-/// otherwise.
+/// Bundle id where there is one, process name otherwise.
 fn frontmost_identity() -> Option<String> {
     use crate::managers::app_context::{FocusedAppProvider, PlatformFocusedAppProvider};
     let app = PlatformFocusedAppProvider.current()?;
@@ -214,8 +202,7 @@ pub(crate) fn target(app_handle: &AppHandle) -> DictationTarget {
     }
 }
 
-/// Fires from the paste settlement task when no app took the paste, so the hop back to the main
-/// thread and the held-out card happen only on a confirmed miss.
+/// Only a confirmed miss hops back to the main thread to raise the held-out card.
 fn offer_when_unplaced(app_handle: &AppHandle) -> Box<dyn FnOnce(String) + Send + 'static> {
     let app_handle = app_handle.clone();
     Box::new(move |text| {
@@ -248,9 +235,7 @@ pub(crate) fn deliver(app_handle: &AppHandle, text: String) {
     }
 }
 
-/// The probe's verdict routes the delivery: an affirmed caret pastes silently; a focus that cannot
-/// take text still gets the paste (a free shot) but the card comes up at once, since such apps read
-/// the pasteboard on Cmd+V and fake the receipt; a blind probe pastes and lets the receipt decide.
+/// Text-deaf focus still gets the paste but the card shows at once, since such apps fake the receipt.
 fn deliver_to_caret(app_handle: &AppHandle, text: String) {
     let sight = combined_caret_sight();
     let frontmost = frontmost_identity();
@@ -334,8 +319,7 @@ mod tests {
 
         const ECHO: &str = "com.damien-schneider.echo";
 
-        /// The desktop reads the pasteboard on Cmd+V yet inserts nothing — the transcript must go
-        /// to the card, not into a fake-consumed paste.
+        /// The desktop reads the pasteboard on Cmd+V yet inserts nothing.
         #[test]
         fn the_desktop_takes_no_paste_when_no_text_field_is_affirmed() {
             assert!(frontmost_is_paste_deaf(
@@ -379,8 +363,7 @@ mod tests {
             }
         }
 
-        /// Terminals and Zed hide their caret from accessibility yet insert every paste — their
-        /// pasteboard read is a real receipt.
+        /// Terminals and Zed hide their caret from accessibility yet insert every paste.
         #[test]
         fn a_blind_probe_in_a_terminal_class_app_trusts_the_read() {
             for app in ["com.mitchellh.ghostty", "dev.zed.Zed", "com.apple.Terminal"] {
@@ -391,8 +374,7 @@ mod tests {
             }
         }
 
-        /// An unknown app can read the pasteboard on Cmd+V while inserting nothing — its read must
-        /// not silence the card.
+        /// An unknown app's pasteboard read must not silence the card.
         #[test]
         fn a_blind_probe_anywhere_else_stays_unvouched() {
             assert_eq!(
