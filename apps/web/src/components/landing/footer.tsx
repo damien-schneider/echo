@@ -24,7 +24,7 @@ interface FooterProps {
     label: string;
   }>;
 }
-export function Footer({
+function Footer({
   logo,
   brandName,
   showBrandName = true,

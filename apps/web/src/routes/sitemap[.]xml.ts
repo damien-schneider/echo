@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { json } from "@tanstack/react-start";
 
 const STATIC_ROUTES = [
   { changefreq: "weekly", path: "/", priority: "1.0" },
@@ -71,5 +70,3 @@ export const Route = createFileRoute("/sitemap.xml")({
     },
   },
 });
-
-export default json({});

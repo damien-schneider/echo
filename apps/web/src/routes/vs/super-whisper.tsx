@@ -4,6 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion, useInView } from "motion/react";
 import { useRef } from "react";
 import EchoFooter from "@/components/landing/footer";
+import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/vs/super-whisper")({
   component: SuperWhisperPage,
   head: () => ({
@@ -150,7 +151,10 @@ function ComparisonTable() {
           <tbody>
             {COMPARISON_ROWS.map((row, index) => (
               <tr
-                className={`border-border border-b last:border-0 ${index % 2 === 0 ? "bg-background" : "bg-card/40"}`}
+                className={cn(
+                  "border-border border-b last:border-0",
+                  index % 2 === 0 ? "bg-background" : "bg-card/40"
+                )}
                 key={row.feature}
               >
                 <td className="px-6 py-4 font-medium text-foreground">

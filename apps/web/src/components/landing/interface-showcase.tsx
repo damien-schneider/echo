@@ -14,6 +14,7 @@ import {
 import { motion, useInView, useScroll, useTransform } from "motion/react";
 import { useRef } from "react";
 import EchoLogo from "@/components/icons/echo-logo";
+import { cn } from "@/lib/utils";
 
 const sidebarItems = [
   { active: false, icon: Settings2, label: "App Settings" },
@@ -113,17 +114,6 @@ function FloatingNotch() {
   );
 }
 
-const notchCSS = `
-@keyframes iface-pulse {
-  0%, 100% { height: 20%; opacity: 0.3; }
-  50% { height: 55%; opacity: 0.6; }
-}
-@keyframes iface-sweep {
-  0% { translate: -100% 0; }
-  50% { translate: 100% 0; }
-  100% { translate: -100% 0; }
-}`;
-
 function FakeAppWindow() {
   return (
     <div className="overflow-hidden rounded-xl border border-border/60 bg-card shadow-2xl shadow-black/10 dark:shadow-black/40">
@@ -159,11 +149,12 @@ function FakeAppWindow() {
           <nav className="flex-1 space-y-0.5 px-2 pt-1">
             {sidebarItems.map((item) => (
               <div
-                className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs transition-colors ${
+                className={cn(
+                  "flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-xs transition-colors",
                   item.active
                     ? "bg-foreground/[0.08] font-medium text-foreground"
                     : "text-muted-foreground"
-                }`}
+                )}
                 key={item.label}
               >
                 <item.icon className="h-3.5 w-3.5" />
@@ -185,11 +176,12 @@ function FakeAppWindow() {
             <div className="space-y-2">
               {historyEntries.map((entry) => (
                 <div
-                  className={`rounded-lg border p-3 transition-colors ${
+                  className={cn(
+                    "rounded-lg border p-3 transition-colors",
                     entry.expanded
                       ? "border-brand/20 bg-brand/[0.03]"
                       : "border-border/40 bg-foreground/[0.01]"
-                  }`}
+                  )}
                   key={entry.id}
                 >
                   <div className="mb-2 flex items-center justify-between">
@@ -214,7 +206,12 @@ function FakeAppWindow() {
                     <Copy className="h-3 w-3 text-muted-foreground/50" />
                   </div>
                   <p
-                    className={`text-xs leading-relaxed ${entry.expanded ? "text-foreground" : "truncate text-foreground/70"}`}
+                    className={cn(
+                      "text-xs leading-relaxed",
+                      entry.expanded
+                        ? "text-foreground"
+                        : "truncate text-foreground/70"
+                    )}
                   >
                     {entry.text}
                   </p>
@@ -245,9 +242,6 @@ export default function InterfaceShowcase() {
       className="relative overflow-hidden bg-background py-24 md:py-36"
       ref={ref}
     >
-      {/* biome-ignore lint/security/noDangerouslySetInnerHtml: local CSS keyframes */}
-      <style dangerouslySetInnerHTML={{ __html: notchCSS }} />
-
       {/* Subtle warm wash */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute top-1/2 left-1/2 h-[500px] w-[700px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-brand/[0.03] blur-[100px]" />

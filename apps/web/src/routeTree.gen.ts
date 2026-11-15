@@ -9,63 +9,31 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as TermsRouteImport } from './routes/terms'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
-import { Route as RoadmapRouteImport } from './routes/roadmap'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as LicenseRouteImport } from './routes/license'
-import { Route as FaqRouteImport } from './routes/faq'
-import { Route as ContributingRouteImport } from './routes/contributing'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as VsIndexRouteImport } from './routes/vs/index'
+import { Route as ContributingRouteImport } from './routes/contributing'
+import { Route as FaqRouteImport } from './routes/faq'
+import { Route as LicenseRouteImport } from './routes/license'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as RoadmapRouteImport } from './routes/roadmap'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
-import { Route as VsWisprFlowRouteImport } from './routes/vs/wispr-flow'
-import { Route as VsWhisperDesktopRouteImport } from './routes/vs/whisper-desktop'
-import { Route as VsVoiceinkRouteImport } from './routes/vs/voiceink'
-import { Route as VsSuperWhisperRouteImport } from './routes/vs/super-whisper'
-import { Route as VsOtterAiRouteImport } from './routes/vs/otter-ai'
-import { Route as VsMacwhisperRouteImport } from './routes/vs/macwhisper'
-import { Route as VsHandyRouteImport } from './routes/vs/handy'
-import { Route as VsDragonRouteImport } from './routes/vs/dragon'
-import { Route as VsBuzzRouteImport } from './routes/vs/buzz'
-import { Route as VsAppleDictationRouteImport } from './routes/vs/apple-dictation'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
-import { Route as DemoStartServerFuncsRouteImport } from './routes/demo/start.server-funcs'
-import { Route as DemoStartApiRequestRouteImport } from './routes/demo/start.api-request'
-import { Route as DemoApiNamesRouteImport } from './routes/demo/api.names'
-import { Route as DemoStartSsrIndexRouteImport } from './routes/demo/start.ssr.index'
-import { Route as DemoStartSsrSpaModeRouteImport } from './routes/demo/start.ssr.spa-mode'
-import { Route as DemoStartSsrFullSsrRouteImport } from './routes/demo/start.ssr.full-ssr'
-import { Route as DemoStartSsrDataOnlyRouteImport } from './routes/demo/start.ssr.data-only'
+import { Route as VsIndexRouteImport } from './routes/vs/index'
+import { Route as VsAppleDictationRouteImport } from './routes/vs/apple-dictation'
+import { Route as VsBuzzRouteImport } from './routes/vs/buzz'
+import { Route as VsDragonRouteImport } from './routes/vs/dragon'
+import { Route as VsHandyRouteImport } from './routes/vs/handy'
+import { Route as VsMacwhisperRouteImport } from './routes/vs/macwhisper'
+import { Route as VsOtterAiRouteImport } from './routes/vs/otter-ai'
+import { Route as VsSuperWhisperRouteImport } from './routes/vs/super-whisper'
+import { Route as VsVoiceinkRouteImport } from './routes/vs/voiceink'
+import { Route as VsWhisperDesktopRouteImport } from './routes/vs/whisper-desktop'
+import { Route as VsWisprFlowRouteImport } from './routes/vs/wispr-flow'
 
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
-  id: '/sitemap.xml',
-  path: '/sitemap.xml',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RoadmapRoute = RoadmapRouteImport.update({
-  id: '/roadmap',
-  path: '/roadmap',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LicenseRoute = LicenseRouteImport.update({
-  id: '/license',
-  path: '/license',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FaqRoute = FaqRouteImport.update({
-  id: '/faq',
-  path: '/faq',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ContributingRoute = ContributingRouteImport.update({
@@ -73,14 +41,34 @@ const ContributingRoute = ContributingRouteImport.update({
   path: '/contributing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const FaqRoute = FaqRouteImport.update({
+  id: '/faq',
+  path: '/faq',
   getParentRoute: () => rootRouteImport,
 } as any)
-const VsIndexRoute = VsIndexRouteImport.update({
-  id: '/vs/',
-  path: '/vs/',
+const LicenseRoute = LicenseRouteImport.update({
+  id: '/license',
+  path: '/license',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RoadmapRoute = RoadmapRouteImport.update({
+  id: '/roadmap',
+  path: '/roadmap',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
@@ -88,49 +76,14 @@ const BlogIndexRoute = BlogIndexRouteImport.update({
   path: '/blog/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const VsWisprFlowRoute = VsWisprFlowRouteImport.update({
-  id: '/vs/wispr-flow',
-  path: '/vs/wispr-flow',
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const VsWhisperDesktopRoute = VsWhisperDesktopRouteImport.update({
-  id: '/vs/whisper-desktop',
-  path: '/vs/whisper-desktop',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const VsVoiceinkRoute = VsVoiceinkRouteImport.update({
-  id: '/vs/voiceink',
-  path: '/vs/voiceink',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const VsSuperWhisperRoute = VsSuperWhisperRouteImport.update({
-  id: '/vs/super-whisper',
-  path: '/vs/super-whisper',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const VsOtterAiRoute = VsOtterAiRouteImport.update({
-  id: '/vs/otter-ai',
-  path: '/vs/otter-ai',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const VsMacwhisperRoute = VsMacwhisperRouteImport.update({
-  id: '/vs/macwhisper',
-  path: '/vs/macwhisper',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const VsHandyRoute = VsHandyRouteImport.update({
-  id: '/vs/handy',
-  path: '/vs/handy',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const VsDragonRoute = VsDragonRouteImport.update({
-  id: '/vs/dragon',
-  path: '/vs/dragon',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const VsBuzzRoute = VsBuzzRouteImport.update({
-  id: '/vs/buzz',
-  path: '/vs/buzz',
+const VsIndexRoute = VsIndexRouteImport.update({
+  id: '/vs/',
+  path: '/vs/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const VsAppleDictationRoute = VsAppleDictationRouteImport.update({
@@ -138,44 +91,49 @@ const VsAppleDictationRoute = VsAppleDictationRouteImport.update({
   path: '/vs/apple-dictation',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BlogSlugRoute = BlogSlugRouteImport.update({
-  id: '/blog/$slug',
-  path: '/blog/$slug',
+const VsBuzzRoute = VsBuzzRouteImport.update({
+  id: '/vs/buzz',
+  path: '/vs/buzz',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoStartServerFuncsRoute = DemoStartServerFuncsRouteImport.update({
-  id: '/demo/start/server-funcs',
-  path: '/demo/start/server-funcs',
+const VsDragonRoute = VsDragonRouteImport.update({
+  id: '/vs/dragon',
+  path: '/vs/dragon',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoStartApiRequestRoute = DemoStartApiRequestRouteImport.update({
-  id: '/demo/start/api-request',
-  path: '/demo/start/api-request',
+const VsHandyRoute = VsHandyRouteImport.update({
+  id: '/vs/handy',
+  path: '/vs/handy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoApiNamesRoute = DemoApiNamesRouteImport.update({
-  id: '/demo/api/names',
-  path: '/demo/api/names',
+const VsMacwhisperRoute = VsMacwhisperRouteImport.update({
+  id: '/vs/macwhisper',
+  path: '/vs/macwhisper',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoStartSsrIndexRoute = DemoStartSsrIndexRouteImport.update({
-  id: '/demo/start/ssr/',
-  path: '/demo/start/ssr/',
+const VsOtterAiRoute = VsOtterAiRouteImport.update({
+  id: '/vs/otter-ai',
+  path: '/vs/otter-ai',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoStartSsrSpaModeRoute = DemoStartSsrSpaModeRouteImport.update({
-  id: '/demo/start/ssr/spa-mode',
-  path: '/demo/start/ssr/spa-mode',
+const VsSuperWhisperRoute = VsSuperWhisperRouteImport.update({
+  id: '/vs/super-whisper',
+  path: '/vs/super-whisper',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoStartSsrFullSsrRoute = DemoStartSsrFullSsrRouteImport.update({
-  id: '/demo/start/ssr/full-ssr',
-  path: '/demo/start/ssr/full-ssr',
+const VsVoiceinkRoute = VsVoiceinkRouteImport.update({
+  id: '/vs/voiceink',
+  path: '/vs/voiceink',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoStartSsrDataOnlyRoute = DemoStartSsrDataOnlyRouteImport.update({
-  id: '/demo/start/ssr/data-only',
-  path: '/demo/start/ssr/data-only',
+const VsWhisperDesktopRoute = VsWhisperDesktopRouteImport.update({
+  id: '/vs/whisper-desktop',
+  path: '/vs/whisper-desktop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VsWisprFlowRoute = VsWisprFlowRouteImport.update({
+  id: '/vs/wispr-flow',
+  path: '/vs/wispr-flow',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -201,13 +159,6 @@ export interface FileRoutesByFullPath {
   '/vs/wispr-flow': typeof VsWisprFlowRoute
   '/blog/': typeof BlogIndexRoute
   '/vs/': typeof VsIndexRoute
-  '/demo/api/names': typeof DemoApiNamesRoute
-  '/demo/start/api-request': typeof DemoStartApiRequestRoute
-  '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
-  '/demo/start/ssr/data-only': typeof DemoStartSsrDataOnlyRoute
-  '/demo/start/ssr/full-ssr': typeof DemoStartSsrFullSsrRoute
-  '/demo/start/ssr/spa-mode': typeof DemoStartSsrSpaModeRoute
-  '/demo/start/ssr/': typeof DemoStartSsrIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -231,13 +182,6 @@ export interface FileRoutesByTo {
   '/vs/wispr-flow': typeof VsWisprFlowRoute
   '/blog': typeof BlogIndexRoute
   '/vs': typeof VsIndexRoute
-  '/demo/api/names': typeof DemoApiNamesRoute
-  '/demo/start/api-request': typeof DemoStartApiRequestRoute
-  '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
-  '/demo/start/ssr/data-only': typeof DemoStartSsrDataOnlyRoute
-  '/demo/start/ssr/full-ssr': typeof DemoStartSsrFullSsrRoute
-  '/demo/start/ssr/spa-mode': typeof DemoStartSsrSpaModeRoute
-  '/demo/start/ssr': typeof DemoStartSsrIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -262,13 +206,6 @@ export interface FileRoutesById {
   '/vs/wispr-flow': typeof VsWisprFlowRoute
   '/blog/': typeof BlogIndexRoute
   '/vs/': typeof VsIndexRoute
-  '/demo/api/names': typeof DemoApiNamesRoute
-  '/demo/start/api-request': typeof DemoStartApiRequestRoute
-  '/demo/start/server-funcs': typeof DemoStartServerFuncsRoute
-  '/demo/start/ssr/data-only': typeof DemoStartSsrDataOnlyRoute
-  '/demo/start/ssr/full-ssr': typeof DemoStartSsrFullSsrRoute
-  '/demo/start/ssr/spa-mode': typeof DemoStartSsrSpaModeRoute
-  '/demo/start/ssr/': typeof DemoStartSsrIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -294,13 +231,6 @@ export interface FileRouteTypes {
     | '/vs/wispr-flow'
     | '/blog/'
     | '/vs/'
-    | '/demo/api/names'
-    | '/demo/start/api-request'
-    | '/demo/start/server-funcs'
-    | '/demo/start/ssr/data-only'
-    | '/demo/start/ssr/full-ssr'
-    | '/demo/start/ssr/spa-mode'
-    | '/demo/start/ssr/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -324,13 +254,6 @@ export interface FileRouteTypes {
     | '/vs/wispr-flow'
     | '/blog'
     | '/vs'
-    | '/demo/api/names'
-    | '/demo/start/api-request'
-    | '/demo/start/server-funcs'
-    | '/demo/start/ssr/data-only'
-    | '/demo/start/ssr/full-ssr'
-    | '/demo/start/ssr/spa-mode'
-    | '/demo/start/ssr'
   id:
     | '__root__'
     | '/'
@@ -354,13 +277,6 @@ export interface FileRouteTypes {
     | '/vs/wispr-flow'
     | '/blog/'
     | '/vs/'
-    | '/demo/api/names'
-    | '/demo/start/api-request'
-    | '/demo/start/server-funcs'
-    | '/demo/start/ssr/data-only'
-    | '/demo/start/ssr/full-ssr'
-    | '/demo/start/ssr/spa-mode'
-    | '/demo/start/ssr/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -385,57 +301,15 @@ export interface RootRouteChildren {
   VsWisprFlowRoute: typeof VsWisprFlowRoute
   BlogIndexRoute: typeof BlogIndexRoute
   VsIndexRoute: typeof VsIndexRoute
-  DemoApiNamesRoute: typeof DemoApiNamesRoute
-  DemoStartApiRequestRoute: typeof DemoStartApiRequestRoute
-  DemoStartServerFuncsRoute: typeof DemoStartServerFuncsRoute
-  DemoStartSsrDataOnlyRoute: typeof DemoStartSsrDataOnlyRoute
-  DemoStartSsrFullSsrRoute: typeof DemoStartSsrFullSsrRoute
-  DemoStartSsrSpaModeRoute: typeof DemoStartSsrSpaModeRoute
-  DemoStartSsrIndexRoute: typeof DemoStartSsrIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/sitemap.xml': {
-      id: '/sitemap.xml'
-      path: '/sitemap.xml'
-      fullPath: '/sitemap.xml'
-      preLoaderRoute: typeof SitemapDotxmlRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/roadmap': {
-      id: '/roadmap'
-      path: '/roadmap'
-      fullPath: '/roadmap'
-      preLoaderRoute: typeof RoadmapRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/license': {
-      id: '/license'
-      path: '/license'
-      fullPath: '/license'
-      preLoaderRoute: typeof LicenseRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/faq': {
-      id: '/faq'
-      path: '/faq'
-      fullPath: '/faq'
-      preLoaderRoute: typeof FaqRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/contributing': {
@@ -445,18 +319,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ContributingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/faq': {
+      id: '/faq'
+      path: '/faq'
+      fullPath: '/faq'
+      preLoaderRoute: typeof FaqRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/vs/': {
-      id: '/vs/'
-      path: '/vs'
-      fullPath: '/vs/'
-      preLoaderRoute: typeof VsIndexRouteImport
+    '/license': {
+      id: '/license'
+      path: '/license'
+      fullPath: '/license'
+      preLoaderRoute: typeof LicenseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/roadmap': {
+      id: '/roadmap'
+      path: '/roadmap'
+      fullPath: '/roadmap'
+      preLoaderRoute: typeof RoadmapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/': {
@@ -466,67 +368,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/vs/wispr-flow': {
-      id: '/vs/wispr-flow'
-      path: '/vs/wispr-flow'
-      fullPath: '/vs/wispr-flow'
-      preLoaderRoute: typeof VsWisprFlowRouteImport
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/vs/whisper-desktop': {
-      id: '/vs/whisper-desktop'
-      path: '/vs/whisper-desktop'
-      fullPath: '/vs/whisper-desktop'
-      preLoaderRoute: typeof VsWhisperDesktopRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vs/voiceink': {
-      id: '/vs/voiceink'
-      path: '/vs/voiceink'
-      fullPath: '/vs/voiceink'
-      preLoaderRoute: typeof VsVoiceinkRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vs/super-whisper': {
-      id: '/vs/super-whisper'
-      path: '/vs/super-whisper'
-      fullPath: '/vs/super-whisper'
-      preLoaderRoute: typeof VsSuperWhisperRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vs/otter-ai': {
-      id: '/vs/otter-ai'
-      path: '/vs/otter-ai'
-      fullPath: '/vs/otter-ai'
-      preLoaderRoute: typeof VsOtterAiRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vs/macwhisper': {
-      id: '/vs/macwhisper'
-      path: '/vs/macwhisper'
-      fullPath: '/vs/macwhisper'
-      preLoaderRoute: typeof VsMacwhisperRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vs/handy': {
-      id: '/vs/handy'
-      path: '/vs/handy'
-      fullPath: '/vs/handy'
-      preLoaderRoute: typeof VsHandyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vs/dragon': {
-      id: '/vs/dragon'
-      path: '/vs/dragon'
-      fullPath: '/vs/dragon'
-      preLoaderRoute: typeof VsDragonRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/vs/buzz': {
-      id: '/vs/buzz'
-      path: '/vs/buzz'
-      fullPath: '/vs/buzz'
-      preLoaderRoute: typeof VsBuzzRouteImport
+    '/vs/': {
+      id: '/vs/'
+      path: '/vs'
+      fullPath: '/vs/'
+      preLoaderRoute: typeof VsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/vs/apple-dictation': {
@@ -536,60 +389,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof VsAppleDictationRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/blog/$slug': {
-      id: '/blog/$slug'
-      path: '/blog/$slug'
-      fullPath: '/blog/$slug'
-      preLoaderRoute: typeof BlogSlugRouteImport
+    '/vs/buzz': {
+      id: '/vs/buzz'
+      path: '/vs/buzz'
+      fullPath: '/vs/buzz'
+      preLoaderRoute: typeof VsBuzzRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/start/server-funcs': {
-      id: '/demo/start/server-funcs'
-      path: '/demo/start/server-funcs'
-      fullPath: '/demo/start/server-funcs'
-      preLoaderRoute: typeof DemoStartServerFuncsRouteImport
+    '/vs/dragon': {
+      id: '/vs/dragon'
+      path: '/vs/dragon'
+      fullPath: '/vs/dragon'
+      preLoaderRoute: typeof VsDragonRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/start/api-request': {
-      id: '/demo/start/api-request'
-      path: '/demo/start/api-request'
-      fullPath: '/demo/start/api-request'
-      preLoaderRoute: typeof DemoStartApiRequestRouteImport
+    '/vs/handy': {
+      id: '/vs/handy'
+      path: '/vs/handy'
+      fullPath: '/vs/handy'
+      preLoaderRoute: typeof VsHandyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/api/names': {
-      id: '/demo/api/names'
-      path: '/demo/api/names'
-      fullPath: '/demo/api/names'
-      preLoaderRoute: typeof DemoApiNamesRouteImport
+    '/vs/macwhisper': {
+      id: '/vs/macwhisper'
+      path: '/vs/macwhisper'
+      fullPath: '/vs/macwhisper'
+      preLoaderRoute: typeof VsMacwhisperRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/start/ssr/': {
-      id: '/demo/start/ssr/'
-      path: '/demo/start/ssr'
-      fullPath: '/demo/start/ssr/'
-      preLoaderRoute: typeof DemoStartSsrIndexRouteImport
+    '/vs/otter-ai': {
+      id: '/vs/otter-ai'
+      path: '/vs/otter-ai'
+      fullPath: '/vs/otter-ai'
+      preLoaderRoute: typeof VsOtterAiRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/start/ssr/spa-mode': {
-      id: '/demo/start/ssr/spa-mode'
-      path: '/demo/start/ssr/spa-mode'
-      fullPath: '/demo/start/ssr/spa-mode'
-      preLoaderRoute: typeof DemoStartSsrSpaModeRouteImport
+    '/vs/super-whisper': {
+      id: '/vs/super-whisper'
+      path: '/vs/super-whisper'
+      fullPath: '/vs/super-whisper'
+      preLoaderRoute: typeof VsSuperWhisperRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/start/ssr/full-ssr': {
-      id: '/demo/start/ssr/full-ssr'
-      path: '/demo/start/ssr/full-ssr'
-      fullPath: '/demo/start/ssr/full-ssr'
-      preLoaderRoute: typeof DemoStartSsrFullSsrRouteImport
+    '/vs/voiceink': {
+      id: '/vs/voiceink'
+      path: '/vs/voiceink'
+      fullPath: '/vs/voiceink'
+      preLoaderRoute: typeof VsVoiceinkRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/start/ssr/data-only': {
-      id: '/demo/start/ssr/data-only'
-      path: '/demo/start/ssr/data-only'
-      fullPath: '/demo/start/ssr/data-only'
-      preLoaderRoute: typeof DemoStartSsrDataOnlyRouteImport
+    '/vs/whisper-desktop': {
+      id: '/vs/whisper-desktop'
+      path: '/vs/whisper-desktop'
+      fullPath: '/vs/whisper-desktop'
+      preLoaderRoute: typeof VsWhisperDesktopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/vs/wispr-flow': {
+      id: '/vs/wispr-flow'
+      path: '/vs/wispr-flow'
+      fullPath: '/vs/wispr-flow'
+      preLoaderRoute: typeof VsWisprFlowRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -617,13 +477,6 @@ const rootRouteChildren: RootRouteChildren = {
   VsWisprFlowRoute: VsWisprFlowRoute,
   BlogIndexRoute: BlogIndexRoute,
   VsIndexRoute: VsIndexRoute,
-  DemoApiNamesRoute: DemoApiNamesRoute,
-  DemoStartApiRequestRoute: DemoStartApiRequestRoute,
-  DemoStartServerFuncsRoute: DemoStartServerFuncsRoute,
-  DemoStartSsrDataOnlyRoute: DemoStartSsrDataOnlyRoute,
-  DemoStartSsrFullSsrRoute: DemoStartSsrFullSsrRoute,
-  DemoStartSsrSpaModeRoute: DemoStartSsrSpaModeRoute,
-  DemoStartSsrIndexRoute: DemoStartSsrIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
