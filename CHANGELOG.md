@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.18] - 2026-11-15
+
+### Changed
+- Dropdowns in Settings are now the same height as the buttons next to them, with slightly larger text.
+
+### Fixed
+- The startup screen now uses the theme you picked in Echo instead of always following the system theme.
+- Updates after this one install more safely. On macOS, an update that fails to install no longer deletes Echo. On Linux, an AppImage update no longer fails when the temporary folder is on a different drive, and an update file that isn't an AppImage is rejected before it touches the installed app.
+
 ## [0.8.17] - 2026-11-01
 
 ### Fixed
