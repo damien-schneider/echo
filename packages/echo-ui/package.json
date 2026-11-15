@@ -10,6 +10,6 @@
     "@ctrl-ui/react": "catalog:"
   },
   "peerDependencies": {
-    "react": "^19.2.8"
+    "react": "^19.3.1"
   }
 }

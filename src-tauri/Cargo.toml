@@ -23,7 +23,6 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-once_cell = "1"
 tauri = { version = "2", features = [
     "protocol-asset",
     "macos-private-api",
@@ -36,8 +35,6 @@ tauri-plugin-store = "2"
 tauri-plugin-os = "2"
 tauri-plugin-clipboard-manager = "2"
 tauri-plugin-macos-permissions = "2"
-tauri-plugin-notification = "2"
-tauri-plugin-fs = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 rdev = { git = "https://github.com/rustdesk-org/rdev", rev = "a90dbe1172f8832f54c97c62e823c5a34af5fdfe" }
@@ -65,10 +62,10 @@ tar = "0.4"
 flate2 = "1"
 bzip2 = "0.5"
 transcribe-cpp = { version = "=0.4.1", default-features = false }
+# transcribe-cpp rejects a native lib of any other version at model load; bump both pins together
+transcribe-cpp-sys = { version = "=0.4.1", default-features = false }
 parakeet-rs = { version = "0.3.5", default-features = false, features = ["sortformer", "ort-defaults"] }
 ferrous-opencc = "0.2"
-deunicode = "1.3"
-unicode-normalization = "0.1"
 tts = "0.26"
 whichlang = "0.1"
 async-trait = "0.1"
