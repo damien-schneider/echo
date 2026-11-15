@@ -6,7 +6,7 @@ import {
 
 describe("subscribeEventListeners", () => {
   test("starts independent registrations without waiting for earlier readiness", async () => {
-    let releaseFirst = () => undefined;
+    let releaseFirst = (): void => undefined;
     let secondStarted = false;
     const firstRegistration = new Promise<() => void>((resolve) => {
       releaseFirst = () => resolve(() => undefined);
@@ -31,7 +31,7 @@ describe("subscribeEventListeners", () => {
   });
 
   test("runs the snapshot only after every listener is installed", async () => {
-    let releaseListener = () => undefined;
+    let releaseListener = (): void => undefined;
     let snapshotStarted = false;
     const listener = new Promise<() => void>((resolve) => {
       releaseListener = () => resolve(() => undefined);
@@ -94,7 +94,7 @@ describe("subscribeEventListeners", () => {
   });
 
   test("stops registering and removes listeners when cancelled mid-setup", async () => {
-    const cleanupCounts = [0, 0];
+    const cleanupCounts: [number, number] = [0, 0];
     let cancelled = false;
     let thirdRegistrationCount = 0;
 

@@ -10,12 +10,12 @@ export interface ModelRowStatus {
   tone: "error" | "muted";
 }
 
-export interface ModelRowDownload {
+interface ModelRowDownload {
   percentage: number;
   speed?: number;
 }
 
-export interface ModelRowFiles {
+interface ModelRowFiles {
   disabled: boolean;
   onDelete: () => Promise<void>;
   onReveal: () => Promise<void>;

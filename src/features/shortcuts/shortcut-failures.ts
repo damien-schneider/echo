@@ -3,7 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { z } from "zod";
 
 /// Mirrors the Rust `ShortcutFailure` — the OS refused the combination, so the shortcut does nothing.
-export const ShortcutFailureSchema = z.object({
+const ShortcutFailureSchema = z.object({
   binding: z.string(),
   bindingId: z.string(),
   reason: z.string(),

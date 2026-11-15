@@ -2,7 +2,6 @@ import { describe, expect, it } from "bun:test";
 import {
   canInstallUpdate,
   idleUpdateSnapshot,
-  isUpdateBusy,
   parseUpdateSnapshot,
   updateActionLabel,
   updateBridgeFailure,
@@ -43,14 +42,6 @@ describe("update snapshot parsing", () => {
 });
 
 describe("update availability", () => {
-  it("blocks a second request while work is running", () => {
-    expect(isUpdateBusy("checking")).toBe(true);
-    expect(isUpdateBusy("downloading")).toBe(true);
-    expect(isUpdateBusy("installing")).toBe(true);
-    expect(isUpdateBusy("available")).toBe(false);
-    expect(isUpdateBusy("idle")).toBe(false);
-  });
-
   it("offers an install for an available version and for a failed attempt", () => {
     expect(
       canInstallUpdate(snapshot({ phase: "available", version: "0.5.0" }))
@@ -134,6 +125,5 @@ describe("a build without an updater", () => {
     expect(updateStatusText(unsupported)).toBe("");
     expect(updateActionLabel(unsupported)).toBeNull();
     expect(canInstallUpdate(unsupported)).toBe(false);
-    expect(isUpdateBusy("unsupported")).toBe(false);
   });
 });

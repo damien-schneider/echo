@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TranscriptionLanguageSchema } from "@/lib/constants/languages";
 
-export const ShortcutBindingSchema = z.object({
+const ShortcutBindingSchema = z.object({
   current_binding: z.string(),
   default_binding: z.string(),
   description: z.string(),
@@ -9,12 +9,9 @@ export const ShortcutBindingSchema = z.object({
   name: z.string(),
 });
 
-export const ShortcutBindingsMapSchema = z.record(
-  z.string(),
-  ShortcutBindingSchema
-);
+const ShortcutBindingsMapSchema = z.record(z.string(), ShortcutBindingSchema);
 
-export const AudioDeviceSchema = z.object({
+const AudioDeviceSchema = z.object({
   index: z.string(),
   is_default: z.boolean(),
   name: z.string(),
@@ -23,8 +20,7 @@ export const AudioDeviceSchema = z.object({
 export const OverlayPositionSchema = z.enum(["none", "edge", "top", "bottom"]);
 export type OverlayPosition = z.infer<typeof OverlayPositionSchema>;
 
-export const OverlayDockEdgeSchema = z.enum(["left", "right", "top", "bottom"]);
-export type OverlayDockEdge = z.infer<typeof OverlayDockEdgeSchema>;
+const OverlayDockEdgeSchema = z.enum(["left", "right", "top", "bottom"]);
 
 export const TranscriptionModelSizeSchema = z.enum([
   "small",
@@ -57,7 +53,7 @@ export type TranscriptionProfileStatus = z.infer<
   typeof TranscriptionProfileStatusSchema
 >;
 
-export const PolishStateSchema = z.enum([
+const PolishStateSchema = z.enum([
   "not_downloaded",
   "preparing",
   "downloading",
@@ -74,7 +70,7 @@ export const PolishStatusSchema = z
   .strict();
 export type PolishStatus = z.infer<typeof PolishStatusSchema>;
 
-export const PasteMethodSchema = z.enum([
+const PasteMethodSchema = z.enum([
   "ctrl_v",
   "direct",
   "shift_insert",
@@ -82,16 +78,13 @@ export const PasteMethodSchema = z.enum([
 ]);
 export type PasteMethod = z.infer<typeof PasteMethodSchema>;
 
-export const ClipboardHandlingSchema = z.enum([
-  "dont_modify",
-  "copy_to_clipboard",
-]);
+const ClipboardHandlingSchema = z.enum(["dont_modify", "copy_to_clipboard"]);
 export type ClipboardHandling = z.infer<typeof ClipboardHandlingSchema>;
 
-export const PolishLevelSchema = z.enum(["correct", "natural", "clear"]);
+const PolishLevelSchema = z.enum(["correct", "natural", "clear"]);
 export type PolishLevel = z.infer<typeof PolishLevelSchema>;
 
-export const RecordingRetentionPeriodSchema = z.enum([
+const RecordingRetentionPeriodSchema = z.enum([
   "never",
   "preserve_limit",
   "days3",
@@ -102,7 +95,7 @@ export type RecordingRetentionPeriod = z.infer<
   typeof RecordingRetentionPeriodSchema
 >;
 
-export const LLMPromptSchema = z.object({
+const LLMPromptSchema = z.object({
   id: z.string(),
   name: z.string(),
   prompt: z.string(),
@@ -110,14 +103,14 @@ export const LLMPromptSchema = z.object({
 
 export type LLMPrompt = z.infer<typeof LLMPromptSchema>;
 
-export const DictionaryEntrySchema = z.object({
+const DictionaryEntrySchema = z.object({
   canonical: z.string(),
   variants: z.array(z.string()).optional().default([]),
 });
 
 export type DictionaryEntry = z.infer<typeof DictionaryEntrySchema>;
 
-export const CaptureSchema = z.object({
+const CaptureSchema = z.object({
   app_name: z.string().nullable(),
   content: z.string(),
   id: z.number(),
@@ -128,7 +121,7 @@ export type Capture = z.infer<typeof CaptureSchema>;
 
 export const CapturesSchema = z.array(CaptureSchema);
 
-export const SettingsSchema = z.object({
+const SettingsSchema = z.object({
   always_on_microphone: z.boolean(),
   audio_feedback: z.boolean(),
   audio_feedback_volume: z.number().optional().default(1.0),
@@ -175,27 +168,10 @@ export const SettingsSchema = z.object({
   word_correction_threshold: z.number().optional().default(0.18),
 });
 
-export const BindingResponseSchema = z.object({
-  binding: ShortcutBindingSchema.nullable(),
-  error: z.string().nullable(),
-  success: z.boolean(),
-});
-
 export type AudioDevice = z.infer<typeof AudioDeviceSchema>;
-export type BindingResponse = z.infer<typeof BindingResponseSchema>;
 export type ShortcutBinding = z.infer<typeof ShortcutBindingSchema>;
 export type ShortcutBindingsMap = z.infer<typeof ShortcutBindingsMapSchema>;
 export type Settings = z.infer<typeof SettingsSchema>;
-
-export const FileTranscriptionProgressSchema = z.object({
-  message: z.string(),
-  progress: z.number(),
-  status: z.string(),
-});
-
-export type FileTranscriptionProgress = z.infer<
-  typeof FileTranscriptionProgressSchema
->;
 
 export const ActiveMeetingSchema = z.discriminatedUnion("state", [
   z
@@ -234,16 +210,16 @@ export const MeetingSegmentSchema = z.object({
 });
 export type MeetingSegment = z.infer<typeof MeetingSegmentSchema>;
 
-export const StreamingSourceSchema = z.enum(["mic", "system"]);
+const StreamingSourceSchema = z.enum(["mic", "system"]);
 export type StreamingSource = z.infer<typeof StreamingSourceSchema>;
 
-export const MeetingAudioWarningSchema = z.object({
+const MeetingAudioWarningSchema = z.object({
   reason: z.enum(["device", "write"]),
   source: StreamingSourceSchema,
 });
 export type MeetingAudioWarning = z.infer<typeof MeetingAudioWarningSchema>;
 
-export const StreamingInterimSchema = z.object({
+const StreamingInterimSchema = z.object({
   committed_text: z.string(),
   meeting_id: z.number(),
   segment_start_ms: z.number(),
@@ -252,7 +228,7 @@ export const StreamingInterimSchema = z.object({
 });
 export type StreamingInterim = z.infer<typeof StreamingInterimSchema>;
 
-export const StreamingFinalSchema = z.object({
+const StreamingFinalSchema = z.object({
   end_ms: z.number(),
   meeting_id: z.number(),
   source: StreamingSourceSchema,
@@ -261,10 +237,10 @@ export const StreamingFinalSchema = z.object({
 });
 export type StreamingFinal = z.infer<typeof StreamingFinalSchema>;
 
-export const BatchPhaseSchema = z.enum(["transcribing", "diarizing", "done"]);
+const BatchPhaseSchema = z.enum(["transcribing", "diarizing", "done"]);
 export type BatchPhase = z.infer<typeof BatchPhaseSchema>;
 
-export const MeetingBatchProgressSchema = z.object({
+const MeetingBatchProgressSchema = z.object({
   chunks_done: z.number(),
   chunks_total: z.number(),
   meeting_id: z.number(),

@@ -17,17 +17,17 @@ const overlayUrl =
 const TELEPORT_STEP_PX = 120;
 
 const maximumStep = (samples: Array<{ x: number; y: number }>) =>
-  samples.reduce(
-    (largest, sample, index) =>
-      index === 0
-        ? largest
-        : Math.max(
-            largest,
-            Math.abs(sample.x - samples[index - 1].x),
-            Math.abs(sample.y - samples[index - 1].y)
-          ),
-    0
-  );
+  samples.reduce((largest, sample, index) => {
+    const previous = samples[index - 1];
+    if (!previous) {
+      return largest;
+    }
+    return Math.max(
+      largest,
+      Math.abs(sample.x - previous.x),
+      Math.abs(sample.y - previous.y)
+    );
+  }, 0);
 
 const samplePolishCloseTrajectory = (page: Page) =>
   page.evaluate(async () => {
@@ -107,6 +107,9 @@ test("opens active work at the notch instead of travelling there", async ({
     return samples;
   });
   const start = trajectory[0];
+  if (!start) {
+    throw new Error("Entry recorded no samples");
+  }
   const end = trajectory.at(-1) ?? start;
 
   expect(maximumStep(trajectory)).toBeLessThanOrEqual(TELEPORT_STEP_PX);

@@ -107,6 +107,9 @@ test("keeps resident actions on one fixed layout while the shell reveals them", 
     };
   });
   const origin = trajectory.samples[0];
+  if (!origin) {
+    throw new Error("Reveal recorded no samples");
+  }
 
   // the shell grows to the resident's own box, so actions never reflow mid-reveal
   expect(trajectory.inlineWidth).toBe(trajectory.residentWidth);
@@ -114,12 +117,16 @@ test("keeps resident actions on one fixed layout while the shell reveals them", 
   expect(
     Math.max(
       ...trajectory.samples.flatMap((sample) =>
-        sample.map((position, index) =>
-          Math.max(
-            Math.abs(position.x - origin[index].x),
-            Math.abs(position.y - origin[index].y)
-          )
-        )
+        sample.map((position, index) => {
+          const resting = origin[index];
+          if (!resting) {
+            throw new Error(`Sample has no resting position ${index}`);
+          }
+          return Math.max(
+            Math.abs(position.x - resting.x),
+            Math.abs(position.y - resting.y)
+          );
+        })
       )
     )
   ).toBeLessThanOrEqual(0.5);
@@ -205,6 +212,9 @@ test("keeps the bottom edge and horizontal center pinned while hover expands", a
     return samples;
   });
   const start = trajectory[0];
+  if (!start) {
+    throw new Error("Hover recorded no samples");
+  }
   const end = trajectory.at(-1) ?? start;
   expect(
     Math.max(

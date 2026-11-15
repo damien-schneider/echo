@@ -1,14 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { z } from "zod";
-import type { Settings } from "@/lib/types";
 import {
   type PostProcessResult,
   rewriteTranscript,
   runVoiceCommand,
   selectedPromptText,
   unchangedTranscript,
-} from "./post-process";
+} from "@/lib/llm/post-process";
+import type { Settings } from "@/lib/types";
 
 const TranscriptionReadyPayloadSchema = z.object({
   op_generation: z.number(),

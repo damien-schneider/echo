@@ -130,4 +130,3 @@ export const ClamshellMicrophoneSelector: React.FC = () => {
     </SettingRow>
   );
 };
-ClamshellMicrophoneSelector.displayName = "ClamshellMicrophoneSelector";

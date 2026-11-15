@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef } from "react";
+import { listenCancellable } from "@/lib/tauri-listener";
 import {
   type FileTranscriptionItem,
   useFileTranscriptionStore,
@@ -47,17 +48,14 @@ export function useFileTranscriptionListener() {
   const lastCompletedTranscriptionId = useRef<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    const unlisten: (() => void)[] = [];
-
     // getState() inside handlers avoids stale closures + drops deps.
     const store = useFileTranscriptionStore;
 
-    const startNewTranscription = (
-      progress: number,
-      message: string,
-      fileName?: string
-    ) => {
+    const startNewTranscription = ({
+      fileName,
+      message,
+      progress,
+    }: FileTranscriptionProgress) => {
       const id = generateUniqueId();
       store.getState().addItem({
         fileName: fileName || "Unknown file",
@@ -72,9 +70,7 @@ export function useFileTranscriptionListener() {
 
     const handleExistingUpdate = (
       id: string,
-      status: string,
-      progress: number,
-      message: string
+      { message, progress, status }: FileTranscriptionProgress
     ) => {
       if (status === "complete") {
         store
@@ -111,107 +107,66 @@ export function useFileTranscriptionListener() {
       });
     };
 
-    const setupListeners = async () => {
-      const progressUnlisten = await listen<FileTranscriptionProgress>(
+    const unlistenProgress = listenCancellable(() =>
+      listen<FileTranscriptionProgress>(
         "file-transcription-progress",
         (event) => {
-          if (cancelled) {
-            return;
-          }
-          const { status, progress, message, fileName } = event.payload;
-
-          if (status === "decoding" && !currentTranscriptionId.current) {
-            startNewTranscription(progress, message, fileName);
+          const payload = event.payload;
+          if (
+            payload.status === "decoding" &&
+            !currentTranscriptionId.current
+          ) {
+            startNewTranscription(payload);
           } else if (currentTranscriptionId.current) {
-            handleExistingUpdate(
-              currentTranscriptionId.current,
-              status,
-              progress,
-              message
-            );
-          } else if (status === "error") {
-            createErrorTranscription(message, fileName);
+            handleExistingUpdate(currentTranscriptionId.current, payload);
+          } else if (payload.status === "error") {
+            createErrorTranscription(payload.message, payload.fileName);
           }
         }
-      );
-      if (cancelled) {
-        progressUnlisten();
-        return;
-      }
-      unlisten.push(progressUnlisten);
+      )
+    );
 
-      const completeUnlisten = await listen<TranscriptionCompletePayload>(
+    const unlistenComplete = listenCancellable(() =>
+      listen<TranscriptionCompletePayload>(
         "transcription-complete",
         (event) => {
-          if (cancelled) {
-            return;
-          }
           const id =
             currentTranscriptionId.current ??
             lastCompletedTranscriptionId.current;
-
           if (!id) {
             return;
           }
-
           store.getState().updateItem(id, {
             message: "Transcription complete!",
             progress: 1.0,
             status: "complete",
             text: event.payload.text,
           });
-
           currentTranscriptionId.current = null;
           lastCompletedTranscriptionId.current = null;
         }
-      );
-      if (cancelled) {
-        completeUnlisten();
-        return;
-      }
-      unlisten.push(completeUnlisten);
+      )
+    );
 
-      const errorUnlisten = await listen<string>(
-        "file-transcription-error",
-        (event) => {
-          if (cancelled) {
-            return;
-          }
-          if (currentTranscriptionId.current) {
-            store.getState().updateItem(currentTranscriptionId.current, {
-              error: event.payload,
-              message: "Transcription failed",
-              status: "error",
-            });
-            currentTranscriptionId.current = null;
-          } else {
-            const id = generateUniqueId();
-            store.getState().addItem({
-              error: event.payload,
-              fileName: "Unknown file",
-              id,
-              message: "Transcription failed",
-              progress: 0,
-              status: "error",
-              timestamp: Date.now(),
-            });
-          }
+    const unlistenError = listenCancellable(() =>
+      listen<string>("file-transcription-error", (event) => {
+        if (!currentTranscriptionId.current) {
+          createErrorTranscription(event.payload);
+          return;
         }
-      );
-      if (cancelled) {
-        errorUnlisten();
-        return;
-      }
-      unlisten.push(errorUnlisten);
-    };
-
-    setupListeners();
+        store.getState().updateItem(currentTranscriptionId.current, {
+          error: event.payload,
+          message: "Transcription failed",
+          status: "error",
+        });
+        currentTranscriptionId.current = null;
+      })
+    );
 
     return () => {
-      cancelled = true;
-      for (const fn of unlisten) {
-        fn();
-      }
+      unlistenProgress();
+      unlistenComplete();
+      unlistenError();
     };
-  }, []); // Store actions via getState(); no deps needed.
+  }, []);
 }

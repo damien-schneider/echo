@@ -3,31 +3,30 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { Toaster } from "sonner";
-import "./app.css";
-import { GlassWindow } from "@/components/ui/glass-window";
-import { Spinner } from "@/components/ui/spinner";
-import { useShortcutFailureToasts } from "@/features/shortcuts/use-shortcut-failure-toasts";
-import { AccessibilityPermissions } from "./components/accessibility-permissions";
-import { ErrorDialog } from "./components/error-dialog";
-import { MicrophonePermissions } from "./components/microphone-permissions";
-import Onboarding from "./components/onboarding/onboarding";
+import "@/app.css";
+import { AccessibilityPermissions } from "@/components/accessibility-permissions";
+import { ErrorDialog } from "@/components/error-dialog";
+import { MicrophonePermissions } from "@/components/microphone-permissions";
+import Onboarding from "@/components/onboarding/onboarding";
 import {
   SECTIONS_CONFIG,
   SidebarLayout,
   type SidebarSection,
-} from "./components/sidemenu";
-import { TranscriptionResultDialog } from "./components/transcription-result-dialog";
-import { useFileTranscriptionListener } from "./hooks/use-file-transcription-listener";
-import { useMeetingListener } from "./hooks/use-meeting-listener";
-import { mountTranscriptionBridge } from "./lib/llm/transcription-bridge";
+} from "@/components/sidemenu";
+import { TranscriptionResultDialog } from "@/components/transcription-result-dialog";
+import { GlassWindow } from "@/components/ui/glass-window";
+import { Spinner } from "@/components/ui/spinner";
+import { useShortcutFailureToasts } from "@/features/shortcuts/use-shortcut-failure-toasts";
+import { useFileTranscriptionListener } from "@/hooks/use-file-transcription-listener";
+import { useMeetingListener } from "@/hooks/use-meeting-listener";
+import { mountTranscriptionBridge } from "@/lib/llm/transcription-bridge";
 import {
   initialModelState,
   type ModelState,
   subscribeModelState,
-} from "./lib/model-state";
-
-import { listenCancellable } from "./lib/tauri-listener";
-import { useSetting, useSettingsStore } from "./stores/settings-store";
+} from "@/lib/model-state";
+import { listenCancellable } from "@/lib/tauri-listener";
+import { useSetting, useSettingsStore } from "@/stores/settings-store";
 
 const isSidebarSection = (value: unknown): value is SidebarSection =>
   typeof value === "string" && Object.hasOwn(SECTIONS_CONFIG, value);
@@ -79,8 +78,6 @@ function App() {
       ),
     []
   );
-
-  // Focus prewarm disabled — Mutex contention starves stop-flow decode (see lib.rs::initialize_core_logic).
 
   useEffect(() => {
     initialize();
@@ -149,24 +146,16 @@ function App() {
   }, [isInitializing]);
 
   useEffect(() => {
-    const unlistenFns: (() => void)[] = [];
-
-    const setupListeners = async () => {
-      unlistenFns.push(await listen("drag-enter", () => setIsDragging(true)));
-      unlistenFns.push(await listen("drag-over", () => setIsDragging(true)));
-      unlistenFns.push(await listen("drag-leave", () => setIsDragging(false)));
-      unlistenFns.push(
-        await listen("file-transcription-progress", () => setIsDragging(false))
-      );
-      unlistenFns.push(
-        await listen("file-transcription-error", () => setIsDragging(false))
-      );
-      unlistenFns.push(
-        await listen("show-error-dialog", () => setIsDragging(false))
-      );
-    };
-
-    setupListeners();
+    const toggleDropZoneOn = (event: string, visible: boolean) =>
+      listenCancellable(() => listen(event, () => setIsDragging(visible)));
+    const unlistenFns = [
+      toggleDropZoneOn("drag-enter", true),
+      toggleDropZoneOn("drag-over", true),
+      toggleDropZoneOn("drag-leave", false),
+      toggleDropZoneOn("file-transcription-progress", false),
+      toggleDropZoneOn("file-transcription-error", false),
+      toggleDropZoneOn("show-error-dialog", false),
+    ];
 
     return () => {
       for (const unlisten of unlistenFns) {

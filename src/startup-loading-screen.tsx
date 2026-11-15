@@ -1,7 +1,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { StrictMode, useEffect } from "react";
 import { createRoot } from "react-dom/client";
-import "./app.css";
+import "@/app.css";
 import EchoLogo from "@/components/icons/echo-logo";
 import { Spinner } from "@/components/ui/spinner";
 import { ThemeProvider } from "@/providers/theme-provider";
@@ -21,7 +21,7 @@ function Splashscreen() {
 
   return (
     <div
-      className="flex size-full h-42 w-72 items-center justify-center gap-3 overflow-hidden bg-transparent text-muted-foreground"
+      className="flex h-42 w-72 items-center justify-center gap-3 overflow-hidden bg-transparent text-muted-foreground"
       data-tauri-drag-region
     >
       <Spinner className="size-8" />

@@ -61,5 +61,3 @@ export const RecordingRetentionPeriodSelector = () => {
     </SettingRow>
   );
 };
-RecordingRetentionPeriodSelector.displayName =
-  "RecordingRetentionPeriodSelector";

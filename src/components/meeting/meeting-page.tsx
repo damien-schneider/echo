@@ -1,12 +1,12 @@
+import { MeetingBatchProgressView } from "@/components/meeting/meeting-batch-progress";
+import { MeetingControls } from "@/components/meeting/meeting-controls";
+import { MeetingDetail } from "@/components/meeting/meeting-detail";
+import { MeetingList } from "@/components/meeting/meeting-list";
+import { MeetingSettings } from "@/components/meeting/meeting-settings";
+import { MeetingTranscript } from "@/components/meeting/meeting-transcript";
 import { visibleTranscript } from "@/features/meeting/transcript-order";
 import { SettingsSection } from "@/features/settings/settings-section";
 import { useMeetingStore } from "@/stores/meeting-store";
-import { MeetingBatchProgressView } from "./meeting-batch-progress";
-import { MeetingControls } from "./meeting-controls";
-import { MeetingDetail } from "./meeting-detail";
-import { MeetingList } from "./meeting-list";
-import { MeetingSettings } from "./meeting-settings";
-import { MeetingTranscript } from "./meeting-transcript";
 
 export const MeetingPage = () => {
   const status = useMeetingStore((s) => s.status);

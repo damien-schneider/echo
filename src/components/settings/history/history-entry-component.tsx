@@ -25,7 +25,7 @@ export interface HistoryEntry {
   title: string;
   transcription_text: string;
 }
-export interface HistoryEntryProps {
+interface HistoryEntryProps {
   deleteAudio: (id: number) => Promise<void>;
   entry: HistoryEntry;
   getAudioUrl: (fileName: string) => Promise<string | null>;

@@ -14,7 +14,7 @@ export const CHAT_ROLES = {
   user: "user",
 } as const;
 
-export type ChatRole = (typeof CHAT_ROLES)[keyof typeof CHAT_ROLES];
+type ChatRole = (typeof CHAT_ROLES)[keyof typeof CHAT_ROLES];
 
 export interface ChatMessage {
   content: string;

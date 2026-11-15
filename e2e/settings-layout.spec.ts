@@ -44,7 +44,11 @@ test("settings rows meet their divider without empty form gaps", async ({
       return { top, bottom };
     })
   );
-  expect(bounds[1].top - bounds[0].bottom).toBeLessThanOrEqual(1);
+  const [first, second] = bounds;
+  if (!(first && second)) {
+    throw new Error("Startup group lost a row");
+  }
+  expect(second.top - first.bottom).toBeLessThanOrEqual(1);
 });
 
 test("sidebar navigation works at Echo's default window size and can collapse", async ({

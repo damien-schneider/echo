@@ -1,7 +1,8 @@
-// Pure state machine mirroring Rust transcription model lifecycle via `model-state-changed`.
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+
 export type ModelState = "Unloaded" | "Loading" | "Ready" | "Error";
 
-export type ModelStateEventType =
+type ModelStateEventType =
   | "loading_started"
   | "loading_completed"
   | "loading_failed"
@@ -35,9 +36,6 @@ export const nextModelState = (
   }
 };
 
-import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-
 // onChange fires only on derived-state transition (reference-identity stable).
 export const subscribeModelState = (
   onChange: (state: ModelState) => void
@@ -50,12 +48,5 @@ export const subscribeModelState = (
       current = next;
       onChange(current);
     }
-  });
-};
-
-// Fire-and-forget engine prewarm. Idempotent via Rust `plan_prewarm`.
-export const requestPrewarm = (): void => {
-  invoke("prewarm_models").catch((error: unknown) => {
-    console.warn("prewarm_models invoke failed:", error);
   });
 };

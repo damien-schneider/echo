@@ -1,99 +1,44 @@
 import { PauseIcon, PlayIcon } from "@phosphor-icons/react";
-import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type MouseEvent as ReactMouseEvent,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
+import {
+  drawWaveform,
+  timeAtClientX,
+  waveformBars,
+} from "@/components/ui/waveform";
 import { cn } from "@/lib/utils";
 
-const drawBarShape = (
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number
-) => {
-  if (radius > 0) {
-    ctx.beginPath();
-    ctx.roundRect(x, y, width, height, radius);
-    ctx.fill();
-  } else {
-    ctx.fillRect(x, y, width, height);
+const formatTime = (time: number): string => {
+  if (!Number.isFinite(time)) {
+    return "0:00";
   }
-};
 
-const resolveWaveformColors = (
-  canvas: HTMLCanvasElement,
-  activeColor: string | undefined,
-  inactiveColor: string | undefined
-) => ({
-  active:
-    activeColor ||
-    getComputedStyle(canvas).getPropertyValue("--color-primary").trim() ||
-    "#FAA2CA",
-  inactive:
-    inactiveColor ||
-    getComputedStyle(canvas).getPropertyValue("--foreground") ||
-    "rgba(128, 128, 128, 0.3)",
-});
-
-const drawPartialBar = (
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  radius: number,
-  fillRatio: number,
-  activeColor: string,
-  inactiveColor: string
-) => {
-  ctx.fillStyle = inactiveColor;
-  ctx.globalAlpha = 0.4;
-  drawBarShape(ctx, x, y, width, height, radius);
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(x, y, width * fillRatio, height);
-  ctx.clip();
-  ctx.fillStyle = activeColor;
-  ctx.globalAlpha = 1;
-  drawBarShape(ctx, x, y, width, height, radius);
-  ctx.restore();
+  const minutes = Math.floor(time / 60);
+  const seconds = Math.floor(time % 60);
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
 
 interface AudioPlayerProps {
-  activeColor?: string;
-  barCount?: number;
-  barGap?: number;
-  barRadius?: number;
-  barWidth?: number;
   className?: string;
-  height?: number;
-  inactiveColor?: string;
   src: string;
 }
 
-export const AudioPlayer: React.FC<AudioPlayerProps> = ({
-  src,
-  className = "",
-  barWidth = 3,
-  barGap = 2,
-  barRadius = 2,
-  barCount = 50,
-  height = 32,
-  activeColor,
-  inactiveColor,
-}) => {
+export const AudioPlayer = ({ className, src }: AudioPlayerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
-  const [, setThemeVersion] = useState(0); // Used to force re-render on theme change
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const animationRef = useRef<number | undefined>(undefined);
-  const dragTimeRef = useRef<number>(0);
+  const dragTimeRef = useRef(0);
 
   // refs, not state — the animation loop would close over stale values
   const isPlayingRef = useRef(false);
@@ -101,16 +46,57 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
 
-  const waveformData = useMemo(() => {
-    const seed = src
-      .split("")
-      .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const random = (i: number) => {
-      const x = Math.sin(seed + i * 137.5) * 10_000;
-      return x - Math.floor(x);
-    };
-    return Array.from({ length: barCount }, (_, i) => 0.15 + random(i) * 0.7);
-  }, [src, barCount]);
+  const bars = waveformBars(src);
+
+  const renderWaveform = useEffectEvent(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    const progress =
+      durationRef.current > 0
+        ? currentTimeRef.current / durationRef.current
+        : 0;
+    drawWaveform(canvas, bars, progress);
+  });
+
+  const showTime = (time: number) => {
+    setCurrentTime(time);
+    currentTimeRef.current = time;
+  };
+
+  const scrubTo = (clientX: number) => {
+    const container = containerRef.current;
+    const time = container
+      ? timeAtClientX(container, clientX, durationRef.current)
+      : 0;
+    dragTimeRef.current = time;
+    showTime(time);
+  };
+
+  const onFrame = useEffectEvent(() => {
+    if (audioRef.current && !isDraggingRef.current) {
+      showTime(audioRef.current.currentTime);
+    }
+    renderWaveform();
+  });
+
+  const onLoadedMetadata = useEffectEvent((audioDuration: number) => {
+    setDuration(audioDuration);
+    durationRef.current = audioDuration;
+    showTime(0);
+    renderWaveform();
+  });
+
+  const onEnded = useEffectEvent((audioDuration: number) => {
+    setIsPlaying(false);
+    showTime(audioDuration);
+  });
+
+  const onDragMove = useEffectEvent((clientX: number) => {
+    scrubTo(clientX);
+    renderWaveform();
+  });
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
@@ -119,14 +105,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   useEffect(() => {
     isDraggingRef.current = isDragging;
   }, [isDragging]);
-
-  useEffect(() => {
-    currentTimeRef.current = currentTime;
-  }, [currentTime]);
-
-  useEffect(() => {
-    durationRef.current = duration;
-  }, [duration]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -144,149 +122,49 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       canvas.style.width = `${rect.width}px`;
       canvas.style.height = `${rect.height}px`;
 
-      const ctx = canvas.getContext("2d");
-      if (ctx) {
-        ctx.scale(dpr, dpr);
-      }
+      canvas.getContext("2d")?.scale(dpr, dpr);
     });
 
     resizeObserver.observe(container);
     return () => resizeObserver.disconnect();
   }, []);
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Already extracted helpers, remaining complexity is inherent to waveform rendering
-  const renderWaveform = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) {
-      return;
-    }
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return;
-    }
-
-    const rect = canvas.getBoundingClientRect();
-    ctx.clearRect(0, 0, rect.width, rect.height);
-
-    const progress =
-      durationRef.current > 0
-        ? currentTimeRef.current / durationRef.current
-        : 0;
-    const colors = resolveWaveformColors(canvas, activeColor, inactiveColor);
-
-    const step = barWidth + barGap;
-    const totalWidth = barCount * step - barGap;
-    const startX = (rect.width - totalWidth) / 2;
-    const centerY = rect.height / 2;
-
-    for (let i = 0; i < barCount; i++) {
-      const value = waveformData[i] ?? 0;
-      const barHeight = Math.max(4, value * rect.height * 0.85);
-      const x = startX + i * step;
-      const y = centerY - barHeight / 2;
-
-      const barProgress = (i + 1) / barCount;
-      const previousBarProgress = i / barCount;
-      const isPartiallyFilled =
-        previousBarProgress < progress && barProgress > progress;
-
-      if (isPartiallyFilled) {
-        const fillRatio =
-          (progress - previousBarProgress) /
-          (barProgress - previousBarProgress);
-        drawPartialBar(
-          ctx,
-          x,
-          y,
-          barWidth,
-          barHeight,
-          barRadius,
-          fillRatio,
-          colors.active,
-          colors.inactive
-        );
-      } else {
-        const isFilled = barProgress <= progress;
-        ctx.fillStyle = isFilled ? colors.active : colors.inactive;
-        ctx.globalAlpha = isFilled ? 1 : 0.4;
-        drawBarShape(ctx, x, y, barWidth, barHeight, barRadius);
-      }
-    }
-
-    ctx.globalAlpha = 1;
-  }, [
-    activeColor,
-    inactiveColor,
-    barWidth,
-    barGap,
-    barCount,
-    barRadius,
-    waveformData,
-  ]);
-
   useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setThemeVersion((v) => v + 1);
-      renderWaveform();
-    });
-
-    observer.observe(document.documentElement, {
+    const observer = new MutationObserver(() => renderWaveform());
+    const themeAttributes = {
       attributeFilter: ["class", "data-theme", "style"],
       attributes: true,
-    });
-    observer.observe(document.body, {
-      attributeFilter: ["class", "data-theme", "style"],
-      attributes: true,
-    });
+    };
+    observer.observe(document.documentElement, themeAttributes);
+    observer.observe(document.body, themeAttributes);
 
     return () => observer.disconnect();
-  }, [renderWaveform]);
+  }, []);
 
   useEffect(() => {
     const tick = () => {
-      if (audioRef.current && !isDraggingRef.current) {
-        const time = audioRef.current.currentTime;
-        setCurrentTime(time);
-        currentTimeRef.current = time;
-      }
-
-      renderWaveform();
-
+      onFrame();
       if (isPlayingRef.current) {
         animationRef.current = requestAnimationFrame(tick);
       }
     };
 
-    if (isPlaying && !isDragging) {
-      if (!animationRef.current) {
-        animationRef.current = requestAnimationFrame(tick);
-      }
-    } else {
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = undefined;
-      }
-      renderWaveform();
-    }
-
-    return () => {
+    const stopAnimation = () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = undefined;
       }
     };
-  }, [
-    isPlaying,
-    isDragging, // Still render when not playing to show current state
-    renderWaveform,
-  ]);
 
-  useEffect(() => {
-    if (!isPlaying) {
+    if (isPlaying && !isDragging) {
+      animationRef.current ??= requestAnimationFrame(tick);
+    } else {
+      stopAnimation();
       renderWaveform();
     }
-  }, [isPlaying, renderWaveform]);
+
+    return stopAnimation;
+  }, [isPlaying, isDragging]);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -294,19 +172,8 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       return;
     }
 
-    const handleLoadedMetadata = () => {
-      setDuration(audio.duration || 0);
-      durationRef.current = audio.duration || 0;
-      setCurrentTime(0);
-      currentTimeRef.current = 0;
-      renderWaveform();
-    };
-
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setCurrentTime(audio.duration || 0);
-      currentTimeRef.current = audio.duration || 0;
-    };
+    const handleLoadedMetadata = () => onLoadedMetadata(audio.duration || 0);
+    const handleEnded = () => onEnded(audio.duration || 0);
 
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
@@ -322,37 +189,12 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
     };
-  }, [renderWaveform]);
+  }, []);
 
-  const getTimeFromPosition = useCallback(
-    (clientX: number) => {
-      const container = containerRef.current;
-      if (!container) {
-        return 0;
-      }
-
-      const rect = container.getBoundingClientRect();
-      const step = barWidth + barGap;
-      const totalWidth = barCount * step - barGap;
-      const startX = (rect.width - totalWidth) / 2;
-
-      const x = clientX - rect.left;
-      const relativeX = x - startX;
-      const progress = Math.max(0, Math.min(1, relativeX / totalWidth));
-
-      return progress * duration;
-    },
-    [barWidth, barGap, barCount, duration]
-  );
-
-  const handlePointerDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handlePointerDown = (e: ReactMouseEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(true);
-
-    const newTime = getTimeFromPosition(e.clientX);
-    dragTimeRef.current = newTime;
-    setCurrentTime(newTime);
-    currentTimeRef.current = newTime;
+    scrubTo(e.clientX);
   };
 
   useEffect(() => {
@@ -360,12 +202,13 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       return;
     }
 
-    const handlePointerMove = (e: MouseEvent) => {
-      const newTime = getTimeFromPosition(e.clientX);
-      dragTimeRef.current = newTime;
-      setCurrentTime(newTime);
-      currentTimeRef.current = newTime;
-      renderWaveform();
+    const handleMouseMove = (e: MouseEvent) => onDragMove(e.clientX);
+
+    const handleTouchMove = (e: TouchEvent) => {
+      const touch = e.touches[0];
+      if (touch) {
+        onDragMove(touch.clientX);
+      }
     };
 
     const handlePointerUp = () => {
@@ -375,22 +218,18 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
       }
     };
 
-    document.addEventListener("mousemove", handlePointerMove);
+    document.addEventListener("mousemove", handleMouseMove);
     document.addEventListener("mouseup", handlePointerUp);
-    document.addEventListener("touchmove", (e) =>
-      handlePointerMove(e.touches[0] as unknown as MouseEvent)
-    );
+    document.addEventListener("touchmove", handleTouchMove);
     document.addEventListener("touchend", handlePointerUp);
 
     return () => {
-      document.removeEventListener("mousemove", handlePointerMove);
+      document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handlePointerUp);
-      document.removeEventListener("touchmove", (e) =>
-        handlePointerMove(e.touches[0] as unknown as MouseEvent)
-      );
+      document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("touchend", handlePointerUp);
     };
-  }, [isDragging, getTimeFromPosition, renderWaveform]);
+  }, [isDragging]);
 
   const togglePlay = async () => {
     const audio = audioRef.current;
@@ -407,16 +246,6 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     } catch (error) {
       console.error("Playback failed:", error);
     }
-  };
-
-  const formatTime = (time: number): string => {
-    if (!Number.isFinite(time)) {
-      return "0:00";
-    }
-
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
   };
 
   return (
@@ -448,11 +277,10 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
           aria-valuemax={duration}
           aria-valuemin={0}
           aria-valuenow={currentTime}
-          className="flex-1 cursor-pointer select-none"
+          className="h-8 flex-1 cursor-pointer select-none"
           onMouseDown={handlePointerDown}
           ref={containerRef}
           role="slider"
-          style={{ height: `${height}px` }}
           tabIndex={0}
         >
           <canvas className="block h-full w-full" ref={canvasRef} />

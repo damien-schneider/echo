@@ -14,7 +14,7 @@ if (!rootElement) {
 ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <EchoSkin>
-      <ThemeProvider defaultTheme="system" storageKey="echo-ui-theme">
+      <ThemeProvider>
         <App />
         <RefletFeedback
           enabled={Boolean(REFLET_PUBLIC_KEY)}

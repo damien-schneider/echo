@@ -3,6 +3,7 @@ import { ListChecksIcon } from "@phosphor-icons/react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useEffectEvent, useState } from "react";
+import { CaptureEntry } from "@/components/settings/captures/capture-entry";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
 import { type Capture, CapturesSchema } from "@/lib/types";
@@ -11,7 +12,6 @@ import {
   useSetting,
   useSettingsStore,
 } from "@/stores/settings-store";
-import { CaptureEntry } from "./capture-entry";
 
 const DoubleShiftToggle = () => {
   const enabled = useSetting("double_shift_capture_enabled") ?? true;

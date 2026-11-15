@@ -1,11 +1,9 @@
 import {
   emitTauriEvent,
-  holdChatContextRefresh,
   holdChatReply,
   invokedCommandPayloads,
   invokedCommands,
   NOTIFICATION_URL,
-  releaseChatContextRefresh,
   releaseChatReply,
   test,
 } from "@e2e/fixtures";
@@ -32,11 +30,9 @@ const chatUrl = (reply?: string) =>
     reply ? `&chatReply=${encodeURIComponent(reply)}` : ""
   }`;
 
-test("the prompt appears before the selected-text lookup answers", async ({
-  page,
-}) => {
+test("the prompt appears before the local model answers", async ({ page }) => {
   await page.goto(chatUrl());
-  await holdChatContextRefresh(page);
+  await holdChatReply(page);
   const input = page.getByPlaceholder("Ask anything");
   await input.fill("What is this?");
   await page.getByRole("button", { name: "Send" }).click();
@@ -47,7 +43,7 @@ test("the prompt appears before the selected-text lookup answers", async ({
   await expect(page.getByText("Thinking")).toBeVisible();
   await expect(input).toHaveValue("");
 
-  await releaseChatContextRefresh(page);
+  await releaseChatReply(page);
   await expect(page.locator('[data-chat-role="assistant"]')).toContainText(
     "Qwen3 4B reply"
   );
@@ -57,7 +53,7 @@ test("a pending answer can be stopped and leaves the thread intact", async ({
   page,
 }) => {
   await page.goto(chatUrl());
-  await holdChatContextRefresh(page);
+  await holdChatReply(page);
   await page.getByPlaceholder("Ask anything").fill("Take your time");
   await page.getByRole("button", { name: "Send" }).click();
   await expect(page.getByText("Thinking")).toBeVisible();
