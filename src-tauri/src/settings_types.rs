@@ -9,13 +9,6 @@ pub struct ShortcutBinding {
     pub current_binding: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct LLMPrompt {
-    pub id: String,
-    pub name: String,
-    pub prompt: String,
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct DictionaryEntrySetting {
     pub canonical: String,
@@ -88,6 +81,18 @@ pub enum PolishLevel {
     #[default]
     Natural,
     Clear,
+}
+
+impl PolishLevel {
+    pub const ALL: [Self; 3] = [Self::Correct, Self::Natural, Self::Clear];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Correct => "Correct",
+            Self::Natural => "Natural",
+            Self::Clear => "Clear",
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
@@ -205,14 +210,14 @@ pub struct AppSettings {
     pub paste_method: PasteMethod,
     #[serde(default)]
     pub clipboard_handling: ClipboardHandling,
+    #[serde(default = "default_prompts")]
+    pub prompts: Vec<Prompt>,
     #[serde(default)]
-    pub polish_level: PolishLevel,
+    pub dictation_prompt: Option<PromptRef>,
+    #[serde(default = "default_polish_prompt")]
+    pub polish_prompt: PromptRef,
     #[serde(default)]
-    pub post_process_enabled: bool,
-    #[serde(default = "default_post_process_prompts")]
-    pub post_process_prompts: Vec<LLMPrompt>,
-    #[serde(default)]
-    pub post_process_selected_prompt_id: Option<String>,
+    pub chat_prompt: Option<PromptRef>,
     #[serde(default = "default_voice_commands")]
     pub voice_commands: bool,
     #[serde(default)]

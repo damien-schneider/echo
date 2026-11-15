@@ -18,7 +18,7 @@ import {
 } from "@/lib/types";
 
 const MODEL_USES =
-  "Runs post-processing, voice commands, Polish, meeting summaries and chat on this computer.";
+  "Runs your prompts, voice commands, meeting summaries and chat on this computer.";
 
 const rowStatus = (status: PolishStatus): ModelRowStatus | undefined => {
   switch (status.state) {

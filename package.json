@@ -46,7 +46,6 @@
     "@platejs/combobox": "^53.0.0",
     "@platejs/list-classic": "^53.0.0",
     "@platejs/markdown": "^53.5.3",
-    "@platejs/mention": "^53.0.0",
     "@streamdown/cjk": "^1.0.4",
     "@streamdown/code": "^1.1.1",
     "@tailwindcss/vite": "^4.3.5",

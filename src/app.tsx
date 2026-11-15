@@ -54,13 +54,7 @@ function App() {
   useMeetingListener();
   useShortcutFailureToasts();
 
-  useEffect(
-    () =>
-      listenCancellable(() =>
-        mountTranscriptionBridge(() => useSettingsStore.getState().settings)
-      ),
-    []
-  );
+  useEffect(() => listenCancellable(mountTranscriptionBridge), []);
 
   useEffect(
     () => listenCancellable(() => subscribeModelState(setModelState)),

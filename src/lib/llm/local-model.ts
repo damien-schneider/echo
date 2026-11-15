@@ -35,9 +35,14 @@ const forwardToLocalModel = async (
   });
 };
 
+// Bun's fetch type demands preconnect; an IPC call has nothing to preconnect.
+const localModelFetch = Object.assign(forwardToLocalModel, {
+  preconnect: () => undefined,
+});
+
 const localProvider = createOpenAICompatible({
   baseURL: "http://qwen3-4b.invalid/v1",
-  fetch: forwardToLocalModel,
+  fetch: localModelFetch,
   name: "echo",
 });
 

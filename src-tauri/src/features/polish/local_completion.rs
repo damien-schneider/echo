@@ -1,4 +1,4 @@
-//! Post-processing's AI SDK call reaches the bundled sidecar through this command instead of a
+//! Voice commands' AI SDK call reaches the bundled sidecar through this command instead of a
 //! webview fetch: no browser CORS rule applies, and the per-run key never leaves Rust.
 
 use anyhow::{Context, Result};
@@ -26,12 +26,12 @@ impl PolishManager {
     async fn forward_chat_completion(&self, body: String) -> Result<LocalCompletionResponse> {
         if !self.is_downloaded() {
             anyhow::bail!(
-                "Download {POLISH_MODEL_NAME} in Settings → Models to post-process dictations."
+                "Download {POLISH_MODEL_NAME} in Settings → Models to run voice commands."
             );
         }
         self.prepare()
             .await
-            .context("Failed to prepare the local model for post-processing")?;
+            .context("Failed to prepare the local model for voice commands")?;
         let (url, api_key) = self.runtime.endpoint_auth("/v1/chat/completions").await?;
         let response = LOCAL_COMPLETION_CLIENT
             .post(url)

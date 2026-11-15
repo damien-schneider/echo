@@ -37,7 +37,7 @@ import { CleanupSettings } from "@/components/settings/cleanup/cleanup-settings"
 import { HistorySettings } from "@/components/settings/history/history-settings";
 import { KeyboardTrackingSettings } from "@/components/settings/keyboard-tracking/keyboard-tracking-settings";
 import { ModelsSettings } from "@/components/settings/models/models-settings";
-import { PostProcessingSettings } from "@/components/settings/post-processing/post-processing-settings";
+import { PromptsSettings } from "@/components/settings/prompts/prompts-settings";
 import { TranscriptionSettings } from "@/components/settings/transcription/transcription-settings";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import {
@@ -90,10 +90,10 @@ export const SECTIONS_CONFIG = {
     icon: CubeIcon,
     label: "Models",
   },
-  "post-processing": {
-    component: PostProcessingSettings,
+  prompts: {
+    component: PromptsSettings,
     icon: SparkleIcon,
-    label: "Post-processing",
+    label: "Prompts",
   },
   transcription: {
     component: TranscriptionSettings,

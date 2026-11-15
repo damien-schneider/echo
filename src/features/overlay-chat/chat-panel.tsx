@@ -1,5 +1,5 @@
 import { Button } from "@ctrl-ui/react/ui/button";
-import { XIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, XIcon } from "@phosphor-icons/react";
 import type { FormEvent, ReactNode } from "react";
 import {
   type BundledChatModel,
@@ -9,6 +9,18 @@ import {
 import { ChatComposer } from "@/features/overlay-chat/conversation/chat-composer";
 import { MessageList } from "@/features/overlay-chat/conversation/message-list";
 import {
+  PROMPT_MENU_ID,
+  PromptMenuList,
+} from "@/features/overlay-chat/prompt-picker/prompt-menu-list";
+import {
+  type ChatPromptChoice,
+  useChatPrompt,
+} from "@/features/overlay-chat/prompt-picker/use-chat-prompt";
+import {
+  type PromptMenu,
+  usePromptMenu,
+} from "@/features/overlay-chat/prompt-picker/use-prompt-menu";
+import {
   type ChatSession,
   useChatSession,
 } from "@/features/overlay-chat/use-chat-session";
@@ -17,7 +29,6 @@ import type {
   ChatContextEvent,
   ChatTextContext,
 } from "@/features/overlay-controls/runtime/overlay-windows";
-import { polishModelName } from "@/features/polish/polish-model-state";
 import { cn } from "@/lib/utils";
 import "@/features/overlay-chat/chat-panel.css";
 
@@ -30,10 +41,28 @@ interface ChatPanelProps {
   onClose: () => void;
   onRequestAccessibility: () => Promise<void>;
 }
-const ChatModelLabel = () => (
-  <span className="flex h-8 shrink-0 items-center rounded-full border border-white/10 bg-white/7 px-3 text-[11px] text-white/62">
-    {polishModelName}
-  </span>
+const ChatPromptPill = ({
+  label,
+  menu,
+}: {
+  label: string;
+  menu: PromptMenu;
+}) => (
+  <Button
+    aria-controls={menu.isOpen ? PROMPT_MENU_ID : undefined}
+    aria-expanded={menu.isOpen}
+    aria-haspopup="listbox"
+    className="h-8 shrink-0 gap-1 rounded-full border border-white/10 bg-white/7 px-3 text-[11px] text-white/72 hover:bg-white/12 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
+    onClick={menu.toggle}
+    onMouseDown={(event) => event.preventDefault()}
+    size="xs"
+    title="Choose a prompt, or type / in the message"
+    type="button"
+    variant="ghost"
+  >
+    {label}
+    <CaretDownIcon aria-hidden="true" className="size-3" />
+  </Button>
 );
 const CloseChatButton = ({ onClose }: { onClose: () => void }) => (
   <Button
@@ -52,12 +81,14 @@ const CloseChatButton = ({ onClose }: { onClose: () => void }) => (
 interface ChatPanelShellProps {
   children: ReactNode;
   hasFlanks: boolean;
+  leftFlank: ReactNode;
   onClose: () => void;
   panelHeightClass: string;
 }
 const ChatPanelShell = ({
   children,
   hasFlanks,
+  leftFlank,
   panelHeightClass,
   onClose,
 }: ChatPanelShellProps) => (
@@ -69,7 +100,7 @@ const ChatPanelShell = ({
     )}
     hasFlanks={hasFlanks}
     layout="chat"
-    leftFlank={<ChatModelLabel />}
+    leftFlank={leftFlank}
     rightFlank={<CloseChatButton onClose={onClose} />}
   >
     {children}
@@ -78,19 +109,32 @@ const ChatPanelShell = ({
 interface ChatPanelContentProps {
   bundledModel: BundledChatModel;
   chat: ChatSession;
+  chatPrompt: ChatPromptChoice;
   context: ChatTextContext | null;
   contextState: ChatContextEvent["state"];
   hasConversation: boolean;
   isBundledModelReady: boolean;
+  menu: PromptMenu;
   onRequestAccessibility: () => Promise<void>;
 }
+const composerPlaceholder = (
+  prompt: ChatPromptChoice["prompt"],
+  context: ChatTextContext | null
+) => {
+  if (prompt) {
+    return `${prompt.name}…`;
+  }
+  return context ? "Ask about this text" : "Ask anything";
+};
 const ChatPanelContent = ({
   bundledModel,
   chat,
+  chatPrompt,
   context,
   contextState,
   hasConversation,
   isBundledModelReady,
+  menu,
   onRequestAccessibility,
 }: ChatPanelContentProps) => {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -112,6 +156,7 @@ const ChatPanelContent = ({
           messages={chat.messages}
         />
       ) : null}
+      <PromptMenuList activeChoice={chatPrompt.activeChoice} menu={menu} />
       <form className="mt-auto w-full min-w-0 shrink-0" onSubmit={handleSubmit}>
         <ChatComposer
           dictation={chat.dictation}
@@ -120,13 +165,43 @@ const ChatPanelContent = ({
           isContextLoading={contextState === "loading"}
           isModelReady={isBundledModelReady}
           isResponding={chat.isResponding}
-          onInput={chat.setInput}
+          menu={menu}
           onStop={chat.stop}
-          placeholder={context ? "Ask about this text" : "Ask anything"}
+          placeholder={composerPlaceholder(chatPrompt.prompt, context)}
         />
       </form>
     </>
   );
+};
+interface PromptedChatOptions {
+  context: ChatTextContext | null;
+  contextState: ChatContextEvent["state"];
+  isBundledModelReady: boolean;
+  isOpen: boolean;
+}
+/// Switching prompt starts over, keeping only what is typed.
+const usePromptedChat = (options: PromptedChatOptions) => {
+  const chatPrompt = useChatPrompt();
+  const chat = useChatSession({
+    ...options,
+    isPromptReady: chatPrompt.isReady,
+    prompt: chatPrompt.prompt,
+  });
+  const menu = usePromptMenu({
+    chatPrompt,
+    input: chat.input,
+    inputRef: chat.inputRef,
+    onChoose: (choice) => {
+      chat.restart();
+      chatPrompt
+        .choose(choice)
+        .catch(() =>
+          chat.showError("Echo could not remember this prompt for next time.")
+        );
+    },
+    setInput: chat.setInput,
+  });
+  return { chat, chatPrompt, menu };
 };
 export const ChatPanel = ({
   bundledModel,
@@ -138,7 +213,7 @@ export const ChatPanel = ({
   onRequestAccessibility,
 }: ChatPanelProps) => {
   const isBundledModelReady = bundledModel.status.state === "ready";
-  const chat = useChatSession({
+  const { chat, chatPrompt, menu } = usePromptedChat({
     context,
     contextState,
     isBundledModelReady,
@@ -152,16 +227,19 @@ export const ChatPanel = ({
   return (
     <ChatPanelShell
       hasFlanks={hasFlanks}
+      leftFlank={<ChatPromptPill label={chatPrompt.label} menu={menu} />}
       onClose={onClose}
       panelHeightClass={panelHeightClass}
     >
       <ChatPanelContent
         bundledModel={bundledModel}
         chat={chat}
+        chatPrompt={chatPrompt}
         context={context}
         contextState={contextState}
         hasConversation={hasConversation}
         isBundledModelReady={isBundledModelReady}
+        menu={menu}
         onRequestAccessibility={onRequestAccessibility}
       />
     </ChatPanelShell>

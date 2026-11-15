@@ -17,9 +17,8 @@ import {
   HistoryEntryComponent,
 } from "@/components/settings/history/history-entry-component";
 import { KeyboardInputList } from "@/components/settings/history/keyboard-input-list";
-import { rewriteTranscript, selectedPromptText } from "@/lib/llm/post-process";
+import { rewriteTranscript } from "@/lib/llm/post-process";
 import { cn } from "@/lib/utils";
-import { useSettingsStore } from "@/stores/settings-store";
 
 type HistoryTab = "transcriptions" | "keyboard";
 export const HistorySettings = () => {
@@ -97,23 +96,15 @@ export const HistorySettings = () => {
   };
   const reprocessEntry = async (id: number) => {
     try {
-      const settings = useSettingsStore.getState().settings;
-      if (!settings) {
-        throw new Error("Settings not loaded");
-      }
       const transcription = await invoke<string>(
         "get_history_entry_transcription",
         { id }
       );
-      const result = await rewriteTranscript(transcription, settings);
-      const postProcessedText = result.kind === "text" ? result.content : null;
-      const postProcessPrompt = postProcessedText
-        ? selectedPromptText(settings)
-        : null;
+      const result = await rewriteTranscript(transcription);
       await invoke("reprocess_history_entry", {
         id,
-        postProcessedText,
-        postProcessPrompt,
+        postProcessedText: result.kind === "text" ? result.content : null,
+        postProcessPrompt: result.promptName ?? null,
       });
     } catch (error) {
       console.error("Failed to reprocess entry:", error);

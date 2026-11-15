@@ -102,7 +102,7 @@ async fn captured_selection(
 }
 
 pub(crate) struct PolishManager {
-    app: AppHandle,
+    pub(super) app: AppHandle,
     models: Arc<ModelManager>,
     pub(super) runtime: Arc<PolishRuntime>,
     runtime_path: PathBuf,
@@ -432,8 +432,10 @@ impl PolishManager {
             return;
         }
         show_processing_overlay(&self.app, "Polishing…");
-        let level = settings::get_settings(&self.app).polish_level;
-        let outcome = transaction.complete(captured, generation, level).await;
+        let instruction = settings::get_settings(&self.app).polish_instruction();
+        let outcome = transaction
+            .complete(captured, generation, &instruction)
+            .await;
         self.present_outcome(outcome).await;
     }
 

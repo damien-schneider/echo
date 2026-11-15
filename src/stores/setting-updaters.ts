@@ -12,6 +12,7 @@ const settingUpdaters: {
     invoke("change_audio_feedback_volume_setting", { volume: value }),
   autostart_enabled: (value) =>
     invoke("change_autostart_setting", { enabled: value }),
+  chat_prompt: (value) => invoke("set_chat_prompt", { prompt: value }),
   clamshell_microphone: (value) =>
     invoke("set_clamshell_microphone", {
       deviceName: value === "Default" ? "default" : value,
@@ -27,6 +28,8 @@ const settingUpdaters: {
     invoke("change_debug_logging_setting", { enabled: value }),
   debug_mode: (value) =>
     invoke("change_debug_mode_setting", { enabled: value }),
+  dictation_prompt: (value) =>
+    invoke("set_dictation_prompt", { prompt: value }),
   double_shift_capture_enabled: (value) =>
     invoke("change_double_shift_capture_setting", { enabled: value }),
   history_limit: (value) => invoke("update_history_limit", { limit: value }),
@@ -49,12 +52,7 @@ const settingUpdaters: {
     invoke("change_overlay_position_setting", { position: value }),
   paste_method: (value) =>
     invoke("change_paste_method_setting", { method: value }),
-  polish_level: (value) =>
-    invoke("change_polish_level_setting", { level: value }),
-  post_process_enabled: (value) =>
-    invoke("change_post_process_enabled_setting", { enabled: value }),
-  post_process_selected_prompt_id: (value) =>
-    invoke("set_post_process_selected_prompt", { id: value }),
+  polish_prompt: (value) => invoke("set_polish_prompt", { prompt: value }),
   push_to_talk: (value) => invoke("change_ptt_setting", { enabled: value }),
   recording_retention_period: (value) =>
     invoke("update_recording_retention_period", { period: value }),

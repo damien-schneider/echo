@@ -326,7 +326,7 @@ pub(crate) fn take_pending_audio(generation: u64) -> Vec<f32> {
 
 pub const POST_PROCESS_WATCHDOG: Duration = Duration::from_secs(30);
 /// Leaves the frontend time to finalize before the watchdog pastes the raw text instead.
-const POST_PROCESS_FRONTEND_BUDGET: Duration =
+pub(crate) const POST_PROCESS_FRONTEND_BUDGET: Duration =
     POST_PROCESS_WATCHDOG.saturating_sub(Duration::from_secs(3));
 
 /// Last resort above the inner per-join budgets (~3s) — past it the audio path is abandoned so the UI can't stick.
@@ -827,6 +827,25 @@ impl ShortcutAction for PolishAction {
     fn stop(&self, _app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {}
 }
 
+struct ChatAction;
+
+impl ShortcutAction for ChatAction {
+    fn is_one_shot(&self) -> bool {
+        true
+    }
+
+    fn start(&self, app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            if let Err(error) = crate::overlay::open_chat(app).await {
+                warn!("Could not open chat from shortcut: {error}");
+            }
+        });
+    }
+
+    fn stop(&self, _app: &AppHandle, _binding_id: &str, _shortcut_str: &str) {}
+}
+
 pub static ACTION_MAP: LazyLock<HashMap<String, Arc<dyn ShortcutAction>>> = LazyLock::new(|| {
     let mut map = HashMap::new();
     map.insert(
@@ -836,6 +855,10 @@ pub static ACTION_MAP: LazyLock<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy
     map.insert(
         "polish".to_string(),
         Arc::new(PolishAction) as Arc<dyn ShortcutAction>,
+    );
+    map.insert(
+        "chat".to_string(),
+        Arc::new(ChatAction) as Arc<dyn ShortcutAction>,
     );
     map
 });

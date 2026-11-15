@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { TranscriptionModelRow } from "@/components/model-selector/transcription-model-row";
 import { LegacyModelFilesSection } from "@/components/settings/models/legacy-model-files-section";
 import { MeetingModelsSection } from "@/components/settings/models/meeting-model-rows";
-import { PolishLevelSlider } from "@/components/settings/models/polish-level-slider";
 import { PolishModelRow } from "@/components/settings/models/polish-model-row";
 import { usePolishModel } from "@/features/polish/use-polish-model";
 import { SettingsSection } from "@/features/settings/settings-section";
@@ -80,7 +79,6 @@ export const ModelsSettings = () => {
           progress={polish.progress?.percentage}
           status={polish.status}
         />
-        <PolishLevelSlider />
       </SettingsSection>
       <MeetingModelsSection />
       <LegacyModelFilesSection />

@@ -24,20 +24,11 @@ import {
   NumberedListPlugin,
   TaskListPlugin,
 } from "@platejs/list-classic/react";
-import { MarkdownPlugin, remarkMention } from "@platejs/markdown";
-import { MentionInputPlugin, MentionPlugin } from "@platejs/mention/react";
+import { MarkdownPlugin } from "@platejs/markdown";
 import type { SlateEditor, Value } from "platejs";
 import { usePlateEditor } from "platejs/react";
 import { useEffect, useRef, useState } from "react";
 import remarkGfm from "remark-gfm";
-import {
-  MentionElement,
-  MentionInputElement,
-} from "@/components/editor/mention-node";
-import { replaceMentionOutputInMarkdown } from "@/lib/utils/replace-mention-output";
-
-const MENTION_TRIGGER_PATTERN = /^$|^[\s"']$/;
-const OUTPUT_MENTION_MARKDOWN = "[output](mention:output)";
 
 const PROMPT_PLUGINS = [
   BoldPlugin,
@@ -66,18 +57,9 @@ const PROMPT_PLUGINS = [
 
   MarkdownPlugin.configure({
     options: {
-      remarkPlugins: [remarkGfm, remarkMention],
+      remarkPlugins: [remarkGfm],
     },
   }),
-
-  MentionPlugin.configure({
-    options: {
-      insertSpaceAfterMention: false,
-      trigger: "@",
-      triggerPreviousCharPattern: MENTION_TRIGGER_PATTERN,
-    },
-  }).withComponent(MentionElement),
-  MentionInputPlugin.withComponent(MentionInputElement),
 ];
 
 const emptyValue = (): Value => [{ children: [{ text: "" }], type: "p" }];
@@ -86,11 +68,7 @@ const deserializePrompt = (editor: SlateEditor, markdown: string): Value => {
   if (!markdown) {
     return emptyValue();
   }
-  return editor
-    .getApi(MarkdownPlugin)
-    .markdown.deserialize(
-      replaceMentionOutputInMarkdown(markdown, OUTPUT_MENTION_MARKDOWN)
-    );
+  return editor.getApi(MarkdownPlugin).markdown.deserialize(markdown);
 };
 
 const serializePrompt = (editor: SlateEditor, value?: Value): string =>

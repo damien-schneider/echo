@@ -16,7 +16,6 @@
         "@platejs/combobox": "^53.0.0",
         "@platejs/list-classic": "^53.0.0",
         "@platejs/markdown": "^53.5.3",
-        "@platejs/mention": "^53.0.0",
         "@streamdown/cjk": "^1.0.4",
         "@streamdown/code": "^1.1.1",
         "@tailwindcss/vite": "^4.3.5",
@@ -389,8 +388,6 @@
     "@platejs/list-classic": ["@platejs/list-classic@53.0.0", "", { "dependencies": { "lodash": "^4.17.21", "react-compiler-runtime": "^1.0.0" }, "peerDependencies": { "platejs": ">=53.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0" } }, "sha512-2L7QYfBswIZiqQKviiHl1vzNQPoyJr7rihXGgNKpXxt4sGtbNN6Av8FxvDRXmymU2sa12I+H+5Y3jFyYmEsciA=="],
 
     "@platejs/markdown": ["@platejs/markdown@53.5.3", "", { "dependencies": { "@platejs/date": "53.0.0", "acorn": "^8.16.0", "acorn-jsx": "^5.3.2", "lodash": "^4.17.23", "marked": "^15.0.12", "mdast-util-math": "3.0.0", "mdast-util-mdx": "3.0.0", "micromark": "^4.0.2", "micromark-core-commonmark": "^2.0.3", "micromark-extension-mdxjs": "^3.0.0", "micromark-util-character": "^2.1.1", "micromark-util-events-to-acorn": "^2.0.3", "micromark-util-types": "^2.0.2", "react-compiler-runtime": "^1.0.0", "remark-mdx": "^3.1.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "ts-essentials": "10.1.0", "unified": "^11.0.5", "unist-util-visit": "5.0.0" }, "peerDependencies": { "platejs": ">=53.3.18", "react": ">=18.0.0", "react-dom": ">=18.0.0" } }, "sha512-K5e+2sUDjyQx+CG3POAzgLVvnlF/V8rvGLMf9YdDxzKtN4TPwnQhKOVBJan83xVPw9c3WPi9HRE5AHkdNbTmhw=="],
-
-    "@platejs/mention": ["@platejs/mention@53.0.0", "", { "dependencies": { "@platejs/combobox": "53.0.0", "react-compiler-runtime": "^1.0.0" }, "peerDependencies": { "platejs": ">=53.0.0", "react": ">=18.0.0", "react-dom": ">=18.0.0" } }, "sha512-x7kr9SgFlO0yoJdRcv4mIeiM47cnDEIUJBMYFAQEI42JdwcVKUBiPP4bCZwkQKpGndxmlXT9iTz8+w/UBqDJOA=="],
 
     "@platejs/slate": ["@platejs/slate@53.3.18", "", { "dependencies": { "@udecode/utils": "^52.3.4", "is-plain-object": "^5.0.0", "lodash": "^4.17.21", "scroll-into-view-if-needed": "^3.1.0", "slate": "0.146.0", "slate-dom": "0.146.0" } }, "sha512-VbU+ptjWTVMCTJUWFmFoTUn2sNMF+HyAYmoRauZaoM7u9K5nHb4Dofi8Sov2wssgzBW3WmjosEUvW0iVf3MzSQ=="],
 

@@ -6,8 +6,9 @@ use std::time::Duration;
 
 mod copy_wait;
 
-use super::policy::{validate_polish_input, validated_polish_output};
-use crate::settings::PolishLevel;
+use super::policy::validate_polish_input;
+use super::transform::{transform, Framing, TransformRequest};
+use crate::settings::Instruction;
 use copy_wait::copy_poll_delays;
 
 const MAX_POLISH_TOKENS: usize = 1_500;
@@ -44,7 +45,7 @@ pub(super) trait FocusPort: Send + Sync {
 #[async_trait]
 pub(super) trait InferencePort: Send + Sync {
     async fn token_count(&self, text: &str) -> Result<usize>;
-    async fn polish(&self, text: &str, level: PolishLevel) -> Result<String>;
+    async fn complete(&self, request: &TransformRequest) -> Result<String>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -146,7 +147,7 @@ impl PolishTransaction {
         self.complete(
             CapturedPolishInput::new(text, focused_application, mode)?,
             generation,
-            PolishLevel::default(),
+            &Instruction::Builtin(crate::settings::PolishLevel::default()),
         )
         .await
     }
@@ -181,18 +182,24 @@ impl PolishTransaction {
         &self,
         captured: CapturedPolishInput,
         generation: u64,
-        level: PolishLevel,
+        instruction: &Instruction,
     ) -> Result<PolishOutcome> {
         self.ensure_current(generation)?;
         if self.ports.inference.token_count(&captured.text).await? > MAX_POLISH_TOKENS {
             anyhow::bail!("Selection exceeds {MAX_POLISH_TOKENS} tokens");
         }
         self.ensure_current(generation)?;
-        let output = self.ports.inference.polish(&captured.text, level).await?;
-        self.ensure_current(generation)?;
-        let output = validated_polish_output(&captured.text, &output, level).context(
+        let output = transform(
+            self.ports.inference.as_ref(),
+            &captured.text,
+            instruction,
+            Framing::Selection,
+        )
+        .await
+        .context(
             "Original text kept because Polish could not preserve it safely. Try a shorter selection.",
         )?;
+        self.ensure_current(generation)?;
         if captured.text == output {
             return Ok(PolishOutcome::Unchanged);
         }

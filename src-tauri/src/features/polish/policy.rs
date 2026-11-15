@@ -6,55 +6,10 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
+use super::levels::level_policy;
 use crate::settings::PolishLevel;
 
 pub(super) const MAX_POLISH_CHARACTERS: usize = 4_000;
-
-/// One place to tune how far each level may go, in the prompt and in the guards that police it.
-struct LevelPolicy {
-    system: &'static str,
-    instruction: &'static str,
-    min_output_length_percent: usize,
-    max_output_length_percent: usize,
-    max_word_edit_percent: usize,
-}
-
-fn level_policy(level: PolishLevel) -> LevelPolicy {
-    match level {
-        PolishLevel::Correct => LevelPolicy {
-            system: "You are a conservative multilingual proofreader. Never translate or rewrite. Keep the input language, meaning, tone, line breaks, names, URLs, emails, identifiers, and code. Fix only clear spelling, grammar, punctuation, or agreement errors. If the text is already correct, return it byte-for-byte. Output only the final text.",
-            instruction: "Fix only spelling, grammar, punctuation, and agreement errors, and leave every word choice and sentence shape untouched.",
-            min_output_length_percent: 70,
-            max_output_length_percent: 140,
-            max_word_edit_percent: 50,
-        },
-        PolishLevel::Natural => LevelPolicy {
-            system: "You are a native-speaker editor. Never translate, never add or drop information, never merge, split, or reorder sentences. Keep the input language, meaning, tone, line breaks, names, URLs, emails, identifiers, and code. Output only the final text.",
-            instruction: "Fix spelling, grammar, punctuation, and agreement, then rewrite whatever a native speaker would not say: word choice, word order inside a sentence, missing articles, literal translations. Keep every sentence where it is.",
-            min_output_length_percent: 70,
-            max_output_length_percent: 140,
-            max_word_edit_percent: 60,
-        },
-        PolishLevel::Clear => LevelPolicy {
-            system: "You are a native-speaker editor. Never translate, never add information, never drop a point the text makes. Keep the input language, meaning, tone, line breaks, names, URLs, emails, identifiers, and code. Output only the final text.",
-            instruction: "Fix spelling, grammar, punctuation, and agreement, rewrite whatever a native speaker would not say, and restructure what reads badly: split run-on sentences, cut repetition, lead with the point.",
-            min_output_length_percent: 50,
-            max_output_length_percent: 160,
-            max_word_edit_percent: 85,
-        },
-    }
-}
-
-pub(super) fn polish_system_prompt(level: PolishLevel) -> &'static str {
-    level_policy(level).system
-}
-
-pub(super) fn build_polish_prompt(text: &str, level: PolishLevel) -> String {
-    let instruction = level_policy(level).instruction;
-    format!(
-        "Edit the text between <text> tags. {instruction} Preserve meaning, tone, the same language, and every line break. Preserve URLs, emails, names, identifiers, and code exactly. Return only the edited text without quotes or explanation.\n<text>{text}</text>"
-    )
-}
 
 #[cfg(test)]
 pub(super) fn validate_polish_output(input: &str, output: &str) -> Result<()> {
@@ -90,7 +45,7 @@ pub(super) fn validate_polish_input(input: &str) -> Result<()> {
     Ok(())
 }
 
-fn has_explanation_wrapper(output: &str) -> bool {
+pub(super) fn has_explanation_wrapper(output: &str) -> bool {
     let lower = output.to_lowercase();
     [
         "corrected text:",
@@ -267,24 +222,6 @@ mod tests {
 
     fn polished(input: &str, output: &str) -> Result<String> {
         validated_polish_output(input, output, PolishLevel::Natural)
-    }
-
-    #[test]
-    fn each_level_states_how_far_polish_may_go() {
-        let correct = build_polish_prompt("Bonjour tout le monde", PolishLevel::Correct);
-        let natural = build_polish_prompt("Bonjour tout le monde", PolishLevel::Natural);
-        let clear = build_polish_prompt("Bonjour tout le monde", PolishLevel::Clear);
-
-        assert!(correct.contains("leave every word choice and sentence shape untouched"));
-        assert!(natural.contains("rewrite whatever a native speaker would not say"));
-        assert!(!natural.contains("restructure"));
-        assert!(clear.contains("restructure"));
-        for prompt in [&correct, &natural, &clear] {
-            assert!(prompt.contains("Preserve meaning"));
-            assert!(prompt.contains("the same language"));
-            assert!(prompt.contains("Return only"));
-            assert!(prompt.contains("Bonjour tout le monde"));
-        }
     }
 
     #[test]

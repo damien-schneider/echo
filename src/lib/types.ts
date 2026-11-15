@@ -81,9 +81,6 @@ export type PasteMethod = z.infer<typeof PasteMethodSchema>;
 const ClipboardHandlingSchema = z.enum(["dont_modify", "copy_to_clipboard"]);
 export type ClipboardHandling = z.infer<typeof ClipboardHandlingSchema>;
 
-const PolishLevelSchema = z.enum(["correct", "natural", "clear"]);
-export type PolishLevel = z.infer<typeof PolishLevelSchema>;
-
 const RecordingRetentionPeriodSchema = z.enum([
   "never",
   "preserve_limit",
@@ -94,14 +91,6 @@ const RecordingRetentionPeriodSchema = z.enum([
 export type RecordingRetentionPeriod = z.infer<
   typeof RecordingRetentionPeriodSchema
 >;
-
-const LLMPromptSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  prompt: z.string(),
-});
-
-export type LLMPrompt = z.infer<typeof LLMPromptSchema>;
 
 const DictionaryEntrySchema = z.object({
   canonical: z.string(),
@@ -127,6 +116,7 @@ const SettingsSchema = z.object({
   audio_feedback_volume: z.number().optional().default(1.0),
   autostart_enabled: z.boolean().optional().default(false),
   bindings: ShortcutBindingsMapSchema,
+  chat_prompt: z.string().nullable().optional().default(null),
   clamshell_microphone: z.string().nullable().optional(),
   cleanup_dictionary: z.array(DictionaryEntrySchema).optional().default([]),
   cleanup_enabled: z.boolean().optional().default(false),
@@ -134,6 +124,7 @@ const SettingsSchema = z.object({
   custom_words: z.array(z.string()).optional().default([]),
   debug_logging_enabled: z.boolean().optional().default(false),
   debug_mode: z.boolean(),
+  dictation_prompt: z.string().nullable().optional().default(null),
   double_shift_capture_enabled: z.boolean().optional().default(true),
   history_limit: z.number().optional().default(5),
   input_tracking_enabled: z.boolean().optional().default(false),
@@ -148,10 +139,7 @@ const SettingsSchema = z.object({
   overlay_dock_offset: z.number().min(0).max(1).optional().default(0.5),
   overlay_position: OverlayPositionSchema,
   paste_method: PasteMethodSchema.optional().default("ctrl_v"),
-  polish_level: PolishLevelSchema.optional().default("natural"),
-  post_process_enabled: z.boolean().optional().default(false),
-  post_process_prompts: z.array(LLMPromptSchema).optional().default([]),
-  post_process_selected_prompt_id: z.string().nullable().optional(),
+  polish_prompt: z.string().optional().default("natural"),
   push_to_talk: z.boolean(),
   recording_retention_period:
     RecordingRetentionPeriodSchema.optional().default("preserve_limit"),

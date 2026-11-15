@@ -1,8 +1,10 @@
 #[path = "lifecycle/app_exit.rs"]
 pub(crate) mod app_exit;
 pub(crate) mod chat_context;
+pub(crate) mod dictation;
 #[path = "lifecycle/idle_release.rs"]
 pub(crate) mod idle_release;
+pub(crate) mod levels;
 pub(crate) mod local_completion;
 pub(crate) mod manager;
 mod platform;
@@ -10,6 +12,7 @@ mod policy;
 mod runtime;
 mod selection;
 pub(crate) mod summarize;
+pub(crate) mod transform;
 
 use serde::{Deserialize, Serialize};
 

@@ -51,7 +51,7 @@ fn enabled_passes(app: &AppHandle) -> EnabledPasses {
     }
     let settings = crate::settings::get_settings(app);
     EnabledPasses {
-        rewrite: settings.post_process_enabled,
+        rewrite: settings.dictation_rewrite_prompt().is_some(),
         voice_commands: settings.voice_commands,
     }
 }

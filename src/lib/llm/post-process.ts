@@ -1,9 +1,9 @@
+import { invoke } from "@tauri-apps/api/core";
 import { generateText } from "ai";
+import { z } from "zod";
 import { localLlmModel } from "@/lib/llm/local-model";
 import { VOICE_COMMAND_SYSTEM_PROMPT } from "@/lib/llm/post-process-prompt";
 import { runVoiceTool, type VoiceToolCall, voiceTools } from "@/lib/llm/tools";
-import type { Settings } from "@/lib/types";
-import { replaceMentionOutputInMarkdown } from "@/lib/utils/replace-mention-output";
 
 const POST_PROCESS_RESULT_KINDS = {
   empty: "empty",
@@ -17,6 +17,7 @@ type PostProcessResultKind =
 export interface PostProcessResult {
   content: string;
   kind: PostProcessResultKind;
+  promptName?: string;
   toolMessage?: string;
 }
 
@@ -27,44 +28,23 @@ export const unchangedTranscript = (
   kind: POST_PROCESS_RESULT_KINDS.empty,
 });
 
-const textResult = (text: string, transcription: string): PostProcessResult => {
-  const trimmed = text.trim();
-  return trimmed
-    ? { content: trimmed, kind: POST_PROCESS_RESULT_KINDS.text }
-    : unchangedTranscript(transcription);
-};
-
-export const selectedPromptText = (settings: Settings) =>
-  settings.post_process_prompts.find(
-    (prompt) => prompt.id === settings.post_process_selected_prompt_id
-  )?.prompt ?? null;
+const DictationRewriteSchema = z
+  .object({ prompt_name: z.string(), text: z.string() })
+  .nullable();
 
 export async function rewriteTranscript(
-  transcription: string,
-  settings: Settings,
-  abortSignal?: AbortSignal
+  transcription: string
 ): Promise<PostProcessResult> {
-  const prompt = selectedPromptText(settings);
-  if (!(settings.post_process_enabled && prompt?.trim())) {
-    return unchangedTranscript(transcription);
-  }
-  try {
-    const result = await generateText({
-      abortSignal,
-      messages: [
-        {
-          content: replaceMentionOutputInMarkdown(prompt, transcription),
-          role: "user",
-        },
-      ],
-      model: localLlmModel,
-      temperature: 0,
-    });
-    return textResult(result.text, transcription);
-  } catch (error) {
-    console.error("[Post-Process] Rewrite failed:", error);
-    return unchangedTranscript(transcription);
-  }
+  const rewrite = DictationRewriteSchema.parse(
+    await invoke("rewrite_dictation", { text: transcription })
+  );
+  return rewrite
+    ? {
+        content: rewrite.text,
+        kind: POST_PROCESS_RESULT_KINDS.text,
+        promptName: rewrite.prompt_name,
+      }
+    : unchangedTranscript(transcription);
 }
 
 export async function runVoiceCommand(

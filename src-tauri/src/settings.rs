@@ -17,6 +17,9 @@ pub use settings_types::*;
 #[path = "settings_defaults.rs"]
 mod settings_defaults;
 use settings_defaults::*;
+#[path = "settings_prompts.rs"]
+mod settings_prompts;
+pub use settings_prompts::*;
 pub fn get_default_settings() -> AppSettings {
     let default_shortcut = get_default_shortcut();
 
@@ -31,7 +34,9 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: default_shortcut.to_string(),
         },
     );
-    bindings.insert("polish".to_string(), default_polish_binding());
+    for shortcut in &ACTION_SHORTCUTS {
+        bindings.insert(shortcut.id.to_string(), shortcut.binding());
+    }
 
     AppSettings {
         bindings,
@@ -61,10 +66,10 @@ pub fn get_default_settings() -> AppSettings {
         recording_retention_period: default_recording_retention_period(),
         paste_method: PasteMethod::default(),
         clipboard_handling: ClipboardHandling::default(),
-        polish_level: PolishLevel::default(),
-        post_process_enabled: false,
-        post_process_prompts: default_post_process_prompts(),
-        post_process_selected_prompt_id: None,
+        prompts: default_prompts(),
+        dictation_prompt: None,
+        polish_prompt: default_polish_prompt(),
+        chat_prompt: None,
         voice_commands: default_voice_commands(),
         mute_while_recording: false,
         input_tracking_enabled: false,
@@ -76,16 +81,6 @@ pub fn get_default_settings() -> AppSettings {
         meeting_chunk_duration_secs: default_meeting_chunk_duration_secs(),
         cleanup_enabled: default_cleanup_enabled(),
         cleanup_dictionary: Vec::new(),
-    }
-}
-
-fn default_polish_binding() -> ShortcutBinding {
-    ShortcutBinding {
-        id: "polish".to_string(),
-        name: "Polish".to_string(),
-        description: "Fix spelling and grammar in selected text.".to_string(),
-        default_binding: get_default_polish_shortcut().to_string(),
-        current_binding: get_default_polish_shortcut().to_string(),
     }
 }
 
@@ -109,18 +104,15 @@ fn has_removed_provider_keys(raw_settings: Option<&serde_json::Value>) -> bool {
 
 /// A store seeded before the profiles diverged still holds the other build's combos — both apps would fire.
 fn migrate_shortcuts_to_profile_defaults(settings: &mut AppSettings) -> bool {
-    let profiles = [
-        (
-            "transcribe",
-            get_default_shortcut(),
-            release_default_shortcut(),
-        ),
-        (
-            "polish",
-            get_default_polish_shortcut(),
-            release_default_polish_shortcut(),
-        ),
-    ];
+    let actions = ACTION_SHORTCUTS
+        .iter()
+        .map(|shortcut| (shortcut.id, shortcut.default_shortcut(), shortcut.release));
+    let profiles = std::iter::once((
+        "transcribe",
+        get_default_shortcut(),
+        release_default_shortcut(),
+    ))
+    .chain(actions);
     let mut updated = false;
     for (id, wanted, foreign) in profiles {
         if wanted == foreign {
@@ -152,7 +144,11 @@ fn migrate_voice_commands_out_of_post_processing(
         .get("voice_commands_enabled")
         .and_then(serde_json::Value::as_bool)
         .unwrap_or(true);
-    settings.voice_commands = ran_with_post_processing && settings.post_process_enabled;
+    let post_processing_enabled = raw
+        .get("post_process_enabled")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+    settings.voice_commands = ran_with_post_processing && post_processing_enabled;
     true
 }
 
@@ -191,10 +187,10 @@ fn apply_settings_migrations_from_raw(
         updated = true;
     }
 
-    let valid_binding_ids = ["transcribe", "polish"];
     let original_count = settings.bindings.len();
     settings.bindings.retain(|id, _| {
-        let is_valid = valid_binding_ids.contains(&id.as_str());
+        let is_valid =
+            id == "transcribe" || ACTION_SHORTCUTS.iter().any(|shortcut| shortcut.id == id);
         if !is_valid {
             warn!(
                 "Removing stale binding '{}' from settings (no corresponding action)",
@@ -206,34 +202,16 @@ fn apply_settings_migrations_from_raw(
     if settings.bindings.len() != original_count {
         updated = true;
     }
-    if !settings.bindings.contains_key("polish") {
-        settings
-            .bindings
-            .insert("polish".to_string(), default_polish_binding());
-        updated = true;
+    for shortcut in &ACTION_SHORTCUTS {
+        if !settings.bindings.contains_key(shortcut.id) {
+            settings
+                .bindings
+                .insert(shortcut.id.to_string(), shortcut.binding());
+            updated = true;
+        }
     }
 
-    if (settings.post_process_selected_prompt_id.is_none()
-        || settings
-            .post_process_selected_prompt_id
-            .as_ref()
-            .map(|s| s.is_empty())
-            .unwrap_or(true))
-        && !settings.post_process_prompts.is_empty()
-    {
-        if settings
-            .post_process_prompts
-            .iter()
-            .any(|p| p.id == "default_improve_transcriptions")
-        {
-            settings.post_process_selected_prompt_id =
-                Some("default_improve_transcriptions".to_string());
-        } else {
-            settings.post_process_selected_prompt_id =
-                settings.post_process_prompts.first().map(|p| p.id.clone());
-        }
-        updated = true;
-    }
+    updated |= migrate_to_prompt_library(settings, raw_settings);
 
     updated
 }
@@ -382,3 +360,7 @@ pub fn get_recording_retention_period(app: &AppHandle) -> RecordingRetentionPeri
 
 #[cfg(test)]
 include!("settings_tests.rs");
+
+#[cfg(test)]
+#[path = "settings_shortcut_tests.rs"]
+mod shortcut_tests;

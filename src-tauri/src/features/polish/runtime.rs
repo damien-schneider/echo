@@ -16,10 +16,9 @@ use std::time::{Duration, Instant};
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
-use super::policy::{build_polish_prompt, polish_system_prompt};
 use super::selection::InferencePort;
+use super::transform::TransformRequest;
 use super::BundledChatMessage;
-use crate::settings::PolishLevel;
 pub(in crate::features::polish) use idle::IDLE_CHECK_INTERVAL;
 use idle::{should_release_idle_runtime, ActivityTracker};
 use process_lifecycle::{
@@ -246,16 +245,15 @@ impl PolishRuntime {
         ))
     }
 
-    async fn request_polish(&self, text: &str, level: PolishLevel) -> Result<String> {
-        let prompt = build_polish_prompt(text, level);
+    async fn request_transform(&self, request: &TransformRequest) -> Result<String> {
         let messages = [
             ChatRequestMessage {
                 role: "system",
-                content: polish_system_prompt(level),
+                content: &request.system,
             },
             ChatRequestMessage {
                 role: "user",
-                content: &prompt,
+                content: &request.user,
             },
         ];
         self.run_with_restart(|| self.send_polish_request(&messages))
@@ -442,9 +440,9 @@ impl InferencePort for PolishRuntime {
         self.run_with_restart(|| self.send_token_count(text)).await
     }
 
-    async fn polish(&self, text: &str, level: PolishLevel) -> Result<String> {
+    async fn complete(&self, request: &TransformRequest) -> Result<String> {
         let _request = self.activity.begin_request();
-        self.request_polish(text, level).await
+        self.request_transform(request).await
     }
 }
 

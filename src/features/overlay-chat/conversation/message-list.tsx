@@ -1,7 +1,11 @@
 import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
 import { CircleNotchIcon } from "@phosphor-icons/react";
 import { lazy, Suspense } from "react";
-import { CHAT_ROLES, type ChatMessage } from "@/features/overlay-chat/chat";
+import {
+  CHAT_ROLES,
+  type ChatMessage,
+  visibleMessages,
+} from "@/features/overlay-chat/chat";
 import { useStickToBottom } from "@/features/overlay-chat/conversation/use-stick-to-bottom";
 import { cn } from "@/lib/utils";
 
@@ -66,7 +70,7 @@ export const MessageList = ({
       viewportRef={viewportRef}
     >
       <div className="space-y-3" ref={contentRef}>
-        {messages.map((message) => (
+        {visibleMessages(messages).map((message) => (
           <div
             className={cn(
               "min-w-0 break-words text-[13px] leading-relaxed [overflow-wrap:anywhere]",

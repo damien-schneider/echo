@@ -1,5 +1,7 @@
 use super::*;
 use crate::features::polish::policy::validate_polish_output;
+use crate::features::polish::transform::{transform_request, Framing};
+use crate::settings::{Instruction, PolishLevel};
 #[cfg(unix)]
 use std::fs;
 #[cfg(unix)]
@@ -166,20 +168,25 @@ async fn multilingual_real_model_release_smoke() {
         ("이것은 좋은 생각입니다.", "이것은 좋은 생각입니다."),
     ];
     for (input, expected) in fixtures {
-        let output = runtime.polish(input, PolishLevel::Natural).await.unwrap();
+        let output = polish_naturally(&runtime, input).await;
         assert_eq!(output, expected);
         validate_polish_output(input, &output).unwrap();
     }
     let protected = "Email FooBar at hello@example.com about user_id and https://echo.app.";
-    let protected_output = runtime
-        .polish(protected, PolishLevel::Natural)
-        .await
-        .unwrap();
+    let protected_output = polish_naturally(&runtime, protected).await;
     validate_polish_output(protected, &protected_output).unwrap();
     let input = "This are a short sentence that need one correction.";
     let started = Instant::now();
-    let _ = runtime.polish(input, PolishLevel::Natural).await.unwrap();
+    let _ = polish_naturally(&runtime, input).await;
     assert!(started.elapsed() < Duration::from_millis(500));
+}
+
+async fn polish_naturally(runtime: &PolishRuntime, text: &str) -> String {
+    let natural = Instruction::Builtin(PolishLevel::Natural);
+    runtime
+        .complete(&transform_request(text, &natural, Framing::Selection))
+        .await
+        .unwrap()
 }
 
 fn required_path(name: &str) -> PathBuf {

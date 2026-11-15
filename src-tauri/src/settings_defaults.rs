@@ -88,14 +88,6 @@ pub(super) fn default_log_level() -> LogLevel {
     LogLevel::Info
 }
 
-pub(super) fn default_post_process_prompts() -> Vec<LLMPrompt> {
-    vec![LLMPrompt {
-        id: "default_improve_transcriptions".to_string(),
-        name: "Improve Transcriptions".to_string(),
-        prompt: "Clean this transcript:\n1. Fix spelling, capitalization, and punctuation errors\n2. Convert number words to digits (twenty-five → 25, ten percent → 10%, five dollars → $5)\n3. Replace spoken punctuation with symbols (period → ., comma → ,, question mark → ?)\n4. Remove filler words (um, uh, like as filler)\n5. Keep the language in the original version (if it was french, keep it in french for example)\n\nPreserve exact meaning and word order. Do not paraphrase or reorder content.\n\nReturn only the cleaned transcript.\n\nTranscript:\n${output}".to_string(),
-    }]
-}
-
 pub const SETTINGS_STORE_PATH: &str = "settings_store.json";
 
 /// Global hotkeys are per-process — a shared combo fires in both the installed and the dev Echo.
@@ -104,14 +96,6 @@ pub(super) fn get_default_shortcut() -> &'static str {
         dev_default_shortcut()
     } else {
         release_default_shortcut()
-    }
-}
-
-pub(super) fn get_default_polish_shortcut() -> &'static str {
-    if cfg!(debug_assertions) {
-        dev_default_polish_shortcut()
-    } else {
-        release_default_polish_shortcut()
     }
 }
 
@@ -153,10 +137,47 @@ pub(super) fn dev_default_shortcut() -> &'static str {
     }
 }
 
-pub(super) fn release_default_polish_shortcut() -> &'static str {
-    "Alt+1"
+pub(super) struct ActionShortcut {
+    pub(super) id: &'static str,
+    pub(super) name: &'static str,
+    description: &'static str,
+    pub(super) release: &'static str,
+    pub(super) dev: &'static str,
 }
 
-pub(super) fn dev_default_polish_shortcut() -> &'static str {
-    "Ctrl+Alt+1"
+pub(super) const ACTION_SHORTCUTS: [ActionShortcut; 2] = [
+    ActionShortcut {
+        id: "polish",
+        name: "Polish",
+        description: "Runs your Polish prompt on the selected text.",
+        release: "Alt+1",
+        dev: "Ctrl+Alt+1",
+    },
+    ActionShortcut {
+        id: "chat",
+        name: "Chat",
+        description: "Opens the chat with the selected text.",
+        release: "Alt+2",
+        dev: "Ctrl+Alt+2",
+    },
+];
+
+impl ActionShortcut {
+    pub(super) fn default_shortcut(&self) -> &'static str {
+        if cfg!(debug_assertions) {
+            self.dev
+        } else {
+            self.release
+        }
+    }
+
+    pub(super) fn binding(&self) -> ShortcutBinding {
+        ShortcutBinding {
+            id: self.id.to_string(),
+            name: self.name.to_string(),
+            description: self.description.to_string(),
+            default_binding: self.default_shortcut().to_string(),
+            current_binding: self.default_shortcut().to_string(),
+        }
+    }
 }

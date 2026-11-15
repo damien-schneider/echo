@@ -168,3 +168,11 @@ pub fn change_debug_logging_setting(app: AppHandle, enabled: bool) -> Result<(),
     crate::logging::set_debug_logging(enabled);
     Ok(())
 }
+
+#[tauri::command]
+pub fn change_voice_commands_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    settings::update_settings(&app, |s| {
+        s.voice_commands = enabled;
+    });
+    Ok(())
+}

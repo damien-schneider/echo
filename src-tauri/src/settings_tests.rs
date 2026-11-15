@@ -56,37 +56,6 @@ mod tests {
     }
 
     #[test]
-    fn enabled_false_survives_serialization() {
-        let mut settings = get_default_settings();
-        settings.post_process_enabled = false;
-
-        let json = serde_json::to_value(&settings).unwrap();
-        let deserialized: AppSettings = serde_json::from_value(json).unwrap();
-
-        assert!(
-            !deserialized.post_process_enabled,
-            "post_process_enabled should remain false after round-trip serialization"
-        );
-    }
-
-    #[test]
-    fn migration_preserves_enabled_flag() {
-        let mut settings = get_default_settings();
-        settings.post_process_enabled = false;
-        // Pre-set prompt so auto-select migration won't fire.
-        settings.post_process_selected_prompt_id =
-            Some("default_improve_transcriptions".to_string());
-
-        let raw = serde_json::to_value(&settings).unwrap();
-        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
-
-        assert!(
-            !settings.post_process_enabled,
-            "post_process_enabled should remain false after migrations"
-        );
-    }
-
-    #[test]
     fn default_cleanup_disabled() {
         let s = get_default_settings();
         assert!(!s.cleanup_enabled, "cleanup_enabled must default to false");
@@ -146,16 +115,6 @@ mod tests {
 
         let guard3 = SETTINGS_LOCK.try_lock();
         assert!(guard3.is_ok(), "Lock should succeed after release");
-    }
-
-    #[test]
-    fn default_settings_include_fixed_polish_shortcut() {
-        let settings = get_default_settings();
-        let polish = settings.bindings.get("polish").unwrap();
-
-        assert_eq!(polish.name, "Polish");
-        assert_eq!(polish.default_binding, get_default_polish_shortcut());
-        assert_eq!(polish.current_binding, get_default_polish_shortcut());
     }
 
     #[test]
@@ -229,8 +188,6 @@ mod tests {
             settings.overlay_position = position;
             settings.overlay_dock_edge = OverlayDockEdge::Left;
             settings.overlay_dock_offset = 0.25;
-            settings.post_process_selected_prompt_id =
-                Some("default_improve_transcriptions".to_string());
             let raw = serde_json::to_value(&settings).unwrap();
 
             assert!(!apply_settings_migrations_from_raw(
@@ -244,101 +201,9 @@ mod tests {
     }
 
     #[test]
-    fn migration_adds_polish_without_changing_transcription_shortcut() {
-        let mut settings = get_default_settings();
-        settings.bindings.remove("polish");
-        settings
-            .bindings
-            .get_mut("transcribe")
-            .unwrap()
-            .current_binding = "Control+Space".to_string();
-        let raw = serde_json::to_value(&settings).unwrap();
-
-        assert!(apply_settings_migrations_from_raw(
-            &mut settings,
-            Some(&raw)
-        ));
-        assert_eq!(
-            settings.bindings.get("transcribe").unwrap().current_binding,
-            "Control+Space"
-        );
-        assert_eq!(
-            settings.bindings.get("polish").unwrap().current_binding,
-            get_default_polish_shortcut()
-        );
-    }
-
-    #[test]
-    fn a_dev_build_never_defaults_to_the_shortcuts_a_release_build_owns() {
-        assert_ne!(dev_default_shortcut(), release_default_shortcut());
-        assert_ne!(
-            dev_default_polish_shortcut(),
-            release_default_polish_shortcut()
-        );
-    }
-
-    #[test]
-    fn a_store_still_holding_release_shortcuts_follows_the_build_it_runs_in() {
-        let mut settings = get_default_settings();
-        settings
-            .bindings
-            .get_mut("transcribe")
-            .unwrap()
-            .current_binding = release_default_shortcut().to_string();
-        settings.bindings.get_mut("polish").unwrap().current_binding =
-            release_default_polish_shortcut().to_string();
-        let raw = serde_json::to_value(&settings).unwrap();
-
-        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
-
-        assert_eq!(
-            settings.bindings.get("transcribe").unwrap().current_binding,
-            get_default_shortcut()
-        );
-        assert_eq!(
-            settings.bindings.get("polish").unwrap().current_binding,
-            get_default_polish_shortcut()
-        );
-    }
-
-    #[test]
-    fn a_shortcut_the_user_chose_survives_the_dev_migration() {
-        let mut settings = get_default_settings();
-        settings
-            .bindings
-            .get_mut("transcribe")
-            .unwrap()
-            .current_binding = "ctrl+shift+f9".to_string();
-        let raw = serde_json::to_value(&settings).unwrap();
-
-        apply_settings_migrations_from_raw(&mut settings, Some(&raw));
-
-        assert_eq!(
-            settings.bindings.get("transcribe").unwrap().current_binding,
-            "ctrl+shift+f9"
-        );
-    }
-
-    #[test]
-    fn the_active_defaults_follow_the_build_profile() {
-        let (expected_transcribe, expected_polish) = if cfg!(debug_assertions) {
-            (dev_default_shortcut(), dev_default_polish_shortcut())
-        } else {
-            (
-                release_default_shortcut(),
-                release_default_polish_shortcut(),
-            )
-        };
-
-        assert_eq!(get_default_shortcut(), expected_transcribe);
-        assert_eq!(get_default_polish_shortcut(), expected_polish);
-    }
-
-    #[test]
     fn a_store_from_the_provider_era_loads_and_is_rewritten_without_provider_keys() {
         let mut clean = get_default_settings();
-        clean.post_process_enabled = true;
-        clean.post_process_selected_prompt_id = Some("default_improve_transcriptions".to_string());
+        clean.dictation_prompt = Some(PromptRef::Builtin(PolishLevel::Correct));
         let clean_raw = serde_json::to_value(&clean).unwrap();
         let mut legacy_raw = clean_raw.clone();
         legacy_raw.as_object_mut().unwrap().extend([
@@ -360,7 +225,7 @@ mod tests {
         ]);
 
         let mut legacy: AppSettings = serde_json::from_value(legacy_raw.clone()).unwrap();
-        assert!(legacy.post_process_enabled);
+        assert!(legacy.dictation_prompt.is_some());
         assert!(apply_settings_migrations_from_raw(&mut legacy, Some(&legacy_raw)));
         assert!(!apply_settings_migrations_from_raw(&mut clean, Some(&clean_raw)));
 
@@ -378,25 +243,6 @@ mod tests {
         let (settings, rewrite) = load_stored_settings(raw).unwrap();
 
         assert_eq!(settings.sound_theme, SoundTheme::Marimba);
-        assert!(rewrite);
-    }
-
-    #[test]
-    fn a_stored_test_shortcut_is_dropped() {
-        let mut settings = get_default_settings();
-        let transcribe = settings.bindings["transcribe"].clone();
-        settings.bindings.insert(
-            "test".to_string(),
-            ShortcutBinding {
-                id: "test".to_string(),
-                ..transcribe
-            },
-        );
-        let raw = serde_json::to_value(&settings).unwrap();
-
-        let (loaded, rewrite) = load_stored_settings(raw).unwrap();
-
-        assert!(!loaded.bindings.contains_key("test"));
         assert!(rewrite);
     }
 
@@ -435,7 +281,6 @@ mod tests {
     #[test]
     fn voice_commands_chosen_after_the_upgrade_stay_as_chosen() {
         let mut settings = get_default_settings();
-        settings.post_process_enabled = false;
         settings.voice_commands = true;
         let raw = serde_json::to_value(&settings).unwrap();
 

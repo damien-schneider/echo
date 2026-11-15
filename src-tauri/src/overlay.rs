@@ -25,7 +25,7 @@ use crate::features::polish::chat_context::{ChatContextCapture, ShownChatContext
 use crate::features::polish::manager::PolishManager;
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 pub(crate) use events::{
     emit_levels, emit_transcription_progress, hide_recording_overlay, mark_recording_live,
@@ -238,6 +238,11 @@ pub(crate) async fn send_held_transcript_to_chat(
 ) -> Result<(), String> {
     crate::dictation::hand_over_as_question();
     request_overlay_notification(app_handle, manager, CHAT_SURFACE.to_string()).await
+}
+
+pub(crate) async fn open_chat(app_handle: AppHandle) -> Result<(), String> {
+    let manager = app_handle.state::<Arc<PolishManager>>();
+    request_overlay_notification(app_handle.clone(), manager, CHAT_SURFACE.to_string()).await
 }
 
 /// Chat and the model panel live in the notification window — the request crosses through Rust.

@@ -112,7 +112,7 @@ export const IslandActions = ({
         icon={<ChatTextIcon aria-hidden="true" />}
         label="Open Echo chat"
         onAction={onChat}
-        title="Open Echo chat"
+        title="Open Echo chat (Option/Alt+2)"
       />
       <IslandActionButton
         disabled={actionState !== "idle"}
