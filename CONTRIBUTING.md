@@ -57,12 +57,13 @@ Echo follows a clean architecture pattern:
 - `managers/` - Core business logic (audio, model, transcription)
 - `audio_toolkit/` - Low-level audio processing (recording, VAD)
 - `commands/` - Tauri command handlers for frontend communication
-- `shortcut.rs` - Global keyboard shortcut handling
+- `features/shortcut/` - Global keyboard shortcut handling
 - `settings.rs` - Application settings management
 
 **Frontend (React/TypeScript - `src/`):**
-- `App.tsx` - Main application component
+- `app.tsx` - Main application component
 - `components/` - React UI components
+- `features/` - Feature slices (meeting, polish, shortcuts, overlay windows…)
 - `hooks/` - Reusable React hooks
 - `lib/types.ts` - Shared TypeScript types
 

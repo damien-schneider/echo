@@ -46,10 +46,8 @@ For detailed build instructions including platform-specific requirements, see [B
 ```bash
 bun install          # Install dependencies
 bun run tauri:dev    # Run the full desktop app with isolated development data
-bun run pipeline     # Turborepo check-types + Vite build (used for CI and releases)
+bun run pipeline     # Type-check + Vite build (what `tauri build` runs before bundling)
 ```
-
-`bun run pipeline` is a thin wrapper around `turbo run check-types build`, so it benefits from Turborepo's caching both locally and in CI.
 
 ## Architecture
 
@@ -87,7 +85,7 @@ This project is actively being developed and has some [known issues](https://git
 
 ### Platform Support
 - **macOS (both Intel and Apple Silicon)**
-- **x64 Windows**
+- **Windows (x64 and ARM64)**
 - **x64 Linux**
 
 ### System Requirements/Recommendations
@@ -106,9 +104,6 @@ The following are recommendations for running Echo on your own machine. If you d
 We're actively working on several features and improvements. Contributions and feedback are welcome!
 
 ### In Progress
-
-**Debug Logging:**
-- Adding debug logging to a file to help diagnose issues
 
 **macOS Keyboard Improvements:**
 - Support for Globe key as transcription trigger

@@ -26,6 +26,7 @@ src/                          → React/TypeScript frontend
     model-selector/           → Model management
     editor/                   → Markdown editor
     onboarding/               → First-run experience
+  features/                   → Feature slices (meeting, polish, shortcuts, updates, overlay windows…)
   hooks/                      → React hooks
   stores/                     → Zustand stores
   lib/                        → Utilities and types
@@ -37,7 +38,8 @@ src-tauri/src/                → Rust backend
   managers/                   → Core business logic (audio, model, transcription, history, tts)
   commands/                   → Tauri command handlers (frontend ↔ backend bridge)
   audio_toolkit/              → Low-level audio (devices, recording, resampling, VAD)
-  features/                   → Feature modules (shortcuts, settings sync)
+  features/                   → Feature modules (capture, polish, shortcut)
+  updates/                    → Auto-updater client
   settings.rs                 → Settings management
   clipboard.rs                → Clipboard operations
   overlay.rs                  → Overlay window management
