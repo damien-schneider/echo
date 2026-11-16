@@ -1,8 +1,14 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { KeyboardIcon, TrashIcon } from "@phosphor-icons/react";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect, useEffectEvent, useState } from "react";
+import {
+  clearInputEntries,
+  deleteInputEntry,
+  type EntriesLoad,
+  loadInputEntries,
+} from "@/components/settings/history/history-actions";
+import { HistoryLoadError } from "@/components/settings/history/history-load-error";
 import {
   type InputEntry,
   KeyboardInputEntry,
@@ -10,20 +16,16 @@ import {
 import { useSecondClickConfirmation } from "@/hooks/use-second-click-confirmation";
 
 export const KeyboardInputList = () => {
-  const [entries, setEntries] = useState<InputEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [inputs, setInputs] = useState<EntriesLoad<InputEntry>>({
+    status: "loading",
+  });
   const clearAllConfirmation = useSecondClickConfirmation();
   const loadEntries = async () => {
-    try {
-      const data = await invoke<InputEntry[]>("get_input_entries", {
-        limit: 100,
-      });
-      setEntries(data);
-    } catch (error) {
-      console.error("Failed to load input entries:", error);
-    } finally {
-      setLoading(false);
-    }
+    setInputs(await loadInputEntries());
+  };
+  const retryLoad = () => {
+    setInputs({ status: "loading" });
+    loadEntries();
   };
   const refreshEntries = useEffectEvent(loadEntries);
   useEffect(() => {
@@ -44,29 +46,32 @@ export const KeyboardInputList = () => {
     };
   }, []);
   const handleDelete = async (id: number) => {
-    try {
-      await invoke("delete_input_entry", { id });
-      setEntries((prev) => prev.filter((e) => e.id !== id));
-    } catch (error) {
-      console.error("Failed to delete input entry:", error);
-      throw error;
+    if (await deleteInputEntry(id)) {
+      await loadEntries();
     }
   };
   const clearAll = async () => {
-    try {
-      await invoke("clear_all_input_entries");
-      setEntries([]);
-    } catch (error) {
-      console.error("Failed to clear all entries:", error);
+    if (await clearInputEntries()) {
+      await loadEntries();
     }
   };
-  if (loading) {
+  if (inputs.status === "loading") {
     return (
       <div className="px-4 py-3 text-center text-text/60">
         Loading keyboard inputs...
       </div>
     );
   }
+  if (inputs.status === "failed") {
+    return (
+      <HistoryLoadError
+        message={inputs.message}
+        onRetry={retryLoad}
+        title="Couldn't load your keyboard inputs"
+      />
+    );
+  }
+  const { entries } = inputs;
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-text/60">

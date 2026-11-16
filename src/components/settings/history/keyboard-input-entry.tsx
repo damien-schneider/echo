@@ -10,6 +10,7 @@ import { CheckIcon, CopyIcon } from "@phosphor-icons/react";
 import { formatDistanceToNow } from "date-fns";
 import type React from "react";
 import { useState } from "react";
+import { copyText } from "@/components/settings/history/history-actions";
 import { ConfirmDeleteButton } from "@/components/shared/confirm-delete-button";
 export interface InputEntry {
   app_bundle_id: string | null;
@@ -30,13 +31,11 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
 }) => {
   const [showCopied, setShowCopied] = useState(false);
   const handleCopyText = async () => {
-    try {
-      await navigator.clipboard.writeText(entry.content);
-      setShowCopied(true);
-      setTimeout(() => setShowCopied(false), 2000);
-    } catch (error) {
-      console.error("Failed to copy to clipboard:", error);
+    if (!(await copyText(entry.content))) {
+      return;
     }
+    setShowCopied(true);
+    setTimeout(() => setShowCopied(false), 2000);
   };
   const formatTimestamp = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
@@ -93,13 +92,7 @@ export const KeyboardInputEntry: React.FC<KeyboardInputEntryProps> = ({
             </Tooltip>
             <ConfirmDeleteButton
               label="Delete entry"
-              onDelete={async () => {
-                try {
-                  await onDelete(entry.id);
-                } catch (error) {
-                  console.error("Failed to delete entry:", error);
-                }
-              }}
+              onDelete={() => onDelete(entry.id)}
             />
           </ButtonGroup>
         </TooltipProvider>

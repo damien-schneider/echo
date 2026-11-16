@@ -13,27 +13,51 @@ import {
   useState,
 } from "react";
 import {
+  copyText,
+  deleteHistoryEntry,
+  type EntriesLoad,
+  loadHistory,
+  openRecordingsFolder,
+  retranscribeEntry,
+  tellOnFailure,
+  toggleSaved,
+} from "@/components/settings/history/history-actions";
+import {
   type HistoryEntry,
   HistoryEntryComponent,
 } from "@/components/settings/history/history-entry-component";
+import { HistoryLoadError } from "@/components/settings/history/history-load-error";
 import { KeyboardInputList } from "@/components/settings/history/keyboard-input-list";
 import { rewriteTranscript } from "@/lib/llm/post-process";
 import { cn } from "@/lib/utils";
 
 type HistoryTab = "transcriptions" | "keyboard";
+
+const reprocessEntry = (id: number) =>
+  tellOnFailure(async () => {
+    const transcription = await invoke<string>(
+      "get_history_entry_transcription",
+      { id }
+    );
+    const result = await rewriteTranscript(transcription);
+    await invoke("reprocess_history_entry", {
+      id,
+      postProcessedText: result.kind === "text" ? result.content : null,
+      postProcessPrompt: result.promptName ?? null,
+    });
+  }, "Couldn't reprocess the entry — try again");
+
 export const HistorySettings = () => {
-  const [historyEntries, setHistoryEntries] = useState<HistoryEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState<EntriesLoad<HistoryEntry>>({
+    status: "loading",
+  });
   const [activeTab, setActiveTab] = useState<HistoryTab>("transcriptions");
   const loadHistoryEntries = async () => {
-    try {
-      const entries = await invoke<HistoryEntry[]>("get_history_entries");
-      setHistoryEntries(entries);
-    } catch (error) {
-      console.error("Failed to load history entries:", error);
-    } finally {
-      setLoading(false);
-    }
+    setHistory(await loadHistory());
+  };
+  const retryLoad = () => {
+    setHistory({ status: "loading" });
+    loadHistoryEntries();
   };
   const refreshHistory = useEffectEvent(loadHistoryEntries);
   useEffect(() => {
@@ -53,20 +77,6 @@ export const HistorySettings = () => {
       });
     };
   }, []);
-  const toggleSaved = async (id: number) => {
-    try {
-      await invoke("toggle_history_entry_saved", { id });
-    } catch (error) {
-      console.error("Failed to toggle saved status:", error);
-    }
-  };
-  const copyToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (error) {
-      console.error("Failed to copy to clipboard:", error);
-    }
-  };
   const getAudioUrl = async (fileName: string) => {
     try {
       const filePath = await invoke<string>("get_audio_file_path", {
@@ -78,55 +88,24 @@ export const HistorySettings = () => {
       return null;
     }
   };
-  const deleteAudioEntry = async (id: number) => {
-    try {
-      await invoke("delete_history_entry", { id });
-    } catch (error) {
-      console.error("Failed to delete audio entry:", error);
-      throw error;
-    }
-  };
-  const retranscribeEntry = async (id: number) => {
-    try {
-      await invoke("retranscribe_history_entry", { id });
-    } catch (error) {
-      console.error("Failed to retranscribe entry:", error);
-      throw error;
-    }
-  };
-  const reprocessEntry = async (id: number) => {
-    try {
-      const transcription = await invoke<string>(
-        "get_history_entry_transcription",
-        { id }
-      );
-      const result = await rewriteTranscript(transcription);
-      await invoke("reprocess_history_entry", {
-        id,
-        postProcessedText: result.kind === "text" ? result.content : null,
-        postProcessPrompt: result.promptName ?? null,
-      });
-    } catch (error) {
-      console.error("Failed to reprocess entry:", error);
-      throw error;
-    }
-  };
-  const openRecordingsFolder = async () => {
-    try {
-      await invoke("open_recordings_folder");
-    } catch (error) {
-      console.error("Failed to open recordings folder:", error);
-    }
-  };
   const renderTranscriptionContent = () => {
-    if (loading) {
+    if (history.status === "loading") {
       return (
         <div className="px-4 py-3 text-center text-text/60">
           Loading history...
         </div>
       );
     }
-    if (historyEntries.length === 0) {
+    if (history.status === "failed") {
+      return (
+        <HistoryLoadError
+          message={history.message}
+          onRetry={retryLoad}
+          title="Couldn't load your transcriptions"
+        />
+      );
+    }
+    if (history.entries.length === 0) {
       return (
         <div className="flex flex-col items-center gap-3 px-4 py-8 text-center text-text/60">
           <MicrophoneIcon className="h-10 w-10 opacity-40" />
@@ -141,13 +120,13 @@ export const HistorySettings = () => {
     }
     return (
       <div className="divide-y divide-border/10">
-        {historyEntries.map((entry) => (
+        {history.entries.map((entry) => (
           <HistoryEntryComponent
-            deleteAudio={deleteAudioEntry}
+            deleteAudio={deleteHistoryEntry}
             entry={entry}
             getAudioUrl={getAudioUrl}
             key={entry.id}
-            onCopyText={() => copyToClipboard(entry.transcription_text)}
+            onCopyText={() => copyText(entry.transcription_text)}
             onReprocess={reprocessEntry}
             onRetranscribe={retranscribeEntry}
             onToggleSaved={() => toggleSaved(entry.id)}

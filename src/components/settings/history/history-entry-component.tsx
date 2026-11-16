@@ -26,12 +26,12 @@ export interface HistoryEntry {
   transcription_text: string;
 }
 interface HistoryEntryProps {
-  deleteAudio: (id: number) => Promise<void>;
+  deleteAudio: (id: number) => Promise<unknown>;
   entry: HistoryEntry;
   getAudioUrl: (fileName: string) => Promise<string | null>;
-  onCopyText: () => void;
-  onReprocess: (id: number) => Promise<void>;
-  onRetranscribe: (id: number) => Promise<void>;
+  onCopyText: () => Promise<boolean>;
+  onReprocess: (id: number) => Promise<unknown>;
+  onRetranscribe: (id: number) => Promise<unknown>;
   onToggleSaved: () => void;
 }
 export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
@@ -54,8 +54,10 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     };
     loadAudio();
   }, [entry.file_name, getAudioUrl]);
-  const handleCopyText = () => {
-    onCopyText();
+  const handleCopyText = async () => {
+    if (!(await onCopyText())) {
+      return;
+    }
     setShowCopied(true);
     setTimeout(() => setShowCopied(false), 2000);
   };
@@ -66,8 +68,6 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     setIsRetranscribing(true);
     try {
       await onRetranscribe(entry.id);
-    } catch (error) {
-      console.error("Failed to retranscribe entry:", error);
     } finally {
       setIsRetranscribing(false);
     }
@@ -79,8 +79,6 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     setIsReprocessing(true);
     try {
       await onReprocess(entry.id);
-    } catch (error) {
-      console.error("Failed to reprocess entry:", error);
     } finally {
       setIsReprocessing(false);
     }
@@ -183,11 +181,7 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             <ConfirmDeleteButton
               label="Delete entry"
               onDelete={async () => {
-                try {
-                  await deleteAudio(entry.id);
-                } catch (error) {
-                  console.error("Failed to delete entry:", error);
-                }
+                await deleteAudio(entry.id);
               }}
             />
           </ButtonGroup>
