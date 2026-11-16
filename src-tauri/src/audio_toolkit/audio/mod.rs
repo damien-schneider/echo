@@ -8,7 +8,7 @@ mod utils;
 mod visualizer;
 
 pub use decoder::decode_audio_file;
-pub(crate) use device::SelectedDeviceCache;
+pub(crate) use device::{input_device_named, SelectedDeviceCache};
 pub use device::{list_input_devices, list_output_devices, CpalDeviceInfo};
 pub use recorder::{AudioRecorder, CapturedAudioFrame};
 pub use resampler::FrameResampler;

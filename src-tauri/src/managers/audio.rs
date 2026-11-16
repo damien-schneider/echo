@@ -1,7 +1,7 @@
 use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::audio_toolkit::vad::{speech_vad, SmoothedVad};
 use crate::audio_toolkit::{
-    list_input_devices, AudioRecorder, CapturedAudioFrame, SelectedDeviceCache,
+    input_device_named, AudioRecorder, CapturedAudioFrame, SelectedDeviceCache,
 };
 use crate::helpers::clamshell;
 use crate::managers::dictation_streaming::{DictationStreamingHandle, DictationStreamingWorker};
@@ -455,7 +455,7 @@ impl AudioRecordingManager {
 
     /* ---------- helper methods --------------------------------------------- */
 
-    fn get_effective_microphone_device(&self, settings: &AppSettings) -> Option<cpal::Device> {
+    fn effective_microphone_name(settings: &AppSettings) -> Option<&str> {
         let should_use_clamshell_device = if settings.clamshell_microphone.is_some() {
             match clamshell::is_clamshell() {
                 Ok(is_clamshell) => is_clamshell,
@@ -468,23 +468,11 @@ impl AudioRecordingManager {
             false
         };
 
-        let device_name = if should_use_clamshell_device {
+        if should_use_clamshell_device {
             settings.clamshell_microphone.as_deref()
         } else {
             settings.selected_microphone.as_deref()
-        }?;
-
-        self.selected_device_cache
-            .resolve(device_name, || match list_input_devices() {
-                Ok(devices) => devices
-                    .into_iter()
-                    .find(|device| device.name == device_name)
-                    .map(|device| device.device),
-                Err(error) => {
-                    debug!("Failed to list devices, using default: {error}");
-                    None
-                }
-            })
+        }
     }
 
     /* ---------- microphone life-cycle -------------------------------------- */
@@ -531,13 +519,16 @@ impl AudioRecordingManager {
         }
 
         let settings = get_settings(&self.app_handle);
-        let selected_device = self.get_effective_microphone_device(&settings);
-
         if let Some(rec) = recorder_opt.as_mut() {
-            if let Err(error) = rec.open(selected_device) {
-                self.selected_device_cache.invalidate();
-                return Err(anyhow::anyhow!("Failed to open recorder: {error}"));
-            }
+            let opened = match Self::effective_microphone_name(&settings) {
+                Some(name) => self.selected_device_cache.open_with(
+                    name,
+                    || input_device_named(name),
+                    |device| rec.open(device),
+                ),
+                None => rec.open(None),
+            };
+            opened.map_err(|error| anyhow::anyhow!("Failed to open recorder: {error}"))?;
         }
 
         *open_flag = true;
