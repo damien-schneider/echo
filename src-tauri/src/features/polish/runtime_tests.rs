@@ -25,6 +25,8 @@ fn runtime_without_a_server() -> PolishRuntime {
         server_path: PathBuf::new(),
         working_directory: PathBuf::new(),
         model_path: PathBuf::new(),
+        server_record: PathBuf::new(),
+        server_log: PathBuf::new(),
     })
 }
 
@@ -151,20 +153,51 @@ async fn an_abandoned_start_past_its_deadline_is_stopped_instead_of_awaited_agai
 }
 
 #[cfg(unix)]
-fn runtime_with_silent_server(directory: &Path) -> Arc<PolishRuntime> {
+#[tokio::test]
+async fn a_server_that_dies_while_starting_leaves_its_explanation_behind() {
+    let directory = tempdir().unwrap();
+    let server_log = directory.path().join("llama-server.log");
+    let runtime = PolishRuntime::new(PolishRuntimeConfig {
+        server_path: test_server(
+            directory.path(),
+            "#!/bin/sh\necho 'model file is truncated' >&2\nexit 1\n",
+        ),
+        working_directory: directory.path().to_path_buf(),
+        model_path: directory.path().join("model.gguf"),
+        server_record: PathBuf::new(),
+        server_log: server_log.clone(),
+    });
+
+    let error = runtime.ensure_ready().await.unwrap_err();
+
+    assert!(error.to_string().contains("exited during startup"));
+    assert_eq!(
+        server_log::server_output_tail(&server_log).as_deref(),
+        Some("model file is truncated")
+    );
+}
+
+#[cfg(unix)]
+fn test_server(directory: &Path, script: &str) -> PathBuf {
     let server_path = directory.join("test-polish-server");
-    fs::write(
-        &server_path,
-        "#!/bin/sh\nprintf '%s' \"$$\" > \"$0.pid\"\nexec /bin/sleep 60\n",
-    )
-    .unwrap();
+    fs::write(&server_path, script).unwrap();
     let mut permissions = fs::metadata(&server_path).unwrap().permissions();
     permissions.set_mode(0o755);
     fs::set_permissions(&server_path, permissions).unwrap();
+    server_path
+}
+
+#[cfg(unix)]
+fn runtime_with_silent_server(directory: &Path) -> Arc<PolishRuntime> {
     Arc::new(PolishRuntime::new(PolishRuntimeConfig {
-        server_path,
+        server_path: test_server(
+            directory,
+            "#!/bin/sh\nprintf '%s' \"$$\" > \"$0.pid\"\nexec /bin/sleep 60\n",
+        ),
         working_directory: directory.to_path_buf(),
         model_path: directory.join("model.gguf"),
+        server_record: PathBuf::new(),
+        server_log: PathBuf::new(),
     }))
 }
 
@@ -218,6 +251,8 @@ async fn multilingual_real_model_release_smoke() {
         working_directory: server_path.parent().unwrap().to_path_buf(),
         server_path,
         model_path,
+        server_record: PathBuf::new(),
+        server_log: PathBuf::new(),
     });
     runtime.ensure_ready().await.unwrap();
     let fixtures = [

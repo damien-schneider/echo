@@ -1,21 +1,24 @@
 use crate::audio_toolkit::apply_custom_words;
 use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::managers::hallucination::{is_hallucination, HallucinationFilter};
-use crate::managers::model::transcription_profile_id;
-use crate::managers::model::{EngineType, ModelManager};
+use crate::managers::model::ModelManager;
 use crate::managers::timeout::{run_with_timeout, TimedOut};
 use crate::managers::whisper_runtime::{
     Decoded, WhisperDecodeOptions, WhisperRuntime, WHISPER_LANGUAGE_CODES,
 };
 use crate::settings::get_settings;
 use anyhow::Result;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Condvar, Mutex, PoisonError};
-use std::thread;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 use transcribe_cpp::CancelToken;
+use usage::UsageTracker;
+
+mod load_failure;
+mod loading;
+mod usage;
 
 /// A pin needs a window long enough for Whisper's pick to mean something.
 const PIN_MIN_WINDOW_SAMPLES: usize = 5 * SAMPLE_RATE;
@@ -70,7 +73,7 @@ impl std::fmt::Display for TranscribeError {
 }
 
 impl std::error::Error for TranscribeError {}
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct ModelStateEvent {
@@ -160,8 +163,7 @@ pub struct TranscriptionManager {
     engine: Arc<WhisperRuntime>,
     model_manager: Arc<ModelManager>,
     app_handle: AppHandle,
-    is_loading: Arc<Mutex<bool>>,
-    loading_condvar: Arc<Condvar>,
+    usage: Arc<UsageTracker>,
     prewarm_in_progress: Arc<AtomicBool>,
 }
 
@@ -171,8 +173,7 @@ impl TranscriptionManager {
             engine: Arc::new(WhisperRuntime::new()),
             model_manager,
             app_handle: app_handle.clone(),
-            is_loading: Arc::new(Mutex::new(false)),
-            loading_condvar: Arc::new(Condvar::new()),
+            usage: Arc::new(UsageTracker::default()),
             prewarm_in_progress: Arc::new(AtomicBool::new(false)),
         };
 
@@ -181,123 +182,6 @@ impl TranscriptionManager {
 
     pub fn is_model_loaded(&self) -> bool {
         self.engine.is_loaded()
-    }
-
-    fn load_runtime_model(&self, model_id: &str) -> Result<()> {
-        let model_info = self
-            .model_manager
-            .get_model_info(model_id)
-            .ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
-        if !model_info.is_downloaded {
-            return Err(anyhow::anyhow!("Model not downloaded"));
-        }
-        let model_path = self.model_manager.get_model_path(model_id)?;
-        match model_info.engine_type {
-            EngineType::Whisper => self.engine.load(model_id, &model_path),
-            EngineType::Diarization => Err(anyhow::anyhow!(
-                "Diarization models cannot be used for transcription"
-            )),
-            EngineType::Polish => Err(anyhow::anyhow!(
-                "Polish models cannot be used for transcription"
-            )),
-            EngineType::MeetingTranscription => Err(anyhow::anyhow!(
-                "Meeting transcription models cannot be used for dictation"
-            )),
-        }
-    }
-
-    pub fn load_model(&self, model_id: &str) -> Result<()> {
-        let current_model_id = self.engine.current_model_id();
-        if !requires_model_load(current_model_id.as_deref(), model_id) {
-            return Ok(());
-        }
-        let load_start = std::time::Instant::now();
-        debug!("Starting to load model: {}", model_id);
-
-        let model_name = self.model_manager.get_model_info(model_id).map(|m| m.name);
-
-        let _ = self.app_handle.emit(
-            "model-state-changed",
-            ModelStateEvent {
-                event_type: "loading_started".to_string(),
-                model_id: Some(model_id.to_string()),
-                model_name: None,
-                error: None,
-            },
-        );
-
-        match self.load_runtime_model(model_id) {
-            Ok(()) => {}
-            Err(e) => {
-                let _ = self.app_handle.emit(
-                    "model-state-changed",
-                    ModelStateEvent {
-                        event_type: "loading_failed".to_string(),
-                        model_id: Some(model_id.to_string()),
-                        model_name: model_name.clone(),
-                        error: Some(e.to_string()),
-                    },
-                );
-                return Err(e);
-            }
-        };
-
-        let _ = self.app_handle.emit(
-            "model-state-changed",
-            ModelStateEvent {
-                event_type: "loading_completed".to_string(),
-                model_id: Some(model_id.to_string()),
-                model_name: model_name.clone(),
-                error: None,
-            },
-        );
-
-        debug!(
-            "Successfully loaded transcription model: {} (took {}ms)",
-            model_id,
-            load_start.elapsed().as_millis()
-        );
-        Ok(())
-    }
-
-    pub fn unload_model(&self, model_id: &str) {
-        if !self.engine.unload(model_id) {
-            return;
-        }
-        info!("Unloaded transcription model: {model_id}");
-        let _ = self.app_handle.emit(
-            "model-state-changed",
-            ModelStateEvent {
-                event_type: "unloaded".to_string(),
-                model_id: Some(model_id.to_string()),
-                model_name: None,
-                error: None,
-            },
-        );
-    }
-
-    /// Idempotent.
-    pub fn load_streaming_model(&self, model_id: &str) -> Result<()> {
-        self.load_model(model_id)
-    }
-
-    pub fn is_streaming_loaded_with_id(&self, target_id: &str) -> bool {
-        self.engine.current_model_id().as_deref() == Some(target_id)
-    }
-
-    /// Idempotent. No warmup decode — holding `engine.lock` would starve the stop-flow transcribe.
-    pub fn prewarm(&self) -> Result<()> {
-        let Some(_guard) = try_acquire_once_flag(&self.prewarm_in_progress) else {
-            debug!("prewarm: skipped — another prewarm is already running");
-            return Ok(());
-        };
-
-        let settings = get_settings(&self.app_handle);
-        let model_id = transcription_profile_id(settings.transcription_model_size);
-        if !self.is_streaming_loaded_with_id(model_id) {
-            self.load_model(model_id)?;
-        }
-        Ok(())
     }
 
     /// Force-compile Metal kernels via 1s silence decode. No-op if engine unloaded.
@@ -319,32 +203,6 @@ impl TranscriptionManager {
                 Ok(())
             }
         }
-    }
-
-    pub fn initiate_model_load(&self) {
-        let mut is_loading = self
-            .is_loading
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        if *is_loading || self.is_model_loaded() {
-            return;
-        }
-
-        *is_loading = true;
-        let self_clone = self.clone();
-        thread::spawn(move || {
-            let settings = get_settings(&self_clone.app_handle);
-            let model_id = transcription_profile_id(settings.transcription_model_size);
-            if let Err(e) = self_clone.load_model(model_id) {
-                error!("Failed to load model: {}", e);
-            }
-            let mut is_loading = self_clone
-                .is_loading
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            *is_loading = false;
-            self_clone.loading_condvar.notify_all();
-        });
     }
 
     pub fn get_current_model(&self) -> Option<String> {
@@ -416,22 +274,7 @@ impl TranscriptionManager {
             return Ok(Decoded::default());
         }
 
-        {
-            let mut is_loading = self
-                .is_loading
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner);
-            while *is_loading {
-                is_loading = self
-                    .loading_condvar
-                    .wait(is_loading)
-                    .unwrap_or_else(PoisonError::into_inner);
-            }
-
-            if !self.engine.is_loaded() {
-                return Err(anyhow::anyhow!("Model is not loaded for transcription."));
-            }
-        }
+        let _decode = self.begin_decode()?;
 
         let settings = get_settings(&self.app_handle);
         let language = match language_override {

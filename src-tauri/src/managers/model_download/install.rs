@@ -53,6 +53,13 @@ impl ModelManager {
         }
     }
 
+    /// The next verification hashes the file again instead of trusting its receipt.
+    pub(crate) fn forget_verification(&self, model_id: &str) {
+        if let Some(model) = self.get_model_info(model_id) {
+            receipt::remove_receipt(&self.models_dir.join(&model.filename));
+        }
+    }
+
     pub(super) fn recover_existing_download(&self, context: &DownloadContext) -> Result<bool> {
         if context.paths.model.exists() {
             if self.installed_artifact_is_intact(context) {

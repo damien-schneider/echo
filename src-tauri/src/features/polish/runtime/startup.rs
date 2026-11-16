@@ -6,10 +6,12 @@ use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::{timeout_at, Instant};
 
+use super::orphan::record_server;
 use super::process_lifecycle::{
     await_local_operation, transition, RuntimeProcess, ServerEvent, ServerState,
 };
 use super::server_args::{server_arguments, ServerBinding};
+use super::server_log::{log_server_output, server_output_sink};
 use super::PolishRuntime;
 
 const HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(100);
@@ -34,7 +36,7 @@ impl PolishRuntime {
             }))
             .stdin(Stdio::null())
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            .stderr(server_output_sink(&self.config.server_log))
             .kill_on_drop(true);
         let child = command.spawn().with_context(|| {
             format!(
@@ -42,6 +44,7 @@ impl PolishRuntime {
                 self.config.server_path.display()
             )
         })?;
+        record_server(&self.config.server_record, child.id());
         process.child = Some(child);
         process.port = port;
         process.api_key = api_key;
@@ -56,6 +59,7 @@ impl PolishRuntime {
         if let Ok(result) = readiness {
             return result;
         }
+        log_server_output(&self.config.server_log);
         process.terminate().await?;
         process.state = ServerState::Stopped;
         bail!("Polish runtime did not become ready within 60 seconds")
@@ -77,6 +81,7 @@ impl PolishRuntime {
                 .context("Failed to inspect local Polish runtime")?
                 .flatten();
             if let Some(exit_status) = exit_status {
+                log_server_output(&self.config.server_log);
                 process.child = None;
                 process.state = ServerState::Stopped;
                 bail!("Polish runtime exited during startup with {exit_status}");

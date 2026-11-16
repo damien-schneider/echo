@@ -93,10 +93,9 @@ pub async fn select_transcription_model_size(
     Ok(())
 }
 
-/// A loaded model keeps reading a deleted file, and a running meeting needs every model at its end.
+/// A running meeting needs every model at its end.
 #[tauri::command]
 pub(crate) async fn delete_model(
-    model_manager: State<'_, Arc<ModelManager>>,
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
     polish_manager: State<'_, Arc<PolishManager>>,
     meeting_manager: State<'_, Arc<MeetingManager>>,
@@ -111,21 +110,9 @@ pub(crate) async fn delete_model(
             .await
             .map_err(|error| format!("{error:#}"));
     }
-    let is_downloading = model_manager
-        .get_model_info(&model_id)
-        .is_some_and(|model| model.is_downloading);
-    refuse_deletion_while_downloading(is_downloading)?;
-    transcription_manager.unload_model(&model_id);
-    model_manager
+    transcription_manager
         .delete_model(&model_id)
         .map_err(|error| error.to_string())
-}
-
-fn refuse_deletion_while_downloading(is_downloading: bool) -> Result<(), String> {
-    if is_downloading {
-        return Err("Wait for the download to finish before deleting this model".to_string());
-    }
-    Ok(())
 }
 
 #[tauri::command]
@@ -188,7 +175,7 @@ fn active_profile_is_downloaded(profiles: &[TranscriptionProfileStatus]) -> bool
 
 #[cfg(test)]
 mod tests {
-    use super::{active_profile_is_downloaded, refuse_deletion_while_downloading};
+    use super::active_profile_is_downloaded;
     use crate::managers::model::{
         transcription_profile_statuses, ProfileArtifact, TranscriptionProfileStatus,
     };
@@ -213,18 +200,5 @@ mod tests {
         assert!(active_profile_is_downloaded(
             &profiles_with_only_downloaded("medium")
         ));
-    }
-
-    #[test]
-    fn a_model_cannot_be_deleted_while_it_is_downloading() {
-        assert_eq!(
-            refuse_deletion_while_downloading(true),
-            Err("Wait for the download to finish before deleting this model".to_string())
-        );
-    }
-
-    #[test]
-    fn an_idle_model_can_be_deleted() {
-        assert_eq!(refuse_deletion_while_downloading(false), Ok(()));
     }
 }

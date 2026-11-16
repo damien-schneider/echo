@@ -83,6 +83,11 @@ impl PolishPreparationIntent {
     fn reuses_ready_status(self) -> bool {
         self == Self::Download
     }
+
+    /// A receipt vouches for size and date only, and a repair is asked for when that was not enough.
+    fn rehashes_installed_model(self) -> bool {
+        self == Self::Repair
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -291,6 +296,12 @@ mod tests {
     fn duplicate_downloads_reuse_the_owner_ready_status() {
         assert!(!PolishPreparationIntent::Download.resets_runtime());
         assert!(PolishPreparationIntent::Download.reuses_ready_status());
+    }
+
+    #[test]
+    fn a_repair_checks_the_installed_model_again_instead_of_trusting_its_receipt() {
+        assert!(PolishPreparationIntent::Repair.rehashes_installed_model());
+        assert!(!PolishPreparationIntent::Download.rehashes_installed_model());
     }
 
     /// A 2.5 GB transfer outlives any wait, so a second click attaches instead of timing out.

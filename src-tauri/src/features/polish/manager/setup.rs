@@ -31,6 +31,8 @@ pub(super) fn polish_initialization(
                     server_path: PathBuf::new(),
                     working_directory: PathBuf::new(),
                     model_path: PathBuf::new(),
+                    server_record: PathBuf::new(),
+                    server_log: PathBuf::new(),
                 },
                 error: Some(error.to_string()),
                 status: PolishStatus {
@@ -52,7 +54,16 @@ pub(super) fn polish_runtime_config(
         server_path: runtime_directory.join(polish_server_filename()),
         working_directory: runtime_directory,
         model_path: models.model_file_path(POLISH_MODEL_ID)?,
+        server_record: app_file(app.path().app_data_dir(), "polish-server.json"),
+        server_log: app_file(app.path().app_log_dir(), "llama-server.log"),
     })
+}
+
+/// An unresolved directory leaves the path empty, which only switches that file off.
+fn app_file(directory: tauri::Result<PathBuf>, name: &str) -> PathBuf {
+    directory
+        .map(|directory| directory.join(name))
+        .unwrap_or_default()
 }
 
 fn polish_runtime_directory(app: &AppHandle) -> Result<PathBuf> {

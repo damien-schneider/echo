@@ -100,6 +100,8 @@ mod tests {
             server_path: PathBuf::new(),
             working_directory: PathBuf::new(),
             model_path: PathBuf::new(),
+            server_record: PathBuf::new(),
+            server_log: PathBuf::new(),
         });
         serve(&runtime, idle_server()).await;
         runtime

@@ -134,7 +134,7 @@ export const PolishModelRow = ({
           : undefined
       }
       files={
-        status.state === "ready"
+        status.state === "ready" || status.state === "repair"
           ? {
               disabled: false,
               onDelete,

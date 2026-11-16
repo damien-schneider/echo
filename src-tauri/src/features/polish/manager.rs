@@ -2,11 +2,11 @@ use anyhow::{Context, Result};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::sync::watch;
 
 mod deletion;
+mod preparation;
 mod setup;
 
 use crate::managers::model::{ModelManager, POLISH_MODEL_ID};
@@ -20,15 +20,14 @@ use super::platform::{
     read_selected_text, settled_selection, DirectSelection, PlatformClipboard, PlatformFocus,
     PlatformKeyboard, SettledSelection,
 };
-use super::runtime::PolishRuntime;
+use super::runtime::{stop_orphaned_server, PolishRuntime};
 use super::selection::{
     CancellationClock, CapturedPolishInput, PolishOutcome, PolishTransaction,
     PolishTransactionPorts, SelectionMode,
 };
 use super::{
-    polish_failure_status, polish_failure_updates_shared_status, polish_joins_active_operation,
-    polish_preparation_plan, polish_use_preparation, polish_warning_message, BundledChatMessage,
-    PolishFailureStage, PolishPreparationIntent, PolishPreparationPlan, PolishState, PolishStatus,
+    polish_failure_status, polish_failure_updates_shared_status, polish_use_preparation,
+    polish_warning_message, BundledChatMessage, PolishFailureStage, PolishState, PolishStatus,
     PolishUsePreparation,
 };
 use setup::{polish_initialization, polish_runtime_config, selection_mode};
@@ -123,6 +122,7 @@ impl PolishManager {
             .unwrap_or(false);
         let initialization =
             polish_initialization(polish_runtime_config(app, &models), is_downloaded);
+        stop_orphaned_server(&initialization.config);
         let runtime_path = initialization.config.server_path.clone();
         Self {
             app: app.clone(),
@@ -259,80 +259,11 @@ impl PolishManager {
         }
     }
 
-    async fn repair(&self) -> Result<()> {
-        self.wait_and_prepare_explicit(PolishPreparationIntent::Repair)
-            .await
-    }
-
-    async fn download(&self) -> Result<()> {
-        self.wait_and_prepare_explicit(PolishPreparationIntent::Download)
-            .await
-    }
-
-    async fn wait_and_prepare_explicit(&self, intent: PolishPreparationIntent) -> Result<()> {
-        let Some(_guard) = self.acquire_preparation().await? else {
-            return Ok(());
-        };
-        if intent.reuses_ready_status() && self.status().state == PolishState::Ready {
-            return Ok(());
-        }
-        if intent.resets_runtime() {
-            let reset_result = self.runtime.reset().await;
-            self.record_failure(PolishFailureStage::Runtime, reset_result)?;
-        }
-        let runtime_result = self.require_runtime();
-        self.record_failure(PolishFailureStage::Runtime, runtime_result)?;
-        let plan = self.preparation_plan();
-        self.set_preparation_status(plan);
-        self.prepare_explicit(plan).await
-    }
-
-    /// `None` — another task owns the operation; its status events are the answer.
-    async fn acquire_preparation(&self) -> Result<Option<tokio::sync::MutexGuard<'_, ()>>> {
-        if let Ok(guard) = self.preparation.try_lock() {
-            return Ok(Some(guard));
-        }
-        if polish_joins_active_operation(self.status().state) {
-            log::info!("Joining the Polish operation already in flight");
-            return Ok(None);
-        }
-        let wait_result = tokio::time::timeout(Duration::from_secs(75), self.preparation.lock())
-            .await
-            .context("Timed out waiting for another Polish operation");
-        self.record_failure(PolishFailureStage::Waiting, wait_result)
-            .map(Some)
-    }
-
-    async fn prepare_explicit(&self, plan: PolishPreparationPlan) -> Result<()> {
-        if !plan.requires_preload_verification() {
-            return self.download_and_load().await;
-        }
-        if let Err(error) = self.models.verify_downloaded_model(POLISH_MODEL_ID) {
-            log::warn!("Discarding invalid Polish model before repair: {error:#}");
-            let delete_result = self
-                .models
-                .delete_model(POLISH_MODEL_ID)
-                .context("Failed to discard invalid Polish model");
-            self.record_failure(PolishFailureStage::Verification, delete_result)?;
-            self.set_status(PolishState::Downloading, "Downloading Polish model");
-            return self.download_and_load().await;
-        }
-        let load_result = self.load_runtime().await;
-        self.record_failure(PolishFailureStage::Loading, load_result)
-    }
-
     pub(crate) fn is_downloaded(&self) -> bool {
         self.models
             .get_model_info(POLISH_MODEL_ID)
             .map(|model| model.is_downloaded)
             .unwrap_or(false)
-    }
-
-    async fn download_and_load(&self) -> Result<()> {
-        let download_result = self.models.download_model(POLISH_MODEL_ID).await;
-        self.record_failure(PolishFailureStage::Download, download_result)?;
-        let load_result = self.load_runtime().await;
-        self.record_failure(PolishFailureStage::Loading, load_result)
     }
 
     async fn prepare_downloaded_runtime(&self) -> Result<()> {
@@ -357,26 +288,6 @@ impl PolishManager {
         self.runtime.ensure_ready().await?;
         self.set_status(PolishState::Ready, "Polish is ready");
         Ok(())
-    }
-
-    fn preparation_plan(&self) -> PolishPreparationPlan {
-        self.models
-            .get_model_info(POLISH_MODEL_ID)
-            .map(|model| {
-                polish_preparation_plan(model.is_downloaded, model.partial_size, model.size_bytes)
-            })
-            .unwrap_or(PolishPreparationPlan::Download)
-    }
-
-    fn set_preparation_status(&self, plan: PolishPreparationPlan) {
-        match plan {
-            PolishPreparationPlan::Download => {
-                self.set_status(PolishState::Downloading, "Downloading Polish model");
-            }
-            PolishPreparationPlan::VerifyInstalled | PolishPreparationPlan::RecoverDownload => {
-                self.set_status(PolishState::Verifying, "Verifying Polish model");
-            }
-        }
     }
 
     fn record_failure<T>(&self, stage: PolishFailureStage, result: Result<T>) -> Result<T> {

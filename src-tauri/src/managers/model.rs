@@ -172,22 +172,33 @@ impl ModelManager {
         }
     }
 
+    /// A download claims its model under the catalog lock, so that lock is held until the files are gone.
     pub fn delete_model(&self, model_id: &str) -> Result<()> {
         log::info!("ModelManager: delete_model called for: {}", model_id);
 
-        let model_info = {
-            let models = self
-                .available_models
-                .lock()
-                .map_err(|_| anyhow::anyhow!("Model catalog lock is poisoned"))?;
-            models.get(model_id).cloned()
-        };
+        let mut models = self
+            .available_models
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Model catalog lock is poisoned"))?;
+        let model_info = models
+            .get(model_id)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
+        refuse_deletion_while_downloading(model_info.is_downloading)?;
 
-        let model_info =
-            model_info.ok_or_else(|| anyhow::anyhow!("Model not found: {}", model_id))?;
+        let deleted_something = self.remove_model_files(&model_info)?;
+        let artifact = self.artifact_state(&model_info);
+        if let Some(model) = models.get_mut(model_id) {
+            apply_artifact_state(model, artifact);
+        }
 
-        log::debug!("ModelManager: Found model info: {:?}", model_info);
+        if !deleted_something {
+            return Err(anyhow::anyhow!("No model files found to delete"));
+        }
+        Ok(())
+    }
 
+    fn remove_model_files(&self, model_info: &ModelInfo) -> Result<bool> {
         let model_path = self.models_dir.join(&model_info.filename);
         let partial_path = self
             .models_dir
@@ -225,14 +236,7 @@ impl ModelManager {
             deleted_something = true;
         }
 
-        if !deleted_something {
-            return Err(anyhow::anyhow!("No model files found to delete"));
-        }
-
-        self.update_download_status()?;
-        log::debug!("ModelManager: Download status updated");
-
-        Ok(())
+        Ok(deleted_something)
     }
 
     pub fn get_model_path(&self, model_id: &str) -> Result<PathBuf> {
@@ -303,6 +307,33 @@ impl ModelManager {
 fn shared_models_dir(app_data_dir: &std::path::Path) -> PathBuf {
     let data_root = app_data_dir.parent().unwrap_or(app_data_dir);
     data_root.join(SHARED_MODELS_APP_ID).join("models")
+}
+
+fn refuse_deletion_while_downloading(is_downloading: bool) -> Result<()> {
+    if is_downloading {
+        anyhow::bail!("Wait for the download to finish before deleting this model");
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod deletion_tests {
+    use super::refuse_deletion_while_downloading;
+
+    #[test]
+    fn a_model_cannot_be_deleted_while_it_is_downloading() {
+        let refusal = refuse_deletion_while_downloading(true).unwrap_err();
+
+        assert_eq!(
+            refusal.to_string(),
+            "Wait for the download to finish before deleting this model"
+        );
+    }
+
+    #[test]
+    fn a_model_that_is_not_downloading_can_be_deleted() {
+        assert!(refuse_deletion_while_downloading(false).is_ok());
+    }
 }
 
 #[cfg(test)]

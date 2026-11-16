@@ -1,8 +1,10 @@
 mod idle;
+mod orphan;
 mod process_lifecycle;
 mod protocol;
 mod recovery;
 mod server_args;
+mod server_log;
 mod startup;
 
 use anyhow::{bail, Context, Result};
@@ -20,6 +22,7 @@ use super::transform::TransformRequest;
 use super::BundledChatMessage;
 pub(in crate::features::polish) use idle::IDLE_CHECK_INTERVAL;
 use idle::{should_release_idle_runtime, ActivityTracker};
+pub(in crate::features::polish) use orphan::stop_orphaned_server;
 use process_lifecycle::{await_local_operation, ConnectionFailure, RuntimeProcess, ServerState};
 use protocol::{
     parse_chat_response, ChatRequest, ChatRequestMessage, ChatStreamDecoder, TokenizeRequest,
@@ -52,6 +55,8 @@ pub(super) struct PolishRuntimeConfig {
     pub(super) server_path: PathBuf,
     pub(super) working_directory: PathBuf,
     pub(super) model_path: PathBuf,
+    pub(super) server_record: PathBuf,
+    pub(super) server_log: PathBuf,
 }
 
 pub(super) struct PolishRuntime {
@@ -144,6 +149,7 @@ impl PolishRuntime {
             None => true,
         };
         if exited {
+            server_log::log_server_output(&self.config.server_log);
             process.child = None;
             process.record_crash();
         }
