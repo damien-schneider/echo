@@ -14,6 +14,7 @@ import {
   overlayActivityText,
   overlayEscapeIntent,
 } from "@/features/overlay-controls/recording-overlay-state";
+import { tellsDownloadFailure } from "@/features/overlay-controls/runtime/overlay-activity-state";
 import type { NotificationRequest } from "@/features/overlay-controls/runtime/overlay-windows";
 import type { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events";
 import type { MeetingNotice } from "@/features/overlay-notification/meeting-notice";
@@ -82,6 +83,15 @@ const activityActionFor = ({
   return null;
 };
 
+const isActivityShown = ({
+  events,
+  request,
+}: Pick<NotificationPresentationOptions, "events" | "request">) => {
+  const isFailureBehindSurface =
+    request !== null && tellsDownloadFailure(events);
+  return events.isVisible && !isFailureBehindSurface;
+};
+
 /// A null mode means nothing to say — the window collapses back into the notch.
 export const createNotificationPresentation = ({
   events,
@@ -90,8 +100,8 @@ export const createNotificationPresentation = ({
   request,
   updateNotice,
 }: NotificationPresentationOptions): NotificationPresentation => {
-  const hasActiveOperation =
-    events.isVisible && isActiveOverlayState(events.state);
+  const isVisible = isActivityShown({ events, request });
+  const hasActiveOperation = isVisible && isActiveOverlayState(events.state);
   const isPreparing = hasActiveOperation && events.state === "preparing";
   const isRecording = hasActiveOperation && events.state === "recording";
   const isTranscribing = hasActiveOperation && events.state === "transcribing";
@@ -99,7 +109,7 @@ export const createNotificationPresentation = ({
   const activityError = events.eventError;
   const showsBackgroundDownload = events.download !== null && request === null;
   const hasPassiveActivity =
-    (events.isVisible && !hasActiveOperation) ||
+    (isVisible && !hasActiveOperation) ||
     activityError !== null ||
     showsBackgroundDownload;
   const hasQuietIsland =
@@ -109,10 +119,7 @@ export const createNotificationPresentation = ({
   const notice = hasQuietIsland && meeting === null ? updateNotice : null;
   const mode = notificationModeFor({
     isShown:
-      events.isVisible ||
-      hasPassiveActivity ||
-      meeting !== null ||
-      notice !== null,
+      isVisible || hasPassiveActivity || meeting !== null || notice !== null,
     request,
   });
   const activity: ActivityShape = meeting ??
@@ -128,7 +135,7 @@ export const createNotificationPresentation = ({
       text: overlayActivityText({
         activityError,
         download: events.download,
-        isVisible: events.isVisible,
+        isVisible,
         modelBadge: modelStateLabel(modelState),
         state: events.state,
         streamingText: events.streamingText,
@@ -149,7 +156,7 @@ export const createNotificationPresentation = ({
       isRecording,
       meeting,
       notice,
-      remedy: events.isVisible ? events.remedy : null,
+      remedy: isVisible ? events.remedy : null,
     }),
     activityDecoration: activity.decoration,
     activityDismissal: activityDismissalFor({

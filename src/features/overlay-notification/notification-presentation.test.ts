@@ -1,4 +1,9 @@
 import { describe, expect, it } from "bun:test";
+import {
+  initialOverlayActivity,
+  type OverlayActivityEvent,
+  reduceOverlayActivity,
+} from "@/features/overlay-controls/runtime/overlay-activity-state";
 import type { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events";
 import {
   type MeetingNotice,
@@ -115,6 +120,62 @@ describe("notification presentation", () => {
     expect(alone.mode).toBe("recording");
     expect(alone.activityText).toBe("Downloading Polish… 10%");
     expect(behindChat.mode).toBe("chat");
+  });
+
+  it("leaves an open surface in place when a download fails behind it, and tells the failure once it closes", () => {
+    const failure: OverlayActivityEvent[] = [
+      {
+        download: { model_id: "polish-qwen3-4b-instruct-2507", percentage: 25 },
+        type: "download_progress",
+      },
+      { modelId: "polish-qwen3-4b-instruct-2507", type: "download_failed" },
+    ];
+    const failed = failure.reduce(
+      reduceOverlayActivity,
+      initialOverlayActivity
+    );
+    const afterFailure = events({
+      isVisible: failed.isVisible,
+      state: failed.state,
+      warningMessage: failed.warningMessage,
+    });
+    const behindPanel = createNotificationPresentation({
+      events: afterFailure,
+      meetingNotice: null,
+      modelState: "Ready",
+      request: "panel",
+      updateNotice: null,
+    });
+    const alone = createNotificationPresentation({
+      events: afterFailure,
+      meetingNotice: null,
+      modelState: "Ready",
+      request: null,
+      updateNotice: null,
+    });
+
+    expect(behindPanel.mode).toBe("panel");
+    expect(alone.mode).toBe("recording");
+    expect(alone.activityText).toBe(
+      "Model download failed — check your connection and retry"
+    );
+  });
+
+  it("lets a warning about a dictation take the island from an open surface", () => {
+    const warned = createNotificationPresentation({
+      events: events({
+        isVisible: true,
+        state: "warning",
+        warningMessage: "No selected text was copied",
+      }),
+      meetingNotice: null,
+      modelState: "Ready",
+      request: "panel",
+      updateNotice: null,
+    });
+
+    expect(warned.mode).toBe("recording");
+    expect(warned.activityText).toBe("No selected text was copied");
   });
 
   it("offers the download that unblocks a dictation, and keeps it on screen", () => {

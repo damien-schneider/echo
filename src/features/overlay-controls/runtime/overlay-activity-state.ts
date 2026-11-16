@@ -65,6 +65,10 @@ const shown = (
 const DOWNLOAD_FAILURE_MESSAGE =
   "Model download failed — check your connection and retry";
 
+export const tellsDownloadFailure = (
+  activity: Pick<OverlayActivity, "isVisible" | "warningMessage">
+) => activity.isVisible && activity.warningMessage === DOWNLOAD_FAILURE_MESSAGE;
+
 const downloadProgress = (
   state: OverlayActivity,
   incoming: OverlayDownloadProgress
@@ -78,9 +82,7 @@ const downloadProgress = (
     return state;
   }
   // an offered or retried download: its progress takes over from the notice that asked for it
-  const asksForDownload =
-    state.remedy !== null ||
-    (state.isVisible && state.warningMessage === DOWNLOAD_FAILURE_MESSAGE);
+  const asksForDownload = state.remedy !== null || tellsDownloadFailure(state);
   return asksForDownload
     ? {
         ...state,
