@@ -221,7 +221,10 @@ pub(crate) fn deliver(app_handle: &AppHandle, text: String) {
     } else {
         Destination::Caret
     };
-    let can_paste = crate::keystroke::is_permitted();
+    let can_paste = permission::paste_will_land(
+        crate::settings::get_settings(app_handle).paste_method,
+        crate::keystroke::is_permitted(),
+    );
     match landing_for(destination, overlay::chat_surface_is_open(), can_paste) {
         Landing::Caret => deliver_to_caret(app_handle, text),
         Landing::ChatComposer => {

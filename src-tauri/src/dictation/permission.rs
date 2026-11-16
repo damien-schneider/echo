@@ -1,8 +1,14 @@
+use crate::settings::PasteMethod;
 use log::{error, warn};
 use tauri::AppHandle;
 
 const PASTE_NOT_PERMITTED: &str =
     "Allow Echo in Accessibility settings to paste — your text is on the clipboard";
+
+/// A copy sends no keystroke, so only a real paste can be dropped for lack of Accessibility access.
+pub(super) fn paste_will_land(method: PasteMethod, keystrokes_permitted: bool) -> bool {
+    method == PasteMethod::ClipboardOnly || keystrokes_permitted
+}
 
 pub(super) fn keep_without_pasting(app_handle: &AppHandle, text: &str) {
     warn!("deliver: Accessibility access is missing, the paste would be dropped");

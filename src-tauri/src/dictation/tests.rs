@@ -1,7 +1,9 @@
+use super::permission::paste_will_land;
 use super::{
     hand_over_as_question, hold, landing_for, take_transcript_for_chat, ChatHandover, Destination,
     Landing,
 };
+use crate::settings::PasteMethod;
 
 #[cfg(target_os = "macos")]
 mod paste_deafness {
@@ -100,6 +102,17 @@ fn a_dictation_echo_may_not_paste_is_kept_instead_of_typed_into_nothing() {
         landing_for(Destination::Caret, false, false),
         Landing::Unpermitted
     );
+}
+
+#[test]
+fn a_dictation_that_is_only_copied_needs_no_paste_permission() {
+    assert!(paste_will_land(PasteMethod::ClipboardOnly, false));
+}
+
+#[test]
+fn a_pasted_dictation_needs_the_permission_its_keystroke_depends_on() {
+    assert!(!paste_will_land(PasteMethod::CtrlV, false));
+    assert!(paste_will_land(PasteMethod::CtrlV, true));
 }
 
 /// Chat asked for it, so the caret it would have displaced is none of its business.
