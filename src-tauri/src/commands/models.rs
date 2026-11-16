@@ -5,6 +5,7 @@ use crate::managers::model::{
     POLISH_MODEL_MEMORY_MB, POLISH_MODEL_NAME,
 };
 use crate::managers::transcription::TranscriptionManager;
+use crate::overlay::show_warning_overlay;
 use crate::settings::{self, TranscriptionModelSize};
 use serde::Serialize;
 use std::sync::Arc;
@@ -51,6 +52,12 @@ pub async fn download_configured_transcription_model(
         size,
     )
     .await
+    .inspect_err(|reason| {
+        show_warning_overlay(
+            &app_handle,
+            &format!("Transcription model setup failed: {reason}"),
+        );
+    })
 }
 
 #[tauri::command]
@@ -104,10 +111,21 @@ pub(crate) async fn delete_model(
             .await
             .map_err(|error| format!("{error:#}"));
     }
+    let is_downloading = model_manager
+        .get_model_info(&model_id)
+        .is_some_and(|model| model.is_downloading);
+    refuse_deletion_while_downloading(is_downloading)?;
     transcription_manager.unload_model(&model_id);
     model_manager
         .delete_model(&model_id)
         .map_err(|error| error.to_string())
+}
+
+fn refuse_deletion_while_downloading(is_downloading: bool) -> Result<(), String> {
+    if is_downloading {
+        return Err("Wait for the download to finish before deleting this model".to_string());
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -152,12 +170,61 @@ pub async fn get_transcription_model_status(
     Ok(transcription_manager.get_current_model())
 }
 
+/// Onboarding ends on the active profile: any other downloaded size still blocks every dictation.
 #[tauri::command]
 pub async fn has_any_models_available(
     model_manager: State<'_, Arc<ModelManager>>,
 ) -> Result<bool, String> {
-    Ok(model_manager
-        .get_transcription_profile_statuses()
+    Ok(active_profile_is_downloaded(
+        &model_manager.get_transcription_profile_statuses(),
+    ))
+}
+
+fn active_profile_is_downloaded(profiles: &[TranscriptionProfileStatus]) -> bool {
+    profiles
         .iter()
-        .any(|profile| profile.is_downloaded))
+        .any(|profile| profile.is_active && profile.is_downloaded)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{active_profile_is_downloaded, refuse_deletion_while_downloading};
+    use crate::managers::model::{
+        transcription_profile_statuses, ProfileArtifact, TranscriptionProfileStatus,
+    };
+    use crate::settings::TranscriptionModelSize;
+
+    fn profiles_with_only_downloaded(downloaded_id: &str) -> Vec<TranscriptionProfileStatus> {
+        transcription_profile_statuses(TranscriptionModelSize::Medium, |id| ProfileArtifact {
+            is_downloaded: id == downloaded_id,
+            ..ProfileArtifact::default()
+        })
+    }
+
+    #[test]
+    fn onboarding_is_not_skipped_when_only_an_inactive_profile_is_downloaded() {
+        assert!(!active_profile_is_downloaded(
+            &profiles_with_only_downloaded("small")
+        ));
+    }
+
+    #[test]
+    fn onboarding_is_skipped_once_the_active_profile_is_downloaded() {
+        assert!(active_profile_is_downloaded(
+            &profiles_with_only_downloaded("medium")
+        ));
+    }
+
+    #[test]
+    fn a_model_cannot_be_deleted_while_it_is_downloading() {
+        assert_eq!(
+            refuse_deletion_while_downloading(true),
+            Err("Wait for the download to finish before deleting this model".to_string())
+        );
+    }
+
+    #[test]
+    fn an_idle_model_can_be_deleted() {
+        assert_eq!(refuse_deletion_while_downloading(false), Ok(()));
+    }
 }

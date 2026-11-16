@@ -4,6 +4,7 @@ import {
   SquareIcon,
 } from "@phosphor-icons/react";
 import { ChatPanel } from "@/features/overlay-chat/chat-panel";
+import { useChatSessionHold } from "@/features/overlay-chat/use-chat-session";
 import { PolishModelPanel } from "@/features/overlay-controls/polish-model-panel";
 import type {
   ActivityAction,
@@ -49,22 +50,20 @@ export const NotificationSurface = ({
   controller,
   mode,
 }: NotificationSurfaceProps) => {
-  const { polish, presentation } = controller;
+  const { chatContext, polish, presentation } = controller;
   const surface = controller.events.surface;
   const hasFlanks =
     surface !== null && surface.notch !== null && surface.anchor === "top";
-  if (mode === "chat") {
+  const isChatReplaced = mode === "panel" || mode === "transcript";
+  useChatSessionHold(isChatReplaced ? null : (chatContext?.generation ?? null));
+  if (mode === "chat" && chatContext !== null) {
     return (
       <ChatPanel
         bundledModel={polish}
-        context={
-          controller.chatContext?.state === "ready"
-            ? controller.chatContext.context
-            : null
-        }
-        contextState={controller.chatContext?.state ?? "loading"}
+        context={chatContext.state === "ready" ? chatContext.context : null}
+        contextState={chatContext.state}
+        generation={chatContext.generation}
         hasFlanks={hasFlanks}
-        isOpen={true}
         onClose={controller.dismissSurface}
         onRequestAccessibility={controller.requestAccessibilityAccess}
       />

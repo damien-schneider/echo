@@ -20,6 +20,12 @@ fn stop_with_no_open_stream_returns_empty_immediately() {
 }
 
 #[test]
+fn starting_without_an_open_stream_is_refused() {
+    let rec = AudioRecorder::new().expect("recorder");
+    assert!(rec.start(None).is_err());
+}
+
+#[test]
 fn stop_times_out_when_worker_never_replies() {
     let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
     let mut rec = AudioRecorder::new().expect("recorder");

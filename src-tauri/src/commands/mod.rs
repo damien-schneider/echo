@@ -53,39 +53,19 @@ pub fn open_log_dir(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
-fn map_log_level_u8_to_filter(level: u8) -> LevelFilter {
-    match level {
-        1 => LevelFilter::Error,
-        2 => LevelFilter::Warn,
-        3 => LevelFilter::Info,
-        4 => LevelFilter::Debug,
-        5 => LevelFilter::Trace,
-        _ => LevelFilter::Info,
-    }
-}
-
-fn map_log_level_u8_to_tauri(level: u8) -> tauri_plugin_log::LogLevel {
-    match level {
-        1 => tauri_plugin_log::LogLevel::Error,
-        2 => tauri_plugin_log::LogLevel::Warn,
-        3 => tauri_plugin_log::LogLevel::Info,
-        4 => tauri_plugin_log::LogLevel::Debug,
-        5 => tauri_plugin_log::LogLevel::Trace,
-        _ => tauri_plugin_log::LogLevel::Info,
-    }
+pub(crate) fn file_log_filter(level: tauri_plugin_log::LogLevel) -> LevelFilter {
+    log::Level::from(level).to_level_filter()
 }
 
 #[tauri::command]
-pub fn set_log_level(app: AppHandle, level: u8) -> Result<(), String> {
-    let pl_level = map_log_level_u8_to_tauri(level);
-
+pub fn set_log_level(app: AppHandle, level: tauri_plugin_log::LogLevel) -> Result<(), String> {
     crate::FILE_LOG_LEVEL.store(
-        map_log_level_u8_to_filter(level) as u8,
+        file_log_filter(level.clone()) as u8,
         std::sync::atomic::Ordering::Relaxed,
     );
 
     settings::update_settings(&app, |s| {
-        s.log_level = pl_level;
+        s.log_level = level;
     });
 
     Ok(())
@@ -106,4 +86,30 @@ pub fn open_recordings_folder(app: AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Failed to open recordings folder: {}", e))?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::file_log_filter;
+    use log::LevelFilter;
+    use tauri_plugin_log::LogLevel;
+
+    #[test]
+    fn the_stored_level_number_sets_the_matching_file_log_verbosity() {
+        for (stored, verbosity) in [
+            (1, LevelFilter::Trace),
+            (2, LevelFilter::Debug),
+            (3, LevelFilter::Info),
+            (4, LevelFilter::Warn),
+            (5, LevelFilter::Error),
+        ] {
+            let level: LogLevel = serde_json::from_value(serde_json::json!(stored)).unwrap();
+
+            assert_eq!(file_log_filter(level.clone()), verbosity);
+            assert_eq!(
+                serde_json::to_value(level).unwrap(),
+                serde_json::json!(stored)
+            );
+        }
+    }
 }

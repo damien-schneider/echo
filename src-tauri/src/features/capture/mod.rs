@@ -127,9 +127,7 @@ pub(crate) fn change_double_shift_capture_setting(
     shortcut: State<'_, Arc<CaptureShortcut>>,
     enabled: bool,
 ) -> Result<(), String> {
-    let mut settings = settings::get_settings(&app);
-    settings.double_shift_capture_enabled = enabled;
-    settings::write_settings(&app, settings);
+    settings::update_settings(&app, |stored| stored.double_shift_capture_enabled = enabled);
     shortcut.set_enabled(&app, enabled);
     Ok(())
 }

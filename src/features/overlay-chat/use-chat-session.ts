@@ -1,29 +1,34 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import {
-  type Dispatch,
-  type RefObject,
-  type SetStateAction,
-  useEffect,
-  useEffectEvent,
-  useRef,
-  useState,
-} from "react";
+import { type RefObject, useEffect, useEffectEvent, useRef } from "react";
 import {
   buildChatSystemPrompt,
   CHAT_ANSWER_EVENT,
   ChatAnswerEventSchema,
   type ChatMessage,
   type ChatPrompt,
+  chatFailureMessage,
+  chatModelBlock,
   dropEmptyAssistantTurn,
   makeMessageId,
   promptMessages,
   updateAssistantMessage,
   withDictatedText,
-  withPendingTurn,
-  withPromptRun,
 } from "@/features/overlay-chat/chat";
 import { usePromptAutoRun } from "@/features/overlay-chat/prompt-picker/use-prompt-auto-run";
+import {
+  type ChatRequestHandle,
+  type ChatSessionChange,
+  changeChatSession,
+  changeChatSessionFromRequest,
+  chatSessionFor,
+  failedTurn,
+  holdChatSession,
+  pendingQuestionIsDue,
+  restartChatSession,
+  startedTurn,
+  useChatSessionStore,
+} from "@/features/overlay-chat/session/chat-session-store";
 import {
   type ChatDictation,
   useChatDictation,
@@ -32,7 +37,7 @@ import type {
   ChatContextEvent,
   ChatTextContext,
 } from "@/features/overlay-controls/runtime/overlay-windows";
-import { polishModelName } from "@/features/polish/polish-model-state";
+import type { PolishStatus } from "@/lib/types";
 
 const abortable = <T>(operation: Promise<T>, signal: AbortSignal): Promise<T> =>
   new Promise<T>((resolve, reject) => {
@@ -51,9 +56,9 @@ const abortable = <T>(operation: Promise<T>, signal: AbortSignal): Promise<T> =>
 interface ChatSessionOptions {
   context: ChatTextContext | null;
   contextState: ChatContextEvent["state"];
-  isBundledModelReady: boolean;
-  isOpen: boolean;
+  generation: number;
   isPromptReady: boolean;
+  modelState: PolishStatus["state"];
   prompt: ChatPrompt | null;
 }
 
@@ -66,7 +71,7 @@ export interface ChatSession {
   messages: ChatMessage[];
   restart: () => void;
   send: () => void;
-  setInput: Dispatch<SetStateAction<string>>;
+  setInput: (value: string) => void;
   showError: (message: string) => void;
   stop: () => void;
 }
@@ -74,24 +79,27 @@ export interface ChatSession {
 interface AssistantStreamOptions {
   assistantId: string;
   context: ChatTextContext | null;
-  controller: AbortController;
+  handle: ChatRequestHandle;
   messages: ChatMessage[];
   prompt: ChatPrompt | null;
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
 }
 
 const requestBundledResponse = async (options: AssistantStreamOptions) => {
-  const publishAnswer = (payload: unknown) => {
-    const event = ChatAnswerEventSchema.safeParse(payload);
-    if (event.success && event.data.stream_id === options.assistantId) {
-      options.setMessages((current) =>
-        updateAssistantMessage(current, options.assistantId, event.data.answer)
-      );
+  const showAnswer = (answer: string) =>
+    changeChatSessionFromRequest(options.handle, (session) => ({
+      messages: updateAssistantMessage(
+        session.messages,
+        options.assistantId,
+        answer
+      ),
+    }));
+  const stopListening = await listen<unknown>(CHAT_ANSWER_EVENT, (event) => {
+    const published = ChatAnswerEventSchema.safeParse(event.payload);
+    if (published.success && published.data.stream_id === options.assistantId) {
+      showAnswer(published.data.answer);
     }
-  };
-  const stopListening = await listen<unknown>(CHAT_ANSWER_EVENT, (event) =>
-    publishAnswer(event.payload)
-  );
+  });
+  const { signal } = options.handle.controller;
   try {
     const answer = await abortable(
       invoke<string>("chat_with_polish_model", {
@@ -99,172 +107,141 @@ const requestBundledResponse = async (options: AssistantStreamOptions) => {
         streamId: options.assistantId,
         system: buildChatSystemPrompt(options.context, options.prompt),
       }),
-      options.controller.signal
+      signal
     );
-    options.setMessages((current) =>
-      updateAssistantMessage(current, options.assistantId, answer)
-    );
+    showAnswer(answer);
   } finally {
     stopListening();
-    if (options.controller.signal.aborted) {
+    if (signal.aborted) {
       await invoke("stop_polish_chat", { streamId: options.assistantId });
     }
   }
 };
 
-interface SendMessageOptions {
-  abortRef: RefObject<AbortController | null>;
+interface ChatTurnOptions {
   context: ChatTextContext | null;
-  input: string;
-  isBundledModelReady: boolean;
-  isPromptRun: boolean;
-  isResponding: boolean;
-  messages: ChatMessage[];
+  generation: number;
+  modelState: PolishStatus["state"];
   prompt: ChatPrompt | null;
-  setError: Dispatch<SetStateAction<string>>;
-  setInput: Dispatch<SetStateAction<string>>;
-  setIsResponding: Dispatch<SetStateAction<boolean>>;
-  setMessages: Dispatch<SetStateAction<ChatMessage[]>>;
+  /// `null` runs the active prompt on the reference instead of asking.
+  question: string | null;
 }
 
-/// Prompt and pending answer land before any await, so the panel never waits on IPC.
-const sendChatMessage = async (options: SendMessageOptions) => {
-  const prompt = options.input.trim();
-  if (!prompt || options.isResponding) {
+/// Question and pending answer land before any await, so the panel never waits on IPC.
+const sendChatTurn = async (options: ChatTurnOptions) => {
+  const question = options.question?.trim() ?? null;
+  const session = chatSessionFor(
+    useChatSessionStore.getState(),
+    options.generation
+  );
+  if (question === "" || session.request !== null) {
     return;
   }
-  if (!options.isBundledModelReady) {
-    options.setError(`Download ${polishModelName} before chatting.`);
+  const block = chatModelBlock(options.modelState);
+  if (block !== null) {
+    changeChatSession(options.generation, () => ({ error: block }));
     return;
   }
   const assistantId = makeMessageId();
-  const turn = options.isPromptRun
-    ? withPromptRun(options.messages, prompt, assistantId)
-    : withPendingTurn(options.messages, prompt, assistantId);
   const controller = new AbortController();
-  options.abortRef.current = controller;
-  if (!options.isPromptRun) {
-    options.setInput("");
-  }
-  options.setError("");
-  options.setIsResponding(true);
-  options.setMessages(turn);
+  const handle = { controller, generation: options.generation };
+  const started = startedTurn(session, { assistantId, controller, question });
+  changeChatSession(options.generation, () => started);
   try {
     await requestBundledResponse({
       assistantId,
       context: options.context,
-      controller,
-      messages: turn,
+      handle,
+      messages: started.messages,
       prompt: options.prompt,
-      setMessages: options.setMessages,
     });
   } catch (caught) {
-    options.setMessages((current) =>
-      dropEmptyAssistantTurn(current, assistantId)
+    changeChatSessionFromRequest(handle, (current) =>
+      controller.signal.aborted
+        ? { messages: dropEmptyAssistantTurn(current.messages, assistantId) }
+        : failedTurn(current, {
+            assistantId,
+            message: chatFailureMessage(caught),
+            question,
+          })
     );
-    if (!controller.signal.aborted) {
-      options.setError(
-        caught instanceof Error ? caught.message : "Chat request failed."
-      );
-    }
   } finally {
-    if (options.abortRef.current === controller) {
-      options.abortRef.current = null;
-    }
-    options.setIsResponding(false);
+    changeChatSessionFromRequest(handle, () => ({ request: null }));
   }
 };
 
-const useChatLifecycle = (
-  abortRef: RefObject<AbortController | null>,
-  isOpen: boolean
-) => {
-  const abortCurrentRequest = useEffectEvent(() => {
-    abortRef.current?.abort();
+/// Whatever covers the chat keeps its session alive; the last surface to leave ends it.
+export const useChatSessionHold = (generation: number | null) => {
+  useEffect(
+    () => (generation === null ? undefined : holdChatSession(generation)),
+    [generation]
+  );
+};
+
+const useSessionDictation = (generation: number) =>
+  useChatDictation({
+    onDictated: (dictated) =>
+      changeChatSession(generation, (current) => ({
+        input: withDictatedText(current.input, dictated.text),
+        isQuestionPending: dictated.handover === "ask",
+      })),
+    onError: (error) => changeChatSession(generation, () => ({ error })),
   });
+
+const usePendingQuestion = (isDue: boolean, ask: () => void) => {
+  const askPendingQuestion = useEffectEvent(ask);
   useEffect(() => {
-    if (!isOpen) {
-      abortCurrentRequest();
-      return;
+    if (isDue) {
+      askPendingQuestion();
     }
-    return abortCurrentRequest;
-  }, [isOpen]);
+  }, [isDue]);
 };
 
 export const useChatSession = ({
   context,
   contextState,
-  isBundledModelReady,
-  isOpen,
+  generation,
   isPromptReady,
+  modelState,
   prompt,
 }: ChatSessionOptions): ChatSession => {
-  const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isResponding, setIsResponding] = useState(false);
-  const [isQuestionPending, setIsQuestionPending] = useState(false);
-  const [error, setError] = useState("");
-  const abortRef = useRef<AbortController | null>(null);
+  const session = useChatSessionStore((store) =>
+    chatSessionFor(store, generation)
+  );
   const inputRef = useRef<HTMLInputElement>(null);
-  const dictation = useChatDictation({
-    onDictated: (dictated) => {
-      setInput((current) => withDictatedText(current, dictated.text));
-      setIsQuestionPending(dictated.handover === "ask");
-    },
-    onError: setError,
-  });
-  const submit = (question: string, isPromptRun: boolean) =>
-    sendChatMessage({
-      abortRef,
-      context,
-      input: question,
-      isBundledModelReady,
-      isPromptRun,
-      isResponding,
-      messages,
-      prompt,
-      setError,
-      setInput,
-      setIsResponding,
-      setMessages,
-    });
-  useChatLifecycle(abortRef, isOpen);
-  const autoRun = usePromptAutoRun({
-    canRun: !isQuestionPending && messages.length === 0,
+  const change = (next: ChatSessionChange) =>
+    changeChatSession(generation, next);
+  const sendTurn = (question: string | null) =>
+    sendChatTurn({ context, generation, modelState, prompt, question });
+  const dictation = useSessionDictation(generation);
+  usePromptAutoRun({
+    canRun: !session.isQuestionPending && session.messages.length === 0,
     context,
+    disarm: () => change(() => ({ isPromptRunArmed: false })),
+    isArmed: session.isPromptRunArmed,
     isSettled:
-      contextState !== "loading" && isPromptReady && isBundledModelReady,
+      contextState !== "loading" && isPromptReady && modelState === "ready",
     prompt,
-    run: (text) => submit(text, true),
+    run: () => sendTurn(null),
   });
-  const askPendingQuestion = useEffectEvent(() => submit(input, false));
-  /// A transcript handed over whole waits for the reference it may be about before going out.
-  useEffect(() => {
-    if (!isQuestionPending || contextState === "loading") {
-      return;
-    }
-    setIsQuestionPending(false);
-    askPendingQuestion();
-  }, [contextState, isQuestionPending]);
+  usePendingQuestion(
+    pendingQuestionIsDue({ contextState, modelState, session }),
+    () => sendTurn(session.input)
+  );
   return {
     dictation,
-    error,
-    input,
+    error: session.error,
+    input: session.input,
     inputRef,
-    isResponding,
-    messages,
-    restart: () => {
-      abortRef.current?.abort();
-      setMessages([]);
-      setError("");
-      setIsResponding(false);
-      autoRun.rearm();
-    },
+    isResponding: session.request !== null,
+    messages: session.messages,
+    restart: () => restartChatSession(generation),
     send: () => {
-      submit(input, false);
+      sendTurn(session.input);
     },
-    setInput,
-    showError: setError,
-    stop: () => abortRef.current?.abort(),
+    /// An edited handover is a draft again: it goes out when the user sends it.
+    setInput: (input) => change(() => ({ input, isQuestionPending: false })),
+    showError: (error) => change(() => ({ error })),
+    stop: () => session.request?.abort(),
   };
 };

@@ -1,13 +1,12 @@
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use std::process::Command;
 use tauri::{AppHandle, Manager};
 
 use super::trigger::{printable_key_from_binding, trigger_has_printable_key};
 use super::ManagedWaylandState;
 use crate::actions::ACTION_MAP;
-use crate::features::shortcut::init::{execute_toggle_transition, ShortcutExecution};
+use crate::features::shortcut::init::toggle_dictation;
 use crate::settings;
-use crate::ManagedToggleState;
 
 pub(super) fn handle_activated(app: &AppHandle, shortcut_id: &str) {
     let Some(action) = ACTION_MAP.get(shortcut_id) else {
@@ -27,23 +26,7 @@ pub(super) fn handle_activated(app: &AppHandle, shortcut_id: &str) {
         action.start(app, shortcut_id, shortcut_id);
         return;
     }
-    execute_toggle(app, shortcut_id);
-}
-
-fn execute_toggle(app: &AppHandle, shortcut_id: &str) {
-    let Some(action) = ACTION_MAP.get(shortcut_id) else {
-        return;
-    };
-    let toggle_state = app.state::<ManagedToggleState>();
-    let result =
-        execute_toggle_transition(&toggle_state, shortcut_id, |execution| match execution {
-            ShortcutExecution::Start => action.start(app, shortcut_id, shortcut_id),
-            ShortcutExecution::Stop => action.stop(app, shortcut_id, shortcut_id),
-            ShortcutExecution::None => {}
-        });
-    if let Err(error) = result {
-        error!("[Wayland] {error}");
-    }
+    toggle_dictation(app, shortcut_id, shortcut_id);
 }
 
 pub(super) fn handle_deactivated(app: &AppHandle, shortcut_id: &str) {

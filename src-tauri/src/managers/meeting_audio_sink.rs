@@ -50,11 +50,10 @@ impl MeetingAudioSink {
     pub(super) fn finish(self, dir: &Path) -> Option<String> {
         let file_name = self.file_name;
         let samples = self.samples_written;
-        if let Err(e) = self.writer.finalize() {
-            warn!("Failed to finalize {file_name}: {e:#}");
-        }
+        let path = dir.join(&file_name);
+        repair_unfinalized(self.writer.finalize(), &path);
         if samples == 0 {
-            let _ = std::fs::remove_file(dir.join(&file_name));
+            let _ = std::fs::remove_file(&path);
             return None;
         }
         info!(
@@ -62,6 +61,17 @@ impl MeetingAudioSink {
             samples as f32 / SAMPLE_RATE as f32
         );
         Some(file_name)
+    }
+}
+
+/// hound never retries a failed finalize: the header keeps claiming zero samples.
+fn repair_unfinalized(finalized: Result<(), hound::Error>, path: &Path) {
+    let Err(e) = finalized else {
+        return;
+    };
+    warn!("Failed to finalize {}: {e:#}", path.display());
+    if let Err(e) = seal_interrupted_track(path) {
+        error!("Failed to repair {}: {e:#}", path.display());
     }
 }
 
@@ -187,5 +197,21 @@ mod tests {
             160,
             "samples after the failure must not be written, the earlier ones must survive"
         );
+    }
+
+    #[test]
+    fn a_track_whose_finalize_failed_still_plays_what_reached_the_disk() {
+        let dir = TempDir::new().unwrap();
+        let path = dir.path().join("unfinalized.wav");
+        let mut sink = MeetingAudioSink::create(dir.path(), "unfinalized.wav".into()).unwrap();
+        sink.write(&silence(16_000)).unwrap();
+        std::mem::forget(sink);
+
+        let disk_full = hound::Error::IoError(std::io::Error::other("disk full"));
+        repair_unfinalized(Err(disk_full), &path);
+
+        let mut reader = WavReader::open(&path).unwrap();
+        assert!(reader.duration() > 0);
+        assert!(reader.samples::<i16>().all(|sample| sample.is_ok()));
     }
 }

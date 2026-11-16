@@ -1,8 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { load as LoadFn } from "@tauri-apps/plugin-store";
+import { toast } from "sonner";
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import type { AudioDevice, Settings } from "@/lib/types";
+import { errorMessage } from "@/lib/utils";
 import { runSettingUpdater } from "@/stores/setting-updaters";
 
 let cachedStorePromise: ReturnType<typeof LoadFn> | null = null;
@@ -31,7 +33,7 @@ const DEFAULT_SETTINGS: Partial<Settings> = {
   debug_mode: false,
   double_shift_capture_enabled: true,
   history_limit: 5,
-  log_level: 2,
+  log_level: 3,
   mute_while_recording: false,
   overlay_dock_edge: "right",
   overlay_dock_offset: 0.5,
@@ -59,6 +61,30 @@ const omitKey = (
 ): Record<string, boolean> => {
   const { [key]: _, ...rest } = record;
   return rest;
+};
+
+const withBinding = (
+  settings: Settings | null,
+  id: string,
+  combo: string
+): Settings | null => {
+  const existing = settings?.bindings[id];
+  if (!(settings && existing)) {
+    return settings;
+  }
+  return {
+    ...settings,
+    bindings: {
+      ...settings.bindings,
+      [id]: { ...existing, current_binding: combo },
+    },
+  };
+};
+
+const announceShortcutFailure = (error: unknown) => {
+  toast.error("Shortcut not changed", {
+    description: errorMessage(error, "Echo could not register this shortcut."),
+  });
 };
 
 interface SettingsStore {
@@ -226,6 +252,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
       await get().refreshSettings();
     } catch (error) {
       console.error(`Failed to reset binding ${id}:`, error);
+      announceShortcutFailure(error);
     } finally {
       set((state) => ({ isUpdating: omitKey(state.isUpdating, updateKey) }));
     }
@@ -241,60 +268,23 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   settings: null,
 
   updateBinding: async (id, binding) => {
-    const { settings } = get();
     const updateKey = `binding_${id}`;
-    const originalBinding = settings?.bindings?.[id]?.current_binding;
+    const originalBinding = get().settings?.bindings[id]?.current_binding;
 
-    set((state) => {
-      if (!state.settings) {
-        return { isUpdating: { ...state.isUpdating, [updateKey]: true } };
-      }
-      const existingBinding = state.settings.bindings[id];
-      if (!existingBinding) {
-        return { isUpdating: { ...state.isUpdating, [updateKey]: true } };
-      }
-      return {
-        isUpdating: { ...state.isUpdating, [updateKey]: true },
-        settings: {
-          ...state.settings,
-          bindings: {
-            ...state.settings.bindings,
-            [id]: {
-              ...existingBinding,
-              current_binding: binding,
-            },
-          },
-        },
-      };
-    });
+    set((state) => ({
+      isUpdating: { ...state.isUpdating, [updateKey]: true },
+      settings: withBinding(state.settings, id, binding),
+    }));
 
     try {
       await invoke("change_binding", { binding, id });
     } catch (error) {
       console.error(`Failed to update binding ${id}:`, error);
-
-      if (originalBinding && settings) {
-        set((state) => {
-          if (!state.settings) {
-            return {};
-          }
-          const existingBinding = state.settings.bindings[id];
-          if (!existingBinding) {
-            return {};
-          }
-          return {
-            settings: {
-              ...state.settings,
-              bindings: {
-                ...state.settings.bindings,
-                [id]: {
-                  ...existingBinding,
-                  current_binding: originalBinding,
-                },
-              },
-            },
-          };
-        });
+      announceShortcutFailure(error);
+      if (originalBinding !== undefined) {
+        set((state) => ({
+          settings: withBinding(state.settings, id, originalBinding),
+        }));
       }
     } finally {
       set((state) => ({ isUpdating: omitKey(state.isUpdating, updateKey) }));

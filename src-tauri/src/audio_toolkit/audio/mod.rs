@@ -2,6 +2,7 @@ mod decoder;
 mod device;
 pub mod recorder;
 mod resampler;
+mod silence;
 pub mod system_capture;
 mod utils;
 mod visualizer;
@@ -11,6 +12,7 @@ pub(crate) use device::SelectedDeviceCache;
 pub use device::{list_input_devices, list_output_devices, CpalDeviceInfo};
 pub use recorder::{AudioRecorder, CapturedAudioFrame};
 pub use resampler::FrameResampler;
+pub(crate) use silence::is_digital_silence;
 pub use utils::{
     create_wav_file, load_wav_file, read_wav_range, save_wav_file, write_wav_samples, WavSink,
     WavWindows,

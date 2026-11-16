@@ -303,7 +303,7 @@ pub(crate) fn show_transcribing_overlay(app_handle: &AppHandle) {
     }
 }
 
-/// Auto-hides after 2s.
+/// After 2s the island goes back to the dictation under it, or hides when there is none.
 pub(crate) fn show_warning_overlay(app_handle: &AppHandle, message: &str) {
     show_overlay_presentation(
         app_handle,
@@ -329,7 +329,7 @@ pub(crate) fn show_model_required_overlay(app_handle: &AppHandle, message: &str)
     );
 }
 
-/// Auto-hides after 3s — longer than a warning, for readability.
+/// Same expiry as a warning, after 3s — longer, for readability.
 pub(crate) fn show_tool_overlay(app_handle: &AppHandle, message: &str) {
     show_overlay_presentation(
         app_handle,
@@ -410,11 +410,11 @@ fn render_overlay_presentation(app_handle: &AppHandle, pending: PendingOverlayPr
         );
 
         if let Some(duration) = pending.duration {
-            let window_clone = overlay_window.clone();
+            let app_handle = app_handle.clone();
             std::thread::spawn(move || {
                 std::thread::sleep(duration);
                 if OVERLAY_GENERATION.is_current(pending.generation) {
-                    let _ = window_clone.emit("hide-overlay", ());
+                    super::live_dictation::end_notice(&app_handle);
                 }
             });
         }

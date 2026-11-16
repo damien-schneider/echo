@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent } from "react";
 import {
   type ChatPrompt,
   shouldRunPromptOnOpen,
@@ -8,31 +8,32 @@ import type { ChatTextContext } from "@/features/overlay-controls/runtime/overla
 interface PromptAutoRunOptions {
   canRun: boolean;
   context: ChatTextContext | null;
+  disarm: () => void;
+  isArmed: boolean;
   isSettled: boolean;
   prompt: ChatPrompt | null;
-  run: (text: string) => void;
+  run: () => void;
 }
 
 /// Armed on open and on every prompt change; fires once the selection, prompt and model are known.
 export const usePromptAutoRun = ({
   canRun,
   context,
+  disarm,
+  isArmed,
   isSettled,
   prompt,
   run,
 }: PromptAutoRunOptions) => {
-  const [isArmed, setIsArmed] = useState(true);
   const runIfSelected = useEffectEvent(() => {
-    if (canRun && context && shouldRunPromptOnOpen(prompt, context)) {
-      run(context.text);
+    disarm();
+    if (canRun && shouldRunPromptOnOpen(prompt, context)) {
+      run();
     }
   });
   useEffect(() => {
-    if (!(isArmed && isSettled)) {
-      return;
+    if (isArmed && isSettled) {
+      runIfSelected();
     }
-    setIsArmed(false);
-    runIfSelected();
   }, [isArmed, isSettled]);
-  return { rearm: () => setIsArmed(true) };
 };

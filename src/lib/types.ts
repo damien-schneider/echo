@@ -130,7 +130,7 @@ const SettingsSchema = z.object({
   input_tracking_enabled: z.boolean().optional().default(false),
   input_tracking_excluded_apps: z.array(z.string()).optional().default([]),
   input_tracking_idle_timeout: z.number().nullable().optional().default(2),
-  log_level: z.number().int().min(1).max(5).optional().default(2),
+  log_level: z.number().int().min(1).max(5).optional().default(3),
   meeting_auto_summary: z.boolean().optional().default(false),
   meeting_chunk_duration_secs: z.number().optional().default(30),
   meeting_system_audio_enabled: z.boolean().optional().default(false),

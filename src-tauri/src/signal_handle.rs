@@ -1,13 +1,11 @@
 #![cfg(unix)]
 
-use crate::actions::ACTION_MAP;
 use crate::features::polish::app_exit;
-use crate::features::shortcut::init::{execute_toggle_transition, ShortcutExecution};
+use crate::features::shortcut::init::toggle_dictation;
 use crate::process_exit::exit_without_destructors;
-use crate::ManagedToggleState;
 use log::{debug, info, warn};
 use std::thread;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 use signal_hook::consts::{SIGINT, SIGTERM, SIGUSR2};
 use signal_hook::iterator::Signals;
@@ -33,7 +31,10 @@ pub fn setup_signal_handler(app_handle: AppHandle, mut signals: Signals) {
         debug!("Unix signal handler thread started");
         for sig in signals.forever() {
             match signal_action(sig) {
-                SignalAction::ToggleTranscription => toggle_transcription(&app_handle),
+                SignalAction::ToggleTranscription => {
+                    debug!("SIGUSR2: toggling transcription");
+                    toggle_dictation(&app_handle, "transcribe", "SIGUSR2");
+                }
                 SignalAction::ExitWithoutDestructors(exit_code) => {
                     info!("Received termination signal {sig}");
                     run_termination(
@@ -55,31 +56,6 @@ fn run_termination<ExitOutput>(
 ) {
     cleanup();
     let _ = exit_process(exit_code);
-}
-
-fn toggle_transcription(app_handle: &AppHandle) {
-    let binding_id = "transcribe";
-    let shortcut_string = "SIGUSR2";
-    let Some(action) = ACTION_MAP.get(binding_id) else {
-        warn!("No action defined in ACTION_MAP for binding ID '{binding_id}'");
-        return;
-    };
-    let toggle_state = app_handle.state::<ManagedToggleState>();
-    let result =
-        execute_toggle_transition(&toggle_state, binding_id, |execution| match execution {
-            ShortcutExecution::Start => {
-                debug!("SIGUSR2: Starting transcription");
-                action.start(app_handle, binding_id, shortcut_string);
-            }
-            ShortcutExecution::Stop => {
-                debug!("SIGUSR2: Stopping transcription");
-                action.stop(app_handle, binding_id, shortcut_string);
-            }
-            ShortcutExecution::None => {}
-        });
-    if let Err(error) = result {
-        warn!("SIGUSR2: {error}");
-    }
 }
 
 #[cfg(test)]

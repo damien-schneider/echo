@@ -15,6 +15,7 @@ import {
   type OverlayEscapeIntent,
   overlayContentKey,
 } from "@/features/overlay-controls/recording-overlay-state";
+import { invokeOverlayControl } from "@/features/overlay-controls/runtime/control-invocation";
 import {
   CHAT_CONTEXT_EVENT,
   CHAT_CONTEXT_STATE_COMMAND,
@@ -27,6 +28,7 @@ import {
   NOTIFICATION_WINDOW,
   type NotificationRequestEvent,
   NotificationRequestEventSchema,
+  OVERLAY_WARNING_COMMAND,
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events";
 import { useMeetingNotice } from "@/features/overlay-notification/meeting-notice";
@@ -40,7 +42,6 @@ import {
   subscribeModelState,
 } from "@/lib/model-state";
 import { listenCancellable } from "@/lib/tauri-listener";
-import { overlayControlCommand } from "@/overlay/overlay-controls";
 
 const OVERLAY_KEY_COMMAND = {
   hold: "hold_overlay_key",
@@ -268,6 +269,16 @@ const dismissFromKeyboard = (
   dismissSurface();
 };
 
+const finishRecording = async () => {
+  const message = await invokeOverlayControl({
+    action: "stop_recording",
+    invokeCommand: (command) => invoke(command),
+  });
+  if (message !== null) {
+    await invoke(OVERLAY_WARNING_COMMAND, { message });
+  }
+};
+
 export const useNotificationController = () => {
   const microphoneRef = useRef<HTMLSpanElement>(null);
   const textScrollRef = useRef<HTMLOutputElement>(null);
@@ -375,7 +386,7 @@ export const useNotificationController = () => {
         );
         return;
       }
-      invoke(overlayControlCommand("stop_recording")).catch(() => undefined);
+      finishRecording().catch(() => undefined);
     },
     textScrollRef,
     transitionError: transition.error,

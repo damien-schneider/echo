@@ -80,11 +80,7 @@ fn recover_tracks(
         match seal_interrupted_track(&path) {
             Ok(0) => {
                 std::fs::remove_file(&path).with_context(|| format!("remove empty {name}"))?;
-                conn.execute(
-                    "UPDATE meetings SET mic_file_name = NULLIF(mic_file_name, ?1), \
-                     system_file_name = NULLIF(system_file_name, ?1) WHERE id = ?2",
-                    params![name, meeting.id],
-                )?;
+                forget_file(conn, meeting.id, name)?;
             }
             Ok(samples) => longest = longest.max(samples),
             Err(e) => error!("Failed to recover {name}: {e:#}"),
@@ -101,37 +97,50 @@ fn purge_expired_audio(app: &AppHandle, db_path: &Path, meetings_dir: &Path) -> 
     else {
         return Ok(());
     };
+    purge_audio_before(cutoff, db_path, meetings_dir)
+}
 
+/// Audio of a meeting not yet transcribed is the only copy of what was said.
+fn purge_audio_before(cutoff: i64, db_path: &Path, meetings_dir: &Path) -> Result<()> {
     let conn = Connection::open(db_path)?;
     let expired = query_meetings(
         &conn,
         &format!(
             "SELECT id, start_time, mic_file_name, system_file_name FROM meetings \
-             WHERE start_time < {cutoff} \
-             AND (mic_file_name IS NOT NULL OR system_file_name IS NOT NULL)"
+             WHERE status = '{}' AND start_time < {cutoff} \
+             AND (mic_file_name IS NOT NULL OR system_file_name IS NOT NULL)",
+            MeetingStatus::Complete.as_str()
         ),
     )?;
 
     for meeting in expired {
-        for name in meeting
-            .files
-            .iter()
-            .cloned()
-            .chain(std::iter::once(mix_file_name(meeting.id)))
-        {
-            let path = meetings_dir.join(&name);
-            if path.exists() {
-                if let Err(e) = std::fs::remove_file(&path) {
-                    error!("Failed to delete expired meeting audio {name}: {e}");
-                }
+        for name in &meeting.files {
+            if remove_audio(&meetings_dir.join(name)) {
+                forget_file(&conn, meeting.id, name)?;
             }
         }
-        conn.execute(
-            "UPDATE meetings SET mic_file_name = NULL, system_file_name = NULL WHERE id = ?1",
-            params![meeting.id],
-        )?;
+        remove_audio(&meetings_dir.join(mix_file_name(meeting.id)));
         info!("Purged audio of meeting {} past its retention", meeting.id);
     }
+    Ok(())
+}
+
+fn remove_audio(path: &Path) -> bool {
+    match std::fs::remove_file(path) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            error!("Failed to delete meeting audio {}: {e}", path.display());
+            false
+        }
+        _ => true,
+    }
+}
+
+fn forget_file(conn: &Connection, meeting_id: i64, name: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE meetings SET mic_file_name = NULLIF(mic_file_name, ?1), \
+         system_file_name = NULLIF(system_file_name, ?1) WHERE id = ?2",
+        params![name, meeting_id],
+    )?;
     Ok(())
 }
 
@@ -355,5 +364,34 @@ mod tests {
             )
             .unwrap();
         assert_eq!(mic.as_deref(), Some("meeting-1-mic.wav"));
+    }
+
+    #[test]
+    fn the_retention_purge_forgets_only_audio_it_deleted_from_transcribed_meetings() {
+        let dir = TempDir::new().unwrap();
+        let db_path = dir.path().join("history.db");
+        database::initialize_database(&db_path).unwrap();
+        let conn = Connection::open(&db_path).unwrap();
+        for status in ["complete", "recorded", "error", "partial"] {
+            save_wav_file(dir.path().join(status), &[0.1; 160]).unwrap();
+            meeting_row(&conn, status, Some(status));
+        }
+        std::fs::create_dir(dir.path().join("undeletable")).unwrap();
+        meeting_row(&conn, "complete", Some("undeletable"));
+
+        purge_audio_before(1_700_000_001, &db_path, dir.path()).unwrap();
+
+        let kept: Vec<String> = conn
+            .prepare(
+                "SELECT mic_file_name FROM meetings WHERE mic_file_name IS NOT NULL ORDER BY id",
+            )
+            .unwrap()
+            .query_map([], |row| row.get(0))
+            .unwrap()
+            .collect::<Result<_, _>>()
+            .unwrap();
+        assert_eq!(kept, ["recorded", "error", "partial", "undeletable"]);
+        assert!(!dir.path().join("complete").exists());
+        assert!(kept.iter().all(|name| dir.path().join(name).exists()));
     }
 }

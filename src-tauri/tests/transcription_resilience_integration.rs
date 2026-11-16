@@ -133,10 +133,8 @@ fn chinese_variant_routes_to_paste_direct() {
 // ── Failure / silence paths ───────────────────────────────────────────────
 
 #[test]
-fn no_samples_returns_nothing_to_paste_within_budget() {
+fn a_stop_before_any_capture_is_classified_within_budget() {
     let start = Instant::now();
-    // No-sample path must short-circuit without ever invoking the decoder, so
-    // even a deliberately-slow closure here cannot delay us.
     let action = run_stop_flow(
         || {
             thread::sleep(Duration::from_millis(500));
@@ -148,13 +146,9 @@ fn no_samples_returns_nothing_to_paste_within_budget() {
         false,
     );
     assert!(
-        matches!(action, EndOfRecordingAction::NothingToPaste),
+        matches!(action, EndOfRecordingAction::StoppedBeforeCapture),
         "got {action:?}"
     );
-    // Note: run_with_timeout still spawned the decode (we always run it for
-    // simplicity in the test driver); the production flow gates on
-    // samples_present BEFORE calling transcribe_with_timeout. This test only
-    // asserts the classifier outcome.
     assert!(start.elapsed() < Duration::from_secs(2));
 }
 
@@ -257,21 +251,12 @@ fn panicking_decode_does_not_leave_caller_hanging() {
 
 #[test]
 fn silent_audio_skips_decode_and_routes_to_nothing_to_paste_within_budget() {
-    // The bug being locked: pressing the dictation shortcut and saying nothing
-    // used to wait the full `transcription_timeout` floor (30s) before
-    // surfacing a "Transcription timed out" warning. The fix: pre-check the
-    // RMS in the stop flow and short-circuit to NothingToPaste BEFORE ever
-    // calling the decoder.
-    //
-    // This test simulates that wiring: silent samples → audio_is_silent →
-    // skip decode entirely → NothingToPaste, with no wall-clock cost.
-    let silent_samples = vec![0.0_f32; 20_000]; // 1.25s of zeros (matches pad)
+    let silent_samples = vec![0.0_f32; 20_000];
     let start = Instant::now();
     assert!(
         audio_is_silent(&silent_samples),
         "1.25s of zeros must be classified as silent"
     );
-    // Mirror the stop-flow short-circuit: silent → empty outcome → classifier.
     let outcome = Ok(TranscribedText {
         cleaned: String::new(),
         chinese_variant: None,
@@ -289,12 +274,9 @@ fn silent_audio_skips_decode_and_routes_to_nothing_to_paste_within_budget() {
 }
 
 #[test]
-fn quiet_room_tone_also_classified_silent() {
-    // Mic self-noise / room tone sits well below the 0.01 RMS threshold.
-    // Must skip decode the same way pure zeros do, otherwise users with
-    // sensitive mics still pay the timeout cost on a "silent" press.
-    let room_tone = vec![0.001_f32; 20_000];
-    assert!(audio_is_silent(&room_tone));
+fn quiet_audio_the_vad_kept_still_reaches_the_decoder() {
+    let quiet_speech = vec![0.001_f32; 20_000];
+    assert!(!audio_is_silent(&quiet_speech));
 }
 
 #[test]

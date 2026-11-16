@@ -1,8 +1,10 @@
 use anyhow::{Context, Result};
+use std::fmt;
 use std::future::Future;
 use std::io;
 use std::time::Duration;
 use tokio::process::Child;
+use tokio::time::Instant;
 
 const TERMINATION_TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -35,12 +37,28 @@ pub(super) fn transition(
     }
 }
 
+/// Marks a failure of the connection itself; an answer the server gave is never one.
+#[derive(Debug)]
+pub(super) struct ConnectionFailure(pub(super) &'static str);
+
+impl fmt::Display for ConnectionFailure {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.0)
+    }
+}
+
+pub(super) fn is_connection_failure(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<ConnectionFailure>().is_some()
+}
+
 pub(super) struct RuntimeProcess {
     pub(super) child: Option<Child>,
     pub(super) port: u16,
     pub(super) api_key: String,
     pub(super) state: ServerState,
     pub(super) restart_count: usize,
+    /// Counted from the spawn, so a start resumed by a later caller gets no fresh minute.
+    pub(super) startup_deadline: Instant,
 }
 
 impl Default for RuntimeProcess {
@@ -51,6 +69,7 @@ impl Default for RuntimeProcess {
             api_key: String::new(),
             state: ServerState::Stopped,
             restart_count: 0,
+            startup_deadline: Instant::now(),
         }
     }
 }
@@ -58,6 +77,16 @@ impl Default for RuntimeProcess {
 impl RuntimeProcess {
     pub(super) async fn terminate(&mut self) -> Result<()> {
         terminate_child(&mut self.child, &mut self.state).await
+    }
+
+    pub(super) fn record_crash(&mut self) {
+        self.state = transition(self.state, ServerEvent::Crashed, self.restart_count);
+        self.restart_count += 1;
+    }
+
+    /// A caller dropped mid-startup leaves its child behind; the next caller adopts it.
+    pub(super) fn has_unfinished_start(&self) -> bool {
+        self.state == ServerState::Starting && self.child.is_some()
     }
 }
 
@@ -115,6 +144,24 @@ mod tests {
     use std::future::pending;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
+
+    #[test]
+    fn a_connection_failure_is_recognised_beneath_request_context() {
+        let error = anyhow::Error::new(io::Error::from(io::ErrorKind::ConnectionReset))
+            .context(ConnectionFailure("Echo chat stream failed"))
+            .context("Echo chat request failed");
+
+        assert!(is_connection_failure(&error));
+    }
+
+    #[tokio::test]
+    async fn a_request_that_timed_out_is_not_a_connection_failure() {
+        let error = await_local_operation(pending::<Result<()>>(), Duration::ZERO, "Echo chat")
+            .await
+            .unwrap_err();
+
+        assert!(!is_connection_failure(&error));
+    }
 
     #[test]
     fn server_starts_becomes_ready_and_restarts_once() {

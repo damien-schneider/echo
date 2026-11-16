@@ -12,8 +12,9 @@ import { z } from "zod";
 
 const CHECK_INTERVAL_MS = 500;
 const TRANSIENT_FAILURE_LIMIT = 2;
+export const VERIFYING_CHECK_LIMIT = 60;
 const PermissionResultSchema = z.boolean();
-type PermissionState =
+export type PermissionState =
   | "check_error"
   | "checking"
   | "denied"
@@ -21,8 +22,8 @@ type PermissionState =
   | "request_error"
   | "requesting"
   | "verifying";
-type DeniedState = "denied" | "verifying";
 interface PermissionCheckTracker {
+  checksSinceRequest: number;
   failureCount: number;
   requestId: number;
 }
@@ -44,10 +45,10 @@ interface PermissionSession {
   setState: Dispatch<SetStateAction<PermissionState>>;
   tracker: RefObject<PermissionCheckTracker>;
 }
-const nextCheckedState = (
+export const nextCheckedState = (
   current: PermissionState,
   granted: boolean,
-  deniedState: DeniedState
+  checksSinceRequest: number
 ): PermissionState => {
   if (granted) {
     return "granted";
@@ -55,12 +56,15 @@ const nextCheckedState = (
   if (current === "requesting") {
     return current;
   }
-  return current === "verifying" ? "verifying" : deniedState;
+  const isAwaitingGrant =
+    current === "verifying" && checksSinceRequest < VERIFYING_CHECK_LIMIT;
+  return isAwaitingGrant ? "verifying" : "denied";
 };
-const checkPermission = async (
-  { permission, setState, tracker: trackerRef }: PermissionSession,
-  deniedState: DeniedState
-) => {
+const checkPermission = async ({
+  permission,
+  setState,
+  tracker: trackerRef,
+}: PermissionSession) => {
   const tracker = trackerRef.current;
   tracker.requestId += 1;
   const requestId = tracker.requestId;
@@ -73,7 +77,11 @@ const checkPermission = async (
       return;
     }
     tracker.failureCount = 0;
-    setState((current) => nextCheckedState(current, result.data, deniedState));
+    tracker.checksSinceRequest += 1;
+    const { checksSinceRequest } = tracker;
+    setState((current) =>
+      nextCheckedState(current, result.data, checksSinceRequest)
+    );
   } catch {
     if (requestId !== tracker.requestId) {
       return;
@@ -97,17 +105,17 @@ const usePermissionRefresh = (
   session: PermissionSession,
   state: PermissionState
 ) => {
-  const refresh = useEffectEvent((deniedState: DeniedState) => {
-    checkPermission(session, deniedState);
+  const refresh = useEffectEvent(() => {
+    checkPermission(session);
   });
   useEffect(() => {
-    const handleFocus = () => refresh("denied");
+    const handleFocus = () => refresh();
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
-        refresh("denied");
+        refresh();
       }
     };
-    refresh("denied");
+    refresh();
     window.addEventListener("focus", handleFocus);
     document.addEventListener("visibilitychange", handleVisibility);
     return () => {
@@ -119,34 +127,31 @@ const usePermissionRefresh = (
     if (state !== "verifying") {
       return;
     }
-    const interval = window.setInterval(
-      () => refresh("verifying"),
-      CHECK_INTERVAL_MS
-    );
+    const interval = window.setInterval(() => refresh(), CHECK_INTERVAL_MS);
     return () => window.clearInterval(interval);
   }, [state]);
 };
 const requestPermission = async (session: PermissionSession) => {
   const { permission, setState, tracker } = session;
   setState("requesting");
+  tracker.current.checksSinceRequest = 0;
   tracker.current.failureCount = 0;
   try {
     await permission.request();
     setState((current) => (current === "granted" ? current : "verifying"));
-    await checkPermission(session, "verifying");
+    await checkPermission(session);
   } catch {
     setState((current) => (current === "granted" ? current : "request_error"));
   }
 };
-const runPermissionAction = async (
+export const runPermissionAction = async (
   session: PermissionSession,
   state: PermissionState
 ) => {
   if (state === "check_error" || state === "verifying") {
-    await checkPermission(
-      session,
-      state === "verifying" ? "verifying" : "denied"
-    );
+    // an explicit check is final: no grant means denied, not more waiting
+    session.tracker.current.checksSinceRequest = VERIFYING_CHECK_LIMIT;
+    await checkPermission(session);
     return;
   }
   if (state === "denied" || state === "request_error") {
@@ -156,6 +161,7 @@ const runPermissionAction = async (
 const usePermissionLifecycle = (permission: MacosPermission) => {
   const [state, setState] = useState<PermissionState>("checking");
   const tracker = useRef<PermissionCheckTracker>({
+    checksSinceRequest: 0,
     failureCount: 0,
     requestId: 0,
   });

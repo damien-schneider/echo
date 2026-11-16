@@ -2,14 +2,13 @@ use crate::audio_toolkit::{audio::decode_audio_file, constants::SAMPLE_RATE};
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::{transcription_timeout, TranscriptionManager};
 use log::{error, info};
-use rusqlite::params;
 use serde::Serialize;
 use serde_json::json;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 
 const INDETERMINATE_PROGRESS: f64 = -1.0;
 const MODEL_LOAD_HEADSTART: Duration = Duration::from_millis(500);
@@ -197,31 +196,10 @@ pub async fn transcribe_audio_file(
 
     let title = format!("File: {}", file_stem);
 
-    if let Err(e) = history_manager
-        .save_transcription(
-            audio_samples,
-            transcription_text.clone(),
-            None, // post_processed_text
-            None, // post_process_prompt
-        )
+    let saved_to_history = history_manager
+        .save_transcription(audio_samples, transcription_text.clone(), None, None)
         .await
-    {
-        let err = format!("Failed to save to history: {}", e);
-        error!("{}", err);
-    }
-
-    let db_path = app
-        .path()
-        .app_data_dir()
-        .map_err(|e| format!("Failed to get app data dir: {}", e))?
-        .join("history.db");
-
-    if let Ok(conn) = rusqlite::Connection::open(&db_path) {
-        let _ = conn.execute(
-            "UPDATE transcription_history SET title = ?1 WHERE id = (SELECT id FROM transcription_history ORDER BY id DESC LIMIT 1)",
-            params![title],
-        );
-    }
+        .and_then(|entry_id| history_manager.rename_entry(entry_id, &title));
 
     emit_progress(
         &app,
@@ -243,6 +221,14 @@ pub async fn transcribe_audio_file(
         }),
     ) {
         error!("Failed to emit transcription-complete event: {}", e);
+    }
+
+    if let Err(e) = saved_to_history {
+        let err = format!("Transcribed, but the transcript was not saved to history: {e:#}");
+        error!("{err}");
+        if let Err(e) = app.emit("file-transcription-error", err) {
+            error!("Failed to emit error event: {}", e);
+        }
     }
 
     info!(

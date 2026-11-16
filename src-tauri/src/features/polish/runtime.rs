@@ -1,19 +1,17 @@
 mod idle;
 mod process_lifecycle;
 mod protocol;
+mod recovery;
 mod server_args;
+mod startup;
 
 use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Client;
-use std::future::Future;
-use std::net::TcpListener;
 use std::path::PathBuf;
-use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
-use tokio::process::Command;
 use tokio::sync::Mutex;
 
 use super::selection::InferencePort;
@@ -21,18 +19,13 @@ use super::transform::TransformRequest;
 use super::BundledChatMessage;
 pub(in crate::features::polish) use idle::IDLE_CHECK_INTERVAL;
 use idle::{should_release_idle_runtime, ActivityTracker};
-use process_lifecycle::{
-    await_local_operation, transition, RuntimeProcess, ServerEvent, ServerState,
-};
+use process_lifecycle::{await_local_operation, ConnectionFailure, RuntimeProcess, ServerState};
 use protocol::{
     parse_chat_response, ChatRequest, ChatRequestMessage, ChatStreamDecoder, TokenizeRequest,
     TokenizeResponse,
 };
-use server_args::{local_input_char_budget, server_arguments, ServerBinding, MAX_RESPONSE_TOKENS};
+use server_args::{local_input_char_budget, MAX_RESPONSE_TOKENS};
 
-const HEALTH_POLL_INTERVAL: Duration = Duration::from_millis(100);
-const HEALTH_REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
-const RUNTIME_STARTUP_TIMEOUT: Duration = Duration::from_secs(60);
 const POLISH_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const CHAT_STREAM_TIMEOUT: Duration = Duration::from_secs(180);
 const CHAT_PUBLISH_INTERVAL: Duration = Duration::from_millis(50);
@@ -116,7 +109,9 @@ impl PolishRuntime {
         if process.state == ServerState::Disabled {
             bail!("Polish runtime disabled after repeated crashes");
         }
-        self.spawn_server(&mut process)?;
+        if !process.has_unfinished_start() {
+            self.spawn_server(&mut process)?;
+        }
         self.wait_until_ready(&mut process).await
     }
 
@@ -149,89 +144,9 @@ impl PolishRuntime {
         };
         if exited {
             process.child = None;
-            process.state = transition(process.state, ServerEvent::Crashed, process.restart_count);
-            process.restart_count += 1;
+            process.record_crash();
         }
         Ok(())
-    }
-
-    fn spawn_server(&self, process: &mut RuntimeProcess) -> Result<()> {
-        self.ensure_running()?;
-        if process.child.is_some() {
-            bail!("Polish runtime shutdown is incomplete");
-        }
-        let port = available_loopback_port()?;
-        let api_key = random_api_key()?;
-        let mut command = Command::new(&self.config.server_path);
-        command
-            .current_dir(&self.config.working_directory)
-            .args(server_arguments(ServerBinding {
-                model_path: self.config.model_path.to_string_lossy().as_ref(),
-                port,
-                api_key: &api_key,
-            }))
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .kill_on_drop(true);
-        let child = command.spawn().with_context(|| {
-            format!(
-                "Failed to start local Polish runtime at {}",
-                self.config.server_path.display()
-            )
-        })?;
-        process.child = Some(child);
-        process.port = port;
-        process.api_key = api_key;
-        process.state = transition(ServerState::Stopped, ServerEvent::Start, 0);
-        Ok(())
-    }
-
-    async fn wait_until_ready(&self, process: &mut RuntimeProcess) -> Result<()> {
-        let readiness =
-            tokio::time::timeout(RUNTIME_STARTUP_TIMEOUT, self.poll_until_ready(process)).await;
-        if let Ok(result) = readiness {
-            return result;
-        }
-        process.terminate().await?;
-        process.state = ServerState::Stopped;
-        bail!("Polish runtime did not become ready within 60 seconds")
-    }
-
-    async fn poll_until_ready(&self, process: &mut RuntimeProcess) -> Result<()> {
-        let url = format!("http://127.0.0.1:{}/health", process.port);
-        loop {
-            if self.shutting_down.load(Ordering::Acquire) {
-                process.terminate().await?;
-                process.state = ServerState::Stopped;
-                bail!("Polish runtime is shutting down");
-            }
-            let exit_status = process
-                .child
-                .as_mut()
-                .map(|child| child.try_wait())
-                .transpose()
-                .context("Failed to inspect local Polish runtime")?
-                .flatten();
-            if let Some(exit_status) = exit_status {
-                process.child = None;
-                process.state = ServerState::Stopped;
-                bail!("Polish runtime exited during startup with {exit_status}");
-            }
-            let request = self.client.get(&url).bearer_auth(&process.api_key);
-            let ready = await_local_operation(
-                async { request.send().await.context("Polish health request failed") },
-                HEALTH_REQUEST_TIMEOUT,
-                "Polish health request",
-            )
-            .await
-            .is_ok_and(|response| response.status().is_success());
-            if ready {
-                process.state = transition(process.state, ServerEvent::BecameReady, 0);
-                return Ok(());
-            }
-            tokio::time::sleep(HEALTH_POLL_INTERVAL).await;
-        }
     }
 
     pub(super) async fn endpoint_auth(&self, endpoint: &str) -> Result<(String, String)> {
@@ -280,7 +195,8 @@ impl PolishRuntime {
                 max_tokens: MAX_RESPONSE_TOKENS,
             })
             .send()
-            .await?;
+            .await
+            .context(ConnectionFailure("Polish server connection failed"))?;
         let status = response.status();
         if !status.is_success() {
             bail!("Polish server returned HTTP {status}");
@@ -296,7 +212,7 @@ impl PolishRuntime {
                 .context("Polish correction request failed")?
                 .text()
                 .await
-                .context("Polish correction response failed")?;
+                .context(ConnectionFailure("Polish correction response failed"))?;
             parse_chat_response(&body)
         };
         await_local_operation(
@@ -340,7 +256,7 @@ impl PolishRuntime {
             let mut answer = String::new();
             let mut published = Instant::now();
             while let Some(chunk) = chunks.next().await {
-                let chunk = chunk.context("Echo chat stream failed")?;
+                let chunk = chunk.context(ConnectionFailure("Echo chat stream failed"))?;
                 answer.push_str(&decoder.push(&chunk)?);
                 if published.elapsed() >= CHAT_PUBLISH_INTERVAL {
                     published = Instant::now();
@@ -356,46 +272,6 @@ impl PolishRuntime {
         await_local_operation(operation, CHAT_STREAM_TIMEOUT, "Echo chat request").await
     }
 
-    async fn mark_crashed(&self) -> Result<()> {
-        let mut process = self.process.lock().await;
-        if process.state != ServerState::Ready {
-            return Ok(());
-        }
-        process.terminate().await?;
-        process.state = transition(process.state, ServerEvent::Crashed, process.restart_count);
-        process.restart_count += 1;
-        Ok(())
-    }
-
-    async fn run_with_restart<T, Operation, OperationFuture>(
-        &self,
-        mut operation: Operation,
-    ) -> Result<T>
-    where
-        Operation: FnMut() -> OperationFuture,
-        OperationFuture: Future<Output = Result<T>>,
-    {
-        let first_error = match operation().await {
-            Ok(output) => return Ok(output),
-            Err(error) => error,
-        };
-        self.ensure_running()?;
-        self.mark_crashed()
-            .await
-            .with_context(|| format!("Failed to stop Polish runtime after: {first_error}"))?;
-        self.ensure_ready()
-            .await
-            .with_context(|| format!("Polish runtime did not recover after: {first_error}"))?;
-        let second_error = match operation().await {
-            Ok(output) => return Ok(output),
-            Err(error) => error,
-        };
-        self.mark_crashed()
-            .await
-            .context("Failed to stop Polish runtime after retry")?;
-        Err(second_error).context("Polish runtime failed after one restart")
-    }
-
     fn ensure_running(&self) -> Result<()> {
         if self.shutting_down.load(Ordering::Acquire) {
             bail!("Polish runtime is shutting down");
@@ -406,7 +282,7 @@ impl PolishRuntime {
     async fn send_token_count(&self, text: &str) -> Result<usize> {
         let (url, api_key) = self.endpoint_auth("/tokenize").await?;
         let operation = async {
-            let response = self
+            let payload = self
                 .client
                 .post(url)
                 .bearer_auth(api_key)
@@ -416,13 +292,14 @@ impl PolishRuntime {
                 })
                 .send()
                 .await
-                .context("Polish tokenizer request failed")?
-                .error_for_status()?;
-            let body: TokenizeResponse = response
-                .json()
+                .context(ConnectionFailure("Polish tokenizer request failed"))?
+                .error_for_status()?
+                .text()
                 .await
+                .context(ConnectionFailure("Polish tokenizer response failed"))?;
+            let response: TokenizeResponse = serde_json::from_str(&payload)
                 .context("Polish tokenizer returned malformed JSON")?;
-            Ok(body.tokens.len())
+            Ok(response.tokens.len())
         };
         await_local_operation(
             operation,
@@ -455,20 +332,6 @@ impl Drop for PolishRuntime {
             }
         }
     }
-}
-
-fn available_loopback_port() -> Result<u16> {
-    let listener = TcpListener::bind(("127.0.0.1", 0))?;
-    Ok(listener.local_addr()?.port())
-}
-
-fn random_api_key() -> Result<String> {
-    let mut bytes = [0_u8; 32];
-    getrandom::fill(&mut bytes).context("Failed to create Polish server API key")?;
-    Ok(bytes
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<String>())
 }
 
 #[cfg(test)]

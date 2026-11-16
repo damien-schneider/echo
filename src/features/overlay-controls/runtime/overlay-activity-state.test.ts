@@ -101,6 +101,55 @@ describe("overlay activity", () => {
     expect(state.download).toEqual(download("whisper", 3));
   });
 
+  test("a failed download replaces its progress with a visible failure notice", () => {
+    const state = apply([
+      { download: download("whisper", 10), type: "download_progress" },
+      { modelId: "whisper", type: "download_failed" },
+    ]);
+
+    expect(state.download).toBeNull();
+    expect(state.isVisible).toBe(true);
+    expect(state.state).toBe("warning");
+    expect(state.warningMessage).toBe(
+      "Model download failed — check your connection and retry"
+    );
+  });
+
+  test("a finished download leaves no notice behind", () => {
+    const state = apply([
+      { download: download("whisper", 10), type: "download_progress" },
+      { modelId: "whisper", type: "download_finished" },
+    ]);
+
+    expect(state.download).toBeNull();
+    expect(state.isVisible).toBe(false);
+    expect(state.warningMessage).toBe("");
+  });
+
+  test("a download failing behind a live recording leaves the recording on the island", () => {
+    const state = apply([
+      { download: download("whisper", 10), type: "download_progress" },
+      { message: "", state: "recording", type: "shown" },
+      { modelId: "whisper", type: "download_failed" },
+    ]);
+
+    expect(state.download).toBeNull();
+    expect(state.state).toBe("recording");
+    expect(state.warningMessage).toBe("");
+  });
+
+  test("a retried download shows its progress again after a failure", () => {
+    const state = apply([
+      { download: download("whisper", 10), type: "download_progress" },
+      { modelId: "whisper", type: "download_failed" },
+      { download: download("whisper", 3), type: "download_progress" },
+    ]);
+
+    expect(state.download).toEqual(download("whisper", 3));
+    expect(state.isVisible).toBe(false);
+    expect(state.warningMessage).toBe("");
+  });
+
   test("dismissing clears the error and the warning but not the transcript", () => {
     const state = apply([
       { message: "Listener crashed", type: "failed" },

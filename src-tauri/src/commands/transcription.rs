@@ -1,22 +1,10 @@
-use crate::actions::{check_model_readiness, ModelReadiness, ACTION_MAP};
+use crate::actions::{check_model_readiness, start_dictation, ModelReadiness, ACTION_MAP};
 use crate::dictation::CHAT_BINDING_ID;
 use crate::managers::audio::AudioRecordingManager;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
 const OVERLAY_BINDING_ID: &str = "overlay_control";
-
-fn begin_dictation(app: &AppHandle, binding_id: &'static str) -> Result<(), String> {
-    let recording = app.state::<Arc<AudioRecordingManager>>();
-    if recording.active_binding_id().is_some() {
-        return Err("A recording is already active".to_string());
-    }
-    let action = ACTION_MAP
-        .get("transcribe")
-        .ok_or_else(|| "Transcription action is unavailable".to_string())?;
-    action.start(app, binding_id, binding_id);
-    Ok(())
-}
 
 fn end_dictation(app: &AppHandle, binding_id: &'static str) -> Result<(), String> {
     let recording = app.state::<Arc<AudioRecordingManager>>();
@@ -34,7 +22,11 @@ fn end_dictation(app: &AppHandle, binding_id: &'static str) -> Result<(), String
 pub(crate) fn start_transcription_from_overlay(app: AppHandle) -> Result<(), String> {
     run_after_focus_release(
         || crate::overlay::release_recording_overlay_focus(&app),
-        || begin_dictation(&app, OVERLAY_BINDING_ID),
+        || {
+            // Island already shows why a start was refused; an error here would replace it with a generic one.
+            let _ = start_dictation(&app, OVERLAY_BINDING_ID);
+            Ok(())
+        },
     )
 }
 
@@ -55,7 +47,7 @@ pub(crate) fn start_chat_dictation(app: AppHandle) -> Result<(), String> {
             return Err(message)
         }
     }
-    begin_dictation(&app, CHAT_BINDING_ID)
+    start_dictation(&app, CHAT_BINDING_ID)
 }
 
 #[tauri::command]

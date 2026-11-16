@@ -1,13 +1,15 @@
 //! Wayland goes through the XDG Desktop Portal; every other platform uses tauri-plugin-global-shortcut.
 
 use log::{error, info, warn};
+use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use super::failures::{self, ShortcutFailure};
 use crate::actions::{ShortcutAction, ACTION_MAP};
-use crate::settings::{self, get_settings, ShortcutBinding};
-use crate::ManagedToggleState;
+use crate::managers::audio::AudioRecordingManager;
+use crate::settings::{get_settings, ShortcutBinding};
+use crate::HeldShortcuts;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ShortcutEvent {
@@ -20,14 +22,14 @@ struct ShortcutTransition {
     is_one_shot: bool,
     push_to_talk: bool,
     event: ShortcutEvent,
-    is_active: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ShortcutExecution {
+enum ShortcutExecution {
     None,
     Start,
     Stop,
+    Toggle,
 }
 
 fn shortcut_transition(transition: ShortcutTransition) -> ShortcutExecution {
@@ -44,54 +46,32 @@ fn shortcut_transition(transition: ShortcutTransition) -> ShortcutExecution {
         };
     }
     match transition.event {
-        ShortcutEvent::Pressed if transition.is_active => ShortcutExecution::Stop,
-        ShortcutEvent::Pressed => ShortcutExecution::Start,
+        ShortcutEvent::Pressed => ShortcutExecution::Toggle,
         ShortcutEvent::Released => ShortcutExecution::None,
     }
 }
 
-pub(crate) fn execute_toggle_transition<F>(
-    state: &ManagedToggleState,
-    binding_id: &str,
-    execute: F,
-) -> Result<(), String>
-where
-    F: FnOnce(ShortcutExecution),
-{
-    let execution = {
-        let mut states = state
-            .lock()
-            .map_err(|_| "Failed to lock toggle state manager".to_string())?;
-        let is_active = states
-            .active_toggles
-            .entry(binding_id.to_string())
-            .or_insert(false);
-        let execution = shortcut_transition(ShortcutTransition {
-            is_one_shot: false,
-            push_to_talk: false,
-            event: ShortcutEvent::Pressed,
-            is_active: *is_active,
-        });
-        match execution {
-            ShortcutExecution::Start => *is_active = true,
-            ShortcutExecution::Stop => *is_active = false,
-            ShortcutExecution::None => {}
-        }
-        execution
+/// The recorder says whether a press starts or stops: a flag kept here drifts after a refused or failed start.
+pub(crate) fn toggle_dictation(app: &AppHandle, binding_id: &str, shortcut: &str) {
+    let Some(action) = ACTION_MAP.get(binding_id) else {
+        warn!("No action defined for shortcut ID '{binding_id}'");
+        return;
     };
-
-    execute(execution);
-    Ok(())
+    let recording = app.state::<Arc<AudioRecordingManager>>();
+    match recording.active_binding_id() {
+        Some(active) => action.stop(app, &active, shortcut),
+        None => action.start(app, binding_id, shortcut),
+    }
 }
 
 /// Windows can re-fire a held shortcut's press, and sends one release per press; count each edge once.
-fn is_key_edge(state: &ManagedToggleState, binding_id: &str, event: ShortcutEvent) -> bool {
-    let Ok(mut states) = state.lock() else {
+fn is_key_edge(held: &HeldShortcuts, binding_id: &str, event: ShortcutEvent) -> bool {
+    let Ok(mut held) = held.0.lock() else {
         return true;
     };
     match event {
-        ShortcutEvent::Pressed => states.held_bindings.insert(binding_id.to_string()),
-        ShortcutEvent::Released => states.held_bindings.remove(binding_id),
+        ShortcutEvent::Pressed => held.insert(binding_id.to_string()),
+        ShortcutEvent::Released => held.remove(binding_id),
     }
 }
 
@@ -118,7 +98,7 @@ pub fn init_shortcuts(app: &AppHandle) {
 }
 
 fn init_x11_shortcuts(app: &AppHandle) {
-    let settings = settings::load_or_create_app_settings(app);
+    let settings = get_settings(app);
 
     info!(
         "[Shortcuts] Registering {} shortcut binding(s)",
@@ -262,30 +242,16 @@ fn dispatch_shortcut(invocation: ShortcutInvocation<'_>) {
         );
         return;
     };
-    let state = invocation.app.state::<ManagedToggleState>();
-    if !is_key_edge(&state, invocation.binding_id, invocation.event) {
+    let held = invocation.app.state::<HeldShortcuts>();
+    if !is_key_edge(&held, invocation.binding_id, invocation.event) {
         return;
     }
-    let push_to_talk = get_settings(invocation.app).push_to_talk;
-    if action.is_one_shot() || push_to_talk {
-        let execution = shortcut_transition(ShortcutTransition {
-            is_one_shot: action.is_one_shot(),
-            push_to_talk,
-            event: invocation.event,
-            is_active: false,
-        });
-        execute_action(action.as_ref(), &invocation, execution);
-        return;
-    }
-    if invocation.event != ShortcutEvent::Pressed {
-        return;
-    }
-    let result = execute_toggle_transition(&state, invocation.binding_id, |execution| {
-        execute_action(action.as_ref(), &invocation, execution);
+    let execution = shortcut_transition(ShortcutTransition {
+        is_one_shot: action.is_one_shot(),
+        push_to_talk: get_settings(invocation.app).push_to_talk,
+        event: invocation.event,
     });
-    if let Err(error) = result {
-        error!("[Shortcuts] {error}");
-    }
+    execute_action(action.as_ref(), &invocation, execution);
 }
 
 fn execute_action(
@@ -299,6 +265,9 @@ fn execute_action(
         }
         ShortcutExecution::Stop => {
             action.stop(invocation.app, invocation.binding_id, invocation.shortcut)
+        }
+        ShortcutExecution::Toggle => {
+            toggle_dictation(invocation.app, invocation.binding_id, invocation.shortcut)
         }
         ShortcutExecution::None => {}
     }

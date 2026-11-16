@@ -4,7 +4,7 @@ use log::{debug, error};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::database;
@@ -35,25 +35,18 @@ impl HistoryManager {
         let recordings_dir = app_data_dir.join("recordings");
         let db_path = app_data_dir.join("history.db");
 
-        if !recordings_dir.exists() {
-            fs::create_dir_all(&recordings_dir)?;
-            debug!("Created recordings directory: {:?}", recordings_dir);
-        }
-
+        fs::create_dir_all(&recordings_dir)?;
         database::initialize_database(&db_path).context("Failed to initialize history database")?;
 
-        let manager = Self {
+        Ok(Self {
             app_handle: app_handle.clone(),
             recordings_dir,
             db_path,
-        };
-
-        Ok(manager)
+        })
     }
 
     fn get_connection(&self) -> Result<Connection> {
-        Connection::open(&self.db_path)
-            .with_context(|| format!("Failed to open database at {:?}", self.db_path))
+        connect(&self.db_path)
     }
 
     pub async fn save_transcription(
@@ -62,50 +55,33 @@ impl HistoryManager {
         transcription_text: String,
         post_processed_text: Option<String>,
         post_process_prompt: Option<String>,
-    ) -> Result<()> {
+    ) -> Result<i64> {
         let timestamp = Utc::now().timestamp();
-        let file_name = format!("echo-{}.wav", timestamp);
-        let title = self.format_timestamp_title(timestamp);
-
-        let file_path = self.recordings_dir.join(&file_name);
-        tauri::async_runtime::spawn_blocking(move || save_wav_file(file_path, &audio_samples))
-            .await
-            .context("WAV writer thread panicked")??;
-
-        self.save_to_database(
-            file_name,
+        let entry = NewEntry {
             timestamp,
-            title,
+            title: self.format_timestamp_title(timestamp),
+            audio_samples,
             transcription_text,
             post_processed_text,
             post_process_prompt,
-        )?;
+        };
+        let id = store_entry(&self.db_path, &self.recordings_dir, entry).await?;
 
-        self.cleanup_old_entries()?;
-
+        if let Err(e) = self.cleanup_old_entries() {
+            error!("Failed to clean up old history entries: {e:#}");
+        }
         if let Err(e) = self.app_handle.emit("history-updated", ()) {
             error!("Failed to emit history-updated event: {}", e);
         }
 
-        Ok(())
+        Ok(id)
     }
 
-    fn save_to_database(
-        &self,
-        file_name: String,
-        timestamp: i64,
-        title: String,
-        transcription_text: String,
-        post_processed_text: Option<String>,
-        post_process_prompt: Option<String>,
-    ) -> Result<()> {
-        let conn = self.get_connection()?;
-        conn.execute(
-            "INSERT INTO transcription_history (file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![file_name, timestamp, false, title, transcription_text, post_processed_text, post_process_prompt],
-        )?;
-
-        debug!("Saved transcription to database");
+    pub(crate) fn rename_entry(&self, id: i64, title: &str) -> Result<()> {
+        set_entry_title(&self.get_connection()?, id, title)?;
+        if let Err(e) = self.app_handle.emit("history-updated", ()) {
+            error!("Failed to emit history-updated event: {}", e);
+        }
         Ok(())
     }
 
@@ -217,24 +193,9 @@ impl HistoryManager {
             "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt FROM transcription_history ORDER BY timestamp DESC"
         )?;
 
-        let rows = stmt.query_map([], |row| {
-            Ok(HistoryEntry {
-                id: row.get("id")?,
-                file_name: row.get("file_name")?,
-                timestamp: row.get("timestamp")?,
-                saved: row.get("saved")?,
-                title: row.get("title")?,
-                transcription_text: row.get("transcription_text")?,
-                post_processed_text: row.get("post_processed_text")?,
-                post_process_prompt: row.get("post_process_prompt")?,
-            })
-        })?;
-
-        let mut entries = Vec::new();
-        for row in rows {
-            entries.push(row?);
-        }
-
+        let entries = stmt
+            .query_map([], entry_from_row)?
+            .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(entries)
     }
 
@@ -269,26 +230,14 @@ impl HistoryManager {
 
     pub async fn get_entry_by_id(&self, id: i64) -> Result<Option<HistoryEntry>> {
         let conn = self.get_connection()?;
-        let mut stmt = conn.prepare(
-            "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt
-             FROM transcription_history WHERE id = ?1",
-        )?;
-
-        let entry = stmt
-            .query_row([id], |row| {
-                Ok(HistoryEntry {
-                    id: row.get("id")?,
-                    file_name: row.get("file_name")?,
-                    timestamp: row.get("timestamp")?,
-                    saved: row.get("saved")?,
-                    title: row.get("title")?,
-                    transcription_text: row.get("transcription_text")?,
-                    post_processed_text: row.get("post_processed_text")?,
-                    post_process_prompt: row.get("post_process_prompt")?,
-                })
-            })
+        let entry = conn
+            .query_row(
+                "SELECT id, file_name, timestamp, saved, title, transcription_text, post_processed_text, post_process_prompt
+                 FROM transcription_history WHERE id = ?1",
+                [id],
+                entry_from_row,
+            )
             .optional()?;
-
         Ok(entry)
     }
 
@@ -374,3 +323,75 @@ impl HistoryManager {
         Ok(())
     }
 }
+
+struct NewEntry {
+    timestamp: i64,
+    title: String,
+    audio_samples: Vec<f32>,
+    transcription_text: String,
+    post_processed_text: Option<String>,
+    post_process_prompt: Option<String>,
+}
+
+fn connect(db_path: &Path) -> Result<Connection> {
+    Connection::open(db_path).with_context(|| format!("Failed to open database at {db_path:?}"))
+}
+
+/// A recording that cannot be written must not cost the text.
+async fn store_entry(db_path: &Path, recordings_dir: &Path, entry: NewEntry) -> Result<i64> {
+    let (id, file_name) = insert_entry(&mut connect(db_path)?, &entry)?;
+    let recordings_dir = recordings_dir.to_path_buf();
+    let written = tauri::async_runtime::spawn_blocking(move || {
+        fs::create_dir_all(&recordings_dir)?;
+        save_wav_file(recordings_dir.join(file_name), &entry.audio_samples)
+    })
+    .await
+    .context("WAV writer thread panicked")
+    .and_then(|written| written);
+    if let Err(e) = written {
+        error!("History entry {id} saved without its recording: {e:#}");
+    }
+    Ok(id)
+}
+
+/// Second-resolution names alone let two saves share one recording.
+fn insert_entry(conn: &mut Connection, entry: &NewEntry) -> Result<(i64, String)> {
+    let tx = conn.transaction()?;
+    tx.execute(
+        "INSERT INTO transcription_history (file_name, timestamp, title, transcription_text, post_processed_text, post_process_prompt) VALUES ('', ?1, ?2, ?3, ?4, ?5)",
+        params![entry.timestamp, entry.title, entry.transcription_text, entry.post_processed_text, entry.post_process_prompt],
+    )?;
+    let id = tx.last_insert_rowid();
+    let file_name = format!("echo-{}-{id}.wav", entry.timestamp);
+    tx.execute(
+        "UPDATE transcription_history SET file_name = ?1 WHERE id = ?2",
+        params![file_name, id],
+    )?;
+    tx.commit()?;
+    Ok((id, file_name))
+}
+
+fn set_entry_title(conn: &Connection, id: i64, title: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE transcription_history SET title = ?1 WHERE id = ?2",
+        params![title, id],
+    )?;
+    Ok(())
+}
+
+fn entry_from_row(row: &rusqlite::Row) -> rusqlite::Result<HistoryEntry> {
+    Ok(HistoryEntry {
+        id: row.get("id")?,
+        file_name: row.get("file_name")?,
+        timestamp: row.get("timestamp")?,
+        saved: row.get("saved")?,
+        title: row.get("title")?,
+        transcription_text: row.get("transcription_text")?,
+        post_processed_text: row.get("post_processed_text")?,
+        post_process_prompt: row.get("post_process_prompt")?,
+    })
+}
+
+#[cfg(test)]
+#[path = "history_tests.rs"]
+mod tests;

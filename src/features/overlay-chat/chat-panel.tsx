@@ -36,8 +36,8 @@ interface ChatPanelProps {
   bundledModel: BundledChatModel;
   context: ChatTextContext | null;
   contextState: ChatContextEvent["state"];
+  generation: number;
   hasFlanks: boolean;
-  isOpen: boolean;
   onClose: () => void;
   onRequestAccessibility: () => Promise<void>;
 }
@@ -176,8 +176,8 @@ const ChatPanelContent = ({
 interface PromptedChatOptions {
   context: ChatTextContext | null;
   contextState: ChatContextEvent["state"];
-  isBundledModelReady: boolean;
-  isOpen: boolean;
+  generation: number;
+  modelState: BundledChatModel["status"]["state"];
 }
 /// Switching prompt starts over, keeping only what is typed.
 const usePromptedChat = (options: PromptedChatOptions) => {
@@ -207,8 +207,8 @@ export const ChatPanel = ({
   bundledModel,
   context,
   contextState,
+  generation,
   hasFlanks,
-  isOpen,
   onClose,
   onRequestAccessibility,
 }: ChatPanelProps) => {
@@ -216,8 +216,8 @@ export const ChatPanel = ({
   const { chat, chatPrompt, menu } = usePromptedChat({
     context,
     contextState,
-    isBundledModelReady,
-    isOpen,
+    generation,
+    modelState: bundledModel.status.state,
   });
   const hasConversation =
     chat.messages.length > 0 || chat.isResponding || chat.error.length > 0;

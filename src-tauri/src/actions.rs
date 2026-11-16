@@ -1,7 +1,7 @@
-use crate::audio_feedback::{play_feedback_sound, play_feedback_sound_blocking, SoundType};
+use crate::audio_feedback::{play_feedback_sound, SoundType};
 use crate::audio_toolkit::constants::SAMPLE_RATE;
 use crate::features::polish::manager::PolishManager;
-use crate::managers::audio::{AudioRecordingManager, RecordingAttempt};
+use crate::managers::audio::AudioRecordingManager;
 use crate::managers::cleanup_apply::clean_transcript;
 use crate::managers::hallucination::HallucinationFilter;
 use crate::managers::history::HistoryManager;
@@ -10,13 +10,11 @@ use crate::managers::transcription::{
 };
 use crate::model_pass::{routed_model_pass, ModelPass};
 use crate::overlay::{
-    mark_recording_live, show_model_required_overlay, show_preparing_overlay,
-    show_transcribing_overlay, show_warning_overlay,
+    show_model_required_overlay, show_transcribing_overlay, show_warning_overlay,
 };
 use crate::settings::{get_settings, AppSettings};
 use crate::tray::{change_tray_icon, TrayIconState};
 use crate::utils;
-use crate::ManagedToggleState;
 use ferrous_opencc::{config::BuiltinConfig, OpenCC};
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
@@ -26,6 +24,10 @@ use std::time::Duration;
 use std::time::Instant;
 use tauri::AppHandle;
 use tauri::{Emitter, Manager};
+
+mod start;
+
+pub(crate) use start::start_dictation;
 
 /// Input to pure [`decide_end_of_recording`].
 #[derive(Debug, Clone)]
@@ -48,6 +50,8 @@ pub enum EndOfRecordingAction {
         pasted: String,
     },
     NothingToPaste,
+    /// Stopped while the microphone was still opening: nothing was captured to transcribe.
+    StoppedBeforeCapture,
     ShowError(String),
 }
 
@@ -59,12 +63,9 @@ async fn apply_end_of_recording_action(
     hm: Arc<HistoryManager>,
 ) {
     match action {
-        EndOfRecordingAction::NothingToPaste => {
-            crate::dictation::abandon(&ah);
-            if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
-                utils::hide_recording_overlay(&ah);
-                change_tray_icon(&ah, TrayIconState::Idle);
-            }
+        EndOfRecordingAction::NothingToPaste => end_empty(&ah, gen, "No speech detected"),
+        EndOfRecordingAction::StoppedBeforeCapture => {
+            end_empty(&ah, gen, "Stopped before the microphone was ready");
         }
         EndOfRecordingAction::ShowError(message) => {
             error!("Transcription stop ended with error: {message}");
@@ -105,6 +106,7 @@ async fn apply_end_of_recording_action(
             });
             match ah.emit("transcription-ready", payload) {
                 Ok(()) => {
+                    MODEL_PASS_SENT.store(gen, Ordering::SeqCst);
                     arm_finalize_watchdog(ah.clone(), gen, transcript);
                 }
                 Err(e) => {
@@ -117,6 +119,22 @@ async fn apply_end_of_recording_action(
             }
         }
     }
+}
+
+/// The chat composer shows its own empty state; anywhere else the island has to say why nothing was typed.
+fn end_empty(ah: &AppHandle, gen: u64, reason: &str) {
+    info!("Dictation ended with nothing to deliver: {reason}");
+    let is_composing_chat = crate::dictation::routes_to_chat();
+    crate::dictation::abandon(ah);
+    if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
+        return;
+    }
+    if is_composing_chat {
+        utils::hide_recording_overlay(ah);
+    } else {
+        show_warning_overlay(ah, reason);
+    }
+    change_tray_icon(ah, TrayIconState::Idle);
 }
 
 /// The one exit every dictation takes, wherever the text came from — staleness-checked against `gen`.
@@ -154,14 +172,24 @@ fn arm_finalize_watchdog(ah: AppHandle, gen: u64, raw: String) {
              for generation {gen} within {:?}. Falling back to raw paste.",
             POST_PROCESS_WATCHDOG
         );
+        save_unprocessed_to_history(&ah, gen, raw.clone());
         deliver_transcript(&ah, raw, gen);
     });
 }
 
-/// Short-circuits silent press+release to avoid a pointless decode on pure zeros.
+fn save_unprocessed_to_history(ah: &AppHandle, gen: u64, raw: String) {
+    let history = Arc::clone(&ah.state::<Arc<HistoryManager>>());
+    let samples = take_pending_audio(gen);
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = history.save_transcription(samples, raw, None, None).await {
+            error!("Failed to save transcription to history: {}", e);
+        }
+    });
+}
+
+/// Only digital zeros skip the decode: the VAD already chose what counts as speech.
 pub fn audio_is_silent(samples: &[f32]) -> bool {
-    use crate::managers::meeting_streaming::{rms, SILENCE_RMS_THRESHOLD};
-    rms(samples) < SILENCE_RMS_THRESHOLD
+    crate::audio_toolkit::audio::is_digital_silence(samples)
 }
 
 /// The preview never stands in for the transcript: one decode of the whole recording always does.
@@ -249,7 +277,7 @@ pub fn decide_end_of_recording(
     pass: Option<ModelPass>,
 ) -> EndOfRecordingAction {
     if !samples_present {
-        return EndOfRecordingAction::NothingToPaste;
+        return EndOfRecordingAction::StoppedBeforeCapture;
     }
     match transcribe_outcome {
         Err(TranscribeError::TimedOut) => EndOfRecordingAction::ShowError(
@@ -296,6 +324,27 @@ fn claim_generation(claimed: &AtomicU64, gen: u64) -> bool {
     claimed.fetch_max(gen, Ordering::SeqCst) < gen
 }
 
+/// Generation whose transcript is with the frontend for a model pass; 0 until one is sent.
+static MODEL_PASS_SENT: AtomicU64 = AtomicU64::new(0);
+
+fn model_pass_is_pending(sent: u64, current: u64, claimed: u64) -> bool {
+    sent != 0 && sent == current && claimed < sent
+}
+
+/// A new dictation makes the previous one stale and drops its text, so it waits for that text to land.
+pub(crate) fn previous_dictation_is_settling() -> bool {
+    let is_transcribing = TRANSCRIPTION_TASK.lock().is_ok_and(|task| {
+        task.as_ref()
+            .is_some_and(|handle| !handle.inner().is_finished())
+    });
+    is_transcribing
+        || model_pass_is_pending(
+            MODEL_PASS_SENT.load(Ordering::SeqCst),
+            OPERATION_GENERATION.load(Ordering::SeqCst),
+            FINALIZE_CLAIMED.load(Ordering::SeqCst),
+        )
+}
+
 /// Kept off the webview; one slot so an abandoned round-trip cannot pile up.
 static PENDING_DICTATION_AUDIO: Mutex<Option<PendingDictationAudio>> = Mutex::new(None);
 
@@ -313,13 +362,23 @@ fn stash_pending_audio(generation: u64, samples: Vec<f32>) {
     }
 }
 
-/// Takes unconditionally: a mismatched buffer left behind would pin it until the next recording.
+/// An older buffer is dropped so an abandoned round-trip cannot pin it; a newer one belongs to a live dictation.
 pub(crate) fn take_pending_audio(generation: u64) -> Vec<f32> {
     let Ok(mut pending) = PENDING_DICTATION_AUDIO.lock() else {
         return Vec::new();
     };
+    take_audio_up_to(&mut pending, generation)
+}
+
+fn take_audio_up_to(pending: &mut Option<PendingDictationAudio>, generation: u64) -> Vec<f32> {
+    if pending
+        .as_ref()
+        .is_some_and(|audio| audio.generation > generation)
+    {
+        return Vec::new();
+    }
     match pending.take() {
-        Some(pending) if pending.generation == generation => pending.samples,
+        Some(audio) if audio.generation == generation => audio.samples,
         _ => Vec::new(),
     }
 }
@@ -347,14 +406,6 @@ pub trait ShortcutAction: Send + Sync {
 
 struct TranscribeAction;
 
-struct StartFeedback {
-    app: AppHandle,
-    attempt: RecordingAttempt,
-    delay: Duration,
-    generation: u64,
-    recording: Arc<AudioRecordingManager>,
-}
-
 fn should_apply_start_feedback(
     current_generation: u64,
     expected_generation: u64,
@@ -365,42 +416,6 @@ fn should_apply_start_feedback(
 
 fn is_current_operation(current_generation: u64, expected_generation: u64) -> bool {
     current_generation == expected_generation
-}
-
-fn reset_failed_start(app: &AppHandle, binding_id: &str, generation: u64) {
-    if !is_current_operation(OPERATION_GENERATION.load(Ordering::SeqCst), generation) {
-        return;
-    }
-    let toggle_state_manager = app.state::<ManagedToggleState>();
-    if let Ok(mut states) = toggle_state_manager.lock() {
-        states.active_toggles.insert(binding_id.to_string(), false);
-    }
-    utils::hide_recording_overlay(app);
-    change_tray_icon(app, TrayIconState::Idle);
-}
-
-impl StartFeedback {
-    fn spawn(self) {
-        std::thread::spawn(move || {
-            std::thread::sleep(self.delay);
-            let current_generation = OPERATION_GENERATION.load(Ordering::SeqCst);
-            if !should_apply_start_feedback(
-                current_generation,
-                self.generation,
-                self.recording.is_attempt_active(self.attempt),
-            ) {
-                return;
-            }
-            if !crate::dictation::routes_to_chat() {
-                mark_recording_live(&self.app);
-            }
-            play_feedback_sound_blocking(&self.app, SoundType::Start);
-            let current_generation = OPERATION_GENERATION.load(Ordering::SeqCst);
-            if is_current_operation(current_generation, self.generation) {
-                self.recording.apply_mute_if_active(self.attempt);
-            }
-        });
-    }
 }
 
 async fn maybe_convert_chinese_variant(
@@ -457,21 +472,19 @@ pub(crate) enum ModelReadiness {
 }
 
 impl ModelReadiness {
-    /// Liftable blocks stay on the island with their download. `true` when the dictation must not run.
-    fn report_block(&self, app: &AppHandle) -> bool {
-        let message = match self {
-            ModelReadiness::Ready => return false,
+    /// Liftable blocks stay on the island with their download. `Some` when the dictation must not run.
+    fn report_block(self, app: &AppHandle) -> Option<String> {
+        match self {
+            ModelReadiness::Ready => None,
             ModelReadiness::Blocked(message) => {
-                show_model_required_overlay(app, message);
-                message
+                show_model_required_overlay(app, &message);
+                Some(message)
             }
             ModelReadiness::Downloading(message) => {
-                show_warning_overlay(app, message);
-                message
+                show_warning_overlay(app, &message);
+                Some(message)
             }
-        };
-        warn!("Dictation not started: {message}");
-        true
+        }
     }
 }
 
@@ -506,183 +519,9 @@ pub(crate) fn check_model_readiness(app: &AppHandle) -> ModelReadiness {
     }
 }
 
-impl TranscribeAction {
-    /// A dictation without microphone access only records silence — resolve access before capture.
-    fn ensure_microphone_access(&self, app: &AppHandle, binding_id: &str) -> bool {
-        use tauri_plugin_macos_permissions as macos_permissions;
-
-        let status = crate::commands::audio::microphone_permission_status();
-        if status == "authorized" {
-            return true;
-        }
-        warn!("Dictation blocked: microphone access is {status}");
-        show_warning_overlay(app, "Allow microphone access in the dialog to dictate");
-
-        let app_handle = app.clone();
-        let binding = binding_id.to_string();
-        std::thread::spawn(move || {
-            if status == "denied" {
-                use tauri_plugin_opener::OpenerExt;
-                let _ = app_handle.opener().open_url(
-                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
-                    None::<String>,
-                );
-                show_warning_overlay(
-                    &app_handle,
-                    "Microphone is off — enable it in System Settings",
-                );
-                return;
-            }
-            let _ =
-                tauri::async_runtime::block_on(macos_permissions::request_microphone_permission());
-            let mut granted =
-                tauri::async_runtime::block_on(macos_permissions::check_microphone_permission());
-            for _ in 0..59 {
-                if granted {
-                    break;
-                }
-                std::thread::sleep(std::time::Duration::from_millis(500));
-                granted = tauri::async_runtime::block_on(
-                    macos_permissions::check_microphone_permission(),
-                );
-            }
-            if granted {
-                info!("Microphone access granted — restarting dictation");
-                TranscribeAction.start(&app_handle, &binding, "");
-            } else {
-                use tauri_plugin_opener::OpenerExt;
-                let _ = app_handle.opener().open_url(
-                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
-                    None::<String>,
-                );
-                show_warning_overlay(
-                    &app_handle,
-                    "Microphone is off for Echo — enable it in System Settings",
-                );
-            }
-        });
-        false
-    }
-}
-
 impl ShortcutAction for TranscribeAction {
     fn start(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
-        let start_time = Instant::now();
-        debug!("TranscribeAction::start called for binding: {}", binding_id);
-        crate::dictation::begin(binding_id);
-
-        if crate::is_file_transcription_active() {
-            debug!("File transcription in progress - showing warning overlay");
-            show_warning_overlay(app, "File transcription in progress. Please wait...");
-
-            let toggle_state_manager = app.state::<ManagedToggleState>();
-            if let Ok(mut states) = toggle_state_manager.lock() {
-                states.active_toggles.insert(binding_id.to_string(), false);
-            }
-            return;
-        }
-
-        // Recording without a model only fails later after capturing audio.
-        if check_model_readiness(app).report_block(app) {
-            let toggle_state_manager = app.state::<ManagedToggleState>();
-            if let Ok(mut states) = toggle_state_manager.lock() {
-                states.active_toggles.insert(binding_id.to_string(), false);
-            }
-            return;
-        }
-
-        // Recording without microphone access only captures silence.
-        if !self.ensure_microphone_access(app, binding_id) {
-            let toggle_state_manager = app.state::<ManagedToggleState>();
-            if let Ok(mut states) = toggle_state_manager.lock() {
-                states.active_toggles.insert(binding_id.to_string(), false);
-            }
-            return;
-        }
-
-        let tm = app.state::<Arc<TranscriptionManager>>();
-        tm.initiate_model_load();
-
-        let binding_id = binding_id.to_string();
-        let rm = app.state::<Arc<AudioRecordingManager>>();
-        let Some(attempt) = rm.reserve_start(&binding_id, || {
-            OPERATION_GENERATION
-                .fetch_add(1, Ordering::SeqCst)
-                .wrapping_add(1)
-        }) else {
-            warn!("Dictation not started: another recording is active");
-            let toggle_state_manager = app.state::<ManagedToggleState>();
-            if let Ok(mut states) = toggle_state_manager.lock() {
-                states.active_toggles.insert(binding_id, false);
-            }
-            return;
-        };
-        let generation = attempt.operation_generation();
-        change_tray_icon(app, TrayIconState::Recording);
-        if !crate::dictation::routes_to_chat() {
-            show_preparing_overlay(app);
-        }
-        info!(
-            "start: overlay show requested at +{:?} (on shortcut callback thread)",
-            start_time.elapsed()
-        );
-
-        let settings = get_settings(app);
-        if routed_model_pass(app).is_some() {
-            if let Some(polish) = app.try_state::<Arc<PolishManager>>() {
-                polish.inner().warm_up_for_post_processing();
-            }
-        }
-        let is_always_on = settings.always_on_microphone;
-        debug!("Microphone mode - always_on: {}", is_always_on);
-
-        if is_always_on {
-            let recording_started = rm.start_reserved_recording(&binding_id, attempt);
-            if !recording_started {
-                reset_failed_start(app, &binding_id, generation);
-            } else {
-                StartFeedback {
-                    app: app.clone(),
-                    attempt,
-                    delay: Duration::ZERO,
-                    generation,
-                    recording: Arc::clone(&rm),
-                }
-                .spawn();
-            }
-            debug!("Recording started: {}", recording_started);
-        } else {
-            // Opening the on-demand microphone off-thread keeps the HUD responsive.
-            debug!("On-demand mode: starting recording off the shortcut thread");
-            let app_clone = app.clone();
-            let rm_clone = Arc::clone(&rm);
-            let bid = binding_id.clone();
-            std::thread::spawn(move || {
-                let recording_start_time = Instant::now();
-                if rm_clone.start_reserved_recording(&bid, attempt) {
-                    info!(
-                        "start: try_start_recording (mic open + worker) took {:?} (off-thread)",
-                        recording_start_time.elapsed()
-                    );
-                    StartFeedback {
-                        app: app_clone,
-                        attempt,
-                        delay: Duration::from_millis(100),
-                        generation,
-                        recording: rm_clone,
-                    }
-                    .spawn();
-                } else {
-                    reset_failed_start(&app_clone, &bid, generation);
-                    debug!("Failed to start recording");
-                }
-            });
-        }
-
-        debug!(
-            "TranscribeAction::start completed in {:?}",
-            start_time.elapsed()
-        );
+        let _ = start::start_dictation(app, binding_id);
     }
 
     fn stop(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
@@ -866,7 +705,7 @@ pub static ACTION_MAP: LazyLock<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy
 #[cfg(test)]
 mod decision_tests {
     use super::{
-        claim_generation, decide_end_of_recording, is_current_operation,
+        claim_generation, decide_end_of_recording, is_current_operation, model_pass_is_pending,
         should_apply_start_feedback, EndOfRecordingAction, TranscribedText,
     };
     use crate::managers::transcription::TranscribeError;
@@ -888,9 +727,29 @@ mod decision_tests {
     }
 
     #[test]
-    fn no_samples_returns_nothing_to_paste() {
+    fn a_stop_before_any_capture_is_told_apart_from_silence() {
         let a = decide_end_of_recording(false, Ok(cleaned("anything")), None);
-        assert!(matches!(a, EndOfRecordingAction::NothingToPaste));
+        assert!(matches!(a, EndOfRecordingAction::StoppedBeforeCapture));
+    }
+
+    #[test]
+    fn a_transcript_out_for_its_model_pass_holds_the_next_dictation() {
+        assert!(model_pass_is_pending(5, 5, 4));
+    }
+
+    #[test]
+    fn a_delivered_model_pass_frees_the_next_dictation() {
+        assert!(!model_pass_is_pending(5, 5, 5));
+    }
+
+    #[test]
+    fn a_cancelled_model_pass_frees_the_next_dictation() {
+        assert!(!model_pass_is_pending(5, 6, 4));
+    }
+
+    #[test]
+    fn nothing_is_pending_before_any_model_pass() {
+        assert!(!model_pass_is_pending(0, 0, 0));
     }
 
     #[test]
@@ -1061,9 +920,9 @@ mod decision_tests {
     }
 
     #[test]
-    fn audio_is_silent_true_for_room_tone_below_threshold() {
+    fn signal_below_the_digital_floor_is_silent() {
         use crate::actions::audio_is_silent;
-        let buf = vec![0.001_f32; 16_000];
+        let buf = vec![0.000_05_f32; 16_000];
         assert!(audio_is_silent(&buf));
     }
 
@@ -1075,11 +934,27 @@ mod decision_tests {
     }
 
     #[test]
-    fn audio_is_silent_false_at_threshold_boundary() {
-        // Locks strict-less-than against future `<=` regression.
+    fn quiet_speech_kept_by_the_vad_reaches_the_decoder() {
         use crate::actions::audio_is_silent;
-        let buf = vec![0.01_f32; 16_000];
+        let buf = vec![0.008_f32; 16_000];
         assert!(!audio_is_silent(&buf));
+    }
+
+    #[test]
+    fn speech_between_long_pauses_reaches_the_decoder() {
+        use crate::actions::audio_is_silent;
+        let mut buf = vec![0.018_f32; 16_000];
+        buf.resize(64_000, 0.0);
+        assert!(!audio_is_silent(&buf));
+    }
+
+    #[test]
+    fn a_real_quiet_voice_reaches_the_decoder() {
+        use crate::actions::audio_is_silent;
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/quiet-speech.wav");
+        let speech = crate::audio_toolkit::load_wav_file(fixture).unwrap();
+        assert!(!audio_is_silent(&speech));
     }
 
     #[test]
@@ -1130,28 +1005,37 @@ mod decision_tests {
 
 #[cfg(test)]
 mod pending_audio_tests {
-    use super::{stash_pending_audio, take_pending_audio};
+    use super::{take_audio_up_to, PendingDictationAudio};
 
-    /// One test owns the process-wide slot; splitting it would race the other cases.
+    fn recording_of(generation: u64) -> Option<PendingDictationAudio> {
+        Some(PendingDictationAudio {
+            generation,
+            samples: vec![0.5; 4],
+        })
+    }
+
     #[test]
-    fn stash_is_handed_over_once_and_only_to_its_own_generation() {
-        stash_pending_audio(7, vec![0.5; 4]);
+    fn a_recording_is_handed_to_its_own_dictation_once() {
+        let mut pending = recording_of(7);
 
-        assert!(
-            take_pending_audio(6).is_empty(),
-            "wrong generation gets none"
-        );
-        assert!(
-            take_pending_audio(7).is_empty(),
-            "a mismatched take still clears the slot"
-        );
+        assert_eq!(take_audio_up_to(&mut pending, 7).len(), 4);
+        assert!(take_audio_up_to(&mut pending, 7).is_empty());
+    }
 
-        stash_pending_audio(8, vec![0.5; 4]);
-        assert_eq!(take_pending_audio(8).len(), 4);
-        assert!(
-            take_pending_audio(8).is_empty(),
-            "taken buffers are released"
-        );
+    #[test]
+    fn a_late_reply_about_an_earlier_dictation_leaves_the_live_recording_alone() {
+        let mut pending = recording_of(7);
+
+        assert!(take_audio_up_to(&mut pending, 6).is_empty());
+        assert_eq!(take_audio_up_to(&mut pending, 7).len(), 4);
+    }
+
+    #[test]
+    fn an_abandoned_recording_is_released_by_the_next_dictation() {
+        let mut pending = recording_of(7);
+
+        assert!(take_audio_up_to(&mut pending, 8).is_empty());
+        assert!(pending.is_none());
     }
 }
 

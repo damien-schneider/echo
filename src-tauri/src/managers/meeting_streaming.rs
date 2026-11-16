@@ -23,9 +23,6 @@ use crate::settings;
 /// A live decode in flight runs to its end — past this budget the worker thread is detached, not joined.
 const WORKER_JOIN_BUDGET: Duration = Duration::from_millis(1500);
 
-/// USB-mic noise floor (~-40 dBFS); below this Whisper hallucinates YouTube attractors.
-pub(crate) const SILENCE_RMS_THRESHOLD: f32 = 0.01;
-
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum StreamingSource {
@@ -169,14 +166,6 @@ impl StreamingWorkerHandle {
         }
         debug!("streaming worker stopped (joined={joined})");
     }
-}
-
-pub(crate) fn rms(samples: &[f32]) -> f32 {
-    if samples.is_empty() {
-        return 0.0;
-    }
-    let sum_sq: f32 = samples.iter().map(|s| s * s).sum();
-    (sum_sq / samples.len() as f32).sqrt()
 }
 
 /// Blocks for first cmd, then try_recv coalesces backlog. Returns (mic, sys, shutdown).

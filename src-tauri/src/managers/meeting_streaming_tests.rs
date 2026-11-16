@@ -1,54 +1,10 @@
 use super::*;
 
-#[test]
-fn rms_zero_for_empty() {
-    assert_eq!(rms(&[]), 0.0);
-}
+const OLD_LOUDNESS_FLOOR: f32 = 0.01;
 
-#[test]
-fn rms_matches_constant() {
-    let s = vec![0.1f32; 1000];
-    assert!((rms(&s) - 0.1).abs() < 1e-6);
-}
-
-#[test]
-fn rms_silence_below_threshold() {
-    let s = vec![0.0f32; 1000];
-    assert!(rms(&s) < SILENCE_RMS_THRESHOLD);
-}
-
-#[test]
-fn rms_speech_above_threshold() {
-    let s = vec![0.05f32; 1000];
-    assert!(rms(&s) > SILENCE_RMS_THRESHOLD);
-}
-
-#[test]
-fn rms_quiet_speech_just_above_threshold() {
-    // -35 dBFS conversational speech.
-    let s = vec![0.018f32; 1000];
-    assert!(rms(&s) > SILENCE_RMS_THRESHOLD);
-}
-
-#[test]
-fn rms_room_tone_filtered_out() {
-    // -45 dBFS USB-mic noise floor — else whisper hallucinates.
-    let s = vec![0.0056f32; 1000];
-    assert!(rms(&s) < SILENCE_RMS_THRESHOLD);
-}
-
-#[test]
-fn rms_alternating_signal() {
-    // Square wave RMS = peak; tolerate f32 accumulation drift.
-    let mut s = Vec::with_capacity(1000);
-    for i in 0..1000 {
-        s.push(if (i as usize).is_multiple_of(2) {
-            0.2
-        } else {
-            -0.2
-        });
-    }
-    assert!((rms(&s) - 0.2).abs() < 1e-3);
+fn rms(samples: &[f32]) -> f32 {
+    let sum_sq: f32 = samples.iter().map(|s| s * s).sum();
+    (sum_sq / samples.len() as f32).sqrt()
 }
 
 #[test]
@@ -164,7 +120,7 @@ fn quiet_speech_below_the_old_loudness_floor_reaches_a_decode() {
         .chunks(SAMPLE_RATE / 10)
         .chain(trailing_pause.chunks(SAMPLE_RATE / 10))
     {
-        assert!(rms(chunk) < SILENCE_RMS_THRESHOLD);
+        assert!(rms(chunk) < OLD_LOUDNESS_FLOOR);
         events.extend(preview.push(chunk, &mut |_window| "heard".to_string()));
     }
 

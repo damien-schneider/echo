@@ -1,8 +1,7 @@
 use crate::actions::{OPERATION_GENERATION, TRANSCRIPTION_TASK};
 use crate::features::polish::manager::PolishManager;
 use crate::managers::audio::AudioRecordingManager;
-use crate::ManagedToggleState;
-use log::{info, warn};
+use log::info;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
@@ -25,29 +24,8 @@ pub fn cancel_current_operation(app: &AppHandle) {
         }
     }
 
-    // stream must stop before toggle state is touched
     let audio_manager = app.state::<Arc<AudioRecordingManager>>();
     audio_manager.cancel_recording();
-
-    let toggle_state_manager = app.state::<ManagedToggleState>();
-    if let Ok(mut states) = toggle_state_manager.lock() {
-        let active_bindings: Vec<String> = states
-            .active_toggles
-            .iter()
-            .filter(|(_, &is_active)| is_active)
-            .map(|(binding_id, _)| binding_id.clone())
-            .collect();
-
-        for binding_id in active_bindings {
-            info!("Resetting toggle state for binding: {}", binding_id);
-            // no action.stop() — that would kick off a transcription
-            if let Some(is_active) = states.active_toggles.get_mut(&binding_id) {
-                *is_active = false;
-            }
-        }
-    } else {
-        warn!("Warning: Failed to lock toggle state manager during cancellation");
-    }
 
     crate::dictation::abandon(app);
     hide_recording_overlay(app);

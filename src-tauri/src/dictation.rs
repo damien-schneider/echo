@@ -9,16 +9,20 @@ use log::error;
 use serde::Serialize;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
-    Mutex, MutexGuard, PoisonError,
+    LazyLock, Mutex, MutexGuard, PoisonError,
 };
 use tauri::AppHandle;
+
+mod spoken_caret;
+
+use spoken_caret::SpokenCaretSight;
 
 /// The binding a dictation starts from is what decides where its transcript goes.
 pub(crate) const CHAT_BINDING_ID: &str = "chat_dictation";
 
 static ROUTES_TO_CHAT: AtomicBool = AtomicBool::new(false);
 static HELD_TRANSCRIPT: Mutex<Option<HeldTranscript>> = Mutex::new(None);
-static SPOKEN_CARET_SIGHT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
+static SPOKEN_CARET_SIGHT: LazyLock<SpokenCaretSight> = LazyLock::new(SpokenCaretSight::new);
 
 /// What the chat composer does with a transcript handed to it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -61,27 +65,10 @@ pub(crate) fn landing_for(destination: Destination, chat_is_open: bool) -> Landi
 
 pub(crate) fn begin(binding_id: &str) {
     ROUTES_TO_CHAT.store(binding_id == CHAT_BINDING_ID, Ordering::Release);
-    crate::caret::coax_frontmost_into_answering();
-    SPOKEN_CARET_SIGHT.store(
-        sight_rank(crate::caret::sight_focused_caret()),
-        Ordering::Release,
-    );
-}
-
-fn sight_rank(sight: CaretSight) -> u8 {
-    match sight {
-        CaretSight::Blind => 0,
-        CaretSight::DeniedByRole => 1,
-        CaretSight::Affirmed => 2,
-    }
-}
-
-fn sight_from_rank(rank: u8) -> CaretSight {
-    match rank {
-        2 => CaretSight::Affirmed,
-        1 => CaretSight::DeniedByRole,
-        _ => CaretSight::Blind,
-    }
+    SPOKEN_CARET_SIGHT.probe(|| {
+        crate::caret::coax_frontmost_into_answering();
+        crate::caret::sight_focused_caret()
+    });
 }
 
 pub(crate) fn routes_to_chat() -> bool {
@@ -114,8 +101,9 @@ pub(crate) fn hand_over_as_question() {
 
 /// The delivery-time focus may be Echo's own surface, so the dictation-start probe counts too.
 fn combined_caret_sight() -> CaretSight {
-    let spoken = sight_from_rank(SPOKEN_CARET_SIGHT.load(Ordering::Acquire));
-    spoken.max(crate::caret::sight_focused_caret())
+    SPOKEN_CARET_SIGHT
+        .sight()
+        .max(crate::caret::sight_focused_caret())
 }
 
 /// These read the pasteboard on Cmd+V without inserting text, faking the paste receipt.

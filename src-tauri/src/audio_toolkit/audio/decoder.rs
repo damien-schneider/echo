@@ -1,16 +1,18 @@
 use anyhow::{Context, Result};
 use hound::WavReader;
 use log::{debug, info, warn};
+use rubato::{FftFixedInOut, Resampler};
 use std::fs::File;
 use std::path::Path;
 use std::process::Command;
 use symphonia::core::{
-    audio::Signal,
+    audio::{AudioBuffer, AudioBufferRef, Signal},
     codecs::{DecoderOptions, CODEC_TYPE_NULL},
     formats::FormatOptions,
     io::MediaSourceStream,
     meta::MetadataOptions,
     probe::Hint,
+    sample::{i24, Sample},
 };
 
 use crate::audio_toolkit::constants::SAMPLE_RATE;
@@ -266,8 +268,6 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
         .sample_rate
         .ok_or_else(|| anyhow::anyhow!("Missing sample rate"))?;
 
-    let channels_count = track.codec_params.channels.map(|c| c.count()).unwrap_or(1);
-
     let mut all_samples: Vec<f32> = Vec::new();
     let mut decode_errors = 0;
     const MAX_CONSECUTIVE_ERRORS: u32 = 50;
@@ -333,45 +333,16 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
         };
 
         match decoded {
-            symphonia::core::audio::AudioBufferRef::F32(buffer) => {
-                for ch in 0..channels_count {
-                    let samples = buffer.chan(ch);
-                    for &sample in samples {
-                        all_samples.push(sample);
-                    }
-                }
+            AudioBufferRef::F32(buffer) => append_mono_frames(&buffer, &mut all_samples, |s| s),
+            AudioBufferRef::S16(buffer) => {
+                append_mono_frames(&buffer, &mut all_samples, |s| s as f32 / i16::MAX as f32)
             }
-            symphonia::core::audio::AudioBufferRef::S16(buffer) => {
-                for ch in 0..channels_count {
-                    let samples = buffer.chan(ch);
-                    for &sample in samples {
-                        all_samples.push((sample as f32) / (i16::MAX as f32));
-                    }
-                }
+            AudioBufferRef::S24(buffer) => append_mono_frames(&buffer, &mut all_samples, s24_level),
+            AudioBufferRef::S32(buffer) => {
+                append_mono_frames(&buffer, &mut all_samples, |s| s as f32 / i32::MAX as f32)
             }
-            symphonia::core::audio::AudioBufferRef::S24(buffer) => {
-                for ch in 0..channels_count {
-                    let samples = buffer.chan(ch);
-                    for sample in samples {
-                        all_samples.push((sample.inner() as f32) / (i32::MAX as f32));
-                    }
-                }
-            }
-            symphonia::core::audio::AudioBufferRef::S32(buffer) => {
-                for ch in 0..channels_count {
-                    let samples = buffer.chan(ch);
-                    for &sample in samples {
-                        all_samples.push((sample as f32) / (i32::MAX as f32));
-                    }
-                }
-            }
-            symphonia::core::audio::AudioBufferRef::U8(buffer) => {
-                for ch in 0..channels_count {
-                    let samples = buffer.chan(ch);
-                    for &sample in samples {
-                        all_samples.push(((sample as f32) - 128.0) / 128.0);
-                    }
-                }
+            AudioBufferRef::U8(buffer) => {
+                append_mono_frames(&buffer, &mut all_samples, |s| (s as f32 - 128.0) / 128.0)
             }
             _ => {
                 return Err(anyhow::anyhow!("Unsupported audio format"));
@@ -390,10 +361,6 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
             "Skipped {} malformed frames while decoding {:?}",
             decode_errors, path
         );
-    }
-
-    if channels_count > 1 {
-        all_samples = stereo_to_mono(all_samples, channels_count);
     }
 
     if sample_rate != TARGET_SAMPLE_RATE {
@@ -416,6 +383,29 @@ fn decode_with_symphonia<P: AsRef<Path>>(file_path: P) -> Result<Vec<f32>> {
     Ok(all_samples)
 }
 
+fn append_mono_frames<S: Sample>(
+    buffer: &AudioBuffer<S>,
+    mono: &mut Vec<f32>,
+    to_f32: impl Fn(S) -> f32,
+) {
+    let channels = buffer.spec().channels.count();
+    let gain = 1.0 / channels as f32;
+    let start = mono.len();
+    mono.resize(start + buffer.frames(), 0.0);
+
+    for channel in 0..channels {
+        for (mixed, &sample) in mono[start..].iter_mut().zip(buffer.chan(channel)) {
+            *mixed += to_f32(sample) * gain;
+        }
+    }
+}
+
+const S24_FULL_SCALE: f32 = 8_388_608.0;
+
+fn s24_level(sample: i24) -> f32 {
+    sample.inner() as f32 / S24_FULL_SCALE
+}
+
 fn stereo_to_mono(samples: Vec<f32>, channels: usize) -> Vec<f32> {
     if channels == 1 {
         return samples;
@@ -427,64 +417,41 @@ fn stereo_to_mono(samples: Vec<f32>, channels: usize) -> Vec<f32> {
         .collect()
 }
 
-/// rubato FftFixedInOut.
+const RESAMPLER_CHUNK_FRAMES: usize = 1024;
+
 fn resample_audio(samples: Vec<f32>, from_rate: u32, to_rate: u32) -> Result<Vec<f32>> {
     if from_rate == to_rate {
         return Ok(samples);
     }
 
-    let ratio = to_rate as f64 / from_rate as f64;
+    let mut resampler = FftFixedInOut::<f32>::new(
+        from_rate as usize,
+        to_rate as usize,
+        RESAMPLER_CHUNK_FRAMES,
+        1,
+    )
+    .context("Failed to create resampler")?;
+    let chunk_frames = resampler.input_frames_next();
+    let delay_frames = resampler.output_delay();
+    let expected_frames =
+        (samples.len() as u64 * u64::from(to_rate) / u64::from(from_rate)) as usize;
+    let mut resampled =
+        Vec::with_capacity(delay_frames + expected_frames + resampler.output_frames_max());
 
-    use rubato::{FftFixedInOut, Resampler};
-
-    let chunk_size = samples.len().min(4096);
-    let expected_output = (samples.len() as f64 * ratio).ceil() as usize;
-
-    let mut resampler =
-        FftFixedInOut::<f64>::new(from_rate as usize, to_rate as usize, chunk_size, 2)?;
-
-    let mut resampled = Vec::with_capacity(expected_output);
-
-    let samples_f64: Vec<f64> = samples.iter().map(|&s| s as f64).collect();
-
-    let mut input_offset = 0;
-    while input_offset < samples_f64.len() {
-        let end = (input_offset + chunk_size).min(samples_f64.len());
-        let chunk = &samples_f64[input_offset..end];
-
-        if chunk.is_empty() {
-            break;
-        }
-
-        let input_buffer = vec![chunk];
-        match resampler.process(&input_buffer, None) {
-            Ok(output) => {
-                for channel_output in output {
-                    for sample in channel_output {
-                        resampled.push(sample as f32);
-                    }
-                }
-            }
-            Err(e) => {
-                debug!("Resampling chunk failed: {}", e);
-                break;
-            }
-        }
-
-        input_offset = end;
+    let mut chunks = samples.chunks_exact(chunk_frames);
+    for chunk in chunks.by_ref() {
+        resample_chunk(&mut resampler, chunk, &mut resampled)?;
     }
 
-    // Flush internal buffer.
-    while let Ok(output) = resampler.process(&[&[]], None) {
-        if output.is_empty() || output[0].is_empty() {
-            break;
-        }
-        for channel_output in output {
-            for sample in channel_output {
-                resampled.push(sample as f32);
-            }
-        }
+    let mut padded_tail = chunks.remainder().to_vec();
+    while resampled.len() < delay_frames + expected_frames {
+        padded_tail.resize(chunk_frames, 0.0);
+        resample_chunk(&mut resampler, &padded_tail, &mut resampled)?;
+        padded_tail.clear();
     }
+
+    resampled.drain(..delay_frames);
+    resampled.truncate(expected_frames);
 
     debug!(
         "Resampled audio: {} samples at {}Hz -> {} samples at {}Hz",
@@ -497,56 +464,19 @@ fn resample_audio(samples: Vec<f32>, from_rate: u32, to_rate: u32) -> Result<Vec
     Ok(resampled)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ffmpeg_bin_has_exe_suffix_only_on_windows() {
-        if cfg!(windows) {
-            assert_eq!(FFMPEG_BIN, "ffmpeg.exe");
-        } else {
-            assert_eq!(FFMPEG_BIN, "ffmpeg");
-        }
-    }
-
-    #[test]
-    fn ffmpeg_common_paths_are_absolute_and_non_empty() {
-        let paths = ffmpeg_common_paths();
-        assert!(!paths.is_empty(), "current platform must list fallbacks");
-        for p in paths {
-            assert!(
-                std::path::Path::new(p).is_absolute(),
-                "fallback path must be absolute: {p}"
-            );
-        }
-    }
-
-    #[test]
-    fn find_ffmpeg_never_panics() {
-        match find_ffmpeg() {
-            Ok(path) => assert!(!path.is_empty()),
-            Err(e) => assert!(e.to_string().contains("FFmpeg not found")),
-        }
-    }
-
-    #[test]
-    fn audio_format_extension_match_is_case_insensitive() {
-        assert!(matches!(
-            AudioFormat::from_path("clip.WAV"),
-            AudioFormat::Wav
-        ));
-        assert!(matches!(
-            AudioFormat::from_path("clip.Mp3"),
-            AudioFormat::Mp3
-        ));
-        assert!(matches!(
-            AudioFormat::from_path("recording.MP4"),
-            AudioFormat::Video
-        ));
-        assert!(matches!(
-            AudioFormat::from_path("notes.txt"),
-            AudioFormat::Unsupported
-        ));
-    }
+fn resample_chunk(
+    resampler: &mut FftFixedInOut<f32>,
+    chunk: &[f32],
+    resampled: &mut Vec<f32>,
+) -> Result<()> {
+    let start = resampled.len();
+    resampled.resize(start + resampler.output_frames_next(), 0.0);
+    resampler
+        .process_into_buffer(&[chunk], &mut [&mut resampled[start..]], None)
+        .context("Failed to resample audio")?;
+    Ok(())
 }
+
+#[cfg(test)]
+#[path = "decoder/tests.rs"]
+mod tests;

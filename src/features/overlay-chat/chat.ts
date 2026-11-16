@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { ChatTextContext } from "@/features/overlay-controls/runtime/overlay-windows";
+import { polishModelName } from "@/features/polish/polish-model-state";
 import type { PromptEntry } from "@/features/prompts/prompt-library-store";
+import type { PolishStatus } from "@/lib/types";
 
 export const CHAT_ANSWER_EVENT = "polish-chat-answer";
 
@@ -100,15 +102,18 @@ export const withPendingTurn = (
     assistantId
   );
 
-/// The reference already shows the selection, so its run turn reaches the model only.
-export const withPromptRun = (
-  messages: ChatMessage[],
-  text: string,
-  assistantId: string
-) =>
+const PROMPT_RUN_REQUEST = "Apply the active prompt to the reference text.";
+
+/// The system prompt already carries the selection, so the run turn only asks for the result.
+export const withPromptRun = (messages: ChatMessage[], assistantId: string) =>
   withTurn(
     messages,
-    { content: text, hidden: true, id: makeMessageId(), role: CHAT_ROLES.user },
+    {
+      content: PROMPT_RUN_REQUEST,
+      hidden: true,
+      id: makeMessageId(),
+      role: CHAT_ROLES.user,
+    },
     assistantId
   );
 
@@ -134,3 +139,42 @@ export const dropEmptyAssistantTurn = (
   id: string
 ): ChatMessage[] =>
   messages.filter((message) => message.id !== id || message.content.length > 0);
+
+/// A turn that failed before any answer leaves no trace, so a retry does not ask twice.
+export const withoutUnansweredTurn = (
+  messages: ChatMessage[],
+  assistantId: string
+): ChatMessage[] => {
+  const answerIndex = messages.findIndex(
+    (message) => message.id === assistantId
+  );
+  const isAnswered = (messages.at(answerIndex)?.content.length ?? 0) > 0;
+  if (answerIndex < 1 || isAnswered) {
+    return messages;
+  }
+  return messages.filter(
+    (_, index) => index !== answerIndex && index !== answerIndex - 1
+  );
+};
+
+const ChatFailureSchema = z.string().min(1).catch("Chat request failed.");
+
+/// Tauri rejects with the backend's message as a plain string.
+export const chatFailureMessage = (caught: unknown) =>
+  ChatFailureSchema.parse(caught instanceof Error ? caught.message : caught);
+
+export const chatModelBlock = (state: PolishStatus["state"]): string | null => {
+  if (state === "ready") {
+    return null;
+  }
+  if (state === "not_downloaded") {
+    return `Download ${polishModelName} before chatting.`;
+  }
+  if (state === "repair") {
+    return `Repair ${polishModelName} before chatting.`;
+  }
+  if (state === "downloading") {
+    return `${polishModelName} is still downloading. Send again when it finishes.`;
+  }
+  return `${polishModelName} is still loading. Send again in a moment.`;
+};

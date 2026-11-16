@@ -46,7 +46,7 @@ use managers::model::ModelManager;
 use managers::transcription::TranscriptionManager;
 use managers::tts::TtsManager;
 use startup::show_main_window;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use tauri::image::Image;
 
@@ -61,15 +61,10 @@ use tauri::tray::TrayIconBuilder;
 use tauri::Emitter;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
-use tauri_plugin_log::{Builder as LogBuilder, LogLevel, RotationStrategy, Target, TargetKind};
+use tauri_plugin_log::{Builder as LogBuilder, RotationStrategy, Target, TargetKind};
 
 #[derive(Default)]
-struct ShortcutToggleStates {
-    active_toggles: HashMap<String, bool>,
-    held_bindings: HashSet<String>,
-}
-
-type ManagedToggleState = Mutex<ShortcutToggleStates>;
+struct HeldShortcuts(Mutex<HashSet<String>>);
 
 static FILE_TRANSCRIPTION_ACTIVE: AtomicBool = AtomicBool::new(false);
 
@@ -526,7 +521,7 @@ pub fn run() {
                 ])
                 .build(),
         )
-        .manage(Mutex::new(ShortcutToggleStates::default()))
+        .manage(HeldShortcuts::default())
         .manage(Mutex::new(startup::StartupState::default()))
         .manage(updates::manager())
         .setup(move |app| {
@@ -536,14 +531,10 @@ pub fn run() {
 
             let settings = settings::get_settings(app.handle());
             logging::set_debug_logging(settings.debug_logging_enabled);
-            let file_log_level: log::LevelFilter = match settings.log_level {
-                LogLevel::Error => log::LevelFilter::Error,
-                LogLevel::Warn => log::LevelFilter::Warn,
-                LogLevel::Info => log::LevelFilter::Info,
-                LogLevel::Debug => log::LevelFilter::Debug,
-                LogLevel::Trace => log::LevelFilter::Trace,
-            };
-            FILE_LOG_LEVEL.store(file_log_level as u8, Ordering::Relaxed);
+            FILE_LOG_LEVEL.store(
+                commands::file_log_filter(settings.log_level.clone()) as u8,
+                Ordering::Relaxed,
+            );
             let app_handle = app.handle().clone();
 
             startup::set_start_hidden(&app_handle, settings.start_hidden);

@@ -14,7 +14,7 @@ use crate::overlay::{show_processing_overlay, show_tool_overlay, show_warning_ov
 use crate::settings;
 
 use super::chat_context::{
-    chat_text_context, ChatContextCapture, ChatContextSource, ShownChatContext,
+    chat_request_turns, chat_text_context, ChatContextCapture, ChatContextSource, ShownChatContext,
 };
 use super::platform::{
     read_selected_text, settled_selection, DirectSelection, PlatformClipboard, PlatformFocus,
@@ -189,9 +189,7 @@ impl PolishManager {
         system: &str,
         messages: &[BundledChatMessage],
     ) -> Result<String> {
-        if system.trim().is_empty() || messages.is_empty() {
-            anyhow::bail!("Chat request is empty");
-        }
+        let messages = chat_request_turns(system, messages)?;
         self.prepare()
             .await
             .context("Failed to prepare the local model for chat")?;
@@ -503,7 +501,7 @@ pub(crate) async fn chat_with_polish_model(
     manager
         .chat(&stream_id, &system, &messages)
         .await
-        .map_err(|error| error.to_string())
+        .map_err(|error| format!("{error:#}"))
 }
 
 #[tauri::command]

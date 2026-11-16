@@ -1,6 +1,9 @@
+use anyhow::Context;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::fs::OpenOptions;
+use std::io::{ErrorKind, Write};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
@@ -44,55 +47,66 @@ pub fn execute_change_sound_theme(app: AppHandle) -> ToolResult {
 
 #[tauri::command]
 pub fn execute_create_note(app: AppHandle, title: String, content: String) -> ToolResult {
-    let sanitized_title: String = title
+    let title: String = title
         .chars()
         .filter(|c| *c != '/' && *c != '\\' && *c != '\0')
         .take(100)
         .collect();
-
-    if sanitized_title.is_empty() {
+    if title.is_empty() {
         return ToolResult {
             display_message: "Note title cannot be empty".to_string(),
             success: false,
         };
     }
-
-    let notes_dir: PathBuf = match app.path().app_data_dir() {
-        Ok(dir) => dir.join("notes"),
-        Err(e) => {
-            error!("[Tools] Failed to get app data dir: {}", e);
-            return ToolResult {
-                display_message: format!("Failed to get app data directory: {}", e),
-                success: false,
-            };
-        }
-    };
-
-    if let Err(e) = std::fs::create_dir_all(&notes_dir) {
-        error!("[Tools] Failed to create notes dir: {}", e);
-        return ToolResult {
-            display_message: format!("Failed to create notes directory: {}", e),
-            success: false,
-        };
-    }
-
-    let file_path = notes_dir.join(format!("{}.txt", sanitized_title));
-    match std::fs::write(&file_path, &content) {
-        Ok(()) => {
-            info!("[Tools] Note created at {:?}", file_path);
+    match save_note(&app, &title, &content) {
+        Ok(path) => {
+            info!("[Tools] Note created at {:?}", path);
             ToolResult {
-                display_message: format!("Note '{}' created", sanitized_title),
+                display_message: format!("Note '{}' created", title),
                 success: true,
             }
         }
-        Err(e) => {
-            error!("[Tools] Failed to write note: {}", e);
+        Err(error) => {
+            error!("[Tools] Failed to create note: {error:#}");
             ToolResult {
-                display_message: format!("Failed to create note: {}", e),
+                display_message: format!("Failed to create note: {error:#}"),
                 success: false,
             }
         }
     }
+}
+
+fn save_note(app: &AppHandle, title: &str, content: &str) -> anyhow::Result<PathBuf> {
+    let notes_dir = app
+        .path()
+        .app_data_dir()
+        .context("no app data directory")?
+        .join("notes");
+    std::fs::create_dir_all(&notes_dir).context("notes directory not created")?;
+    write_new_note(&notes_dir, title, content)
+}
+
+const SAME_TITLE_LIMIT: u32 = 1000;
+
+/// A note already saved under this title holds someone's words: the new one takes a numbered name.
+fn write_new_note(notes_dir: &Path, title: &str, content: &str) -> anyhow::Result<PathBuf> {
+    for copy in 1..=SAME_TITLE_LIMIT {
+        let name = if copy == 1 {
+            format!("{title}.txt")
+        } else {
+            format!("{title} {copy}.txt")
+        };
+        let path = notes_dir.join(name);
+        match OpenOptions::new().write(true).create_new(true).open(&path) {
+            Ok(mut note) => {
+                note.write_all(content.as_bytes())?;
+                return Ok(path);
+            }
+            Err(error) if error.kind() == ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    anyhow::bail!("too many notes are already named '{title}'")
 }
 
 #[tauri::command]
@@ -316,4 +330,21 @@ pub async fn finalize_transcription(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod note_tests {
+    use super::write_new_note;
+
+    #[test]
+    fn a_second_note_with_the_same_title_keeps_the_first() -> anyhow::Result<()> {
+        let notes_dir = tempfile::tempdir()?;
+
+        let first = write_new_note(notes_dir.path(), "Groceries", "milk")?;
+        let second = write_new_note(notes_dir.path(), "Groceries", "bread")?;
+
+        assert_eq!(std::fs::read_to_string(&first)?, "milk");
+        assert_eq!(std::fs::read_to_string(&second)?, "bread");
+        Ok(())
+    }
 }

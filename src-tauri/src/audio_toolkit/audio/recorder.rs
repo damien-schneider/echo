@@ -10,7 +10,7 @@ use cpal::{
 };
 
 use crate::audio_toolkit::{
-    audio::{AudioVisualiser, FrameResampler},
+    audio::{is_digital_silence, AudioVisualiser, FrameResampler},
     constants,
     vad::{self, VadFrame},
     VoiceActivityDetector,
@@ -166,9 +166,10 @@ impl AudioRecorder {
         chunk_tx: Option<mpsc::Sender<CapturedAudioFrame>>,
         retain: bool,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(tx) = &self.cmd_tx {
-            tx.send(Cmd::Start { chunk_tx, retain })?;
-        }
+        let Some(tx) = &self.cmd_tx else {
+            return Err("no open audio stream to record from".into());
+        };
+        tx.send(Cmd::Start { chunk_tx, retain })?;
         Ok(())
     }
 
@@ -329,10 +330,6 @@ fn start_input_stream(
 const LONG_PAUSE_MIN_SAMPLES: usize = constants::SAMPLE_RATE / 2;
 pub(crate) const PAUSE_SEPARATOR_SAMPLES: usize = constants::SAMPLE_RATE * 3 / 10;
 
-/// Below this a sample is not quiet but absent — the pipe delivers digital zeros when macOS denies
-/// the microphone or the device is muted at the source.
-const DIGITAL_SILENCE_AMPLITUDE: f32 = 1e-4;
-
 /// Flags a recording that never heard anything: real microphones idle above the noise floor, so only
 /// a blocked or muted input stays digitally silent from the first sample on.
 struct SilenceWatchdog {
@@ -354,10 +351,7 @@ impl SilenceWatchdog {
         if self.reported {
             return false;
         }
-        if samples
-            .iter()
-            .any(|sample| sample.abs() >= DIGITAL_SILENCE_AMPLITUDE)
-        {
+        if !is_digital_silence(samples) {
             self.silent_samples = 0;
             return false;
         }

@@ -1,7 +1,8 @@
-import type {
-  OverlayDownloadProgress,
-  OverlayRemedy,
-  OverlayState,
+import {
+  isActiveOverlayState,
+  type OverlayDownloadProgress,
+  type OverlayRemedy,
+  type OverlayState,
 } from "@/features/overlay-controls/recording-overlay-state";
 
 export interface OverlayActivity {
@@ -16,6 +17,7 @@ export interface OverlayActivity {
 }
 
 export type OverlayActivityEvent =
+  | { modelId: string; type: "download_failed" }
   | { modelId: string; type: "download_finished" }
   | { download: OverlayDownloadProgress; type: "download_progress" }
   | {
@@ -55,6 +57,9 @@ const shown = (
   warningMessage: event.message,
 });
 
+const DOWNLOAD_FAILURE_MESSAGE =
+  "Model download failed — check your connection and retry";
+
 const downloadProgress = (
   state: OverlayActivity,
   incoming: OverlayDownloadProgress
@@ -67,16 +72,19 @@ const downloadProgress = (
   if (holdsAnotherDownload) {
     return state;
   }
-  // the download the island offered: its progress takes over from the block that asked for it
-  return state.remedy === null
-    ? { ...state, download: incoming }
-    : {
+  // an offered or retried download: its progress takes over from the notice that asked for it
+  const asksForDownload =
+    state.remedy !== null ||
+    (state.isVisible && state.warningMessage === DOWNLOAD_FAILURE_MESSAGE);
+  return asksForDownload
+    ? {
         ...state,
         download: incoming,
         isVisible: false,
         remedy: null,
         warningMessage: "",
-      };
+      }
+    : { ...state, download: incoming };
 };
 
 const downloadFinished = (
@@ -88,6 +96,26 @@ const downloadFinished = (
     state.dismissedDownloadId === modelId ? null : state.dismissedDownloadId,
   download: state.download?.model_id === modelId ? null : state.download,
 });
+
+// a notice over a live operation would take its controls off the island
+const downloadFailed = (
+  state: OverlayActivity,
+  modelId: string
+): OverlayActivity => {
+  const settled = downloadFinished(state, modelId);
+  const isBehindLiveOperation =
+    state.isVisible && isActiveOverlayState(state.state);
+  if (state.download?.model_id !== modelId || isBehindLiveOperation) {
+    return settled;
+  }
+  return {
+    ...settled,
+    isVisible: true,
+    remedy: null,
+    state: "warning",
+    warningMessage: DOWNLOAD_FAILURE_MESSAGE,
+  };
+};
 
 // per-download — the same model must not reappear on its next progress tick
 const dismissed = (state: OverlayActivity): OverlayActivity => ({
@@ -115,6 +143,8 @@ export const reduceOverlayActivity = (
       return downloadProgress(state, event.download);
     case "download_finished":
       return downloadFinished(state, event.modelId);
+    case "download_failed":
+      return downloadFailed(state, event.modelId);
     case "failed":
       return { ...state, error: event.message };
     default:

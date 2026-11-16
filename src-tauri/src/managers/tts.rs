@@ -64,7 +64,7 @@ impl TtsManager {
         info!(
             "Detected language: {} for text: {}...",
             lang_code,
-            &text[..text.len().min(50)]
+            log_preview(text)
         );
         Some(lang_code.to_string())
     }
@@ -119,5 +119,33 @@ impl TtsManager {
         let tts = guard.as_mut().context("TTS not initialized")?;
         tts.speak(text, false).context("Failed to speak text")?;
         Ok(())
+    }
+}
+
+/// Cut on a character: byte 50 can fall inside one, and slicing there panics.
+fn log_preview(text: &str) -> &str {
+    let end = text
+        .char_indices()
+        .nth(50)
+        .map_or(text.len(), |(index, _)| index);
+    &text[..end]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::log_preview;
+
+    #[test]
+    fn a_reply_in_a_multibyte_script_is_previewed_without_splitting_a_character() {
+        let reply = "日".repeat(40);
+
+        assert_eq!(log_preview(&reply), reply);
+    }
+
+    #[test]
+    fn a_long_reply_is_previewed_by_its_first_fifty_characters() {
+        let reply = "é".repeat(80);
+
+        assert_eq!(log_preview(&reply), "é".repeat(50));
     }
 }

@@ -288,4 +288,90 @@ mod tests {
 
         assert!(loaded.voice_commands);
     }
+
+    fn a_customised_store() -> serde_json::Value {
+        let mut settings = get_default_settings();
+        if let Some(binding) = settings.bindings.get_mut("transcribe") {
+            binding.current_binding = "ctrl+shift+d".to_string();
+        }
+        settings.prompts.push(Prompt {
+            id: "standup".to_string(),
+            name: "Standup".to_string(),
+            instruction: "Summarise as a standup update.".to_string(),
+        });
+        settings.cleanup_dictionary.push(DictionaryEntrySetting {
+            canonical: "Echo".to_string(),
+            variants: vec!["eko".to_string()],
+        });
+        settings.selected_microphone = Some("USB Microphone".to_string());
+        serde_json::to_value(settings).unwrap()
+    }
+
+    fn assert_customisations_survive(settings: &AppSettings) {
+        assert_eq!(
+            settings.bindings["transcribe"].current_binding,
+            "ctrl+shift+d"
+        );
+        assert!(settings.prompts.iter().any(|prompt| prompt.id == "standup"));
+        assert!(settings
+            .cleanup_dictionary
+            .iter()
+            .any(|entry| entry.canonical == "Echo"));
+        assert_eq!(
+            settings.selected_microphone.as_deref(),
+            Some("USB Microphone")
+        );
+    }
+
+    #[test]
+    fn upgrading_with_the_removed_pop_theme_keeps_every_other_setting() {
+        let mut raw = a_customised_store();
+        raw["sound_theme"] = serde_json::json!("pop");
+
+        let load = load_settings(Some(raw));
+
+        assert_eq!(load.settings.sound_theme, SoundTheme::Marimba);
+        assert_customisations_survive(&load.settings);
+        let written: Vec<&str> = load.store_writes.iter().map(|(key, _)| *key).collect();
+        assert_eq!(written, [SETTINGS_KEY]);
+    }
+
+    #[test]
+    fn one_unreadable_field_falls_back_alone_and_the_stored_value_is_backed_up() {
+        let mut raw = a_customised_store();
+        raw["overlay_position"] = serde_json::json!("floating");
+
+        let load = load_settings(Some(raw.clone()));
+
+        assert_eq!(load.settings.overlay_position, OverlayPosition::Edge);
+        assert_customisations_survive(&load.settings);
+        assert_eq!(load.store_writes.len(), 2);
+        assert_eq!(load.store_writes[0], (UNREADABLE_SETTINGS_BACKUP_KEY, raw));
+        let (key, rewritten) = &load.store_writes[1];
+        assert_eq!(*key, SETTINGS_KEY);
+        assert_eq!(rewritten["selected_microphone"], "USB Microphone");
+    }
+
+    #[test]
+    fn a_store_missing_its_shortcuts_gets_the_defaults_and_keeps_the_rest() {
+        let mut raw = a_customised_store();
+        raw.as_object_mut().unwrap().remove("bindings");
+
+        let load = load_settings(Some(raw));
+
+        assert!(load.settings.bindings.contains_key("transcribe"));
+        assert_eq!(
+            load.settings.selected_microphone.as_deref(),
+            Some("USB Microphone")
+        );
+        assert!(load.settings.prompts.iter().any(|prompt| prompt.id == "standup"));
+    }
+
+    #[test]
+    fn a_readable_store_is_read_without_being_rewritten() {
+        let load = load_settings(Some(a_customised_store()));
+
+        assert_customisations_survive(&load.settings);
+        assert!(load.store_writes.is_empty());
+    }
 }

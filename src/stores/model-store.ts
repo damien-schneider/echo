@@ -24,9 +24,9 @@ type ModelStatus =
   | "none";
 
 const ModelStateEventSchema = z.object({
-  error: z.string().optional(),
+  error: z.string().nullish(),
   event_type: z.string(),
-  model_id: z.string().optional(),
+  model_id: z.string().nullish(),
 });
 
 const isTranscriptionModelId = (modelId: string) =>
@@ -49,6 +49,18 @@ interface ModelStore {
 const loadProfilePayload = async () => {
   const payload = await invoke<unknown>("get_transcription_profiles");
   return TranscriptionProfileStatusSchema.array().parse(payload);
+};
+
+const withoutDownload = (
+  state: Pick<ModelStore, "downloadProgress" | "downloadStats">,
+  modelId: string
+) => {
+  const cleared = clearDownloadFailure({
+    modelId,
+    progress: state.downloadProgress,
+    stats: state.downloadStats,
+  });
+  return { downloadProgress: cleared.progress, downloadStats: cleared.stats };
 };
 
 export const useModelStore = create<ModelStore>((set, get) => ({
@@ -103,21 +115,16 @@ export const useModelStore = create<ModelStore>((set, get) => ({
     try {
       await invoke("select_transcription_model_size", { size });
       await get().loadProfiles();
-      set({ modelStatus: "ready" });
+      set((state) => ({
+        ...withoutDownload(state, size),
+        modelStatus: "ready",
+      }));
     } catch (error) {
-      set((state) => {
-        const cleared = clearDownloadFailure({
-          modelId: size,
-          progress: state.downloadProgress,
-          stats: state.downloadStats,
-        });
-        return {
-          downloadProgress: cleared.progress,
-          downloadStats: cleared.stats,
-          error: `${error}`,
-          modelStatus: "error",
-        };
-      });
+      set((state) => ({
+        ...withoutDownload(state, size),
+        error: `${error}`,
+        modelStatus: "error",
+      }));
       throw error;
     }
   },
@@ -215,13 +222,13 @@ export const useModelStore = create<ModelStore>((set, get) => ({
         if (!isTranscriptionModelId(event.payload)) {
           return;
         }
-        set((state) => {
-          const downloadProgress = new Map(state.downloadProgress);
-          downloadProgress.delete(event.payload);
-          const downloadStats = new Map(state.downloadStats);
-          downloadStats.delete(event.payload);
-          return { downloadProgress, downloadStats };
-        });
+        set((state) => ({
+          ...withoutDownload(state, event.payload),
+          modelStatus:
+            state.modelStatus === "downloading"
+              ? "unloaded"
+              : state.modelStatus,
+        }));
         await get().loadProfiles();
       })
     );
@@ -232,20 +239,11 @@ export const useModelStore = create<ModelStore>((set, get) => ({
         if (!(parsed.success && isTranscriptionModelId(parsed.data))) {
           return;
         }
-        set((state) => {
-          const cleared = clearDownloadFailure({
-            modelId: parsed.data,
-            progress: state.downloadProgress,
-            stats: state.downloadStats,
-          });
-          return {
-            downloadProgress: cleared.progress,
-            downloadStats: cleared.stats,
-            error:
-              "The model download failed. Check your connection and retry.",
-            modelStatus: "error",
-          };
-        });
+        set((state) => ({
+          ...withoutDownload(state, parsed.data),
+          error: "The model download failed. Check your connection and retry.",
+          modelStatus: "error",
+        }));
       })
     );
 

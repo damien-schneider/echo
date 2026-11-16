@@ -82,6 +82,14 @@ impl MeetingManager {
         Ok(capture_epoch)
     }
 
+    fn warn_system_audio_missing(&self) {
+        emit_audio_warning(
+            &self.app_handle,
+            AudioSource::System,
+            AudioWarningReason::Device,
+        );
+    }
+
     /// A machine that cannot share its output still records the microphone.
     pub(super) fn start_system_capture(&self, capture: SystemCapture) -> Result<()> {
         let SystemCapture {
@@ -93,6 +101,7 @@ impl MeetingManager {
             Ok(capture) => capture,
             Err(e) => {
                 warn!("Failed to construct system audio capture: {e:#}");
+                self.warn_system_audio_missing();
                 return Ok(());
             }
         };
@@ -100,6 +109,7 @@ impl MeetingManager {
             Ok(chunks) => chunks,
             Err(e) => {
                 warn!("Failed to start system audio capture: {e:#}");
+                self.warn_system_audio_missing();
                 return Ok(());
             }
         };

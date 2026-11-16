@@ -13,18 +13,19 @@ import {
   useSettingsStore,
 } from "@/stores/settings-store";
 
+// Values are tauri-plugin-log's LogLevel numbers, the ones Rust stores and reads back.
 const LOG_LEVEL_OPTIONS = [
-  { label: "Error", value: "1" },
-  { label: "Warn", value: "2" },
+  { label: "Error", value: "5" },
+  { label: "Warn", value: "4" },
   { label: "Info", value: "3" },
-  { label: "Debug", value: "4" },
-  { label: "Trace", value: "5" },
+  { label: "Debug", value: "2" },
+  { label: "Trace", value: "1" },
 ];
 export const LogLevelSelector: React.FC = () => {
   const logLevel = useSetting("log_level");
   const isLevelUpdating = useIsSettingUpdating("log_level");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
-  const currentLevel = logLevel ?? 2;
+  const currentLevel = logLevel ?? 3;
   const selectedValue = currentLevel.toString();
   const handleSelect = async (value: string) => {
     const parsed = Number.parseInt(value, 10);

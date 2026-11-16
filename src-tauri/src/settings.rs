@@ -1,12 +1,10 @@
-#[cfg(debug_assertions)]
-use log::debug;
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use tauri::AppHandle;
 use tauri_plugin_log::LogLevel;
-use tauri_plugin_store::StoreExt;
+use tauri_plugin_store::{Store, StoreExt};
 
 /// Serialises read-modify-write against concurrent command clobbers.
 static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
@@ -20,6 +18,9 @@ use settings_defaults::*;
 #[path = "settings_prompts.rs"]
 mod settings_prompts;
 pub use settings_prompts::*;
+#[path = "settings_load.rs"]
+mod settings_load;
+use settings_load::*;
 pub fn get_default_settings() -> AppSettings {
     let default_shortcut = get_default_shortcut();
 
@@ -216,92 +217,46 @@ fn apply_settings_migrations_from_raw(
     updated
 }
 
-fn retire_removed_sound_themes(raw: &mut serde_json::Value) -> bool {
-    match raw.get_mut("sound_theme") {
-        Some(theme) if theme == "pop" => {
-            *theme = serde_json::json!("marimba");
-            true
-        }
-        _ => false,
+fn settings_store(app: &AppHandle) -> Arc<Store<tauri::Wry>> {
+    app.store(SETTINGS_STORE_PATH)
+        .expect("Failed to initialize store")
+}
+
+fn settings_guard() -> MutexGuard<'static, ()> {
+    SETTINGS_LOCK.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// None when the stored value needs a write first: first run, migration or recovery.
+fn current_settings(app: &AppHandle) -> Option<AppSettings> {
+    match settings_store(app)
+        .get(SETTINGS_KEY)
+        .map(load_stored_settings)
+    {
+        Some(Ok((settings, false))) => Some(settings),
+        _ => None,
     }
 }
 
-fn load_stored_settings(mut raw: serde_json::Value) -> serde_json::Result<(AppSettings, bool)> {
-    let retired_theme = retire_removed_sound_themes(&mut raw);
-    let mut settings = AppSettings::deserialize(&raw)?;
-    let updated = apply_settings_migrations_from_raw(&mut settings, Some(&raw));
-    Ok((settings, retired_theme || updated))
-}
-
-pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
-    let store = app
-        .store(SETTINGS_STORE_PATH)
-        .expect("Failed to initialize store");
-
-    let settings = if let Some(settings_value) = store.get("settings") {
-        match load_stored_settings(settings_value) {
-            Ok((settings, updated)) => {
-                #[cfg(debug_assertions)]
-                debug!("Found existing settings: {:?}", settings);
-                if updated {
-                    if let Some(value) = serialize_settings(&settings) {
-                        store.set("settings", value);
-                    }
-                }
-                settings
-            }
-            Err(e) => {
-                warn!("Failed to parse settings: {}", e);
-                let default_settings = get_default_settings();
-                if let Some(value) = serialize_settings(&default_settings) {
-                    store.set("settings", value);
-                }
-                default_settings
-            }
-        }
-    } else {
-        let default_settings = get_default_settings();
-        if let Some(value) = serialize_settings(&default_settings) {
-            store.set("settings", value);
-        }
-        default_settings
-    };
-
-    settings
+/// Caller holds SETTINGS_LOCK.
+fn load_and_persist_settings(app: &AppHandle) -> AppSettings {
+    let store = settings_store(app);
+    let load = load_settings(store.get(SETTINGS_KEY));
+    for (key, value) in load.store_writes {
+        store.set(key, value);
+    }
+    load.settings
 }
 
 pub fn get_settings(app: &AppHandle) -> AppSettings {
-    let store = app
-        .store(SETTINGS_STORE_PATH)
-        .expect("Failed to initialize store");
-
-    if let Some(settings_value) = store.get("settings") {
-        match serde_json::from_value::<AppSettings>(settings_value.clone()) {
-            Ok(settings) => settings,
-            Err(_) => {
-                let default_settings = get_default_settings();
-                if let Some(value) = serialize_settings(&default_settings) {
-                    store.set("settings", value);
-                }
-                default_settings
-            }
-        }
-    } else {
-        let default_settings = get_default_settings();
-        if let Some(value) = serialize_settings(&default_settings) {
-            store.set("settings", value);
-        }
-        default_settings
-    }
+    current_settings(app).unwrap_or_else(|| {
+        let _guard = settings_guard();
+        load_and_persist_settings(app)
+    })
 }
 
-pub fn write_settings(app: &AppHandle, settings: AppSettings) {
-    let store = app
-        .store(SETTINGS_STORE_PATH)
-        .expect("Failed to initialize store");
-
+fn write_settings(app: &AppHandle, settings: AppSettings) {
     if let Some(value) = serialize_settings(&settings) {
-        store.set("settings", value);
+        settings_store(app).set(SETTINGS_KEY, value);
     }
 }
 
@@ -320,8 +275,8 @@ pub fn update_settings<F>(app: &AppHandle, f: F)
 where
     F: FnOnce(&mut AppSettings),
 {
-    let _guard = SETTINGS_LOCK.lock().expect("settings lock poisoned");
-    let mut settings = get_settings(app);
+    let _guard = settings_guard();
+    let mut settings = current_settings(app).unwrap_or_else(|| load_and_persist_settings(app));
     f(&mut settings);
     write_settings(app, settings);
 }
@@ -331,8 +286,8 @@ pub fn try_update_settings<F>(app: &AppHandle, f: F) -> Result<(), String>
 where
     F: FnOnce(&mut AppSettings) -> Result<(), String>,
 {
-    let _guard = SETTINGS_LOCK.lock().expect("settings lock poisoned");
-    let mut settings = get_settings(app);
+    let _guard = settings_guard();
+    let mut settings = current_settings(app).unwrap_or_else(|| load_and_persist_settings(app));
     f(&mut settings)?;
     write_settings(app, settings);
     Ok(())

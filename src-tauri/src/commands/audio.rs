@@ -38,19 +38,20 @@ pub struct AudioDevice {
 
 #[tauri::command]
 pub fn update_microphone_mode(app: AppHandle, always_on: bool) -> Result<(), String> {
-    settings::update_settings(&app, |s| {
-        s.always_on_microphone = always_on;
-    });
-
-    let rm = app.state::<Arc<AudioRecordingManager>>();
     let new_mode = if always_on {
         MicrophoneMode::AlwaysOn
     } else {
         MicrophoneMode::OnDemand
     };
 
-    rm.update_mode(new_mode)
-        .map_err(|e| format!("Failed to update microphone mode: {}", e))
+    app.state::<Arc<AudioRecordingManager>>()
+        .update_mode(new_mode)
+        .map_err(|e| format!("Failed to update microphone mode: {}", e))?;
+
+    settings::update_settings(&app, |s| {
+        s.always_on_microphone = always_on;
+    });
+    Ok(())
 }
 
 #[tauri::command]
@@ -79,39 +80,42 @@ pub fn get_available_microphones() -> Result<Vec<AudioDevice>, String> {
     Ok(result)
 }
 
-#[tauri::command]
-pub fn set_selected_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
-    settings::update_settings(&app, |s| {
-        s.selected_microphone = if device_name == "default" {
-            None
-        } else {
-            Some(device_name.clone())
-        };
+fn selected_microphone(stored: &mut settings::AppSettings) -> &mut Option<String> {
+    &mut stored.selected_microphone
+}
+
+fn clamshell_microphone(stored: &mut settings::AppSettings) -> &mut Option<String> {
+    &mut stored.clamshell_microphone
+}
+
+/// The recorder reads the device back from settings, so the choice is stored first and restored if it cannot apply.
+fn switch_microphone(
+    app: &AppHandle,
+    slot: fn(&mut settings::AppSettings) -> &mut Option<String>,
+    device_name: String,
+) -> Result<(), String> {
+    let chosen = (device_name != "default").then_some(device_name);
+    let mut previous = None;
+    settings::update_settings(app, |stored| {
+        previous = std::mem::replace(slot(stored), chosen);
     });
 
-    let rm = app.state::<Arc<AudioRecordingManager>>();
-    rm.update_selected_device()
-        .map_err(|e| format!("Failed to update selected device: {}", e))?;
+    app.state::<Arc<AudioRecordingManager>>()
+        .update_selected_device()
+        .map_err(|error| {
+            settings::update_settings(app, |stored| *slot(stored) = previous);
+            format!("Failed to switch microphone: {error}")
+        })
+}
 
-    Ok(())
+#[tauri::command]
+pub fn set_selected_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
+    switch_microphone(&app, selected_microphone, device_name)
 }
 
 #[tauri::command]
 pub fn set_clamshell_microphone(app: AppHandle, device_name: String) -> Result<(), String> {
-    settings::update_settings(&app, |s| {
-        s.clamshell_microphone = if device_name == "default" {
-            None
-        } else {
-            Some(device_name.clone())
-        };
-    });
-
-    // restart so the recorder picks up the new device
-    let rm = app.state::<Arc<AudioRecordingManager>>();
-    rm.update_selected_device()
-        .map_err(|e| format!("Failed to update clamshell device: {}", e))?;
-
-    Ok(())
+    switch_microphone(&app, clamshell_microphone, device_name)
 }
 
 #[tauri::command]

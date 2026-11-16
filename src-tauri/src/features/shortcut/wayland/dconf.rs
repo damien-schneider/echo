@@ -27,7 +27,7 @@ pub(super) fn update_shortcuts(app: &AppHandle) -> Result<(), String> {
 }
 
 fn active_bindings(app: &AppHandle) -> Vec<ShortcutBinding> {
-    settings::load_or_create_app_settings(app)
+    settings::get_settings(app)
         .bindings
         .into_values()
         .filter(|binding| ACTION_MAP.contains_key(&binding.id))

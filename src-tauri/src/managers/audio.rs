@@ -140,6 +140,25 @@ fn recording_binding_id(state: &RecordingState) -> Option<&str> {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum CapturePhase {
+    Idle,
+    Opening,
+    Capturing,
+    Closing,
+}
+
+fn capture_phase(state: &RecordingState) -> CapturePhase {
+    match state {
+        RecordingState::Idle => CapturePhase::Idle,
+        RecordingState::Starting { .. } => CapturePhase::Opening,
+        RecordingState::Recording { .. } => CapturePhase::Capturing,
+        RecordingState::Stopping { .. } | RecordingState::Finalizing { .. } => {
+            CapturePhase::Closing
+        }
+    }
+}
+
 fn reserve_recording_start(
     state: &mut RecordingState,
     binding_id: &str,
@@ -371,7 +390,11 @@ impl AudioRecordingManager {
         };
 
         if matches!(mode, MicrophoneMode::AlwaysOn) {
-            manager.start_microphone_stream()?;
+            if let Err(error) = manager.start_microphone_stream() {
+                log::error!(
+                    "Always-on microphone did not open at launch; the next dictation retries: {error}"
+                );
+            }
         } else {
             // preload VAD off-thread — first record would otherwise freeze
             let manager_clone = manager.clone();
@@ -387,6 +410,10 @@ impl AudioRecordingManager {
 
     pub fn active_binding_id(&self) -> Option<String> {
         recording_binding_id(&lock(&self.state)).map(str::to_owned)
+    }
+
+    pub(crate) fn capture_phase(&self) -> CapturePhase {
+        capture_phase(&lock(&self.state))
     }
 
     pub(crate) fn reserve_start(
@@ -571,12 +598,10 @@ impl AudioRecordingManager {
         attempt: RecordingAttempt,
     ) -> bool {
         let on_demand = self.is_on_demand();
-        if on_demand {
-            if let Err(error) = self.start_microphone_stream() {
-                self.release_reserved_start(binding_id, attempt);
-                log::error!("Failed to open microphone stream: {error}");
-                return false;
-            }
+        if let Err(error) = self.start_microphone_stream() {
+            self.release_reserved_start(binding_id, attempt);
+            log::error!("Failed to open microphone stream: {error}");
+            return false;
         }
 
         let mut start = ReservedRecordingStart {
@@ -669,7 +694,11 @@ impl AudioRecordingManager {
         }
     }
 
+    /// A swap mid-dictation would drop what was said so far, so it is refused until the dictation ends.
     pub fn update_selected_device(&self) -> Result<(), anyhow::Error> {
+        if !matches!(*lock(&self.state), RecordingState::Idle) {
+            anyhow::bail!("Finish the current dictation before changing the microphone");
+        }
         self.selected_device_cache.invalidate();
         if *lock(&self.is_open) {
             self.stop_microphone_stream();
@@ -812,131 +841,5 @@ mod pad_tests {
 }
 
 #[cfg(test)]
-mod recording_state_tests {
-    use super::{
-        begin_recording_teardown, claim_recording_cancel, claim_recording_stop,
-        is_reserved_recording, recording_binding_id, reserve_recording_start, RecordingAttempt,
-        RecordingState, RecordingStop,
-    };
-
-    #[test]
-    fn active_binding_is_available_to_visible_recording_controls() {
-        let active = RecordingState::Recording {
-            attempt: RecordingAttempt(1),
-            binding_id: "transcribe".to_string(),
-        };
-
-        assert_eq!(recording_binding_id(&active), Some("transcribe"));
-        assert_eq!(recording_binding_id(&RecordingState::Idle), None);
-    }
-
-    #[test]
-    fn pending_start_is_available_to_stop_controls() {
-        let pending = RecordingState::Starting {
-            attempt: RecordingAttempt(1),
-            binding_id: "overlay_control".to_string(),
-        };
-
-        assert_eq!(recording_binding_id(&pending), Some("overlay_control"));
-    }
-
-    #[test]
-    fn recording_start_is_reserved_before_microphone_startup() {
-        let mut state = RecordingState::Idle;
-        let attempt = RecordingAttempt(1);
-
-        assert!(reserve_recording_start(
-            &mut state,
-            "overlay_control",
-            attempt
-        ));
-        assert_eq!(recording_binding_id(&state), Some("overlay_control"));
-        assert!(!reserve_recording_start(
-            &mut state,
-            "overlay_control",
-            RecordingAttempt(2)
-        ));
-    }
-
-    #[test]
-    fn stale_start_cannot_consume_a_new_reservation_with_the_same_binding() {
-        let first = RecordingAttempt(1);
-        let second = RecordingAttempt(2);
-        let mut state = RecordingState::Idle;
-
-        assert!(reserve_recording_start(
-            &mut state,
-            "overlay_control",
-            first
-        ));
-        state = RecordingState::Idle;
-        assert!(reserve_recording_start(
-            &mut state,
-            "overlay_control",
-            second
-        ));
-
-        assert!(!is_reserved_recording(&state, "overlay_control", first));
-        assert!(is_reserved_recording(&state, "overlay_control", second));
-    }
-
-    #[test]
-    fn stop_claim_blocks_pending_restart_until_cleanup() {
-        let attempt = RecordingAttempt(1);
-        let mut state = RecordingState::Starting {
-            attempt,
-            binding_id: "overlay_control".to_string(),
-        };
-
-        let stop = claim_recording_stop(&mut state, "overlay_control");
-
-        assert_eq!(stop, Some(RecordingStop::Pending { attempt }));
-        assert!(begin_recording_teardown(
-            &mut state,
-            "overlay_control",
-            attempt
-        ));
-    }
-
-    #[test]
-    fn stop_claim_blocks_restart_until_exact_attempt_owns_teardown() {
-        let attempt = RecordingAttempt(2);
-        let mut state = RecordingState::Recording {
-            attempt,
-            binding_id: "overlay_control".to_string(),
-        };
-
-        let stop = claim_recording_stop(&mut state, "overlay_control");
-
-        assert_eq!(stop, Some(RecordingStop::Active { attempt }));
-        assert!(begin_recording_teardown(
-            &mut state,
-            "overlay_control",
-            attempt
-        ));
-        assert!(!begin_recording_teardown(
-            &mut state,
-            "overlay_control",
-            RecordingAttempt(1)
-        ));
-    }
-
-    #[test]
-    fn cancellation_has_one_exact_teardown_owner() {
-        let attempt = RecordingAttempt(3);
-        let mut state = RecordingState::Recording {
-            attempt,
-            binding_id: "overlay_control".to_string(),
-        };
-
-        assert_eq!(claim_recording_cancel(&mut state), Some(attempt));
-        assert_eq!(claim_recording_cancel(&mut state), None);
-        assert!(matches!(
-            state,
-            RecordingState::Finalizing {
-                attempt: active,
-                ..
-            } if active == attempt
-        ));
-    }
-}
+#[path = "audio_recording_state_tests.rs"]
+mod recording_state_tests;

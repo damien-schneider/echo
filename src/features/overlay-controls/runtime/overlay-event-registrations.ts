@@ -111,7 +111,7 @@ const downloadRegistrations = (ports: OverlayEventPorts) => [
     listen<unknown>("model-download-failed", (event) => {
       const parsed = ModelDownloadTerminalSchema.safeParse(event.payload);
       if (parsed.success) {
-        ports.dispatch({ modelId: parsed.data, type: "download_finished" });
+        ports.dispatch({ modelId: parsed.data, type: "download_failed" });
       }
     }),
 ];

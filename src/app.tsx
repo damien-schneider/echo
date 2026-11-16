@@ -169,39 +169,37 @@ function App() {
     );
   }
 
-  if (showOnboarding) {
-    return (
-      <GlassWindow>
-        <Onboarding onModelReady={handleModelReady} />
-      </GlassWindow>
-    );
-  }
-
   return (
-    <GlassWindow data-model-state={modelState}>
+    <GlassWindow data-model-state={showOnboarding ? undefined : modelState}>
       <Toaster />
-      <SidebarLayout
-        activeSection={currentSection}
-        onSectionChange={setCurrentSection}
-      >
-        <div className="space-y-4">
-          <AccessibilityPermissions />
-          <MicrophonePermissions />
-          {renderSettingsContent(currentSection)}
-        </div>
-      </SidebarLayout>
-      <TranscriptionResultDialog />
-      <ErrorDialog />
-      {isDragging && (
-        <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-background/40 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3">
-            <UploadSimpleIcon className="h-12 w-12 text-muted-foreground" />
-            <p className="font-medium text-muted-foreground text-sm">
-              Drop audio or video to transcribe
-            </p>
-          </div>
-        </div>
+      {showOnboarding ? (
+        <Onboarding onModelReady={handleModelReady} />
+      ) : (
+        <>
+          <SidebarLayout
+            activeSection={currentSection}
+            onSectionChange={setCurrentSection}
+          >
+            <div className="space-y-4">
+              <AccessibilityPermissions />
+              <MicrophonePermissions />
+              {renderSettingsContent(currentSection)}
+            </div>
+          </SidebarLayout>
+          <TranscriptionResultDialog />
+          {isDragging && (
+            <div className="pointer-events-none fixed inset-0 z-40 flex items-center justify-center bg-background/40 backdrop-blur-sm">
+              <div className="flex flex-col items-center gap-3">
+                <UploadSimpleIcon className="h-12 w-12 text-muted-foreground" />
+                <p className="font-medium text-muted-foreground text-sm">
+                  Drop audio or video to transcribe
+                </p>
+              </div>
+            </div>
+          )}
+        </>
       )}
+      <ErrorDialog />
     </GlassWindow>
   );
 }

@@ -1,3 +1,4 @@
+use log::warn;
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIcon;
@@ -47,22 +48,24 @@ pub fn get_icon_path(theme: AppTheme, state: TrayIconState) -> &'static str {
     }
 }
 
+/// A missing icon file (a bundle swapped by an update) must not take the dictation down with it.
 pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
-    let tray = app.state::<TrayIcon>();
-    let theme = get_current_theme(app);
-
-    let icon_path = get_icon_path(theme, icon.clone());
-
-    let _ = tray.set_icon(Some(
-        Image::from_path(
-            app.path()
-                .resolve(icon_path, tauri::path::BaseDirectory::Resource)
-                .expect("failed to resolve"),
-        )
-        .expect("failed to set icon"),
-    ));
+    let icon_path = get_icon_path(get_current_theme(app), icon.clone());
+    match tray_image(app, icon_path) {
+        Ok(image) => {
+            let _ = app.state::<TrayIcon>().set_icon(Some(image));
+        }
+        Err(error) => warn!("Tray icon {icon_path} not shown: {error}"),
+    }
 
     update_tray_menu(app, &icon);
+}
+
+fn tray_image(app: &AppHandle, icon_path: &str) -> tauri::Result<Image<'static>> {
+    let path = app
+        .path()
+        .resolve(icon_path, tauri::path::BaseDirectory::Resource)?;
+    Image::from_path(path)
 }
 
 pub fn update_tray_menu(app: &AppHandle, state: &TrayIconState) {

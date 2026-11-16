@@ -4,6 +4,7 @@ mod events;
 mod generation;
 mod glide;
 mod layout;
+mod live_dictation;
 #[cfg(target_os = "macos")]
 mod macos_hover;
 #[cfg(target_os = "macos")]
