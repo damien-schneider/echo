@@ -50,19 +50,22 @@ export const NotificationSurface = ({
   controller,
   mode,
 }: NotificationSurfaceProps) => {
-  const { chatContext, polish, presentation } = controller;
+  const { chatContext, closedChatGeneration, polish, presentation } =
+    controller;
   const surface = controller.events.surface;
   const hasFlanks =
     surface !== null && surface.notch !== null && surface.anchor === "top";
+  const chatGeneration =
+    chatContext?.generation ?? (mode === "chat" ? closedChatGeneration : null);
   const isChatReplaced = mode === "panel" || mode === "transcript";
-  useChatSessionHold(isChatReplaced ? null : (chatContext?.generation ?? null));
-  if (mode === "chat" && chatContext !== null) {
+  useChatSessionHold(isChatReplaced ? null : chatGeneration);
+  if (mode === "chat" && chatGeneration !== null) {
     return (
       <ChatPanel
         bundledModel={polish}
-        context={chatContext.state === "ready" ? chatContext.context : null}
-        contextState={chatContext.state}
-        generation={chatContext.generation}
+        context={chatContext?.state === "ready" ? chatContext.context : null}
+        contextState={chatContext?.state ?? "loading"}
+        generation={chatGeneration}
         hasFlanks={hasFlanks}
         onClose={controller.dismissSurface}
         onRequestAccessibility={controller.requestAccessibilityAccess}

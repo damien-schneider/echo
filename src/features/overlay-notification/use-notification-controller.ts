@@ -31,6 +31,11 @@ import {
   OVERLAY_WARNING_COMMAND,
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events";
+import {
+  closedChatSurface,
+  heardChatContext,
+  initialChatSurface,
+} from "@/features/overlay-notification/chat-surface-state";
 import { useMeetingNotice } from "@/features/overlay-notification/meeting-notice";
 import { createNotificationPresentation } from "@/features/overlay-notification/notification-presentation";
 import { updateNoticeFor } from "@/features/overlay-notification/update-notice";
@@ -71,22 +76,6 @@ const useModelState = (): ModelState => {
   const [state, setState] = useState<ModelState>(initialModelState);
   useEffect(() => listenCancellable(() => subscribeModelState(setState)), []);
   return state;
-};
-
-const nextChatContext = (
-  current: ChatContextEvent | null,
-  next: ChatContextEvent
-): ChatContextEvent => {
-  if (current === null || next.generation > current.generation) {
-    return next;
-  }
-  if (
-    next.generation < current.generation ||
-    (current.state !== "loading" && next.state === "loading")
-  ) {
-    return current;
-  }
-  return next;
 };
 
 const nextNotificationRequest = (
@@ -143,14 +132,14 @@ const useRequestEvent = () => {
 const useNotificationRequest = () => {
   const { lastSeenGeneration, requestEvent, setRequestEvent } =
     useRequestEvent();
-  const [chatContext, setChatContext] = useState<ChatContextEvent | null>(null);
+  const [chat, setChat] = useState(initialChatSurface);
   useEffect(
     () =>
       listenCancellable(() =>
         listen<unknown>(CHAT_CONTEXT_EVENT, (event) => {
           const context = parsedChatContext(event.payload);
           if (context !== null) {
-            setChatContext((current) => nextChatContext(current, context));
+            setChat((current) => heardChatContext(current, context));
           }
         })
       ),
@@ -162,7 +151,7 @@ const useNotificationRequest = () => {
       .then((payload) => {
         const context = parsedChatContext(payload);
         if (!(isStopped || context === null)) {
-          setChatContext((current) => nextChatContext(current, context));
+          setChat((current) => heardChatContext(current, context));
         }
       })
       .catch(() => undefined);
@@ -171,11 +160,12 @@ const useNotificationRequest = () => {
     };
   }, []);
   return {
-    chatContext,
+    chatContext: chat.context,
     clearRequest: () => {
-      setChatContext(null);
+      setChat(closedChatSurface);
       setRequestEvent(null);
     },
+    closedChatGeneration: chat.closedGeneration,
     lastSeenGeneration,
     request: requestEvent?.surface ?? null,
   };
@@ -271,8 +261,13 @@ export const useNotificationController = () => {
   const events = useOverlayEvents(microphoneRef);
   const polish = usePolishModel();
   const modelState = useModelState();
-  const { chatContext, clearRequest, lastSeenGeneration, request } =
-    useNotificationRequest();
+  const {
+    chatContext,
+    clearRequest,
+    closedChatGeneration,
+    lastSeenGeneration,
+    request,
+  } = useNotificationRequest();
   const update = useUpdateNotice();
   const meeting = useMeetingNotice();
   const heldTranscript = useHeldTranscript(request === "transcript");
@@ -313,6 +308,7 @@ export const useNotificationController = () => {
 
   return {
     chatContext,
+    closedChatGeneration,
     contentKey: overlayContentKey({
       mode: renderMode ?? "recording",
       overlayState: events.state,
