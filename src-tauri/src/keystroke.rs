@@ -4,6 +4,17 @@ pub(crate) enum Shortcut {
     Paste,
 }
 
+/// macOS drops a posted keystroke from an app without Accessibility access, and still reports success.
+#[cfg(target_os = "macos")]
+pub(crate) fn is_permitted() -> bool {
+    crate::macos_accessibility::is_trusted()
+}
+
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn is_permitted() -> bool {
+    true
+}
+
 /// GPU terminals (Ghostty, Alacritty, kitty) ignore ambient modifier flags, so the flag rides the key event.
 #[cfg(target_os = "macos")]
 pub(crate) fn send(shortcut: Shortcut) -> Result<(), String> {
