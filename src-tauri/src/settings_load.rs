@@ -1,8 +1,46 @@
 use super::*;
 use log::error;
+use tauri::path::BaseDirectory;
+use tauri::Manager;
 
 pub(super) const SETTINGS_KEY: &str = "settings";
 pub(super) const UNREADABLE_SETTINGS_BACKUP_KEY: &str = "settings_unreadable_backup";
+const UNREADABLE_SETTINGS_BACKUP_FILE: &str = "settings_unreadable_backup.json";
+
+/// The parse error of a store file the plugin would load as empty and overwrite on its next save.
+pub(super) fn unreadable_store_file(contents: &[u8]) -> Option<serde_json::Error> {
+    if contents.iter().all(u8::is_ascii_whitespace) {
+        return None;
+    }
+    serde_json::from_slice::<serde_json::Map<String, serde_json::Value>>(contents).err()
+}
+
+/// Must run before the store is built: the plugin swallows its load error.
+pub(super) fn keep_unreadable_store_file(app: &AppHandle) {
+    let Ok(path) = app
+        .path()
+        .resolve(SETTINGS_STORE_PATH, BaseDirectory::AppData)
+    else {
+        return;
+    };
+    let Ok(contents) = std::fs::read(&path) else {
+        return;
+    };
+    let Some(cause) = unreadable_store_file(&contents) else {
+        return;
+    };
+    let backup = path.with_file_name(UNREADABLE_SETTINGS_BACKUP_FILE);
+    match std::fs::rename(&path, &backup) {
+        Ok(()) => error!(
+            "Settings file does not parse ({cause}); kept as '{}', defaults are used",
+            backup.display()
+        ),
+        Err(error) => error!(
+            "Settings file does not parse ({cause}) and could not be kept as '{}': {error}",
+            backup.display()
+        ),
+    }
+}
 
 pub(super) struct SettingsLoad {
     pub(super) settings: AppSettings,

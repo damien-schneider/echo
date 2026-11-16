@@ -1,13 +1,15 @@
 use log::warn;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, Once, PoisonError};
 use tauri::AppHandle;
 use tauri_plugin_log::LogLevel;
 use tauri_plugin_store::{Store, StoreExt};
 
 /// Serialises read-modify-write against concurrent command clobbers.
 static SETTINGS_LOCK: Mutex<()> = Mutex::new(());
+
+static UNREADABLE_STORE_FILE_CHECK: Once = Once::new();
 
 #[path = "settings_types.rs"]
 mod settings_types;
@@ -218,6 +220,7 @@ fn apply_settings_migrations_from_raw(
 }
 
 fn settings_store(app: &AppHandle) -> Arc<Store<tauri::Wry>> {
+    UNREADABLE_STORE_FILE_CHECK.call_once(|| keep_unreadable_store_file(app));
     app.store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store")
 }

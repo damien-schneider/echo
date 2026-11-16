@@ -374,4 +374,19 @@ mod tests {
         assert_customisations_survive(&load.settings);
         assert!(load.store_writes.is_empty());
     }
+
+    #[test]
+    fn a_settings_file_cut_short_mid_write_is_unreadable() {
+        assert!(unreadable_store_file(br#"{"settings":{"history_limit":5"#).is_some());
+    }
+
+    #[test]
+    fn a_complete_settings_file_is_readable() {
+        assert!(unreadable_store_file(br#"{"settings":{"history_limit":5}}"#).is_none());
+    }
+
+    #[test]
+    fn an_empty_settings_file_has_nothing_to_keep() {
+        assert!(unreadable_store_file(b" \n").is_none());
+    }
 }

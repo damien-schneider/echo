@@ -88,15 +88,15 @@ pub async fn update_history_limit(
     history_manager: State<'_, Arc<HistoryManager>>,
     limit: usize,
 ) -> Result<(), String> {
+    let mut previous = limit;
     crate::settings::update_settings(&app, |s| {
-        s.history_limit = limit;
+        previous = std::mem::replace(&mut s.history_limit, limit);
     });
 
-    history_manager
-        .cleanup_old_entries()
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    history_manager.cleanup_old_entries().map_err(|e| {
+        crate::settings::update_settings(&app, |s| s.history_limit = previous);
+        e.to_string()
+    })
 }
 
 #[tauri::command]
@@ -116,15 +116,15 @@ pub async fn update_recording_retention_period(
         _ => return Err(format!("Invalid retention period: {}", period)),
     };
 
+    let mut previous = retention_period;
     crate::settings::update_settings(&app, |s| {
-        s.recording_retention_period = retention_period;
+        previous = std::mem::replace(&mut s.recording_retention_period, retention_period);
     });
 
-    history_manager
-        .cleanup_old_entries()
-        .map_err(|e| e.to_string())?;
-
-    Ok(())
+    history_manager.cleanup_old_entries().map_err(|e| {
+        crate::settings::update_settings(&app, |s| s.recording_retention_period = previous);
+        e.to_string()
+    })
 }
 
 #[tauri::command]

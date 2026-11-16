@@ -9,7 +9,10 @@ use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
 use super::failures;
-use super::init::{register_shortcut, unregister_shortcut, validate_shortcut_string};
+use super::init::{
+    claim_shortcut, register_shortcut, registration_refusal, unregister_shortcut,
+    validate_shortcut_string,
+};
 use crate::settings::{self, ShortcutBinding};
 
 #[derive(Debug)]
@@ -71,7 +74,9 @@ fn claim_combo(app: &AppHandle, binding: &ShortcutBinding) -> Result<(), String>
     combo
         .parse::<Shortcut>()
         .map_err(|error| format!("'{combo}' is not a usable shortcut: {error}"))?;
-    register_shortcut(app, binding.clone())
+    claim_shortcut(app, binding.clone()).map_err(|reason| registration_refusal(combo, &reason))?;
+    failures::clear(app, &binding.id);
+    Ok(())
 }
 
 fn restore_previous_combo(app: &AppHandle, rebind: Rebind, holds_previous: bool) {

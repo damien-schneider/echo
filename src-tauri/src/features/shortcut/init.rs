@@ -157,11 +157,15 @@ pub fn validate_shortcut_string(raw: &str) -> Result<(), String> {
     }
 }
 
+pub(super) fn registration_refusal(combo: &str, reason: &str) -> String {
+    format!("Couldn't register shortcut '{combo}': {reason}")
+}
+
 pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
     let binding_id = binding.id.clone();
     let binding_text = binding.current_binding.clone();
     if let Err(reason) = claim_shortcut(app, binding) {
-        let message = format!("Couldn't register shortcut '{binding_text}': {reason}");
+        let message = registration_refusal(&binding_text, &reason);
         error!("register_shortcut error: {message}");
         failures::record(
             app,
@@ -177,7 +181,7 @@ pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<()
     Ok(())
 }
 
-fn claim_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
+pub(super) fn claim_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
     let shortcut = validated_shortcut(app, &binding)?;
     let binding_id = binding.id;
     app.global_shortcut()
