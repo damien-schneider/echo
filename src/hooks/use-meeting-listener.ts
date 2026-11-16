@@ -21,23 +21,8 @@ import { useMeetingStore } from "@/stores/meeting-store";
 
 const store = useMeetingStore;
 
-const idleState = () => ({
-  batchProgress: {},
-  currentMeetingId: null,
-  elapsedMs: 0,
-  interimSegments: { mic: null, system: null },
-  liveSegments: [],
-  status: "idle" as const,
-  streamingFinals: [],
-});
-
 const onStatusChanged = async (status: MeetingStatus) => {
-  if (status === "recording" || status === "processing") {
-    store.getState().setStatus(status);
-    return;
-  }
-  const finishedMeetingId = store.getState().currentMeetingId;
-  useMeetingStore.setState(idleState());
+  const applied = store.getState().applyMeetingStatus(status);
   if (status === "error") {
     toast.error(
       "Transcription failed — the recording is kept, try Retranscribe"
@@ -58,18 +43,7 @@ const onStatusChanged = async (status: MeetingStatus) => {
       },
     });
   }
-  await store.getState().loadMeetings();
-  if (finishedMeetingId !== null) {
-    await store.getState().selectMeeting(finishedMeetingId);
-  }
-};
-
-const onSummaryGenerated = (meetingId: number) => {
-  const state = store.getState();
-  if (state.selectedMeeting?.id === meetingId) {
-    state.selectMeeting(meetingId);
-  }
-  state.loadMeetings();
+  await applied;
 };
 
 const onAudioWarning = ({ source, reason }: MeetingAudioWarning) => {
@@ -90,25 +64,15 @@ const onAudioWarning = ({ source, reason }: MeetingAudioWarning) => {
 const onActiveMeeting = (payload: unknown) => {
   const parsed = ActiveMeetingSchema.nullable().safeParse(payload);
   // The end of a meeting arrives as its status, with the transcript that comes with it.
-  if (!parsed.success || parsed.data === null) {
-    return;
+  if (parsed.success && parsed.data !== null) {
+    store.getState().applyActiveMeeting(parsed.data);
   }
-  const active = parsed.data;
-  if (active.state === "processing") {
-    store.getState().setStatus("processing");
-    return;
-  }
-  useMeetingStore.setState({
-    currentMeetingId: active.meeting_id,
-    elapsedMs: Math.max(0, Date.now() - active.start_time * 1000),
-    status: "recording",
-  });
 };
 
 // The meeting this window opened into: everything after it arrives as an event.
 const adoptActiveMeeting = async () => {
   const payload = await invoke<unknown>("get_active_meeting");
-  if (store.getState().status === "idle") {
+  if (store.getState().activity === "idle") {
     onActiveMeeting(payload);
   }
 };
@@ -163,9 +127,9 @@ export function useMeetingListener() {
       listen<MeetingAudioWarning>("meeting-audio-warning", (e) =>
         onAudioWarning(e.payload)
       ),
-      listen<number>("meeting-summary-generated", (e) =>
-        onSummaryGenerated(e.payload)
-      ),
+      listen<number>("meeting-summary-generated", (e) => {
+        store.getState().applySummaryGenerated(e.payload);
+      }),
       listen<number>("meeting-auto-summary-requested", (e) =>
         onAutoSummaryRequested(e.payload)
       ),

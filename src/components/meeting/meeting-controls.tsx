@@ -14,14 +14,15 @@ interface MeetingControlsProps {
   onStarted?: () => void;
 }
 export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
-  const status = useMeetingStore((s) => s.status);
+  const activity = useMeetingStore((s) => s.activity);
   const elapsedMs = useMeetingStore((s) => s.elapsedMs);
   const setElapsedMs = useMeetingStore((s) => s.setElapsedMs);
   const startMeeting = useMeetingStore((s) => s.startMeeting);
   const stopMeeting = useMeetingStore((s) => s.stopMeeting);
   const [title, setTitle] = useState("");
-  const isRecording = status === "recording";
-  const isProcessing = status === "processing";
+  const [stopping, setStopping] = useState(false);
+  const isRecording = activity === "recording";
+  const isProcessing = activity === "processing";
   const models = useMeetingModels();
   useEffect(() => {
     if (!isRecording) {
@@ -45,10 +46,13 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
     }
   };
   const handleStop = async () => {
+    setStopping(true);
     try {
       await stopMeeting();
     } catch {
       toast.error("Failed to stop meeting");
+    } finally {
+      setStopping(false);
     }
   };
   if (isRecording || isProcessing) {
@@ -62,7 +66,7 @@ export const MeetingControls = ({ onStarted }: MeetingControlsProps) => {
             </span>
           </div>
           <Button
-            disabled={isProcessing}
+            disabled={isProcessing || stopping}
             onClick={handleStop}
             size="sm"
             tone="danger"

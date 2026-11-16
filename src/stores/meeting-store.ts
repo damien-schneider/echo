@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { generateMeetingSummary } from "@/lib/llm/meeting-summary";
 import type {
+  ActiveMeeting,
   ExportFormat,
   Meeting,
   MeetingBatchProgress,
@@ -19,11 +20,18 @@ export interface InterimSegmentState {
   tentativeText: string;
 }
 
+export type MeetingActivity = "idle" | "recording" | "processing";
+
 interface MeetingStore {
+  // What the backend is doing, as it last pushed it; nothing on the page decides this.
+  activity: MeetingActivity;
   addLiveSegment: (segment: MeetingSegment) => void;
+  applyActiveMeeting: (active: ActiveMeeting) => void;
   applyBatchProgress: (event: MeetingBatchProgress) => void;
+  applyMeetingStatus: (status: MeetingStatus) => Promise<void>;
   applyStreamingFinal: (event: StreamingFinal) => void;
   applyStreamingInterim: (event: StreamingInterim) => void;
+  applySummaryGenerated: (meetingId: number) => Promise<void>;
   batchProgress: Record<string, MeetingBatchProgress | null>;
   currentMeetingId: number | null;
   deleteMeeting: (id: number) => Promise<void>;
@@ -41,12 +49,11 @@ interface MeetingStore {
   ) => Promise<void>;
   retranscribeMeeting: (id: number) => Promise<MeetingStatus>;
   selectedMeeting: Meeting | null;
+  selectedMeetingId: number | null;
   selectedSegments: MeetingSegment[];
   selectMeeting: (id: number) => Promise<void>;
   setElapsedMs: (ms: number) => void;
-  setStatus: (status: MeetingStore["status"]) => void;
   startMeeting: (title?: string) => Promise<number>;
-  status: "idle" | "recording" | "processing" | "viewing";
   stopMeeting: () => Promise<void>;
   // Streaming finals emitted during recording; liveSegments come from post-meeting batch.
   streamingFinals: MeetingSegment[];
@@ -66,12 +73,42 @@ const emptyInterimSegments = (): Record<
   system: null,
 });
 
+// Open live lines are never finalized after capture stops; finished ones wait for batch rows.
+const processingMeeting = (): Partial<MeetingStore> => ({
+  activity: "processing",
+  interimSegments: emptyInterimSegments(),
+});
+
+const idleMeeting = (): Partial<MeetingStore> => ({
+  activity: "idle",
+  batchProgress: {},
+  currentMeetingId: null,
+  elapsedMs: 0,
+  interimSegments: emptyInterimSegments(),
+  liveSegments: [],
+  streamingFinals: [],
+});
+
 export const useMeetingStore = create<MeetingStore>((set, get) => ({
+  activity: "idle",
+
   addLiveSegment: (segment) => {
     set((state) =>
       isForeignMeeting(state, segment.meeting_id)
         ? {}
         : { liveSegments: [...state.liveSegments, segment] }
+    );
+  },
+
+  applyActiveMeeting: (active) => {
+    set(
+      active.state === "recording"
+        ? {
+            activity: "recording",
+            currentMeetingId: active.meeting_id,
+            elapsedMs: Math.max(0, Date.now() - active.start_time * 1000),
+          }
+        : processingMeeting()
     );
   },
 
@@ -82,6 +119,23 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
         [event.source]: event,
       },
     }));
+  },
+
+  applyMeetingStatus: async (status) => {
+    if (status === "recording") {
+      set({ activity: "recording" });
+      return;
+    }
+    if (status === "processing") {
+      set(processingMeeting());
+      return;
+    }
+    const finishedMeetingId = get().currentMeetingId;
+    set(idleMeeting());
+    await get().loadMeetings();
+    if (finishedMeetingId !== null) {
+      await get().selectMeeting(finishedMeetingId);
+    }
   },
 
   applyStreamingFinal: (event) => {
@@ -129,14 +183,22 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
           }
     );
   },
+
+  applySummaryGenerated: async (meetingId) => {
+    const state = get();
+    await Promise.all([
+      state.selectedMeetingId === meetingId && state.selectMeeting(meetingId),
+      state.loadMeetings(),
+    ]);
+  },
   batchProgress: {},
   currentMeetingId: null,
 
   deleteMeeting: async (id) => {
     await invoke("delete_meeting", { id });
     const state = get();
-    if (state.selectedMeeting?.id === id) {
-      set({ selectedMeeting: null, selectedSegments: [], status: "idle" });
+    if (state.selectedMeetingId === id) {
+      state.unselectMeeting();
     }
     await state.loadMeetings();
   },
@@ -155,7 +217,9 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     const summary = await generateMeetingSummary(transcript);
     await invoke("save_meeting_summary", { meetingId: id, summary });
     const meeting = await invoke<Meeting>("get_meeting", { id });
-    set({ selectedMeeting: meeting });
+    if (get().selectedMeetingId === id) {
+      set({ selectedMeeting: meeting });
+    }
   },
   interimSegments: emptyInterimSegments(),
   liveSegments: [],
@@ -196,28 +260,28 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
     }
   },
   selectedMeeting: null,
+  selectedMeetingId: null,
   selectedSegments: [],
 
   selectMeeting: async (id) => {
-    const meeting = await invoke<Meeting>("get_meeting", { id });
-    const segments = await invoke<MeetingSegment[]>("get_meeting_segments", {
-      meetingId: id,
-    });
-    set({
-      selectedMeeting: meeting,
-      selectedSegments: segments,
-      status: "viewing",
-    });
+    set({ selectedMeetingId: id });
+    try {
+      const meeting = await invoke<Meeting>("get_meeting", { id });
+      const segments = await invoke<MeetingSegment[]>("get_meeting_segments", {
+        meetingId: id,
+      });
+      if (get().selectedMeetingId === id) {
+        set({ selectedMeeting: meeting, selectedSegments: segments });
+      }
+    } catch (error) {
+      const state = get();
+      if (state.selectedMeetingId === id && state.selectedMeeting?.id !== id) {
+        state.unselectMeeting();
+      }
+      throw error;
+    }
   },
   setElapsedMs: (ms) => set({ elapsedMs: ms }),
-
-  // Open live lines are never finalized after capture stops; finished ones wait for batch rows.
-  setStatus: (status) =>
-    set(
-      status === "processing"
-        ? { interimSegments: emptyInterimSegments(), status }
-        : { status }
-    ),
 
   startMeeting: async (title) => {
     const id = await invoke<number>("start_meeting", { title: title ?? null });
@@ -227,16 +291,13 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
       elapsedMs: 0,
       interimSegments: emptyInterimSegments(),
       liveSegments: [],
-      status: "recording",
       streamingFinals: [],
     });
     return id;
   },
-  status: "idle",
 
+  // stop_meeting returns on capture stop; batch transcription completes via meeting-status-changed("complete").
   stopMeeting: async () => {
-    get().setStatus("processing");
-    // stop_meeting returns on capture stop; batch transcription completes via meeting-status-changed("complete").
     await invoke("stop_meeting");
   },
   streamingFinals: [],
@@ -244,8 +305,24 @@ export const useMeetingStore = create<MeetingStore>((set, get) => ({
   unselectMeeting: () => {
     set({
       selectedMeeting: null,
+      selectedMeetingId: null,
       selectedSegments: [],
-      status: "idle",
     });
   },
 }));
+
+export type MeetingPageView = "live" | "detail" | "list";
+
+export const meetingPageView = (
+  state: Pick<
+    MeetingStore,
+    "activity" | "selectedMeeting" | "selectedMeetingId"
+  >
+): MeetingPageView => {
+  if (state.activity !== "idle") {
+    return "live";
+  }
+  return state.selectedMeeting?.id === state.selectedMeetingId
+    ? "detail"
+    : "list";
+};
