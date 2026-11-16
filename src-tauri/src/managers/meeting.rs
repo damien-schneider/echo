@@ -14,6 +14,7 @@ use super::meeting_batch_plan::BatchFiles;
 use super::meeting_lifecycle::BatchGuard;
 use super::meeting_live::LiveWorkerHandle;
 use super::meeting_recovery;
+use super::meeting_segment_store::{replace_transcript, Retranscript};
 pub use super::meeting_types::*;
 use crate::audio_toolkit::audio::system_capture::SystemAudioCapture;
 use crate::audio_toolkit::{list_input_devices, AudioRecorder};
@@ -28,7 +29,21 @@ pub(super) struct RecordingState {
 pub(super) enum ManagerState {
     Idle,
     Recording(RecordingState),
-    Processing,
+    Processing(i64),
+}
+
+impl ManagerState {
+    pub(super) fn deletion_blocker(&self, meeting_id: i64) -> Option<&'static str> {
+        match self {
+            Self::Recording(recording) if recording.meeting_id == meeting_id => {
+                Some("Stop the meeting before deleting it")
+            }
+            Self::Processing(id) if *id == meeting_id => {
+                Some("Wait for the transcription to finish before deleting this meeting")
+            }
+            _ => None,
+        }
+    }
 }
 
 pub struct MeetingManager {
@@ -47,6 +62,8 @@ pub struct MeetingManager {
     pub(super) live_handles: std::sync::Mutex<Vec<LiveWorkerHandle>>,
     /// A capture channel also closes on a normal stop; only an unasked-for close is a warning.
     pub(super) stopping: Arc<std::sync::atomic::AtomicBool>,
+    /// Set while a retranscribe runs: its segments wait here, so the stored transcript is whole.
+    staged_transcript: std::sync::Mutex<Option<Vec<MeetingSegment>>>,
 }
 
 impl MeetingManager {
@@ -79,6 +96,7 @@ impl MeetingManager {
             system_collector: Arc::new(std::sync::Mutex::new(None)),
             live_handles: std::sync::Mutex::new(Vec::new()),
             stopping: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            staged_transcript: std::sync::Mutex::new(None),
         })
     }
 
@@ -208,7 +226,7 @@ impl MeetingManager {
                 meeting_id: recording.meeting_id,
                 start_time: recording.start_time,
             }),
-            ManagerState::Processing => Some(ActiveMeeting::Processing),
+            ManagerState::Processing(_) => Some(ActiveMeeting::Processing),
         }
     }
 
@@ -218,7 +236,7 @@ impl MeetingManager {
             Ok(state) => match &*state {
                 ManagerState::Idle => MeetingStatus::Complete,
                 ManagerState::Recording(_) => MeetingStatus::Recording,
-                ManagerState::Processing => MeetingStatus::Processing,
+                ManagerState::Processing(_) => MeetingStatus::Processing,
             },
             Err(_) => MeetingStatus::Recording,
         }
@@ -254,28 +272,22 @@ impl MeetingManager {
             if !matches!(*state, ManagerState::Idle) {
                 anyhow::bail!("Finish the meeting in progress before retranscribing another one");
             }
-            *state = ManagerState::Processing;
+            *state = ManagerState::Processing(meeting_id);
         }
-        let guard = BatchGuard::new(self.clone(), meeting_id);
+        let guard = BatchGuard::retranscribing(self.clone(), meeting_id);
         self.emit_active_meeting(Some(ActiveMeeting::Processing));
-
-        let previous = PreviousTranscript {
-            status: meeting.status,
-            max_segment_id: self.max_segment_id(meeting_id)?,
-        };
-        self.set_meeting_status(meeting_id, &MeetingStatus::Processing);
         self.emit_status_changed(MeetingStatus::Processing);
 
         let voxtral_transcripts = self.voxtral_transcripts(meeting_id, &files, Vec::new());
         let status = self
-            .run_batch_transcription(
-                meeting_id,
-                files,
-                voxtral_transcripts,
-                previous.max_segment_id,
-            )
+            .run_batch_transcription(meeting_id, files, voxtral_transcripts)
             .await;
-        self.keep_one_transcript(meeting_id, &previous, &status)?;
+        let retranscript = Retranscript {
+            meeting_id,
+            status: status.clone(),
+            segments: self.lock_staged_transcript().take().unwrap_or_default(),
+        };
+        replace_transcript(&mut self.get_connection()?, &retranscript)?;
         guard.finish();
 
         self.emit_status_changed(status.clone());
@@ -283,49 +295,17 @@ impl MeetingManager {
         Ok(status)
     }
 
-    fn max_segment_id(&self, meeting_id: i64) -> Result<i64> {
-        Ok(self.get_connection()?.query_row(
-            "SELECT COALESCE(MAX(id), 0) FROM meeting_segments WHERE meeting_id = ?1",
-            params![meeting_id],
-            |row| row.get(0),
-        )?)
-    }
-
-    /// A pass that produced a transcript replaces the old one; a failed pass is undone instead.
-    fn keep_one_transcript(
+    pub(super) fn lock_staged_transcript(
         &self,
-        meeting_id: i64,
-        previous: &PreviousTranscript,
-        status: &MeetingStatus,
-    ) -> Result<()> {
-        let conn = self.get_connection()?;
-        match status {
-            MeetingStatus::Complete | MeetingStatus::Partial => {
-                conn.execute(
-                    "DELETE FROM meeting_segments WHERE meeting_id = ?1 AND id <= ?2",
-                    params![meeting_id, previous.max_segment_id],
-                )?;
-            }
-            MeetingStatus::Error if previous.max_segment_id > 0 => {
-                conn.execute(
-                    "DELETE FROM meeting_segments WHERE meeting_id = ?1 AND id > ?2",
-                    params![meeting_id, previous.max_segment_id],
-                )?;
-                self.set_meeting_status(meeting_id, &previous.status);
-            }
-            _ => {}
-        }
-        Ok(())
+    ) -> std::sync::MutexGuard<'_, Option<Vec<MeetingSegment>>> {
+        self.staged_transcript
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 
     fn existing_recording(&self, file_name: Option<String>) -> Option<String> {
         file_name.filter(|name| self.meetings_dir.join(name).exists())
     }
-}
-
-struct PreviousTranscript {
-    status: MeetingStatus,
-    max_segment_id: i64,
 }
 
 #[cfg(test)]

@@ -271,4 +271,27 @@ mod tests {
         );
     }
 
+    fn recording(meeting_id: i64) -> ManagerState {
+        ManagerState::Recording(RecordingState {
+            meeting_id,
+            start_time: 1700000000,
+        })
+    }
+
+    #[test]
+    fn a_meeting_that_is_recording_cannot_be_deleted() {
+        assert!(recording(7).deletion_blocker(7).is_some());
+    }
+
+    #[test]
+    fn a_meeting_being_transcribed_cannot_be_deleted() {
+        assert!(ManagerState::Processing(7).deletion_blocker(7).is_some());
+    }
+
+    #[test]
+    fn other_meetings_can_be_deleted_while_one_is_busy() {
+        assert_eq!(recording(7).deletion_blocker(3), None);
+        assert_eq!(ManagerState::Processing(7).deletion_blocker(3), None);
+        assert_eq!(ManagerState::Idle.deletion_blocker(7), None);
+    }
 }

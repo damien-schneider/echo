@@ -132,18 +132,13 @@ fn capture_loop(tx: mpsc::Sender<Vec<f32>>, shutdown: Arc<AtomicBool>) -> Result
         .context("WASAPI: start_stream")?;
 
     while !shutdown.load(Ordering::Relaxed) {
-        if h_event.wait_for_event(1000).is_err() {
-            // Timeout — loop and re-check shutdown flag.
-            continue;
-        }
+        // A timeout still reads: an invalidated device signals nothing and only errors on a read.
+        let _ = h_event.wait_for_event(1000);
 
         loop {
             let (frames, info) = match capture_client.read_from_device(&mut scratch) {
                 Ok(v) => v,
-                Err(e) => {
-                    warn!("WASAPI: read_from_device error: {e:?}");
-                    break;
-                }
+                Err(e) => return Err(anyhow!("WASAPI: read_from_device failed: {e:?}")),
             };
             if frames == 0 {
                 break;

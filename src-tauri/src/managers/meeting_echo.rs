@@ -13,9 +13,8 @@ const ECHO_WINDOW_MS: i64 = 2_000;
 const ECHO_MATCH_RATIO: f32 = 0.6;
 
 impl MeetingManager {
-    /// Only rows above `min_segment_id` belong to this pass: a retranscribe still holds the old ones.
-    pub(super) fn drop_echoed_mic_segments(&self, meeting_id: i64, min_segment_id: i64) {
-        match self.delete_echoed_mic_segments(meeting_id, min_segment_id) {
+    pub(super) fn drop_echoed_mic_segments(&self, meeting_id: i64) {
+        match self.delete_echoed_mic_segments(meeting_id) {
             Ok(0) => {}
             Ok(dropped) => {
                 info!("Dropped {dropped} mic segments echoing the guest in meeting {meeting_id}")
@@ -24,9 +23,13 @@ impl MeetingManager {
         }
     }
 
-    fn delete_echoed_mic_segments(&self, meeting_id: i64, min_segment_id: i64) -> Result<usize> {
-        let mut segments = self.get_meeting_segments(meeting_id)?;
-        segments.retain(|segment| segment.id > min_segment_id);
+    fn delete_echoed_mic_segments(&self, meeting_id: i64) -> Result<usize> {
+        if let Some(staged) = self.lock_staged_transcript().as_mut() {
+            let echoed = echoed_mic_segment_ids(staged);
+            staged.retain(|segment| !echoed.contains(&segment.id));
+            return Ok(echoed.len());
+        }
+        let segments = self.get_meeting_segments(meeting_id)?;
         let echoed = echoed_mic_segment_ids(&segments);
         let conn = self.get_connection()?;
         for id in &echoed {

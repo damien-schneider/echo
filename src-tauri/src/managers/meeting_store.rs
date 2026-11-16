@@ -83,6 +83,11 @@ impl MeetingManager {
     }
 
     pub fn delete_meeting(&self, id: i64) -> Result<()> {
+        // Held to the end: a retranscribe must not start on a meeting that is being removed.
+        let state = self.lock_state();
+        if let Some(reason) = state.deletion_blocker(id) {
+            anyhow::bail!(reason);
+        }
         let conn = self.get_connection()?;
         let meeting = self.get_meeting(id)?;
 

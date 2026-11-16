@@ -31,13 +31,12 @@ const MAX_CONSECUTIVE_DECODE_FAILURES: usize = 2;
 
 impl MeetingManager {
     /// Detached from `stop_meeting`; errors land in the returned status, never propagate.
-    /// Rows up to `min_segment_id` predate this pass and are left to the caller.
+    /// Storing that status is the caller's: a retranscribe only does once its transcript is in.
     pub(super) async fn run_batch_transcription(
         &self,
         meeting_id: i64,
         files: BatchFiles,
         voxtral_transcripts: Vec<SourceTranscript>,
-        min_segment_id: i64,
     ) -> MeetingStatus {
         let mut outcome = BatchOutcome::default();
 
@@ -66,12 +65,11 @@ impl MeetingManager {
         }
 
         if files.mic.is_some() && files.system.is_some() {
-            self.drop_echoed_mic_segments(meeting_id, min_segment_id);
+            self.drop_echoed_mic_segments(meeting_id);
         }
         self.write_playback_mixdown(meeting_id, &files);
 
         let status = final_status(outcome);
-        self.set_meeting_status(meeting_id, &status);
         info!(
             "Meeting {meeting_id} batch pass finished: {} segments, {} failures",
             outcome.inserted, outcome.errors

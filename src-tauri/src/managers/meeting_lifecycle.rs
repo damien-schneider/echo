@@ -101,8 +101,11 @@ impl MeetingManager {
     pub async fn stop_meeting(self: Arc<Self>) -> Result<()> {
         let recording = {
             let mut state = self.lock_state();
-            match std::mem::replace(&mut *state, ManagerState::Processing) {
-                ManagerState::Recording(rs) => rs,
+            match std::mem::replace(&mut *state, ManagerState::Idle) {
+                ManagerState::Recording(rs) => {
+                    *state = ManagerState::Processing(rs.meeting_id);
+                    rs
+                }
                 other => {
                     *state = other;
                     anyhow::bail!("No meeting is currently recording");
@@ -219,9 +222,11 @@ impl MeetingManager {
                 Ok(()) => {
                     let transcripts =
                         manager.voxtral_transcripts(meeting_id, &files, live_transcripts);
-                    manager
-                        .run_batch_transcription(meeting_id, files, transcripts, 0)
-                        .await
+                    let status = manager
+                        .run_batch_transcription(meeting_id, files, transcripts)
+                        .await;
+                    manager.set_meeting_status(meeting_id, &status);
+                    status
                 }
                 Err(reason) => {
                     info!("Meeting {meeting_id} saved without a transcript: {reason}");
@@ -250,6 +255,7 @@ pub(super) struct BatchGuard {
     manager: Arc<MeetingManager>,
     meeting_id: i64,
     finished: bool,
+    keeps_stored_transcript: bool,
 }
 
 impl BatchGuard {
@@ -258,6 +264,18 @@ impl BatchGuard {
             manager,
             meeting_id,
             finished: false,
+            keeps_stored_transcript: false,
+        }
+    }
+
+    /// The pass stages its segments: an abandoned one leaves the stored transcript and status.
+    pub(super) fn retranscribing(manager: Arc<MeetingManager>, meeting_id: i64) -> Self {
+        *manager.lock_staged_transcript() = Some(Vec::new());
+        Self {
+            manager,
+            meeting_id,
+            finished: false,
+            keeps_stored_transcript: true,
         }
     }
 
@@ -268,13 +286,16 @@ impl BatchGuard {
 
 impl Drop for BatchGuard {
     fn drop(&mut self) {
+        *self.manager.lock_staged_transcript() = None;
         *self.manager.lock_state() = ManagerState::Idle;
         self.manager.emit_active_meeting(None);
         if self.finished {
             return;
         }
-        self.manager
-            .set_meeting_status(self.meeting_id, &MeetingStatus::Error);
+        if !self.keeps_stored_transcript {
+            self.manager
+                .set_meeting_status(self.meeting_id, &MeetingStatus::Error);
+        }
         self.manager.emit_status_changed(MeetingStatus::Error);
     }
 }

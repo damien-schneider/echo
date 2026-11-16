@@ -3,7 +3,7 @@
 use anyhow::{anyhow, Context, Result};
 use log::{debug, warn};
 use std::sync::mpsc;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use screencapturekit::prelude::*;
@@ -27,6 +27,7 @@ impl MacOsSystemCapture {
 impl SystemAudioCapture for MacOsSystemCapture {
     fn start(&mut self) -> Result<mpsc::Receiver<Vec<f32>>> {
         let (tx, rx) = mpsc::channel::<Vec<f32>>();
+        let tx: SharedSender = Arc::new(Mutex::new(Some(tx)));
 
         let content =
             SCShareableContent::get().context("ScreenCaptureKit: query shareable content")?;
@@ -48,7 +49,14 @@ impl SystemAudioCapture for MacOsSystemCapture {
             .with_sample_rate(NATIVE_SAMPLE_RATE as i32)
             .with_channel_count(1);
 
-        let mut stream = SCStream::new(&filter, &config);
+        let on_stream_death = ErrorHandler::new({
+            let tx = tx.clone();
+            move |error| {
+                warn!("ScreenCaptureKit: stream stopped: {error}");
+                *tx.lock().unwrap_or_else(PoisonError::into_inner) = None;
+            }
+        });
+        let mut stream = SCStream::new_with_delegate(&filter, &config, on_stream_death);
         let handler = AudioHandler::new(tx);
         stream.add_output_handler(handler, SCStreamOutputType::Audio);
         stream.start_capture().map_err(|e| {
@@ -84,14 +92,17 @@ pub fn create() -> Result<Box<dyn SystemAudioCapture>> {
     Ok(Box::new(MacOsSystemCapture::new()?))
 }
 
+/// Dropping the sender is how a stream the system stopped tells the receiver it is over.
+type SharedSender = Arc<Mutex<Option<mpsc::Sender<Vec<f32>>>>>;
+
 /// SCK serializes callbacks per handler, so the Mutex is uncontended.
 struct AudioHandler {
-    tx: mpsc::Sender<Vec<f32>>,
+    tx: SharedSender,
     resampler: Arc<Mutex<FrameResampler>>,
 }
 
 impl AudioHandler {
-    fn new(tx: mpsc::Sender<Vec<f32>>) -> Self {
+    fn new(tx: SharedSender) -> Self {
         let resampler = FrameResampler::new(
             NATIVE_SAMPLE_RATE as usize,
             SAMPLE_RATE,
@@ -134,7 +145,14 @@ impl SCStreamOutputTrait for AudioHandler {
             return;
         }
 
-        let tx = self.tx.clone();
+        let Some(tx) = self
+            .tx
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+        else {
+            return;
+        };
         let mut rs = match self.resampler.lock() {
             Ok(g) => g,
             Err(_) => {
