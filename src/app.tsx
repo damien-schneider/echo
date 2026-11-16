@@ -19,7 +19,6 @@ import { Spinner } from "@/components/ui/spinner";
 import { useShortcutFailureToasts } from "@/features/shortcuts/use-shortcut-failure-toasts";
 import { useFileTranscriptionListener } from "@/hooks/use-file-transcription-listener";
 import { useMeetingListener } from "@/hooks/use-meeting-listener";
-import { mountTranscriptionBridge } from "@/lib/llm/transcription-bridge";
 import {
   initialModelState,
   type ModelState,
@@ -53,8 +52,6 @@ function App() {
   useFileTranscriptionListener();
   useMeetingListener();
   useShortcutFailureToasts();
-
-  useEffect(() => listenCancellable(mountTranscriptionBridge), []);
 
   useEffect(
     () => listenCancellable(() => subscribeModelState(setModelState)),

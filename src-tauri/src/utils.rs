@@ -26,6 +26,7 @@ pub fn cancel_current_operation(app: &AppHandle) {
 
     let audio_manager = app.state::<Arc<AudioRecordingManager>>();
     audio_manager.cancel_recording();
+    crate::managers::tts::stop_speaking(app);
 
     crate::dictation::abandon(app);
     hide_recording_overlay(app);

@@ -21,6 +21,11 @@ fn custom_sound_exists(app: &AppHandle, sound_type: &str) -> bool {
         .is_ok_and(|path| path.exists())
 }
 
+/// The picker only offers the custom theme when both sounds exist; a theme switch holds to the same rule.
+pub(crate) fn has_custom_sounds(app: &AppHandle) -> bool {
+    custom_sound_exists(app, "start") && custom_sound_exists(app, "stop")
+}
+
 #[tauri::command]
 pub fn check_custom_sounds(app: AppHandle) -> CustomSounds {
     CustomSounds {

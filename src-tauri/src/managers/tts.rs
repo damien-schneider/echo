@@ -1,8 +1,16 @@
 use anyhow::{Context, Result};
 use log::{debug, info, warn};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use tauri::{AppHandle, Manager};
 use tts::{Tts, Voice};
 use whichlang::detect_language;
+
+/// A reply still being read aloud would be recorded by the dictation that starts over it.
+pub(crate) fn stop_speaking(app: &AppHandle) {
+    if let Some(tts) = app.try_state::<Arc<TtsManager>>() {
+        tts.stop();
+    }
+}
 
 #[derive(Default)]
 pub struct TtsManager {
@@ -119,6 +127,14 @@ impl TtsManager {
         let tts = guard.as_mut().context("TTS not initialized")?;
         tts.speak(text, false).context("Failed to speak text")?;
         Ok(())
+    }
+
+    fn stop(&self) {
+        if let Some(tts) = self.system_tts().as_mut() {
+            if let Err(error) = tts.stop() {
+                warn!("Could not stop the spoken reply: {error}");
+            }
+        }
     }
 }
 

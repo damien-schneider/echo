@@ -1,43 +1,68 @@
 use anyhow::Context;
 use log::{debug, error, info};
-use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 
-use crate::actions::{claim_finalize, sanitize_dictation_output, OPERATION_GENERATION};
-use crate::managers::history::HistoryManager;
+use super::command::VoiceCommand;
 use crate::managers::tts::TtsManager;
-use crate::overlay::show_tool_overlay;
 use crate::settings::{self, SoundTheme};
-use crate::tray::{change_tray_icon, TrayIconState};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ToolResult {
-    pub display_message: String,
-    pub success: bool,
+#[derive(Debug, Clone)]
+pub(crate) struct ToolResult {
+    pub(crate) display_message: String,
+    pub(crate) success: bool,
 }
 
-#[tauri::command]
-pub fn execute_change_sound_theme(app: AppHandle) -> ToolResult {
-    let current_theme = settings::get_settings(&app).sound_theme;
-    let next_theme = match current_theme {
-        SoundTheme::Marimba => SoundTheme::Custom,
-        SoundTheme::Custom => SoundTheme::Marimba,
-    };
+pub(super) async fn execute(app: &AppHandle, command: VoiceCommand) -> ToolResult {
+    match command {
+        VoiceCommand::CycleFeedbackSounds => cycle_feedback_sounds(app),
+        VoiceCommand::CreateNote { title, content } => create_note(app, &title, &content),
+        VoiceCommand::OpenApplication { app_name } => open_application(app_name).await,
+    }
+}
 
-    settings::update_settings(&app, |s| {
+/// Only a command's reply is spoken: dictated text already lands where the user reads it.
+pub(crate) fn speak_reply(app: &AppHandle, message: &str) {
+    if message.is_empty() || !settings::get_settings(app).tts_enabled {
+        return;
+    }
+    let tts = app.state::<Arc<TtsManager>>().inner().clone();
+    let message = message.to_string();
+    std::thread::spawn(move || {
+        if let Err(e) = tts.speak(&message) {
+            error!("TTS failed: {e}");
+        }
+    });
+}
+
+/// The custom theme without its files plays nothing at all.
+fn next_sound_theme(current: SoundTheme, has_custom_sounds: bool) -> Option<SoundTheme> {
+    match current {
+        SoundTheme::Marimba if has_custom_sounds => Some(SoundTheme::Custom),
+        SoundTheme::Marimba => None,
+        SoundTheme::Custom => Some(SoundTheme::Marimba),
+    }
+}
+
+fn cycle_feedback_sounds(app: &AppHandle) -> ToolResult {
+    let current_theme = settings::get_settings(app).sound_theme;
+    let has_custom_sounds = crate::commands::audio::has_custom_sounds(app);
+    let Some(next_theme) = next_sound_theme(current_theme, has_custom_sounds) else {
+        return ToolResult {
+            display_message: "Add custom sounds in Settings to switch the sound theme".to_string(),
+            success: false,
+        };
+    };
+    settings::update_settings(app, |s| {
         s.sound_theme = next_theme;
     });
-
     let label = match next_theme {
         SoundTheme::Marimba => "Marimba",
         SoundTheme::Custom => "Custom",
     };
-
     info!("[Tools] Sound theme changed to {}", label);
     ToolResult {
         display_message: format!("Sound theme changed to {}", label),
@@ -45,8 +70,7 @@ pub fn execute_change_sound_theme(app: AppHandle) -> ToolResult {
     }
 }
 
-#[tauri::command]
-pub fn execute_create_note(app: AppHandle, title: String, content: String) -> ToolResult {
+fn create_note(app: &AppHandle, title: &str, content: &str) -> ToolResult {
     let title: String = title
         .chars()
         .filter(|c| *c != '/' && *c != '\\' && *c != '\0')
@@ -58,7 +82,7 @@ pub fn execute_create_note(app: AppHandle, title: String, content: String) -> To
             success: false,
         };
     }
-    match save_note(&app, &title, &content) {
+    match save_note(app, &title, content) {
         Ok(path) => {
             info!("[Tools] Note created at {:?}", path);
             ToolResult {
@@ -109,8 +133,7 @@ fn write_new_note(notes_dir: &Path, title: &str, content: &str) -> anyhow::Resul
     anyhow::bail!("too many notes are already named '{title}'")
 }
 
-#[tauri::command]
-pub async fn execute_open_application(app_name: String) -> ToolResult {
+async fn open_application(app_name: String) -> ToolResult {
     let app_name = app_name.trim().to_string();
     if app_name.is_empty() {
         return ToolResult {
@@ -215,126 +238,10 @@ fn launch_failed(app_name: &str, reason: &str) -> ToolResult {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum PostProcessKind {
-    Text,
-    Tool,
-    Empty,
-}
-
-/// Only a command's reply is spoken: dictated text already lands where the user reads it.
-fn speak_reply(app: &AppHandle, message: &str) {
-    if message.is_empty() || !settings::get_settings(app).tts_enabled {
-        return;
-    }
-    let tts = app.state::<Arc<TtsManager>>().inner().clone();
-    let message = message.to_string();
-    std::thread::spawn(move || {
-        if let Err(e) = tts.speak(&message) {
-            error!("TTS failed: {e}");
-        }
-    });
-}
-
-#[tauri::command]
-pub async fn finalize_transcription(
-    app: AppHandle,
-    text: String,
-    original_transcription: String,
-    op_generation: u64,
-    kind: PostProcessKind,
-    tool_message: Option<String>,
-    post_process_prompt: Option<String>,
-) -> Result<(), String> {
-    let claimed = claim_finalize(op_generation);
-
-    // Taken before the stale check so an abandoned generation releases the buffer.
-    let audio_samples = crate::actions::take_pending_audio(op_generation);
-
-    if !claimed || OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
-        debug!("finalize_transcription: stale or already delivered op_generation, skipping");
-        return Ok(());
-    }
-
-    let text = sanitize_dictation_output(&text);
-    let original_transcription = sanitize_dictation_output(&original_transcription);
-
-    let hm = app.state::<Arc<HistoryManager>>();
-
-    match kind {
-        PostProcessKind::Tool => {
-            let message = tool_message.unwrap_or_default();
-
-            let hm_clone = Arc::clone(&hm);
-            let transcription_for_history = original_transcription.clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = hm_clone
-                    .save_transcription(audio_samples, transcription_for_history, None, None)
-                    .await
-                {
-                    error!("Failed to save transcription to history: {}", e);
-                }
-            });
-
-            if OPERATION_GENERATION.load(Ordering::SeqCst) == op_generation {
-                speak_reply(&app, &message);
-                show_tool_overlay(&app, &message);
-                change_tray_icon(&app, TrayIconState::Idle);
-            }
-        }
-        PostProcessKind::Text => {
-            let hm_clone = Arc::clone(&hm);
-            let transcription_for_history = original_transcription.clone();
-            let post_processed = Some(text.clone());
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = hm_clone
-                    .save_transcription(
-                        audio_samples,
-                        transcription_for_history,
-                        post_processed,
-                        post_process_prompt,
-                    )
-                    .await
-                {
-                    error!("Failed to save transcription to history: {}", e);
-                }
-            });
-
-            if OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
-                debug!("Operation became stale during finalization, skipping paste");
-                return Ok(());
-            }
-
-            crate::actions::deliver_transcript(&app, text, op_generation);
-        }
-        PostProcessKind::Empty => {
-            let hm_clone = Arc::clone(&hm);
-            let transcription_for_history = original_transcription.clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = hm_clone
-                    .save_transcription(audio_samples, transcription_for_history, None, None)
-                    .await
-                {
-                    error!("Failed to save transcription to history: {}", e);
-                }
-            });
-
-            if OPERATION_GENERATION.load(Ordering::SeqCst) != op_generation {
-                debug!("Operation became stale during finalization, skipping paste");
-                return Ok(());
-            }
-
-            crate::actions::deliver_transcript(&app, text, op_generation);
-        }
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
-mod note_tests {
-    use super::write_new_note;
+mod tests {
+    use super::{next_sound_theme, write_new_note};
+    use crate::settings::SoundTheme;
 
     #[test]
     fn a_second_note_with_the_same_title_keeps_the_first() -> anyhow::Result<()> {
@@ -346,5 +253,26 @@ mod note_tests {
         assert_eq!(std::fs::read_to_string(&first)?, "milk");
         assert_eq!(std::fs::read_to_string(&second)?, "bread");
         Ok(())
+    }
+
+    #[test]
+    fn without_custom_sounds_the_theme_is_not_switched_to_silence() {
+        assert_eq!(next_sound_theme(SoundTheme::Marimba, false), None);
+    }
+
+    #[test]
+    fn the_theme_cycles_between_marimba_and_the_users_own_sounds() {
+        assert_eq!(
+            next_sound_theme(SoundTheme::Marimba, true),
+            Some(SoundTheme::Custom)
+        );
+        assert_eq!(
+            next_sound_theme(SoundTheme::Custom, true),
+            Some(SoundTheme::Marimba)
+        );
+        assert_eq!(
+            next_sound_theme(SoundTheme::Custom, false),
+            Some(SoundTheme::Marimba)
+        );
     }
 }

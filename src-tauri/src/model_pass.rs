@@ -1,13 +1,107 @@
 use crate::features::polish::manager::PolishManager;
-use serde::Serialize;
+use anyhow::{Context, Result};
+use log::warn;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
+mod command;
+mod tools;
+
+pub(crate) use tools::{speak_reply, ToolResult};
+
+/// Past this the words are delivered as spoken: a paste that waits longer feels lost.
+pub(crate) const MODEL_PASS_BUDGET: Duration = Duration::from_secs(27);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ModelPass {
     Rewrite,
     Command,
+}
+
+pub(crate) struct Spoken<'a> {
+    pub(crate) transcript: &'a str,
+    pub(crate) generation: u64,
+}
+
+#[derive(Debug)]
+pub(crate) enum ModelPassOutcome {
+    Unchanged,
+    Rewritten { text: String, prompt_name: String },
+    Commanded(ToolResult),
+}
+
+impl ModelPassOutcome {
+    /// What history keeps beside the spoken words: the rewrite and the prompt that made it.
+    pub(crate) fn rewrite(&self) -> Option<(String, String)> {
+        match self {
+            ModelPassOutcome::Rewritten { text, prompt_name } => {
+                Some((text.clone(), prompt_name.clone()))
+            }
+            ModelPassOutcome::Unchanged | ModelPassOutcome::Commanded(_) => None,
+        }
+    }
+}
+
+/// Whatever the model does, the dictation still ends with the words as they were spoken.
+pub(crate) async fn run(app: &AppHandle, pass: ModelPass, spoken: Spoken<'_>) -> ModelPassOutcome {
+    let Some(polish) = app.try_state::<Arc<PolishManager>>() else {
+        return ModelPassOutcome::Unchanged;
+    };
+    let outcome = match pass {
+        ModelPass::Rewrite => rewritten(&polish, spoken.transcript).await,
+        ModelPass::Command => commanded(app, &polish, &spoken).await,
+    };
+    outcome.unwrap_or_else(|error| {
+        warn!("{pass:?} pass failed, the transcript stays as spoken: {error:#}");
+        ModelPassOutcome::Unchanged
+    })
+}
+
+async fn rewritten(polish: &PolishManager, transcript: &str) -> Result<ModelPassOutcome> {
+    let rewrite = tokio::time::timeout(MODEL_PASS_BUDGET, polish.rewrite_dictation(transcript))
+        .await
+        .context("Dictation rewrite timed out")??;
+    let Some(rewrite) = rewrite else {
+        return Ok(ModelPassOutcome::Unchanged);
+    };
+    let text = crate::actions::sanitize_dictation_output(&rewrite.text);
+    if text.is_empty() {
+        return Ok(ModelPassOutcome::Unchanged);
+    }
+    Ok(ModelPassOutcome::Rewritten {
+        text,
+        prompt_name: rewrite.prompt_name,
+    })
+}
+
+async fn commanded(
+    app: &AppHandle,
+    polish: &PolishManager,
+    spoken: &Spoken<'_>,
+) -> Result<ModelPassOutcome> {
+    let body = command::request_body(spoken.transcript);
+    let answer = tokio::time::timeout(MODEL_PASS_BUDGET, polish.complete_with_tools(&body))
+        .await
+        .context("Voice command timed out")??;
+    let mut results = Vec::new();
+    for voice_command in command::commands_in(&answer)? {
+        // cancel only stops this task at its next await: a tool must not start past it
+        if crate::actions::OPERATION_GENERATION.load(Ordering::SeqCst) != spoken.generation {
+            break;
+        }
+        results.push(tools::execute(app, voice_command).await);
+    }
+    Ok(reply_among(results).map_or(ModelPassOutcome::Unchanged, ModelPassOutcome::Commanded))
+}
+
+/// One island line for several commands: a failure must not hide behind a later success.
+fn reply_among(mut results: Vec<ToolResult>) -> Option<ToolResult> {
+    match results.iter().position(|result| !result.success) {
+        Some(failed) => Some(results.swap_remove(failed)),
+        None => results.pop(),
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,7 +160,37 @@ pub(crate) fn routed_model_pass(app: &AppHandle) -> Option<ModelPass> {
 
 #[cfg(test)]
 mod tests {
-    use super::{model_pass_for, DictationTarget, EnabledPasses, ModelPass};
+    use super::{
+        model_pass_for, reply_among, DictationTarget, EnabledPasses, ModelPass, ToolResult,
+    };
+
+    fn reply(display_message: &str, success: bool) -> ToolResult {
+        ToolResult {
+            display_message: display_message.to_string(),
+            success,
+        }
+    }
+
+    #[test]
+    fn a_command_that_failed_is_reported_even_when_a_later_one_worked() {
+        let results = vec![
+            reply("Couldn't find an app named Slak", false),
+            reply("Opened Firefox", true),
+        ];
+
+        let reported = reply_among(results).map(|reply| reply.display_message);
+
+        assert_eq!(reported.as_deref(), Some("Couldn't find an app named Slak"));
+    }
+
+    #[test]
+    fn commands_that_all_worked_report_the_last_one() {
+        let results = vec![reply("Opened Slack", true), reply("Opened Firefox", true)];
+
+        let reported = reply_among(results).map(|reply| reply.display_message);
+
+        assert_eq!(reported.as_deref(), Some("Opened Firefox"));
+    }
 
     const BOTH: EnabledPasses = EnabledPasses {
         rewrite: true,

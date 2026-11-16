@@ -48,6 +48,7 @@ pub(crate) fn start_dictation(app: &AppHandle, binding_id: &str) -> Result<(), S
         "start: overlay show requested at +{:?} (guards +{guards_passed:?}, reserved +{reserved:?}, on shortcut callback thread)",
         start_time.elapsed()
     );
+    crate::managers::tts::stop_speaking(app);
     warm_up_model_pass(app);
     ReservedStart {
         app: app.clone(),

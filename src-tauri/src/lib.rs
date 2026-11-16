@@ -696,7 +696,6 @@ pub fn run() {
             features::polish::manager::stop_polish_chat,
             features::polish::summarize::summarize_text_local,
             features::polish::summarize::local_summary_char_budget,
-            features::polish::local_completion::forward_local_chat_completion,
             features::polish::manager::download_polish_model,
             features::polish::manager::repair_polish_model,
             commands::audio::update_microphone_mode,
@@ -759,10 +758,6 @@ pub fn run() {
             commands::meeting::retranscribe_meeting,
             commands::meeting::get_meeting_transcript_for_summary,
             commands::meeting::save_meeting_summary,
-            commands::voice_tools::execute_change_sound_theme,
-            commands::voice_tools::execute_create_note,
-            commands::voice_tools::execute_open_application,
-            commands::voice_tools::finalize_transcription,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

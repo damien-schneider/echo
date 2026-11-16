@@ -9,6 +9,7 @@ use anyhow::{bail, Context, Result};
 use async_trait::async_trait;
 use futures_util::StreamExt;
 use reqwest::Client;
+use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
@@ -149,7 +150,7 @@ impl PolishRuntime {
         Ok(())
     }
 
-    pub(super) async fn endpoint_auth(&self, endpoint: &str) -> Result<(String, String)> {
+    async fn endpoint_auth(&self, endpoint: &str) -> Result<(String, String)> {
         self.activity.touch();
         self.ensure_ready().await?;
         let process = self.process.lock().await;
@@ -181,19 +182,24 @@ impl PolishRuntime {
         temperature: f32,
         stream: bool,
     ) -> Result<reqwest::Response> {
+        self.post_completion(&ChatRequest {
+            model: "polish",
+            messages,
+            stream,
+            temperature,
+            seed: 0,
+            max_tokens: MAX_RESPONSE_TOKENS,
+        })
+        .await
+    }
+
+    async fn post_completion(&self, body: &(impl Serialize + Sync)) -> Result<reqwest::Response> {
         let (url, api_key) = self.endpoint_auth("/v1/chat/completions").await?;
         let response = self
             .client
             .post(url)
             .bearer_auth(api_key)
-            .json(&ChatRequest {
-                model: "polish",
-                messages,
-                stream,
-                temperature,
-                seed: 0,
-                max_tokens: MAX_RESPONSE_TOKENS,
-            })
+            .json(body)
             .send()
             .await
             .context(ConnectionFailure("Polish server connection failed"))?;
@@ -202,6 +208,24 @@ impl PolishRuntime {
             bail!("Polish server returned HTTP {status}");
         }
         Ok(response)
+    }
+
+    /// The answer comes back unparsed: only the caller knows the tool calls it asked for.
+    pub(super) async fn complete_with_tools(&self, body: &serde_json::Value) -> Result<String> {
+        let _request = self.activity.begin_request();
+        self.run_with_restart(|| self.send_tool_request(body)).await
+    }
+
+    async fn send_tool_request(&self, body: &serde_json::Value) -> Result<String> {
+        let operation = async {
+            self.post_completion(body)
+                .await
+                .context("Voice command request failed")?
+                .text()
+                .await
+                .context(ConnectionFailure("Voice command response failed"))
+        };
+        await_local_operation(operation, POLISH_REQUEST_TIMEOUT, "Voice command request").await
     }
 
     async fn send_polish_request(&self, messages: &[ChatRequestMessage<'_>]) -> Result<String> {

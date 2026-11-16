@@ -8,9 +8,9 @@ use crate::managers::history::HistoryManager;
 use crate::managers::transcription::{
     transcription_timeout, TranscribeError, TranscriptionManager,
 };
-use crate::model_pass::{routed_model_pass, ModelPass};
+use crate::model_pass::{routed_model_pass, ModelPass, ModelPassOutcome, Spoken, ToolResult};
 use crate::overlay::{
-    show_model_required_overlay, show_transcribing_overlay, show_warning_overlay,
+    show_model_required_overlay, show_tool_overlay, show_transcribing_overlay, show_warning_overlay,
 };
 use crate::settings::{get_settings, AppSettings};
 use crate::tray::{change_tray_icon, TrayIconState};
@@ -23,7 +23,7 @@ use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 use std::time::Instant;
 use tauri::AppHandle;
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 mod start;
 
@@ -39,7 +39,6 @@ pub struct TranscribedText {
 
 #[derive(Debug)]
 pub enum EndOfRecordingAction {
-    /// The frontend runs `pass` on the local model, then calls `finalize_transcription`.
     RunModel {
         transcript: String,
         pass: ModelPass,
@@ -77,45 +76,35 @@ async fn apply_end_of_recording_action(
             }
         }
         EndOfRecordingAction::PasteDirect { cleaned, pasted } => {
-            let hm_clone = Arc::clone(&hm);
-            let pasted_for_history = pasted.clone();
-            tauri::async_runtime::spawn(async move {
-                if let Err(e) = hm_clone
-                    .save_transcription(samples, cleaned, Some(pasted_for_history), None)
-                    .await
-                {
-                    error!("Failed to save transcription to history: {}", e);
-                }
-            });
-
-            if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
-                debug!("Operation became stale before paste, skipping");
-                return;
-            }
-            deliver_transcript(&ah, pasted, gen);
+            let record = DictationRecord {
+                samples,
+                spoken: cleaned,
+                processed: Some(pasted.clone()),
+                prompt_name: None,
+            };
+            save_to_history(hm, record);
+            deliver_transcript(&ah, pasted, gen).await;
         }
         EndOfRecordingAction::RunModel { transcript, pass } => {
-            // Samples stay in Rust — a JSON round-trip of the raw buffer costs ~12 bytes per sample.
-            stash_pending_audio(gen, samples);
-            // Watchdog guards against frontend hang/throw skipping finalize.
-            let payload = serde_json::json!({
-                "transcription": transcript.clone(),
-                "op_generation": gen,
-                "pass": pass,
-                "post_process_timeout_ms": POST_PROCESS_FRONTEND_BUDGET.as_millis(),
-            });
-            match ah.emit("transcription-ready", payload) {
-                Ok(()) => {
-                    MODEL_PASS_SENT.store(gen, Ordering::SeqCst);
-                    arm_finalize_watchdog(ah.clone(), gen, transcript);
+            let spoken = Spoken {
+                transcript: &transcript,
+                generation: gen,
+            };
+            let outcome = crate::model_pass::run(&ah, pass, spoken).await;
+            let (processed, prompt_name) = outcome.rewrite().unzip();
+            let record = DictationRecord {
+                samples,
+                spoken: transcript.clone(),
+                processed,
+                prompt_name,
+            };
+            save_to_history(hm, record);
+            match outcome {
+                ModelPassOutcome::Unchanged => deliver_transcript(&ah, transcript, gen).await,
+                ModelPassOutcome::Rewritten { text, .. } => {
+                    deliver_transcript(&ah, text, gen).await;
                 }
-                Err(e) => {
-                    // No listener: paste raw, no finalize coming.
-                    error!("Failed to emit transcription-ready: {}", e);
-                    if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
-                        deliver_transcript(&ah, transcript, gen);
-                    }
-                }
+                ModelPassOutcome::Commanded(reply) => report_command(&ah, &reply, gen),
             }
         }
     }
@@ -137,54 +126,67 @@ fn end_empty(ah: &AppHandle, gen: u64, reason: &str) {
     change_tray_icon(ah, TrayIconState::Idle);
 }
 
-/// The one exit every dictation takes, wherever the text came from — staleness-checked against `gen`.
-pub(crate) fn deliver_transcript(ah: &AppHandle, text: String, gen: u64) {
+/// The one exit every dictation takes. Awaited, so the next press waits until the text has landed.
+async fn deliver_transcript(ah: &AppHandle, text: String, gen: u64) {
+    let (landed, has_landed) = tokio::sync::oneshot::channel();
     let ah_clone = ah.clone();
     let scheduled = ah.run_on_main_thread(move || {
-        if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
-            return;
-        }
-        utils::hide_recording_overlay(&ah_clone);
-        crate::dictation::deliver(&ah_clone, text);
-        change_tray_icon(&ah_clone, TrayIconState::Idle);
-    });
-    if let Err(error) = scheduled {
-        error!("Failed to deliver the transcription: {error:?}");
         if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
-            utils::hide_recording_overlay(ah);
-            change_tray_icon(ah, TrayIconState::Idle);
+            utils::hide_recording_overlay(&ah_clone);
+            crate::dictation::deliver(&ah_clone, text);
+            change_tray_icon(&ah_clone, TrayIconState::Idle);
+        }
+        let _ = landed.send(());
+    });
+    match scheduled {
+        Ok(()) => {
+            let _ = has_landed.await;
+        }
+        Err(error) => {
+            error!("Failed to deliver the transcription: {error:?}");
+            if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
+                utils::hide_recording_overlay(ah);
+                change_tray_icon(ah, TrayIconState::Idle);
+            }
         }
     }
 }
 
-/// Recovers overlay if frontend never calls finalize_transcription.
-fn arm_finalize_watchdog(ah: AppHandle, gen: u64, raw: String) {
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(POST_PROCESS_WATCHDOG).await;
-        if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
-            return;
-        }
-        if !claim_finalize(gen) {
-            return;
-        }
-        warn!(
-            "Post-process watchdog firing: frontend never called finalize_transcription \
-             for generation {gen} within {:?}. Falling back to raw paste.",
-            POST_PROCESS_WATCHDOG
-        );
-        save_unprocessed_to_history(&ah, gen, raw.clone());
-        deliver_transcript(&ah, raw, gen);
-    });
+struct DictationRecord {
+    samples: Vec<f32>,
+    spoken: String,
+    processed: Option<String>,
+    prompt_name: Option<String>,
 }
 
-fn save_unprocessed_to_history(ah: &AppHandle, gen: u64, raw: String) {
-    let history = Arc::clone(&ah.state::<Arc<HistoryManager>>());
-    let samples = take_pending_audio(gen);
+fn save_to_history(history: Arc<HistoryManager>, record: DictationRecord) {
     tauri::async_runtime::spawn(async move {
-        if let Err(e) = history.save_transcription(samples, raw, None, None).await {
+        let saved = history
+            .save_transcription(
+                record.samples,
+                record.spoken,
+                record.processed,
+                record.prompt_name,
+            )
+            .await;
+        if let Err(e) = saved {
             error!("Failed to save transcription to history: {}", e);
         }
     });
+}
+
+/// A command that failed says so as a warning: the success card would read as done.
+fn report_command(ah: &AppHandle, reply: &ToolResult, gen: u64) {
+    if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
+        return;
+    }
+    crate::model_pass::speak_reply(ah, &reply.display_message);
+    if reply.success {
+        show_tool_overlay(ah, &reply.display_message);
+    } else {
+        show_warning_overlay(ah, &reply.display_message);
+    }
+    change_tray_icon(ah, TrayIconState::Idle);
 }
 
 /// Only digital zeros skip the decode: the VAD already chose what counts as speech.
@@ -312,81 +314,13 @@ pub fn decide_end_of_recording(
 /// Bumps on every accepted start, stop, or cancel so stale work cannot mutate UI.
 pub(crate) static OPERATION_GENERATION: AtomicU64 = AtomicU64::new(0);
 
-/// Highest generation already delivered by `finalize_transcription` or the watchdog.
-static FINALIZE_CLAIMED: AtomicU64 = AtomicU64::new(0);
-
-/// First claim wins, so a model answering after the watchdog's raw paste cannot paste again.
-pub(crate) fn claim_finalize(gen: u64) -> bool {
-    claim_generation(&FINALIZE_CLAIMED, gen)
-}
-
-fn claim_generation(claimed: &AtomicU64, gen: u64) -> bool {
-    claimed.fetch_max(gen, Ordering::SeqCst) < gen
-}
-
-/// Generation whose transcript is with the frontend for a model pass; 0 until one is sent.
-static MODEL_PASS_SENT: AtomicU64 = AtomicU64::new(0);
-
-fn model_pass_is_pending(sent: u64, current: u64, claimed: u64) -> bool {
-    sent != 0 && sent == current && claimed < sent
-}
-
 /// A new dictation makes the previous one stale and drops its text, so it waits for that text to land.
 pub(crate) fn previous_dictation_is_settling() -> bool {
-    let is_transcribing = TRANSCRIPTION_TASK.lock().is_ok_and(|task| {
+    TRANSCRIPTION_TASK.lock().is_ok_and(|task| {
         task.as_ref()
             .is_some_and(|handle| !handle.inner().is_finished())
-    });
-    is_transcribing
-        || model_pass_is_pending(
-            MODEL_PASS_SENT.load(Ordering::SeqCst),
-            OPERATION_GENERATION.load(Ordering::SeqCst),
-            FINALIZE_CLAIMED.load(Ordering::SeqCst),
-        )
+    })
 }
-
-/// Kept off the webview; one slot so an abandoned round-trip cannot pile up.
-static PENDING_DICTATION_AUDIO: Mutex<Option<PendingDictationAudio>> = Mutex::new(None);
-
-struct PendingDictationAudio {
-    generation: u64,
-    samples: Vec<f32>,
-}
-
-fn stash_pending_audio(generation: u64, samples: Vec<f32>) {
-    if let Ok(mut pending) = PENDING_DICTATION_AUDIO.lock() {
-        *pending = Some(PendingDictationAudio {
-            generation,
-            samples,
-        });
-    }
-}
-
-/// An older buffer is dropped so an abandoned round-trip cannot pin it; a newer one belongs to a live dictation.
-pub(crate) fn take_pending_audio(generation: u64) -> Vec<f32> {
-    let Ok(mut pending) = PENDING_DICTATION_AUDIO.lock() else {
-        return Vec::new();
-    };
-    take_audio_up_to(&mut pending, generation)
-}
-
-fn take_audio_up_to(pending: &mut Option<PendingDictationAudio>, generation: u64) -> Vec<f32> {
-    if pending
-        .as_ref()
-        .is_some_and(|audio| audio.generation > generation)
-    {
-        return Vec::new();
-    }
-    match pending.take() {
-        Some(audio) if audio.generation == generation => audio.samples,
-        _ => Vec::new(),
-    }
-}
-
-pub const POST_PROCESS_WATCHDOG: Duration = Duration::from_secs(30);
-/// Leaves the frontend time to finalize before the watchdog pastes the raw text instead.
-pub(crate) const POST_PROCESS_FRONTEND_BUDGET: Duration =
-    POST_PROCESS_WATCHDOG.saturating_sub(Duration::from_secs(3));
 
 /// Last resort above the inner per-join budgets (~3s) — past it the audio path is abandoned so the UI can't stick.
 pub const STOP_RECORDING_CEILING: Duration = Duration::from_secs(10);
@@ -705,12 +639,11 @@ pub static ACTION_MAP: LazyLock<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy
 #[cfg(test)]
 mod decision_tests {
     use super::{
-        claim_generation, decide_end_of_recording, is_current_operation, model_pass_is_pending,
-        should_apply_start_feedback, EndOfRecordingAction, TranscribedText,
+        decide_end_of_recording, is_current_operation, should_apply_start_feedback,
+        EndOfRecordingAction, TranscribedText,
     };
     use crate::managers::transcription::TranscribeError;
     use crate::model_pass::ModelPass;
-    use std::sync::atomic::AtomicU64;
 
     fn cleaned(text: &str) -> TranscribedText {
         TranscribedText {
@@ -730,26 +663,6 @@ mod decision_tests {
     fn a_stop_before_any_capture_is_told_apart_from_silence() {
         let a = decide_end_of_recording(false, Ok(cleaned("anything")), None);
         assert!(matches!(a, EndOfRecordingAction::StoppedBeforeCapture));
-    }
-
-    #[test]
-    fn a_transcript_out_for_its_model_pass_holds_the_next_dictation() {
-        assert!(model_pass_is_pending(5, 5, 4));
-    }
-
-    #[test]
-    fn a_delivered_model_pass_frees_the_next_dictation() {
-        assert!(!model_pass_is_pending(5, 5, 5));
-    }
-
-    #[test]
-    fn a_cancelled_model_pass_frees_the_next_dictation() {
-        assert!(!model_pass_is_pending(5, 6, 4));
-    }
-
-    #[test]
-    fn nothing_is_pending_before_any_model_pass() {
-        assert!(!model_pass_is_pending(0, 0, 0));
     }
 
     #[test]
@@ -974,68 +887,6 @@ mod decision_tests {
     fn stale_start_failure_cannot_reset_a_newer_recording() {
         assert!(is_current_operation(7, 7));
         assert!(!is_current_operation(8, 7));
-    }
-
-    #[test]
-    fn a_dictation_is_delivered_once_whoever_answers_first() {
-        let claimed = AtomicU64::new(0);
-
-        assert!(
-            claim_generation(&claimed, 5),
-            "the watchdog pastes the raw text"
-        );
-        assert!(
-            !claim_generation(&claimed, 5),
-            "the model answering late pastes nothing"
-        );
-        assert!(
-            !claim_generation(&claimed, 4),
-            "an older dictation stays closed"
-        );
-        assert!(
-            !claim_generation(&claimed, 5),
-            "a stale claim cannot reopen the newer one"
-        );
-        assert!(
-            claim_generation(&claimed, 6),
-            "the next dictation delivers normally"
-        );
-    }
-}
-
-#[cfg(test)]
-mod pending_audio_tests {
-    use super::{take_audio_up_to, PendingDictationAudio};
-
-    fn recording_of(generation: u64) -> Option<PendingDictationAudio> {
-        Some(PendingDictationAudio {
-            generation,
-            samples: vec![0.5; 4],
-        })
-    }
-
-    #[test]
-    fn a_recording_is_handed_to_its_own_dictation_once() {
-        let mut pending = recording_of(7);
-
-        assert_eq!(take_audio_up_to(&mut pending, 7).len(), 4);
-        assert!(take_audio_up_to(&mut pending, 7).is_empty());
-    }
-
-    #[test]
-    fn a_late_reply_about_an_earlier_dictation_leaves_the_live_recording_alone() {
-        let mut pending = recording_of(7);
-
-        assert!(take_audio_up_to(&mut pending, 6).is_empty());
-        assert_eq!(take_audio_up_to(&mut pending, 7).len(), 4);
-    }
-
-    #[test]
-    fn an_abandoned_recording_is_released_by_the_next_dictation() {
-        let mut pending = recording_of(7);
-
-        assert!(take_audio_up_to(&mut pending, 8).is_empty());
-        assert!(pending.is_none());
     }
 }
 

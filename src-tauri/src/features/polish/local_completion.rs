@@ -1,29 +1,11 @@
-//! Voice commands' AI SDK call reaches the bundled sidecar through this command instead of a
-//! webview fetch: no browser CORS rule applies, and the per-run key never leaves Rust.
-
 use anyhow::{Context, Result};
-use reqwest::header::CONTENT_TYPE;
-use reqwest::Client;
-use serde::Serialize;
-use std::sync::{Arc, LazyLock};
-use std::time::Duration;
+use std::sync::Arc;
 
 use super::manager::PolishManager;
 use crate::managers::model::POLISH_MODEL_NAME;
 
-/// Frees the single sidecar slot once the paste watchdog has already given up on the answer.
-const LOCAL_COMPLETION_TIMEOUT: Duration = Duration::from_secs(30);
-
-static LOCAL_COMPLETION_CLIENT: LazyLock<Client> = LazyLock::new(Client::new);
-
-#[derive(Debug, Serialize)]
-pub(crate) struct LocalCompletionResponse {
-    status: u16,
-    body: String,
-}
-
 impl PolishManager {
-    async fn forward_chat_completion(&self, body: String) -> Result<LocalCompletionResponse> {
+    pub(crate) async fn complete_with_tools(&self, body: &serde_json::Value) -> Result<String> {
         if !self.is_downloaded() {
             anyhow::bail!(
                 "Download {POLISH_MODEL_NAME} in Settings → Models to run voice commands."
@@ -32,22 +14,7 @@ impl PolishManager {
         self.prepare()
             .await
             .context("Failed to prepare the local model for voice commands")?;
-        let (url, api_key) = self.runtime.endpoint_auth("/v1/chat/completions").await?;
-        let response = LOCAL_COMPLETION_CLIENT
-            .post(url)
-            .bearer_auth(api_key)
-            .header(CONTENT_TYPE, "application/json")
-            .body(body)
-            .timeout(LOCAL_COMPLETION_TIMEOUT)
-            .send()
-            .await
-            .context("Local model request failed")?;
-        let status = response.status().as_u16();
-        let body = response
-            .text()
-            .await
-            .context("Local model response failed")?;
-        Ok(LocalCompletionResponse { status, body })
+        self.runtime.complete_with_tools(body).await
     }
 
     /// Loading the weights while the user still speaks keeps the reload out of the paste delay.
@@ -62,15 +29,4 @@ impl PolishManager {
             }
         });
     }
-}
-
-#[tauri::command]
-pub(crate) async fn forward_local_chat_completion(
-    manager: tauri::State<'_, Arc<PolishManager>>,
-    body: String,
-) -> Result<LocalCompletionResponse, String> {
-    manager
-        .forward_chat_completion(body)
-        .await
-        .map_err(|error| format!("{error:#}"))
 }

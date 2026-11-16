@@ -35,7 +35,6 @@
     "clean": "rm -rf .turbo .cargo node_modules bun.lock dist src-tauri/target apps/web/node_modules && bun install"
   },
   "dependencies": {
-    "@ai-sdk/openai-compatible": "^2.0.93",
     "@ariakit/react": "^0.4.43",
     "@base-ui/react": "^1.9.0",
     "@ctrl-ui/react": "catalog:",
@@ -53,7 +52,6 @@
     "@tauri-apps/plugin-opener": "~2.7.3",
     "@tauri-apps/plugin-os": "~2.4.0",
     "@tauri-apps/plugin-store": "~2.5.1",
-    "ai": "^6.0.332",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
