@@ -1,3 +1,4 @@
+mod activity;
 pub(crate) mod context_menu;
 mod drag_preview;
 mod events;
@@ -28,7 +29,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
 
-pub(crate) use events::{
+pub(crate) use activity::{
     emit_levels, emit_transcription_progress, hide_recording_overlay, mark_recording_live,
     show_model_required_overlay, show_preparing_overlay, show_processing_overlay,
     show_tool_overlay, show_transcribing_overlay, show_warning_overlay,
@@ -223,11 +224,16 @@ pub(crate) fn get_overlay_chat_context() -> Option<events::ChatContextEvent> {
 }
 
 #[tauri::command]
-pub(crate) fn hide_overlay_notification(app_handle: AppHandle) -> Result<(), String> {
-    if events::requested_surface() == Some(TRANSCRIPT_SURFACE) {
+pub(crate) fn hide_overlay_notification(
+    app_handle: AppHandle,
+    last_seen_request: u64,
+) -> Result<(), String> {
+    let Some(dismissed) = events::dismiss_notification_request(last_seen_request) else {
+        return Ok(());
+    };
+    if dismissed.surface == Some(TRANSCRIPT_SURFACE) {
         crate::dictation::drop_held_transcript();
     }
-    events::clear_notification_request();
     window_modes::hide_notification(&app_handle)
 }
 
@@ -304,7 +310,13 @@ pub(crate) async fn request_overlay_notification(
 /// The HUD handle is a few pixels tall — failures surface as a warning notification instead.
 #[tauri::command]
 pub(crate) fn warn_from_overlay(app_handle: AppHandle, message: String) {
-    events::show_warning_overlay(&app_handle, &message);
+    activity::show_warning_overlay(&app_handle, &message);
+}
+
+/// A webview that mounts mid-dictation asks for the state it missed.
+#[tauri::command]
+pub(crate) fn get_overlay_activity(app_handle: AppHandle) -> Option<&'static str> {
+    live_dictation::shown_phase(&app_handle)
 }
 
 #[tauri::command]

@@ -550,7 +550,7 @@ pub fn run() {
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
                 log::info!("Theme changed to: {:?}", theme);
-                utils::change_tray_icon(window.app_handle(), utils::TrayIconState::Idle);
+                tray::refresh_tray_icon(window.app_handle());
             }
             tauri::WindowEvent::DragDrop(drag_event) => match drag_event {
                 tauri::DragDropEvent::Enter { .. } => {
@@ -643,6 +643,7 @@ pub fn run() {
             overlay::get_overlay_notification_request,
             overlay::get_overlay_chat_context,
             overlay::hide_overlay_notification,
+            overlay::get_overlay_activity,
             overlay::request_overlay_notification,
             overlay::send_held_transcript_to_chat,
             overlay::warn_from_overlay,

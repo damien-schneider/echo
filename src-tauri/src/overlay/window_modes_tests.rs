@@ -1,5 +1,8 @@
-use super::{covered_modes, render_mode, settle_mode, stage_mode, SurfaceModeState};
+use super::{
+    covered_modes, notification_is_drawn, render_mode, settle_mode, stage_mode, SurfaceModeState,
+};
 use crate::overlay::layout::RecordingOverlayMode;
+use crate::settings::OverlayPosition;
 
 const IDLE_HUD: SurfaceModeState = SurfaceModeState {
     pending: None,
@@ -74,4 +77,16 @@ fn the_staged_mode_is_the_one_being_drawn() {
         render_mode(settle_mode(state, RecordingOverlayMode::Actions).expect("settles")),
         Some(RecordingOverlayMode::Actions)
     );
+}
+
+#[test]
+fn a_hidden_overlay_draws_the_notification_only_for_a_notice() {
+    assert!(!notification_is_drawn(OverlayPosition::None, false));
+    assert!(notification_is_drawn(OverlayPosition::None, true));
+}
+
+#[test]
+fn a_visible_overlay_always_draws_the_notification() {
+    assert!(notification_is_drawn(OverlayPosition::Top, false));
+    assert!(notification_is_drawn(OverlayPosition::Top, true));
 }

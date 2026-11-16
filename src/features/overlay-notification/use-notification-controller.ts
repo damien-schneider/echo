@@ -34,6 +34,7 @@ import { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events
 import { useMeetingNotice } from "@/features/overlay-notification/meeting-notice";
 import { createNotificationPresentation } from "@/features/overlay-notification/notification-presentation";
 import { updateNoticeFor } from "@/features/overlay-notification/update-notice";
+import { useOverlayKey } from "@/features/overlay-notification/use-overlay-key";
 import { usePolishModel } from "@/features/polish/use-polish-model";
 import { useUpdateStatus } from "@/features/updates/use-update-status";
 import {
@@ -42,13 +43,6 @@ import {
   subscribeModelState,
 } from "@/lib/model-state";
 import { listenCancellable } from "@/lib/tauri-listener";
-
-const OVERLAY_KEY_COMMAND = {
-  hold: "hold_overlay_key",
-  release: "release_overlay_key",
-} as const;
-
-type OverlayKey = "cancel" | "finish";
 
 /// Rust holds the text until the surface is dismissed, so the panel can always re-read what it is showing.
 const useHeldTranscript = (isShown: boolean) => {
@@ -77,19 +71,6 @@ const useModelState = (): ModelState => {
   const [state, setState] = useState<ModelState>(initialModelState);
   useEffect(() => listenCancellable(() => subscribeModelState(setState)), []);
   return state;
-};
-
-/// Borrowed from the focused app only while the overlay can act on the key, and handed straight back after.
-const useOverlayKey = (key: OverlayKey, isHeld: boolean) => {
-  useEffect(() => {
-    const command = isHeld
-      ? OVERLAY_KEY_COMMAND.hold
-      : OVERLAY_KEY_COMMAND.release;
-    invoke(command, { key }).catch(() => undefined);
-    return () => {
-      invoke(OVERLAY_KEY_COMMAND.release, { key }).catch(() => undefined);
-    };
-  }, [isHeld, key]);
 };
 
 const nextChatContext = (
@@ -125,40 +106,44 @@ const parsedChatContext = (payload: unknown): ChatContextEvent | null => {
   return parsed.success ? parsed.data : null;
 };
 
-const useNotificationRequest = () => {
+/// The newest request heard tells Rust whether a hide was sent before a later request reached this window.
+const useRequestEvent = () => {
   const [requestEvent, setRequestEvent] =
     useState<NotificationRequestEvent | null>(null);
-  const [chatContext, setChatContext] = useState<ChatContextEvent | null>(null);
-  useEffect(
-    () =>
-      listenCancellable(() =>
-        listen<unknown>(NOTIFICATION_REQUEST_EVENT, (event) => {
-          const request = parsedNotificationRequest(event.payload);
-          if (request !== null) {
-            setRequestEvent((current) =>
-              nextNotificationRequest(current, request)
-            );
-          }
-        })
-      ),
-    []
-  );
+  const lastSeenGeneration = useRef(0);
   useEffect(() => {
     let isStopped = false;
+    const hear = (payload: unknown) => {
+      const request = parsedNotificationRequest(payload);
+      if (isStopped || request === null) {
+        return;
+      }
+      lastSeenGeneration.current = Math.max(
+        lastSeenGeneration.current,
+        request.generation
+      );
+      setRequestEvent((current) => nextNotificationRequest(current, request));
+    };
+    const stopListening = listenCancellable(() =>
+      listen<unknown>(NOTIFICATION_REQUEST_EVENT, (event) =>
+        hear(event.payload)
+      )
+    );
     invoke<unknown>(NOTIFICATION_REQUEST_STATE_COMMAND)
-      .then((payload) => {
-        const request = parsedNotificationRequest(payload);
-        if (!(isStopped || request === null)) {
-          setRequestEvent((current) =>
-            nextNotificationRequest(current, request)
-          );
-        }
-      })
+      .then(hear)
       .catch(() => undefined);
     return () => {
       isStopped = true;
+      stopListening();
     };
   }, []);
+  return { lastSeenGeneration, requestEvent, setRequestEvent };
+};
+
+const useNotificationRequest = () => {
+  const { lastSeenGeneration, requestEvent, setRequestEvent } =
+    useRequestEvent();
+  const [chatContext, setChatContext] = useState<ChatContextEvent | null>(null);
   useEffect(
     () =>
       listenCancellable(() =>
@@ -191,6 +176,7 @@ const useNotificationRequest = () => {
       setChatContext(null);
       setRequestEvent(null);
     },
+    lastSeenGeneration,
     request: requestEvent?.surface ?? null,
   };
 };
@@ -285,7 +271,8 @@ export const useNotificationController = () => {
   const events = useOverlayEvents(microphoneRef);
   const polish = usePolishModel();
   const modelState = useModelState();
-  const { chatContext, clearRequest, request } = useNotificationRequest();
+  const { chatContext, clearRequest, lastSeenGeneration, request } =
+    useNotificationRequest();
   const update = useUpdateNotice();
   const meeting = useMeetingNotice();
   const heldTranscript = useHeldTranscript(request === "transcript");
@@ -364,11 +351,11 @@ export const useNotificationController = () => {
     polish,
     presentation,
     releaseWindow: () => {
-      invoke(NOTIFICATION_HIDE_COMMAND).catch(() => undefined);
+      invoke(NOTIFICATION_HIDE_COMMAND, {
+        lastSeenRequest: lastSeenGeneration.current,
+      }).catch(() => undefined);
     },
-    sendHeldTranscriptToChat: () => {
-      invoke(HELD_TRANSCRIPT_COMMAND.send).catch(() => undefined);
-    },
+    sendHeldTranscriptToChat: () => invoke(HELD_TRANSCRIPT_COMMAND.send),
     renderMode,
     /// Whatever speaks through the island acts through its one button.
     runActivityAction: (intent: ActivityAction["intent"]) => {

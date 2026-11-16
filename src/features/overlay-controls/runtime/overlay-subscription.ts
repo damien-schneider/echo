@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { UnlistenFn } from "@tauri-apps/api/event";
+import { z } from "zod";
 import {
   overlayEventFailureMessage,
   subscribeEventListeners,
@@ -9,7 +10,10 @@ import {
   type OverlaySurface,
   OverlaySurfaceSchema,
 } from "@/features/overlay-controls/runtime/overlay-surface";
-import type { OverlayWindowChannel } from "@/features/overlay-controls/runtime/overlay-windows";
+import {
+  OVERLAY_ACTIVITY_COMMAND,
+  type OverlayWindowChannel,
+} from "@/features/overlay-controls/runtime/overlay-windows";
 
 export interface OverlaySurfaceState {
   isReady: boolean;
@@ -26,6 +30,19 @@ const fetchOverlaySurface = async (
 ): Promise<OverlaySurface | null> => {
   const payload = await invoke<unknown>(command);
   return OverlaySurfaceSchema.parse(payload);
+};
+
+const ReplayedActivitySchema = z
+  .enum(["preparing", "recording", "transcribing"])
+  .nullable();
+
+/// A webview that mounts mid-dictation missed its show — a failed replay only leaves it waiting for the next one.
+const fetchShownActivity = async () => {
+  const payload = await invoke<unknown>(OVERLAY_ACTIVITY_COMMAND).catch(
+    () => null
+  );
+  const replayed = ReplayedActivitySchema.safeParse(payload);
+  return replayed.success ? replayed.data : null;
 };
 
 type SurfacePublisher = (surface: OverlaySurface | null) => void;
@@ -55,8 +72,13 @@ export const startOverlaySubscription = (ports: SubscriptionPorts) => {
       const surface = await fetchOverlaySurface(
         ports.channel.surfaceCommand
       ).catch(ports.onFallback);
-      if (!isCancelled()) {
-        publish(surface);
+      if (isCancelled()) {
+        return;
+      }
+      publish(surface);
+      const state = await fetchShownActivity();
+      if (state !== null && !isCancelled()) {
+        ports.dispatch({ state, type: "replayed" });
       }
     },
     isCancelled,

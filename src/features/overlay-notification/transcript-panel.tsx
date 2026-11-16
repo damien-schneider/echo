@@ -12,20 +12,46 @@ import { useEffect, useEffectEvent, useState } from "react";
 interface TranscriptPanelProps {
   onClose: () => void;
   onCopy: () => Promise<void>;
-  onSendToChat: () => void;
+  onSendToChat: () => Promise<unknown>;
   text: string;
 }
 const TRANSCRIPT_HEADLINE = "Echo could not place this dictation";
+const SEND_FAILED_HEADLINE = "Couldn’t send this to chat. Copy it instead.";
 const READING_LINGER_MS = 6000;
 const COPIED_LINGER_MS = 2000;
-const useDismissCountdown = (isCopied: boolean, onClose: () => void) => {
+const useDismissCountdown = (
+  isCopied: boolean,
+  isPaused: boolean,
+  onClose: () => void
+) => {
   const close = useEffectEvent(onClose);
   const lingerMs = isCopied ? COPIED_LINGER_MS : READING_LINGER_MS;
   useEffect(() => {
+    if (isPaused) {
+      return;
+    }
     const timer = setTimeout(close, lingerMs);
     return () => clearTimeout(timer);
-  }, [lingerMs]);
+  }, [isPaused, lingerMs]);
   return lingerMs;
+};
+/// Chat takes the window over when the send lands — closing under it would take the answer down too.
+const useSendToChat = (onSendToChat: () => Promise<unknown>) => {
+  const [status, setStatus] = useState<"failed" | "idle" | "sending">("idle");
+  const send = async () => {
+    setStatus("sending");
+    try {
+      await onSendToChat();
+      setStatus("idle");
+    } catch {
+      setStatus("failed");
+    }
+  };
+  return {
+    hasFailed: status === "failed",
+    isSending: status === "sending",
+    send,
+  };
 };
 export const TranscriptPanel = ({
   onClose,
@@ -34,7 +60,8 @@ export const TranscriptPanel = ({
   text,
 }: TranscriptPanelProps) => {
   const [isCopied, setIsCopied] = useState(false);
-  const lingerMs = useDismissCountdown(isCopied, onClose);
+  const { hasFailed, isSending, send } = useSendToChat(onSendToChat);
+  const lingerMs = useDismissCountdown(isCopied, isSending, onClose);
   const copy = async () => {
     await onCopy();
     setIsCopied(true);
@@ -50,7 +77,7 @@ export const TranscriptPanel = ({
           <WaveformIcon aria-hidden="true" className="size-4 text-white/70" />
         </span>
         <p className="min-w-0 flex-1 text-center text-[12px] text-white/58">
-          {TRANSCRIPT_HEADLINE}
+          {hasFailed ? SEND_FAILED_HEADLINE : TRANSCRIPT_HEADLINE}
         </p>
         <Button
           aria-label="Dismiss the dictated text"
@@ -71,7 +98,7 @@ export const TranscriptPanel = ({
           aria-label="Send the dictated text to Echo chat"
           className="size-9 rounded-full bg-white/8 text-white/80 hover:bg-white/14 hover:text-white"
           iconOnly
-          onClick={onSendToChat}
+          onClick={send}
           size="md"
           title="Send to chat"
           variant="ghost"
@@ -93,14 +120,16 @@ export const TranscriptPanel = ({
           {isCopied ? "Copied" : "Copy"}
         </Button>
       </div>
-      <m.span
-        animate={{ scaleX: 0 }}
-        aria-hidden="true"
-        className="echo-island-countdown"
-        initial={{ scaleX: 1 }}
-        key={lingerMs}
-        transition={{ duration: lingerMs / 1000, ease: "linear" }}
-      />
+      {isSending ? null : (
+        <m.span
+          animate={{ scaleX: 0 }}
+          aria-hidden="true"
+          className="echo-island-countdown"
+          initial={{ scaleX: 1 }}
+          key={lingerMs}
+          transition={{ duration: lingerMs / 1000, ease: "linear" }}
+        />
+      )}
     </dialog>
   );
 };

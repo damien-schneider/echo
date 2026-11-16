@@ -201,8 +201,33 @@ describe("overlay activity", () => {
   });
 
   test("hiding an already hidden overlay changes nothing", () => {
-    expect(
-      reduceOverlayActivity(initialOverlayActivity, { type: "hidden" })
-    ).toBe(initialOverlayActivity);
+    const hidden = apply([{ type: "hidden" }]);
+
+    expect(reduceOverlayActivity(hidden, { type: "hidden" })).toBe(hidden);
+  });
+
+  test("a webview that mounts mid-dictation shows the state it missed", () => {
+    const state = apply([{ state: "recording", type: "replayed" }]);
+
+    expect(state.isVisible).toBe(true);
+    expect(state.state).toBe("recording");
+  });
+
+  test("a replay that lands after the dictation ended stays hidden", () => {
+    const state = apply([
+      { type: "hidden" },
+      { state: "recording", type: "replayed" },
+    ]);
+
+    expect(state.isVisible).toBe(false);
+  });
+
+  test("a replay never overrides a state heard live", () => {
+    const state = apply([
+      { message: "", state: "transcribing", type: "shown" },
+      { state: "recording", type: "replayed" },
+    ]);
+
+    expect(state.state).toBe("transcribing");
   });
 });

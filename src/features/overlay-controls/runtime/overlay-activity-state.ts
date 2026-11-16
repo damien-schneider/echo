@@ -9,6 +9,8 @@ export interface OverlayActivity {
   dismissedDownloadId: string | null;
   download: OverlayDownloadProgress | null;
   error: string | null;
+  /// A replayed state only fills the silence before the first live show or hide.
+  hasHeardVisibility: boolean;
   isVisible: boolean;
   remedy: OverlayRemedy | null;
   state: OverlayState;
@@ -29,12 +31,14 @@ export type OverlayActivityEvent =
   | { message: string; type: "failed" }
   | { text: string; type: "progress" }
   | { type: "dismissed" }
-  | { type: "hidden" };
+  | { type: "hidden" }
+  | { state: OverlayState; type: "replayed" };
 
 export const initialOverlayActivity: OverlayActivity = {
   dismissedDownloadId: null,
   download: null,
   error: null,
+  hasHeardVisibility: false,
   isVisible: false,
   remedy: null,
   state: "recording",
@@ -47,6 +51,7 @@ const shown = (
   event: Extract<OverlayActivityEvent, { type: "shown" }>
 ): OverlayActivity => ({
   ...state,
+  hasHeardVisibility: true,
   isVisible: true,
   remedy: event.action ?? null,
   state: event.state,
@@ -136,7 +141,13 @@ export const reduceOverlayActivity = (
     case "shown":
       return shown(state, event);
     case "hidden":
-      return state.isVisible ? { ...state, isVisible: false } : state;
+      return state.isVisible || !state.hasHeardVisibility
+        ? { ...state, hasHeardVisibility: true, isVisible: false }
+        : state;
+    case "replayed":
+      return state.hasHeardVisibility
+        ? state
+        : shown(state, { message: "", state: event.state, type: "shown" });
     case "progress":
       return { ...state, streamingText: event.text };
     case "download_progress":

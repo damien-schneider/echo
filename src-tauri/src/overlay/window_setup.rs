@@ -10,7 +10,25 @@ use super::window::{surface_request, OVERLAY_NOTIFICATION_LABEL, RECORDING_OVERL
 use super::window_modes::update_overlay_position;
 use crate::settings::{self, OverlayPosition};
 use log::{debug, info, warn};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager, WebviewWindow, WebviewWindowBuilder};
+
+/// Set when no screen was there to place the windows on; the next show builds them once one is.
+static AWAITS_SCREEN: AtomicBool = AtomicBool::new(false);
+
+/// Main thread only. A webview built there deadlocks on Windows, so that build moves to its own thread.
+pub(super) fn retry_overlay_awaiting_screen(app_handle: &AppHandle) {
+    if !AWAITS_SCREEN.swap(false, Ordering::AcqRel) {
+        return;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let app_handle = app_handle.clone();
+        std::thread::spawn(move || create_recording_overlay(&app_handle));
+    }
+    #[cfg(not(target_os = "windows"))]
+    create_recording_overlay(app_handle);
+}
 
 pub(crate) fn create_recording_overlay(app_handle: &AppHandle) {
     #[cfg(target_os = "linux")]
@@ -26,6 +44,7 @@ pub(crate) fn create_recording_overlay(app_handle: &AppHandle) {
     let placement = OverlayPlacement::from_settings(&settings);
     let Some(screen) = overlay_screen(app_handle) else {
         warn!("[Overlay] Could not determine screen dimensions for overlay");
+        AWAITS_SCREEN.store(true, Ordering::Release);
         return;
     };
     let frame = overlay_surface(surface_request(

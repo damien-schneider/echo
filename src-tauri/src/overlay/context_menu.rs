@@ -1,6 +1,6 @@
 //! Right-clicking the HUD reaches what the tray reaches, without aiming for the menu bar.
 
-use super::events;
+use super::activity;
 use super::window::RECORDING_OVERLAY_LABEL;
 use crate::managers::meeting::{MeetingManager, MeetingStatus};
 use crate::startup::show_main_window;
@@ -95,7 +95,7 @@ fn toggle_meeting(app_handle: &AppHandle) {
             // A meeting recording behind a closed window is a meeting nobody trusts is running.
             Ok(true) => open_meeting_page(&app_handle),
             Ok(false) => {}
-            Err(error) => events::show_warning_overlay(&app_handle, &error.to_string()),
+            Err(error) => activity::show_warning_overlay(&app_handle, &error.to_string()),
         }
     });
 }

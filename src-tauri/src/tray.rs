@@ -1,4 +1,5 @@
 use log::warn;
+use std::sync::{Mutex, PoisonError};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIcon;
@@ -17,6 +18,8 @@ pub enum AppTheme {
     Light,
     Colored,
 }
+
+static SHOWN_STATE: Mutex<TrayIconState> = Mutex::new(TrayIconState::Idle);
 
 pub fn get_current_theme(app: &AppHandle) -> AppTheme {
     if cfg!(target_os = "linux") {
@@ -50,6 +53,7 @@ pub fn get_icon_path(theme: AppTheme, state: TrayIconState) -> &'static str {
 
 /// A missing icon file (a bundle swapped by an update) must not take the dictation down with it.
 pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
+    *SHOWN_STATE.lock().unwrap_or_else(PoisonError::into_inner) = icon.clone();
     let icon_path = get_icon_path(get_current_theme(app), icon.clone());
     match tray_image(app, icon_path) {
         Ok(image) => {
@@ -59,6 +63,15 @@ pub fn change_tray_icon(app: &AppHandle, icon: TrayIconState) {
     }
 
     update_tray_menu(app, &icon);
+}
+
+/// A theme change redraws the state the tray is in, so a live recording keeps its icon.
+pub(crate) fn refresh_tray_icon(app: &AppHandle) {
+    let shown = SHOWN_STATE
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    change_tray_icon(app, shown);
 }
 
 fn tray_image(app: &AppHandle, icon_path: &str) -> tauri::Result<Image<'static>> {

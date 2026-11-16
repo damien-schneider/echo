@@ -6,6 +6,7 @@ use super::surface::OverlaySurfacePayload;
 use super::window::{overlay_surface_payload_for, render_overlay_surface, OverlayRender};
 use crate::settings::{self, OverlayPosition};
 use log::warn;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::AppHandle;
 
@@ -25,6 +26,8 @@ static NOTIFICATION_MODE: Mutex<SurfaceModeState> = Mutex::new(SurfaceModeState 
     pending: None,
     settled: None,
 });
+/// A notice shown over a hidden overlay keeps the notification drawn until that window is released.
+static NOTICE_OVER_HIDDEN_OVERLAY: AtomicBool = AtomicBool::new(false);
 
 fn current_state(state: &Mutex<SurfaceModeState>) -> SurfaceModeState {
     match state.lock() {
@@ -113,9 +116,21 @@ fn render_hud(app_handle: &AppHandle) -> Result<(), String> {
     render_surface(app_handle, OverlaySurfaceKind::Hud, state, mode)
 }
 
+pub(super) fn keep_notice_drawn() {
+    NOTICE_OVER_HIDDEN_OVERLAY.store(true, Ordering::Release);
+}
+
+fn notification_is_drawn(position: OverlayPosition, notice_is_up: bool) -> bool {
+    position != OverlayPosition::None || notice_is_up
+}
+
 fn render_notification(app_handle: &AppHandle) -> Result<(), String> {
     let state = current_state(&NOTIFICATION_MODE);
-    let mode = overlay_placement(app_handle).and_then(|_| render_mode(state));
+    let is_drawn = notification_is_drawn(
+        settings::get_settings(app_handle).overlay_position,
+        NOTICE_OVER_HIDDEN_OVERLAY.load(Ordering::Acquire),
+    );
+    let mode = is_drawn.then(|| render_mode(state)).flatten();
     render_surface(app_handle, OverlaySurfaceKind::Notification, state, mode)
 }
 
@@ -190,6 +205,7 @@ pub(super) fn settle_notification_mode(app_handle: &AppHandle, mode: &str) -> Re
 }
 
 pub(super) fn hide_notification(app_handle: &AppHandle) -> Result<(), String> {
+    NOTICE_OVER_HIDDEN_OVERLAY.store(false, Ordering::Release);
     replace_state(
         &NOTIFICATION_MODE,
         SurfaceModeState {

@@ -1,20 +1,24 @@
 use crate::managers::audio::{AudioRecordingManager, CapturePhase};
+use crate::settings::{self, OverlayPosition};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
 
+pub(super) const RECORDING: &str = "recording";
+
 /// An expired notice gives the island back to the dictation it covered, or hides it when there is none.
 pub(super) fn end_notice(app_handle: &AppHandle) {
-    let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") else {
-        return;
-    };
-    let _ = match phase_under_notice(app_handle) {
-        Some(phase) => overlay_window.emit("show-overlay", phase),
-        None => overlay_window.emit("hide-overlay", ()),
+    let _ = match shown_phase(app_handle) {
+        Some(phase) => app_handle.emit("show-overlay", phase),
+        None => app_handle.emit("hide-overlay", ()),
     };
 }
 
-fn phase_under_notice(app_handle: &AppHandle) -> Option<&'static str> {
+/// The dictation the island is drawing right now — none while chat owns it or the overlay is hidden.
+pub(super) fn shown_phase(app_handle: &AppHandle) -> Option<&'static str> {
     if crate::dictation::routes_to_chat() {
+        return None;
+    }
+    if settings::get_settings(app_handle).overlay_position == OverlayPosition::None {
         return None;
     }
     let recording = app_handle.try_state::<Arc<AudioRecordingManager>>()?;
@@ -27,7 +31,7 @@ fn phase_under_notice(app_handle: &AppHandle) -> Option<&'static str> {
 fn phase_for(capture: CapturePhase, is_settling: bool) -> Option<&'static str> {
     match capture {
         CapturePhase::Opening => Some("preparing"),
-        CapturePhase::Capturing => Some("recording"),
+        CapturePhase::Capturing => Some(RECORDING),
         CapturePhase::Closing => Some("transcribing"),
         CapturePhase::Idle if is_settling => Some("transcribing"),
         CapturePhase::Idle => None,
