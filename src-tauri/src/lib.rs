@@ -72,10 +72,6 @@ pub fn is_file_transcription_active() -> bool {
     FILE_TRANSCRIPTION_ACTIVE.load(Ordering::SeqCst)
 }
 
-pub fn set_file_transcription_active(active: bool) {
-    FILE_TRANSCRIPTION_ACTIVE.store(active, Ordering::SeqCst);
-}
-
 fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
     let recording_manager =
         Arc::new(AudioRecordingManager::new(app_handle).context("the audio recorder")?);
@@ -368,19 +364,7 @@ async fn validate_and_transcribe_file(app: AppHandle, file_path: PathBuf) -> Res
         return Err(format!("Unsupported file format: .{}", extension));
     }
 
-    let history_manager = app.state::<Arc<HistoryManager>>();
-    let transcription_manager = app.state::<Arc<TranscriptionManager>>();
-
-    let file_path_str = file_path.to_string_lossy().to_string();
-    commands::file_transcription::transcribe_audio_file(
-        app.clone(),
-        file_path_str,
-        history_manager,
-        transcription_manager,
-    )
-    .await?;
-
-    Ok(())
+    commands::file_transcription::transcribe_audio_file(app, file_path).await
 }
 
 /// Icon drops — shows window after completion.
@@ -420,23 +404,13 @@ async fn validate_and_transcribe_file_icon_drop(
         return Err(format!("Unsupported file format: .{}", extension));
     }
 
-    let history_manager = app.state::<Arc<HistoryManager>>();
-    let transcription_manager = app.state::<Arc<TranscriptionManager>>();
-
-    let file_path_str = file_path.to_string_lossy().to_string();
-    commands::file_transcription::transcribe_audio_file(
-        app.clone(),
-        file_path_str,
-        history_manager,
-        transcription_manager,
-    )
-    .await?;
+    let outcome = commands::file_transcription::transcribe_audio_file(app.clone(), file_path).await;
 
     if show_window_after {
         startup::show_main_window(&app);
     }
 
-    Ok(())
+    outcome
 }
 
 #[cfg(target_os = "macos")]
@@ -469,17 +443,16 @@ pub fn run() {
             if !file_paths.is_empty() {
                 log::info!("Files dropped on app icon: {:?}", file_paths);
 
-                if let Some(file_path) = file_paths.first() {
+                if let Some(path) =
+                    commands::file_transcription::first_dropped_file(app, &file_paths)
+                {
                     let app_handle = app.clone();
-                    let path = file_path.clone();
 
                     tauri::async_runtime::spawn(async move {
-                        let handle_for_emit = app_handle.clone();
                         if let Err(e) =
                             validate_and_transcribe_file_icon_drop(app_handle, path, true).await
                         {
                             log::error!("Failed to transcribe dropped file: {}", e);
-                            let _ = handle_for_emit.emit("file-transcription-error", e);
                         }
                     });
                 }
@@ -593,15 +566,13 @@ pub fn run() {
                 }
                 tauri::DragDropEvent::Drop { paths, .. } => {
                     log::info!("File dropped on window: {:?}", paths);
-                    if let Some(file_path) = paths.first() {
-                        let app_handle = window.app_handle().clone();
-                        let path = file_path.clone();
-
+                    let app_handle = window.app_handle().clone();
+                    if let Some(path) =
+                        commands::file_transcription::first_dropped_file(&app_handle, paths)
+                    {
                         tauri::async_runtime::spawn(async move {
-                            let handle_for_emit = app_handle.clone();
                             if let Err(e) = validate_and_transcribe_file(app_handle, path).await {
                                 log::error!("Failed to transcribe dropped file: {}", e);
-                                let _ = handle_for_emit.emit("file-transcription-error", e);
                             }
                         });
                     }

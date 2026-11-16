@@ -153,7 +153,7 @@ export function FileTranscriptionCenter() {
                     />
                   )}
 
-                  {item.status === "error" && item.error && (
+                  {item.error && (
                     <div className="mt-1 rounded bg-destructive/10 px-2 py-1">
                       <p className="text-destructive text-xs">{item.error}</p>
                     </div>
