@@ -16,6 +16,7 @@
 - A meeting cannot be deleted while it is being recorded or transcribed.
 - The retention setting only removes meeting audio once the meeting has been transcribed.
 - The log levels in Settings had their labels reversed, so choosing Error logged everything. The labels now match what is logged. Echo keeps logging at the level it was actually using; only the label changes.
+- The log now says which microphone each recording was taken from, with its sample rate and channel count, so a recording that came out silent can be traced to its device.
 
 ### Fixed
 - Dictation:

@@ -15,7 +15,7 @@ use crate::audio_toolkit::{
     vad::{self, VadFrame},
     VoiceActivityDetector,
 };
-use log::{debug, error, warn};
+use log::{debug, error, info, warn};
 
 /// A device that has not produced a live stream by now is wedged; the caller must hear about it
 /// instead of believing it is recording.
@@ -285,11 +285,9 @@ fn start_input_stream(
     let sample_rate = config.sample_rate().0;
     let channels = config.channels() as usize;
 
-    debug!(
-        "Using device: {:?}\nSample rate: {}\nChannels: {}\nFormat: {:?}",
-        device.name(),
-        sample_rate,
-        channels,
+    info!(
+        "Microphone stream on {}: {sample_rate} Hz, {channels} channel(s), {:?}",
+        device.name().as_deref().unwrap_or("an unnamed device"),
         config.sample_format()
     );
 
