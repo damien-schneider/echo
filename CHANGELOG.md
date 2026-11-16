@@ -3,10 +3,17 @@
 ## [0.8.20] - 2026-11-15
 
 ### Changed
+- Rewriting a dictation and running a voice command now happen inside Echo itself instead of in the settings window, so they work the same with that window closed, reloading or busy. Cancelling a dictation stops them at once.
 - Pressing the dictation shortcut while the previous dictation is still being transcribed or rewritten no longer starts a second recording on top of it. The island says "Still finishing the previous dictation — try again in a moment".
 - After you allow the microphone in the macOS dialog, Echo asks you to press the shortcut again instead of starting to record on its own.
+- On macOS, a dictation finished while Echo is not allowed in Accessibility no longer disappears without a word. The text is copied to the clipboard, the island says what to allow, and the Accessibility settings open once. This does not apply when Echo is set to only copy to the clipboard.
+- Island warnings stay up for as long as they take to read, between 2 and 8 seconds. They used to leave after 2 seconds whatever their length.
+- With the overlay hidden, a warning that explains why a dictation did not start or was not pasted is still shown. Progress stays hidden.
+- A spoken reply stops when you start a new dictation or cancel the current one.
 - Chat only sends what the local model can read. A long selection is cut to about 2,700 characters and marked as shortened, and in a long conversation the oldest turns are left out first. Before, a selection or conversation that was too long made the request fail.
 - Opening chat again while it is already open starts a new conversation.
+- Only one file is transcribed at a time. A second file is refused with a message, and when several files are dropped only the first is transcribed.
+- A meeting cannot be deleted while it is being recorded or transcribed.
 - The retention setting only removes meeting audio once the meeting has been transcribed.
 - The log levels in Settings had their labels reversed, so choosing Error logged everything. The labels now match what is logged. Echo keeps logging at the level it was actually using; only the label changes.
 
@@ -20,21 +27,39 @@
   - If rewriting a dictation takes longer than 30 seconds and Echo pastes what you said instead, that dictation is now saved to History too.
   - Changing the microphone in the middle of a dictation is refused instead of cutting the recording short.
   - A microphone choice or always-on setting that cannot be applied is no longer saved as if it had been.
+  - The first dictation after a microphone was unplugged or reconnected failed. Echo now looks the microphone up again, and uses the default one when it is gone.
+  - The island could show a recording that had already ended, and a notice's timer could hide the state that replaced it.
+  - The island catches up with a dictation in progress when its window reloads.
+  - If no screen was available when Echo started, the island is created at the next dictation instead of never appearing.
+  - When Escape or Enter cannot be taken over by the island, Echo says so once instead of ignoring the key.
+  - The menu bar icon went back to idle when the system theme changed during a recording.
 - Voice commands and read aloud:
   - Saving a note with the same title as an existing one kept only the newest. Both are kept now.
   - Read aloud could fail on longer text containing accents or emoji.
+  - A voice command that fails is now shown and spoken as a failure.
+  - The voice command that switches feedback sounds no longer selects the Custom theme when there are no custom sounds.
 - Chat:
   - A question that fails goes back into the message box instead of vanishing, and trying again no longer sends it twice.
   - Sending a message while the local model is downloading or loading now tells you so, and a dictated question waits for the model to be ready.
   - The conversation is kept when another notice briefly covers the chat.
   - An answer still arriving from a previous chat can no longer appear in the new one.
   - The local model is no longer switched off for the rest of the session after a rewrite or an answer that failed or took too long. It is only restarted when it has actually stopped responding.
+  - Closing one notice could close a chat opened just after it.
+  - Dictated text that cannot be sent to chat from its card now says so, and the card stays open while it is being sent.
 - Settings and shortcuts:
   - A shortcut that cannot be registered, because another Echo action or another app already uses it, is no longer shown as changed. Echo says why and the previous shortcut keeps working.
   - Settings that cannot be read are no longer all reset. Only the unreadable ones go back to their default, and the original is kept as a backup.
+  - A shortcut being edited is switched back on however the edit ends. Clicking another row or leaving the window mid-edit used to leave it off until Echo restarted.
+  - A setting Echo refuses to apply now says why, and the control goes back to the value that was kept.
+  - A settings file that cannot be read at all is kept as `settings_unreadable_backup.json` instead of being overwritten with defaults.
+  - Changing the history limit or the retention period is undone when the cleanup that follows fails.
+  - A shortcut that could not be registered showed its error twice.
 - Models and first run:
   - A model download that fails from the island now says so on the island and can be retried.
-  - A model can no longer be deleted while it is downloading.
+  - A model can no longer be deleted while it is downloading, loading or transcribing.
+  - A transcription model that fails to load now says which model, why, and what to do about it.
+  - The language model can be deleted while it needs repair, and Repair checks the file again instead of trusting its earlier check.
+  - A language-model server left running after a crash is stopped at the next launch, and what it reported before stopping is kept in the logs.
   - A model could stay shown as downloading or loading after it had finished.
   - The permission screens no longer wait forever for an answer. After about 30 seconds, or when you press Check again, they show the permission as denied and offer System Settings.
   - Errors raised during first-run setup are now shown.
@@ -44,6 +69,12 @@
   - A dictation's text is saved to History even when its recording cannot be written, and two dictations saved in the same second no longer share one recording.
   - Transcribing a stereo file, or a file that isn't at 16 kHz, could feed scrambled or cut-off audio to the model, and 24-bit files came out far too quiet.
   - A transcribed file keeps its own name in History even when a dictation is saved at the same moment, and a failure to save it is reported.
+  - A running meeting keeps its Stop button while you open, leave or delete a past meeting.
+  - System audio that stops in the middle of a meeting, for example when the output device is unplugged, is now reported.
+  - A retranscribe that fails or is interrupted leaves the previous transcript in place. Before, the meeting could be left with a mix of both.
+  - A meeting that cannot be opened, deleted or listed now says why.
+  - A History action that fails says why, and a History that cannot be loaded offers Retry instead of looking empty.
+  - Progress or an error from one transcribed file could show up on another, and one failure could add several rows.
 
 ## [0.8.19] - 2026-11-15
 
