@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { MeetingBatchProgressView } from "@/components/meeting/meeting-batch-progress";
 import { MeetingControls } from "@/components/meeting/meeting-controls";
 import { MeetingDetail } from "@/components/meeting/meeting-detail";
@@ -6,6 +7,7 @@ import { MeetingSettings } from "@/components/meeting/meeting-settings";
 import { MeetingTranscript } from "@/components/meeting/meeting-transcript";
 import { visibleTranscript } from "@/features/meeting/transcript-order";
 import { SettingsSection } from "@/features/settings/settings-section";
+import { errorMessage } from "@/lib/utils";
 import { meetingPageView, useMeetingStore } from "@/stores/meeting-store";
 
 export const MeetingPage = () => {
@@ -62,7 +64,11 @@ export const MeetingPage = () => {
         <div className="p-1">
           <MeetingList
             onSelect={(id) => {
-              selectMeeting(id);
+              selectMeeting(id).catch((error: unknown) => {
+                toast.error(
+                  errorMessage(error, "Couldn't open the meeting — try again")
+                );
+              });
             }}
           />
         </div>

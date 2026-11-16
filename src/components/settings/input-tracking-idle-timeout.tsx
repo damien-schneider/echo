@@ -6,7 +6,6 @@ import {
   SelectValue,
 } from "@ctrl-ui/react/ui/select";
 import { ClockIcon } from "@phosphor-icons/react";
-import { invoke } from "@tauri-apps/api/core";
 import type React from "react";
 import { SettingRow } from "@/features/settings/setting-row";
 import { useSetting, useSettingsStore } from "@/stores/settings-store";
@@ -20,16 +19,11 @@ const timeoutOptions = [
 export const InputTrackingIdleTimeout: React.FC = () => {
   const currentValue = useSetting("input_tracking_idle_timeout");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
-  const handleChange = async (value: string) => {
-    const newTimeout = value === "0" ? null : Number(value);
-    try {
-      await invoke("change_input_tracking_idle_timeout", {
-        timeoutSecs: newTimeout,
-      });
-      updateSetting("input_tracking_idle_timeout", newTimeout);
-    } catch (error) {
-      console.error("Failed to update input tracking idle timeout:", error);
-    }
+  const handleChange = (value: string) => {
+    updateSetting(
+      "input_tracking_idle_timeout",
+      value === "0" ? null : Number(value)
+    );
   };
   const selectValue =
     currentValue === null || currentValue === undefined || currentValue === 0

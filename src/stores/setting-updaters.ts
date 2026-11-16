@@ -37,6 +37,8 @@ const settingUpdaters: {
     invoke("change_input_tracking_setting", { enabled: value }),
   input_tracking_excluded_apps: (value) =>
     invoke("change_input_tracking_excluded_apps", { apps: value }),
+  input_tracking_idle_timeout: (value) =>
+    invoke("change_input_tracking_idle_timeout", { timeoutSecs: value }),
   log_level: (value) => invoke("set_log_level", { level: value }),
   meeting_auto_summary: (value) =>
     invoke("change_meeting_auto_summary_setting", { enabled: value }),

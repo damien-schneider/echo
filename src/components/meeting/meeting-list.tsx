@@ -2,7 +2,9 @@ import { Button } from "@ctrl-ui/react/ui/button";
 import { ScrollArea } from "@ctrl-ui/react/ui/scroll-area";
 import { ClockIcon, TrashIcon } from "@phosphor-icons/react";
 import { useEffect } from "react";
+import { toast } from "sonner";
 import type { Meeting } from "@/lib/types";
+import { errorMessage } from "@/lib/utils";
 import { useMeetingStore } from "@/stores/meeting-store";
 
 function formatDuration(ms: number | null | undefined): string {
@@ -33,7 +35,9 @@ export const MeetingList = ({ onSelect }: MeetingListProps) => {
   const loadMeetings = useMeetingStore((s) => s.loadMeetings);
   const deleteMeeting = useMeetingStore((s) => s.deleteMeeting);
   useEffect(() => {
-    loadMeetings();
+    loadMeetings().catch((error: unknown) => {
+      toast.error(errorMessage(error, "Couldn't load past meetings"));
+    });
   }, [loadMeetings]);
   if (meetings.length === 0) {
     return (
@@ -49,7 +53,13 @@ export const MeetingList = ({ onSelect }: MeetingListProps) => {
           <MeetingListItem
             key={meeting.id}
             meeting={meeting}
-            onDelete={() => deleteMeeting(meeting.id)}
+            onDelete={() => {
+              deleteMeeting(meeting.id).catch((error: unknown) => {
+                toast.error(
+                  errorMessage(error, "Couldn't delete the meeting — try again")
+                );
+              });
+            }}
             onSelect={() => onSelect(meeting.id)}
           />
         ))}
