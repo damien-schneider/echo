@@ -246,3 +246,27 @@ fn a_start_sent_while_the_device_is_silent_still_records() {
     consumer.join().unwrap();
     assert!(frame.is_ok(), "the start was swallowed: {frame:?}");
 }
+
+#[test]
+fn a_worker_whose_recorder_gave_up_on_it_releases_the_microphone() {
+    let (sample_tx, sample_rx) = mpsc::channel::<Vec<f32>>();
+    let (cmd_tx, cmd_rx) = mpsc::channel::<Cmd>();
+    let (stopped_tx, stopped_rx) = mpsc::channel();
+    thread::spawn(move || {
+        run_consumer(
+            constants::SAMPLE_RATE as u32,
+            None,
+            sample_rx,
+            cmd_rx,
+            None,
+            None,
+        );
+        let _ = stopped_tx.send(());
+    });
+
+    drop(cmd_tx);
+
+    let stopped = stopped_rx.recv_timeout(Duration::from_secs(1));
+    drop(sample_tx);
+    assert!(stopped.is_ok(), "the worker kept the stream alive");
+}

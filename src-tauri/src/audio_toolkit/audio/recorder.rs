@@ -128,19 +128,15 @@ impl AudioRecorder {
             );
         });
 
-        self.device = Some(device);
-        self.cmd_tx = Some(cmd_tx);
-        self.worker_handle = Some(worker);
-
-        // Stored above first: on a wedged device `close()` still has to be able to reap the worker.
+        // Kept only once live: a wedged worker is never joined, and its dropped `cmd_tx` ends it.
         match ready_rx.recv_timeout(STREAM_START_BUDGET) {
-            Ok(Ok(())) => Ok(()),
-            Ok(Err(error)) => {
-                // Worker already returned — reap it so the next `open()` retries instead of
-                // believing a dead stream is still live.
-                let _ = self.close();
-                Err(error.into())
+            Ok(Ok(())) => {
+                self.device = Some(device);
+                self.cmd_tx = Some(cmd_tx);
+                self.worker_handle = Some(worker);
+                Ok(())
             }
+            Ok(Err(error)) => Err(error.into()),
             Err(_) => Err("audio device did not start in time".into()),
         }
     }
@@ -501,7 +497,12 @@ fn run_consumer(
 
     loop {
         // commands before audio — shutdown must not queue behind a backlog
-        while let Ok(cmd) = cmd_rx.try_recv() {
+        loop {
+            let cmd = match cmd_rx.try_recv() {
+                Ok(cmd) => cmd,
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => return,
+            };
             match cmd {
                 Cmd::Start {
                     chunk_tx: tx,
