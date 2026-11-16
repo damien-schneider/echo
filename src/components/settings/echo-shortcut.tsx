@@ -4,7 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { type } from "@tauri-apps/plugin-os";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
+import { createShortcutEditSession } from "@/components/settings/shortcut-edit-session";
 import { SettingRow } from "@/features/settings/setting-row";
 import { ShortcutBindingRow } from "@/features/shortcuts/shortcut-binding-row";
 import { orderedShortcutBindings } from "@/features/shortcuts/shortcut-rows";
@@ -30,7 +30,12 @@ export const EchoShortcut: React.FC = () => {
   const [editingShortcutId, setEditingShortcutId] = useState<string | null>(
     null
   );
-  const [originalBinding, setOriginalBinding] = useState<string>("");
+  const [editSession] = useState(() =>
+    createShortcutEditSession({
+      resume: (id) => invoke("resume_binding", { id }).catch(console.error),
+      suspend: (id) => invoke("suspend_binding", { id }).catch(console.error),
+    })
+  );
   const [osType, setOsType] = useState<OSType>("unknown");
   const [isWayland, setIsWayland] = useState(false);
   const [waylandShortcuts, setWaylandShortcuts] = useState<
@@ -109,37 +114,30 @@ export const EchoShortcut: React.FC = () => {
     detectOsType();
   }, []);
   useEffect(() => {
+    const abandonEdit = () => {
+      setEditingShortcutId(null);
+      editSession.abandon();
+    };
+    window.addEventListener("blur", abandonEdit);
+    return () => {
+      window.removeEventListener("blur", abandonEdit);
+      editSession.abandon();
+    };
+  }, [editSession]);
+  useEffect(() => {
     if (editingShortcutId === null) {
       return;
     }
-    let cleanup = false;
-    const cancelRecording = async () => {
-      if (editingShortcutId && originalBinding) {
-        try {
-          await updateBinding(editingShortcutId, originalBinding);
-          await invoke("resume_binding", { id: editingShortcutId }).catch(
-            console.error
-          );
-        } catch (error) {
-          console.error("Failed to restore original binding:", error);
-          toast.error("Failed to restore original shortcut");
-        }
-      } else if (editingShortcutId) {
-        await invoke("resume_binding", { id: editingShortcutId }).catch(
-          console.error
-        );
-      }
+    const stopRecording = (change?: () => Promise<void>) => {
       setEditingShortcutId(null);
-      setKeyPressed([]);
-      setRecordedKeys([]);
-      setOriginalBinding("");
+      editSession.end(editingShortcutId, change);
     };
-    const handleKeyDown = async (e: KeyboardEvent) => {
-      if (cleanup || e.repeat) {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat) {
         return;
       }
       if (e.key === "Escape") {
-        await cancelRecording();
+        stopRecording();
         return;
       }
       e.preventDefault();
@@ -152,30 +150,7 @@ export const EchoShortcut: React.FC = () => {
         }
       }
     };
-    const commitShortcut = async (bindingId: string, shortcut: string) => {
-      try {
-        await updateBinding(bindingId, shortcut);
-        await invoke("resume_binding", { id: bindingId }).catch(console.error);
-      } catch (error) {
-        console.error("Failed to change binding:", error);
-        toast.error(`Failed to set shortcut: ${error}`);
-        if (originalBinding) {
-          try {
-            await updateBinding(bindingId, originalBinding);
-            await invoke("resume_binding", { id: bindingId }).catch(
-              console.error
-            );
-          } catch (resetError) {
-            console.error("Failed to reset binding:", resetError);
-            toast.error("Failed to reset shortcut to original value");
-          }
-        }
-      }
-    };
-    const handleKeyUp = async (e: KeyboardEvent) => {
-      if (cleanup) {
-        return;
-      }
+    const handleKeyUp = (e: KeyboardEvent) => {
       e.preventDefault();
       const rawKey = getKeyName(e, osType);
       const key = normalizeKey(rawKey);
@@ -184,34 +159,26 @@ export const EchoShortcut: React.FC = () => {
       if (updatedKeyPressed.length !== 0 || recordedKeys.length === 0) {
         return;
       }
-      if (!(editingShortcutId && bindings[editingShortcutId])) {
+      if (!bindings[editingShortcutId]) {
         return;
       }
       const newShortcut = recordedKeys.join("+");
-      await commitShortcut(editingShortcutId, newShortcut);
-      setEditingShortcutId(null);
-      setKeyPressed([]);
-      setRecordedKeys([]);
-      setOriginalBinding("");
+      stopRecording(() => updateBinding(editingShortcutId, newShortcut));
     };
-    const handleClickOutside = async (e: MouseEvent) => {
-      if (cleanup) {
-        return;
-      }
+    const handleClickOutside = (e: MouseEvent) => {
       const activeElement = shortcutRefs.current.get(editingShortcutId);
       if (
         activeElement &&
         e.target instanceof Node &&
         !activeElement.contains(e.target)
       ) {
-        await cancelRecording();
+        stopRecording();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("click", handleClickOutside);
     return () => {
-      cleanup = true;
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("click", handleClickOutside);
@@ -221,19 +188,21 @@ export const EchoShortcut: React.FC = () => {
     recordedKeys,
     editingShortcutId,
     bindings,
-    originalBinding,
     updateBinding,
     osType,
+    editSession,
   ]);
   const startRecording = async (id: string) => {
-    if (editingShortcutId === id) {
-      return;
+    if (await editSession.begin(id)) {
+      setKeyPressed([]);
+      setRecordedKeys([]);
+      setEditingShortcutId(id);
     }
-    await invoke("suspend_binding", { id }).catch(console.error);
-    setOriginalBinding(bindings[id]?.current_binding || "");
-    setEditingShortcutId(id);
-    setKeyPressed([]);
-    setRecordedKeys([]);
+  };
+  const resetShortcut = async (id: string) => {
+    setEditingShortcutId(null);
+    await editSession.abandon();
+    await resetBinding(id);
   };
   const formatCurrentKeys = (): string => {
     if (recordedKeys.length === 0) {
@@ -287,7 +256,7 @@ export const EchoShortcut: React.FC = () => {
       isUpdating={Boolean(isUpdatingMap[`binding_${binding.id}`])}
       key={binding.id}
       onEdit={startRecording}
-      onReset={resetBinding}
+      onReset={resetShortcut}
       setRef={setShortcutRef}
       showWaylandWarning={isWayland && getWaylandWarning(binding.id)}
     />

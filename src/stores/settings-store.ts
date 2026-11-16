@@ -87,6 +87,50 @@ const announceShortcutFailure = (error: unknown) => {
   });
 };
 
+const readSettings = async (): Promise<Settings | null> => {
+  const store = await getSettingsStore();
+  const settings = await store.get<Settings>("settings");
+  if (!settings) {
+    return null;
+  }
+
+  const [
+    microphoneMode,
+    selectedMicrophone,
+    clamshellMicrophone,
+    selectedOutputDevice,
+  ] = await Promise.allSettled([
+    invoke<boolean>("get_microphone_mode"),
+    invoke<string>("get_selected_microphone"),
+    invoke<string>("get_clamshell_microphone"),
+    invoke<string>("get_selected_output_device"),
+  ]);
+
+  const mergedSettings: Settings = {
+    ...settings,
+    always_on_microphone:
+      microphoneMode.status === "fulfilled" ? microphoneMode.value : false,
+    clamshell_microphone:
+      clamshellMicrophone.status === "fulfilled"
+        ? clamshellMicrophone.value
+        : "Default",
+    selected_microphone:
+      selectedMicrophone.status === "fulfilled"
+        ? selectedMicrophone.value
+        : "Default",
+    selected_output_device:
+      selectedOutputDevice.status === "fulfilled"
+        ? selectedOutputDevice.value
+        : "Default",
+  };
+
+  return import.meta.env.DEV
+    ? { ...mergedSettings, debug_mode: true }
+    : mergedSettings;
+};
+
+const latestChange = new Map<keyof Settings, symbol>();
+
 interface SettingsStore {
   audioDevices: AudioDevice[];
   checkCustomSounds: () => Promise<void>;
@@ -190,51 +234,8 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   refreshSettings: async () => {
     try {
-      const store = await getSettingsStore();
-      const settings = await store.get<Settings>("settings");
-      if (!settings) {
-        set({ isLoading: false });
-        return;
-      }
-
-      const [
-        microphoneMode,
-        selectedMicrophone,
-        clamshellMicrophone,
-        selectedOutputDevice,
-      ] = await Promise.allSettled([
-        invoke<boolean>("get_microphone_mode"),
-        invoke<string>("get_selected_microphone"),
-        invoke<string>("get_clamshell_microphone"),
-        invoke<string>("get_selected_output_device"),
-      ]);
-
-      let mergedSettings: Settings = {
-        ...settings,
-        always_on_microphone:
-          microphoneMode.status === "fulfilled" ? microphoneMode.value : false,
-        clamshell_microphone:
-          clamshellMicrophone.status === "fulfilled"
-            ? clamshellMicrophone.value
-            : "Default",
-        selected_microphone:
-          selectedMicrophone.status === "fulfilled"
-            ? selectedMicrophone.value
-            : "Default",
-        selected_output_device:
-          selectedOutputDevice.status === "fulfilled"
-            ? selectedOutputDevice.value
-            : "Default",
-      };
-
-      if (import.meta.env.DEV && !mergedSettings.debug_mode) {
-        mergedSettings = {
-          ...mergedSettings,
-          debug_mode: true,
-        };
-      }
-
-      set({ isLoading: false, settings: mergedSettings });
+      const settings = await readSettings();
+      set(settings ? { isLoading: false, settings } : { isLoading: false });
     } catch (error) {
       console.error("Failed to load settings:", error);
       set({ isLoading: false });
@@ -292,9 +293,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
   },
 
   updateSetting: async (key, value) => {
-    const { settings } = get();
     const updateKey = String(key);
-    const originalValue = settings?.[key];
+    const originalValue = get().settings?.[key];
+    const change = Symbol(updateKey);
+    latestChange.set(key, change);
 
     set((state) => ({
       isUpdating: { ...state.isUpdating, [updateKey]: true },
@@ -304,14 +306,21 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     try {
       const wasUpdated = await runSettingUpdater(key, value);
       if (!wasUpdated && key !== "bindings") {
-        console.warn(`No handler for setting: ${String(key)}`);
+        console.warn(`No handler for setting: ${updateKey}`);
       }
     } catch (error) {
-      console.error(`Failed to update setting ${String(key)}:`, error);
-      if (settings) {
+      console.error(`Failed to update setting ${updateKey}:`, error);
+      toast.error("Setting not applied", {
+        description: errorMessage(
+          error,
+          "Echo could not apply this setting. Try again."
+        ),
+      });
+      const held = await readSettings().catch(() => null);
+      if (latestChange.get(key) === change) {
         set((state) => ({
           settings: state.settings
-            ? { ...state.settings, [key]: originalValue }
+            ? { ...state.settings, [key]: held ? held[key] : originalValue }
             : null,
         }));
       }
