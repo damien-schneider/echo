@@ -140,7 +140,6 @@ const SHORTEST_WARNING: Duration = Duration::from_secs(2);
 const LONGEST_WARNING: Duration = Duration::from_secs(8);
 const READING_TIME_PER_WORD: Duration = Duration::from_millis(400);
 
-/// A warning is the only place its reason is given, so it stays as long as it takes to read.
 fn warning_duration(message: &str) -> Duration {
     let words = u32::try_from(message.split_whitespace().count()).unwrap_or(u32::MAX);
     READING_TIME_PER_WORD
@@ -174,7 +173,6 @@ pub(crate) fn show_model_required_overlay(app_handle: &AppHandle, message: &str)
     );
 }
 
-/// Same expiry as a warning, after 3s — longer, for readability.
 pub(crate) fn show_tool_overlay(app_handle: &AppHandle, message: &str) {
     show_overlay_presentation(
         app_handle,
