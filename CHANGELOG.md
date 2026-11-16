@@ -1,5 +1,50 @@
 # Changelog
 
+## [0.8.20] - 2026-11-15
+
+### Changed
+- Pressing the dictation shortcut while the previous dictation is still being transcribed or rewritten no longer starts a second recording on top of it. The island says "Still finishing the previous dictation — try again in a moment".
+- After you allow the microphone in the macOS dialog, Echo asks you to press the shortcut again instead of starting to record on its own.
+- Chat only sends what the local model can read. A long selection is cut to about 2,700 characters and marked as shortened, and in a long conversation the oldest turns are left out first. Before, a selection or conversation that was too long made the request fail.
+- Opening chat again while it is already open starts a new conversation.
+- The retention setting only removes meeting audio once the meeting has been transcribed.
+- The log levels in Settings had their labels reversed, so choosing Error logged everything. The labels now match what is logged. Echo keeps logging at the level it was actually using; only the label changes.
+
+### Fixed
+- Dictation:
+  - A dictation spoken quietly could be thrown away as silence, so nothing was pasted. Only a recording with no signal at all is skipped now.
+  - Releasing the shortcut before the microphone had opened ended without a word. The island now says "Stopped before the microphone was ready", and "No speech detected" when a recording holds no speech.
+  - When the microphone cannot be opened, the island says "Microphone unavailable — check your input device" and the dictation ends, instead of looking like it is recording. If the always-on microphone fails to open at launch, Echo still starts and tries again at the next dictation.
+  - In toggle mode, the shortcut could get out of step after a start that failed or was cancelled. A press now always stops the recording in progress.
+  - A message shown during a recording no longer hides the island when it disappears.
+  - If rewriting a dictation takes longer than 30 seconds and Echo pastes what you said instead, that dictation is now saved to History too.
+  - Changing the microphone in the middle of a dictation is refused instead of cutting the recording short.
+  - A microphone choice or always-on setting that cannot be applied is no longer saved as if it had been.
+- Voice commands and read aloud:
+  - Saving a note with the same title as an existing one kept only the newest. Both are kept now.
+  - Read aloud could fail on longer text containing accents or emoji.
+- Chat:
+  - A question that fails goes back into the message box instead of vanishing, and trying again no longer sends it twice.
+  - Sending a message while the local model is downloading or loading now tells you so, and a dictated question waits for the model to be ready.
+  - The conversation is kept when another notice briefly covers the chat.
+  - An answer still arriving from a previous chat can no longer appear in the new one.
+  - The local model is no longer switched off for the rest of the session after a rewrite or an answer that failed or took too long. It is only restarted when it has actually stopped responding.
+- Settings and shortcuts:
+  - A shortcut that cannot be registered, because another Echo action or another app already uses it, is no longer shown as changed. Echo says why and the previous shortcut keeps working.
+  - Settings that cannot be read are no longer all reset. Only the unreadable ones go back to their default, and the original is kept as a backup.
+- Models and first run:
+  - A model download that fails from the island now says so on the island and can be retried.
+  - A model can no longer be deleted while it is downloading.
+  - A model could stay shown as downloading or loading after it had finished.
+  - The permission screens no longer wait forever for an answer. After about 30 seconds, or when you press Check again, they show the permission as denied and offer System Settings.
+  - Errors raised during first-run setup are now shown.
+- Meetings, History and files:
+  - When system audio cannot be captured, the meeting says so instead of silently recording the microphone only.
+  - A meeting recording that could not be closed properly is repaired so it still plays.
+  - A dictation's text is saved to History even when its recording cannot be written, and two dictations saved in the same second no longer share one recording.
+  - Transcribing a stereo file, or a file that isn't at 16 kHz, could feed scrambled or cut-off audio to the model, and 24-bit files came out far too quiet.
+  - A transcribed file keeps its own name in History even when a dictation is saved at the same moment, and a failure to save it is reported.
+
 ## [0.8.19] - 2026-11-15
 
 ### Added
