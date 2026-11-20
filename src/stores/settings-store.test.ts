@@ -77,12 +77,12 @@ describe("settings store shortcuts", () => {
     ]);
   });
 
-  it("shows the new combo without an error once it is accepted", async () => {
-    await useSettingsStore
-      .getState()
-      .updateBinding("transcribe", "ctrl+shift+d");
+  it("shows the combo as the app stored it once it is accepted", async () => {
+    commands.change_binding = () => Promise.resolve("ctrl+space");
 
-    expect(shownCombo()).toBe("ctrl+shift+d");
+    await useSettingsStore.getState().updateBinding("transcribe", "space+ctrl");
+
+    expect(shownCombo()).toBe("ctrl+space");
     expect(announcements()).toEqual([]);
   });
 

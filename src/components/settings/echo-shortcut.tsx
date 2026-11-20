@@ -5,10 +5,11 @@ import { type } from "@tauri-apps/plugin-os";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { createShortcutEditSession } from "@/components/settings/shortcut-edit-session";
+import { createShortcutKeyRecorder } from "@/components/settings/shortcut-key-recorder";
 import { SettingRow } from "@/features/settings/setting-row";
 import { ShortcutBindingRow } from "@/features/shortcuts/shortcut-binding-row";
 import { orderedShortcutBindings } from "@/features/shortcuts/shortcut-rows";
-import { getKeyName, normalizeKey, type OSType } from "@/lib/utils/keyboard";
+import { getKeyName, type OSType } from "@/lib/utils/keyboard";
 import {
   useSetting,
   useSettingsActions,
@@ -25,15 +26,17 @@ export const EchoShortcut: React.FC = () => {
   const isLoading = useSettingsStore((s) => s.isLoading);
   const isUpdatingMap = useSettingsStore((s) => s.isUpdating);
   const { updateBinding, resetBinding } = useSettingsActions();
-  const [keyPressed, setKeyPressed] = useState<string[]>([]);
   const [recordedKeys, setRecordedKeys] = useState<string[]>([]);
+  const [keyRecorder] = useState(() =>
+    createShortcutKeyRecorder(setRecordedKeys)
+  );
   const [editingShortcutId, setEditingShortcutId] = useState<string | null>(
     null
   );
   const [editSession] = useState(() =>
     createShortcutEditSession({
-      resume: (id) => invoke("resume_binding", { id }).catch(console.error),
-      suspend: (id) => invoke("suspend_binding", { id }).catch(console.error),
+      resume: () => invoke("resume_shortcuts").catch(console.error),
+      suspend: () => invoke("suspend_shortcuts").catch(console.error),
     })
   );
   const [osType, setOsType] = useState<OSType>("unknown");
@@ -132,6 +135,11 @@ export const EchoShortcut: React.FC = () => {
       setEditingShortcutId(null);
       editSession.end(editingShortcutId, change);
     };
+    const finish = (combo: string | null) => {
+      if (combo && bindings[editingShortcutId]) {
+        stopRecording(() => updateBinding(editingShortcutId, combo));
+      }
+    };
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) {
         return;
@@ -141,29 +149,17 @@ export const EchoShortcut: React.FC = () => {
         return;
       }
       e.preventDefault();
-      const rawKey = getKeyName(e, osType);
-      const key = normalizeKey(rawKey);
-      if (!keyPressed.includes(key)) {
-        setKeyPressed((prev) => [...prev, key]);
-        if (!recordedKeys.includes(key)) {
-          setRecordedKeys((prev) => [...prev, key]);
-        }
+      const key = getKeyName(e, osType);
+      if (key) {
+        keyRecorder.press(key);
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
       e.preventDefault();
-      const rawKey = getKeyName(e, osType);
-      const key = normalizeKey(rawKey);
-      setKeyPressed((prev) => prev.filter((k) => k !== key));
-      const updatedKeyPressed = keyPressed.filter((k) => k !== key);
-      if (updatedKeyPressed.length !== 0 || recordedKeys.length === 0) {
-        return;
+      const key = getKeyName(e, osType);
+      if (key) {
+        finish(keyRecorder.release(key, e));
       }
-      if (!bindings[editingShortcutId]) {
-        return;
-      }
-      const newShortcut = recordedKeys.join("+");
-      stopRecording(() => updateBinding(editingShortcutId, newShortcut));
     };
     const handleClickOutside = (e: MouseEvent) => {
       const activeElement = shortcutRefs.current.get(editingShortcutId);
@@ -175,27 +171,36 @@ export const EchoShortcut: React.FC = () => {
         stopRecording();
       }
     };
+    const unlistenFnKey =
+      osType === "macos"
+        ? listen<boolean>("fn-key", (event) => {
+            if (event.payload) {
+              keyRecorder.press("fn");
+            } else {
+              finish(keyRecorder.release("fn"));
+            }
+          })
+        : null;
     window.addEventListener("keydown", handleKeyDown);
     window.addEventListener("keyup", handleKeyUp);
     window.addEventListener("click", handleClickOutside);
     return () => {
+      unlistenFnKey?.then((unlisten) => unlisten());
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("keyup", handleKeyUp);
       window.removeEventListener("click", handleClickOutside);
     };
   }, [
-    keyPressed,
-    recordedKeys,
     editingShortcutId,
     bindings,
     updateBinding,
     osType,
     editSession,
+    keyRecorder,
   ]);
   const startRecording = async (id: string) => {
     if (await editSession.begin(id)) {
-      setKeyPressed([]);
-      setRecordedKeys([]);
+      keyRecorder.reset();
       setEditingShortcutId(id);
     }
   };

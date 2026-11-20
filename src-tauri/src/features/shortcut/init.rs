@@ -1,18 +1,21 @@
-//! Wayland goes through the XDG Desktop Portal; every other platform uses tauri-plugin-global-shortcut.
+//! Wayland goes through the XDG Desktop Portal; macOS combos holding Fn go through `fn_hotkeys`; everything else uses tauri-plugin-global-shortcut.
 
 use log::{error, info, warn};
 use std::sync::Arc;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
+use super::combo::Combo;
 use super::failures::{self, ShortcutFailure};
+#[cfg(target_os = "macos")]
+use super::fn_hotkeys::FnHotkeys;
 use crate::actions::{ShortcutAction, ACTION_MAP};
 use crate::managers::audio::AudioRecordingManager;
 use crate::settings::{get_settings, ShortcutBinding};
 use crate::HeldShortcuts;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum ShortcutEvent {
+pub(super) enum ShortcutEvent {
     Pressed,
     Released,
 }
@@ -141,20 +144,16 @@ fn init_wayland_shortcuts(app: &AppHandle) {
     });
 }
 
-/// Rejects modifier-only combos; a bare "f5" or "space" is fine.
-pub fn validate_shortcut_string(raw: &str) -> Result<(), String> {
-    let modifiers = [
-        "ctrl", "control", "shift", "alt", "option", "meta", "command", "cmd", "super", "win",
-        "windows",
-    ];
-    let has_non_modifier = raw
-        .split('+')
-        .any(|part| !modifiers.contains(&part.trim().to_lowercase().as_str()));
-    if has_non_modifier {
-        Ok(())
-    } else {
-        Err("Shortcut must contain at least one non-modifier key".into())
+pub(super) fn holds_binding(app: &AppHandle, binding: &ShortcutBinding) -> bool {
+    let Ok(combo) = Combo::parse(&binding.current_binding) else {
+        return false;
+    };
+    #[cfg(target_os = "macos")]
+    if combo.holds_fn() {
+        return app.state::<FnHotkeys>().holds(&binding.id, &combo);
     }
+    app.global_shortcut()
+        .is_registered(combo.to_string().as_str())
 }
 
 pub(super) fn registration_refusal(combo: &str, reason: &str) -> String {
@@ -182,7 +181,12 @@ pub fn register_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<()
 }
 
 pub(super) fn claim_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
-    let shortcut = validated_shortcut(app, &binding)?;
+    let combo = usable_combo(&binding)?;
+    #[cfg(target_os = "macos")]
+    if combo.holds_fn() {
+        return app.state::<FnHotkeys>().claim(app, &binding.id, &combo);
+    }
+    let shortcut = free_shortcut(app, &combo)?;
     let binding_id = binding.id;
     app.global_shortcut()
         .on_shortcut(shortcut, move |ah, scut, event| {
@@ -196,10 +200,13 @@ pub(super) fn claim_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Resul
                 event: shortcut_event(event.state),
             });
         })
-        .map_err(|e| e.to_string())
+        .map_err(|refusal| {
+            error!("The OS refused shortcut '{combo}': {refusal}");
+            "Another app or the system already uses it — pick another combination in Settings → Shortcuts".to_string()
+        })
 }
 
-fn validated_shortcut(app: &AppHandle, binding: &ShortcutBinding) -> Result<Shortcut, String> {
+fn usable_combo(binding: &ShortcutBinding) -> Result<Combo, String> {
     if !ACTION_MAP.contains_key(&binding.id) {
         let message = format!(
             "No action defined in ACTION_MAP for binding ID '{}'",
@@ -208,37 +215,33 @@ fn validated_shortcut(app: &AppHandle, binding: &ShortcutBinding) -> Result<Shor
         error!("register_shortcut error: {message}");
         return Err(message);
     }
-    validate_shortcut_string(&binding.current_binding).map_err(|message| {
+    Combo::usable(&binding.current_binding).map_err(|message| {
         warn!("register_shortcut validation error: {message}");
         message
-    })?;
-    let shortcut = binding
-        .current_binding
+    })
+}
+
+fn free_shortcut(app: &AppHandle, combo: &Combo) -> Result<Shortcut, String> {
+    let shortcut = combo
+        .to_string()
         .parse::<Shortcut>()
-        .map_err(|error| {
-            let message = format!(
-                "Failed to parse shortcut '{}': {error}",
-                binding.current_binding
-            );
-            error!("register_shortcut parse error: {message}");
-            message
-        })?;
+        .map_err(|error| format!("'{combo}' can't be used as a shortcut: {error}"))?;
     if app.global_shortcut().is_registered(shortcut) {
-        let message = format!("Shortcut '{}' is already in use", binding.current_binding);
+        let message = format!("Shortcut '{combo}' is already in use");
         warn!("register_shortcut duplicate error: {message}");
         return Err(message);
     }
     Ok(shortcut)
 }
 
-struct ShortcutInvocation<'a> {
-    app: &'a AppHandle,
-    binding_id: &'a str,
-    shortcut: &'a str,
-    event: ShortcutEvent,
+pub(super) struct ShortcutInvocation<'a> {
+    pub(super) app: &'a AppHandle,
+    pub(super) binding_id: &'a str,
+    pub(super) shortcut: &'a str,
+    pub(super) event: ShortcutEvent,
 }
 
-fn dispatch_shortcut(invocation: ShortcutInvocation<'_>) {
+pub(super) fn dispatch_shortcut(invocation: ShortcutInvocation<'_>) {
     let Some(action) = ACTION_MAP.get(invocation.binding_id) else {
         warn!(
             "No action defined for shortcut ID '{}'",
@@ -285,28 +288,28 @@ fn shortcut_event(state: ShortcutState) -> ShortcutEvent {
 }
 
 pub fn unregister_shortcut(app: &AppHandle, binding: ShortcutBinding) -> Result<(), String> {
-    let shortcut = match binding.current_binding.parse::<Shortcut>() {
-        Ok(s) => s,
-        Err(e) => {
-            let error_msg = format!(
-                "Failed to parse shortcut '{}' for unregistration: {}",
-                binding.current_binding, e
-            );
-            error!("unregister_shortcut parse error: {}", error_msg);
-            return Err(error_msg);
-        }
-    };
-
-    app.global_shortcut().unregister(shortcut).map_err(|e| {
-        let error_msg = format!(
-            "Failed to unregister shortcut '{}': {}",
-            binding.current_binding, e
+    let combo = Combo::parse(&binding.current_binding).map_err(|reason| {
+        let message = format!(
+            "Failed to read shortcut '{}' for unregistration: {reason}",
+            binding.current_binding
         );
-        error!("unregister_shortcut error: {}", error_msg);
-        error_msg
+        error!("unregister_shortcut parse error: {message}");
+        message
     })?;
-
-    Ok(())
+    #[cfg(target_os = "macos")]
+    if combo.holds_fn() {
+        return app.state::<FnHotkeys>().release(&binding.id, &combo);
+    }
+    app.global_shortcut()
+        .unregister(combo.to_string().as_str())
+        .map_err(|e| {
+            let message = format!(
+                "Failed to unregister shortcut '{}': {e}",
+                binding.current_binding
+            );
+            error!("unregister_shortcut error: {message}");
+            message
+        })
 }
 
 #[cfg(test)]

@@ -2,12 +2,13 @@ import { describe, expect, it } from "bun:test";
 import {
   parseShortcutFailure,
   shortcutFailureMessage,
+  shortcutFailureRecovery,
 } from "@/features/shortcuts/shortcut-failures";
 
 const failure = {
   binding: "option+space",
   bindingId: "transcribe",
-  reason: "HotKey already registered",
+  reason: "Fn shortcuts need Accessibility access.",
 };
 
 describe("shortcut failure parsing", () => {
@@ -21,17 +22,14 @@ describe("shortcut failure parsing", () => {
   });
 });
 
-describe("shortcut failure message", () => {
-  it("names the combination and points at the other owner", () => {
-    const message = shortcutFailureMessage(failure);
-
-    expect(message).toContain("option+space");
-    expect(message).toContain("another app");
+describe("shortcut failure toast", () => {
+  it("names the combination that does nothing", () => {
+    expect(shortcutFailureMessage(failure)).toContain("option+space");
   });
 
-  it("keeps the backend reason out of the sentence when it is empty", () => {
-    const message = shortcutFailureMessage({ ...failure, reason: "" });
-
-    expect(message.endsWith(".")).toBe(true);
+  it("falls back to picking another combination when no reason came", () => {
+    expect(shortcutFailureRecovery({ ...failure, reason: "" })).toContain(
+      "another combination"
+    );
   });
 });

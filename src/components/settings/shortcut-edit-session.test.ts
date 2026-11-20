@@ -2,69 +2,69 @@ import { describe, expect, it } from "bun:test";
 import { createShortcutEditSession } from "@/components/settings/shortcut-edit-session";
 
 const shortcuts = () => {
-  const suspended = new Set<string>();
+  const state = { live: true };
   const session = createShortcutEditSession({
-    resume: (id) => {
-      suspended.delete(id);
+    resume: () => {
+      state.live = true;
       return Promise.resolve();
     },
-    suspend: (id) => {
-      suspended.add(id);
+    suspend: () => {
+      state.live = false;
       return Promise.resolve();
     },
   });
-  return { session, suspended };
+  return { session, state };
 };
 
 describe("shortcut edit session", () => {
-  it("suspends the shortcut while its row is being edited", async () => {
-    const { session, suspended } = shortcuts();
+  it("turns shortcuts off while a row is being edited", async () => {
+    const { session, state } = shortcuts();
 
     expect(await session.begin("transcribe")).toBe(true);
 
-    expect([...suspended]).toEqual(["transcribe"]);
+    expect(state.live).toBe(false);
   });
 
-  it("brings the first shortcut back when the user starts editing another row", async () => {
-    const { session, suspended } = shortcuts();
+  it("keeps shortcuts off when the user starts editing another row", async () => {
+    const { session, state } = shortcuts();
     await session.begin("transcribe");
 
     expect(await session.begin("polish")).toBe(true);
 
-    expect([...suspended]).toEqual(["polish"]);
+    expect(state.live).toBe(false);
   });
 
   it("keeps the newly clicked row in edit when the row left behind is cancelled afterwards", async () => {
-    const { session, suspended } = shortcuts();
+    const { session, state } = shortcuts();
     await session.begin("transcribe");
     const opening = session.begin("polish");
 
     await session.end("transcribe");
 
     expect(await opening).toBe(true);
-    expect([...suspended]).toEqual(["polish"]);
+    expect(state.live).toBe(false);
   });
 
-  it("brings the shortcut back when the edit is abandoned", async () => {
-    const { session, suspended } = shortcuts();
+  it("brings shortcuts back when the edit is abandoned", async () => {
+    const { session, state } = shortcuts();
     await session.begin("transcribe");
 
     await session.abandon();
 
-    expect([...suspended]).toEqual([]);
+    expect(state.live).toBe(true);
   });
 
-  it("brings back a shortcut whose edit was abandoned before its suspension landed", async () => {
+  it("brings shortcuts back when the edit was abandoned before suspension landed", async () => {
     const landing = Promise.withResolvers<void>();
-    const suspended = new Set<string>();
+    const state = { live: true };
     const session = createShortcutEditSession({
-      resume: (id) => {
-        suspended.delete(id);
+      resume: () => {
+        state.live = true;
         return Promise.resolve();
       },
-      suspend: async (id) => {
+      suspend: async () => {
         await landing.promise;
-        suspended.add(id);
+        state.live = false;
       },
     });
 
@@ -74,21 +74,21 @@ describe("shortcut edit session", () => {
 
     expect(await opening).toBe(false);
     await leaving;
-    expect([...suspended]).toEqual([]);
+    expect(state.live).toBe(true);
   });
 
-  it("applies a new combo while the shortcut is still suspended, then brings it back", async () => {
-    const { session, suspended } = shortcuts();
+  it("applies a new combo while shortcuts are still off, then brings them back", async () => {
+    const { session, state } = shortcuts();
     await session.begin("transcribe");
-    let suspendedDuringChange: string[] = [];
+    let liveDuringChange = true;
 
     await session.end("transcribe", () => {
-      suspendedDuringChange = [...suspended];
+      liveDuringChange = state.live;
       return Promise.resolve();
     });
 
-    expect(suspendedDuringChange).toEqual(["transcribe"]);
-    expect([...suspended]).toEqual([]);
+    expect(liveDuringChange).toBe(false);
+    expect(state.live).toBe(true);
   });
 
   it("applies a new combo once when the edit is ended twice", async () => {
@@ -108,8 +108,8 @@ describe("shortcut edit session", () => {
     expect(applied).toBe(1);
   });
 
-  it("brings the shortcut back even when the new combo cannot be applied", async () => {
-    const { session, suspended } = shortcuts();
+  it("brings shortcuts back even when the new combo cannot be applied", async () => {
+    const { session, state } = shortcuts();
     await session.begin("transcribe");
 
     const ending = session.end("transcribe", () =>
@@ -117,6 +117,6 @@ describe("shortcut edit session", () => {
     );
 
     await expect(ending).rejects.toThrow("refused");
-    expect([...suspended]).toEqual([]);
+    expect(state.live).toBe(true);
   });
 });

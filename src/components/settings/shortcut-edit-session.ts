@@ -1,6 +1,6 @@
 interface ShortcutEditCommands {
-  resume: (id: string) => Promise<unknown>;
-  suspend: (id: string) => Promise<unknown>;
+  resume: () => Promise<unknown>;
+  suspend: () => Promise<unknown>;
 }
 
 type ShortcutChange = () => Promise<unknown>;
@@ -10,7 +10,6 @@ interface OpenEdit {
   suspended: Promise<unknown>;
 }
 
-// a suspended shortcut stays dead until resumed, so every way out of an edit goes through close
 export const createShortcutEditSession = ({
   resume,
   suspend,
@@ -27,7 +26,7 @@ export const createShortcutEditSession = ({
       await closing.suspended;
       await change?.();
     } finally {
-      await resume(closing.id);
+      await resume();
     }
   };
 
@@ -38,9 +37,9 @@ export const createShortcutEditSession = ({
         return false;
       }
       const left = close();
-      const edit = { id, suspended: suspend(id) };
+      const edit = { id, suspended: left.then(suspend) };
       open = edit;
-      await Promise.all([left, edit.suspended]);
+      await edit.suspended;
       return open === edit;
     },
     end: async (id: string, change?: ShortcutChange) => {

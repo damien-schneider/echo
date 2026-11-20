@@ -4,6 +4,7 @@ import {
   readShortcutFailures,
   type ShortcutFailure,
   shortcutFailureMessage,
+  shortcutFailureRecovery,
   subscribeShortcutFailures,
 } from "@/features/shortcuts/shortcut-failures";
 import { listenCancellable } from "@/lib/tauri-listener";
@@ -20,7 +21,7 @@ export const useShortcutFailureToasts = () => {
       }
       announced.current.add(key);
       toast.error(shortcutFailureMessage(failure), {
-        description: "Pick another combination in Settings → Shortcuts.",
+        description: shortcutFailureRecovery(failure),
       });
     };
 

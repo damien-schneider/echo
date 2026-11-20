@@ -198,6 +198,11 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
     features::polish::idle_release::watch_idle_runtime(&polish_manager);
 
     app_handle.manage(shortcut::failures::ShortcutFailures::default());
+    #[cfg(target_os = "macos")]
+    {
+        app_handle.manage(shortcut::fn_hotkeys::FnHotkeys::default());
+        shortcut::fn_key_relay::install(app_handle);
+    }
 
     {
         let settings = settings::get_settings(app_handle);
@@ -584,8 +589,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             shortcut::bindings::change_binding,
             shortcut::bindings::reset_binding,
-            shortcut::bindings::suspend_binding,
-            shortcut::bindings::resume_binding,
+            shortcut::bindings::suspend_shortcuts,
+            shortcut::bindings::resume_shortcuts,
             shortcut::is_wayland_session,
             shortcut::get_wayland_shortcuts,
             shortcut::failures::get_shortcut_failures,

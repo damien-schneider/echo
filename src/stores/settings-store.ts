@@ -278,7 +278,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
     }));
 
     try {
-      await invoke("change_binding", { binding, id });
+      const stored = await invoke<string>("change_binding", { binding, id });
+      set((state) => ({
+        settings: withBinding(state.settings, id, stored),
+      }));
     } catch (error) {
       console.error(`Failed to update binding ${id}:`, error);
       announceShortcutFailure(error);
