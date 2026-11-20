@@ -1,5 +1,7 @@
 //! Carbon hotkeys never see Fn; handy-keys' event tap does, once Echo has Accessibility access.
 
+mod relay;
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
@@ -15,9 +17,11 @@ use super::failures::ShortcutFailures;
 use super::init::{dispatch_shortcut, register_shortcut, ShortcutEvent, ShortcutInvocation};
 use crate::settings;
 
+pub use relay::relay_to_recorder;
+
 const EVENT_POLL_INTERVAL: Duration = Duration::from_millis(10);
 const ACCESS_POLL_INTERVAL: Duration = Duration::from_secs(2);
-const NEEDS_ACCESSIBILITY: &str = "Fn shortcuts need Accessibility access. Allow Echo in System Settings → Privacy & Security → Accessibility and it turns on by itself.";
+const NEEDS_ACCESSIBILITY: &str = "Fn shortcuts need Accessibility access — allow Echo in System Settings → Privacy & Security → Accessibility.";
 
 struct Claim {
     binding_id: String,
@@ -196,7 +200,7 @@ fn handy_hotkey(combo: &Combo) -> Result<Hotkey, String> {
         .map_err(|error| format!("'{combo}' can't be used as an Fn shortcut: {error}"))
 }
 
-/// handy-keys reads "delete" as Backspace and "num1" as the digit row; Echo means forward delete and the keypad.
+/// handy-keys reads "num1" as the digit row; Echo means the keypad.
 fn handy_key_name(key: &str) -> String {
     let keypad_digit = key
         .strip_prefix("num")
@@ -205,7 +209,6 @@ fn handy_key_name(key: &str) -> String {
         return format!("keypad{digit}");
     }
     match key {
-        "delete" => "forwarddelete",
         "numadd" => "keypadplus",
         "numsubtract" => "keypadminus",
         "nummultiply" => "keypadmultiply",
@@ -224,12 +227,6 @@ mod tests {
 
     fn hotkey(raw: &str) -> Hotkey {
         handy_hotkey(&Combo::usable(raw).unwrap()).unwrap()
-    }
-
-    #[test]
-    fn fn_delete_listens_for_forward_delete_not_backspace() {
-        assert_eq!(hotkey("fn+delete"), "fn+forwarddelete".parse().unwrap());
-        assert_eq!(hotkey("fn+backspace"), "fn+backspace".parse().unwrap());
     }
 
     #[test]

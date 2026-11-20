@@ -3,7 +3,7 @@
 ## [0.8.21] - 2026-11-20
 
 ### Added
-- On macOS, shortcuts can use the Fn (🌐) key, alone or with other keys, for example `fn` or `fn+space`. They need Echo allowed in Accessibility. Without it, the shortcut is refused when you set it and the previous one stays. At launch it waits and turns on by itself once access is granted. Fn only works on keyboards that send it, such as Apple keyboards.
+- On macOS, shortcuts can use the Fn (🌐) key, alone or with other keys, for example `fn` or `fn+space`. They need Echo allowed in Accessibility. Without it, the shortcut is refused when you set it and the previous one stays. At launch it waits and turns on by itself once access is granted. Fn only works on keyboards that send it, such as Apple keyboards. Fn with an arrow, Home, End, Page Up, Page Down, forward Delete or an F-key is refused: macOS marks those keys as Fn even when Fn isn't held, so the shortcut would take over every press of that key.
 
 ### Changed
 - A dictation that was heard but came back without text, or whose transcription failed or timed out, is saved to History with an empty transcript instead of disappearing. Retranscribe it from there. The island says "— kept in History".

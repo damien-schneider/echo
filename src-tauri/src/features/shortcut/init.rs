@@ -1,4 +1,4 @@
-//! Wayland goes through the XDG Desktop Portal; macOS combos holding Fn go through `fn_hotkeys`; everything else uses tauri-plugin-global-shortcut.
+//! Wayland goes through the XDG Desktop Portal; macOS combos holding Fn go through `fn_key`; everything else uses tauri-plugin-global-shortcut.
 
 use log::{error, info, warn};
 use std::sync::Arc;
@@ -8,7 +8,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use super::combo::Combo;
 use super::failures::{self, ShortcutFailure};
 #[cfg(target_os = "macos")]
-use super::fn_hotkeys::FnHotkeys;
+use super::fn_key::FnHotkeys;
 use crate::actions::{ShortcutAction, ACTION_MAP};
 use crate::managers::audio::AudioRecordingManager;
 use crate::settings::{get_settings, ShortcutBinding};

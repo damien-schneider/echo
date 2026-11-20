@@ -81,6 +81,14 @@ impl Combo {
                 "'{combo}' would stop that key from typing in every app — add a modifier like ctrl"
             ));
         }
+        if let Some(key) = combo
+            .key()
+            .filter(|key| combo.holds_fn() && macos_marks_as_fn(key))
+        {
+            return Err(format!(
+                "macOS marks {key} as an Fn key even without Fn held, so '{combo}' would take over every {key} press — drop fn or pick another key"
+            ));
+        }
         Ok(combo)
     }
 
@@ -129,6 +137,24 @@ fn types_text(key: &str) -> bool {
                 | "right"
         )
         || (key.starts_with("num") && key != "numlock")
+}
+
+/// The arrows, the navigation cluster and the F-keys carry the Fn flag on macOS whether Fn is held or not.
+fn macos_marks_as_fn(key: &str) -> bool {
+    matches!(
+        key,
+        "up" | "down"
+            | "left"
+            | "right"
+            | "home"
+            | "end"
+            | "pageup"
+            | "pagedown"
+            | "delete"
+            | "insert"
+    ) || key
+        .strip_prefix('f')
+        .is_some_and(|number| number.parse::<u8>().is_ok())
 }
 
 #[cfg(test)]

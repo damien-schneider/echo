@@ -2,9 +2,7 @@ pub mod bindings;
 mod combo;
 pub mod failures;
 #[cfg(target_os = "macos")]
-pub mod fn_hotkeys;
-#[cfg(target_os = "macos")]
-pub mod fn_key_relay;
+pub mod fn_key;
 pub mod init;
 pub mod overlay_keys;
 pub mod settings;

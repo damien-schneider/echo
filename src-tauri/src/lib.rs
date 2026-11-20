@@ -200,8 +200,8 @@ fn initialize_core_logic(app_handle: &AppHandle) -> anyhow::Result<()> {
     app_handle.manage(shortcut::failures::ShortcutFailures::default());
     #[cfg(target_os = "macos")]
     {
-        app_handle.manage(shortcut::fn_hotkeys::FnHotkeys::default());
-        shortcut::fn_key_relay::install(app_handle);
+        app_handle.manage(shortcut::fn_key::FnHotkeys::default());
+        shortcut::fn_key::relay_to_recorder(app_handle);
     }
 
     {

@@ -8,7 +8,7 @@ use tauri_nspanel::objc2_app_kit::{NSEvent, NSEventMask, NSEventModifierFlags};
 const FN_KEY_CODE: u16 = 63;
 const FN_KEY_EVENT: &str = "fn-key";
 
-pub fn install(app: &AppHandle) {
+pub fn relay_to_recorder(app: &AppHandle) {
     let app = app.clone();
     let relay = block2::RcBlock::new(move |event: NonNull<NSEvent>| -> *mut NSEvent {
         let flags_change = unsafe { event.as_ref() };

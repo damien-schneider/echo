@@ -47,6 +47,15 @@ fn fn_works_alone_or_as_a_modifier_on_macos() {
     assert_eq!(stored("fn+ctrl"), "fn+ctrl");
 }
 
+#[cfg(target_os = "macos")]
+#[test]
+fn fn_with_a_key_macos_always_marks_as_fn_is_refused() {
+    for combo in ["fn+up", "fn+pagedown", "fn+delete", "fn+f5"] {
+        assert!(Combo::usable(combo).is_err(), "{combo} should be refused");
+    }
+    assert_eq!(stored("fn+f"), "fn+f");
+}
+
 #[cfg(not(target_os = "macos"))]
 #[test]
 fn fn_is_refused_where_the_os_never_sees_it() {
