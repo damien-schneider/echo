@@ -1,19 +1,20 @@
-import { describe, expect, it, mock } from "bun:test";
+import { describe, expect, it } from "bun:test";
 import {
   initialOverlayActivity,
   reduceOverlayActivity,
 } from "@/features/overlay-controls/runtime/overlay-activity-state";
+import { mockExports } from "@/test/mock-exports";
 
 type EventHandler = (event: { payload: unknown }) => void;
 
 const handlers = new Map<string, EventHandler>();
 
-mock.module("@tauri-apps/api/event", () => ({
+await mockExports("@tauri-apps/api/event", {
   listen: (event: string, handler: EventHandler) => {
     handlers.set(event, handler);
     return Promise.resolve(() => undefined);
   },
-}));
+});
 
 // a static import would load the registrations before the Tauri mock exists
 const { overlayEventRegistrations } = await import(

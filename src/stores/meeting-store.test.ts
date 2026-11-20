@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import type { Meeting, MeetingSegment } from "@/lib/types";
+import { mockExports } from "@/test/mock-exports";
 
 const pastMeeting = (id: number): Meeting => ({
   id,
@@ -10,7 +11,7 @@ const pastMeeting = (id: number): Meeting => ({
 
 const unreadableMeetings = new Set<number>();
 
-mock.module("@tauri-apps/api/core", () => ({
+await mockExports("@tauri-apps/api/core", {
   invoke: (command: string, args?: { id?: number }) => {
     if (command !== "get_meeting") {
       return Promise.resolve([]);
@@ -20,7 +21,7 @@ mock.module("@tauri-apps/api/core", () => ({
       ? Promise.reject("Meeting not found")
       : Promise.resolve(pastMeeting(id));
   },
-}));
+});
 
 // a static import would load the store before the Tauri mock exists
 const { meetingPageView, useMeetingStore } = await import(

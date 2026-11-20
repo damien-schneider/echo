@@ -1,20 +1,21 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
+import { mockExports } from "@/test/mock-exports";
 
 type EventHandler = (event: { payload: unknown }) => unknown;
 
 const handlers = new Map<string, EventHandler>();
 
-mock.module("@tauri-apps/api/core", () => ({
+await mockExports("@tauri-apps/api/core", {
   invoke: (command: string) =>
     Promise.resolve(command === "get_transcription_profiles" ? [] : null),
-}));
+});
 
-mock.module("@tauri-apps/api/event", () => ({
+await mockExports("@tauri-apps/api/event", {
   listen: (event: string, handler: EventHandler) => {
     handlers.set(event, handler);
     return Promise.resolve(() => undefined);
   },
-}));
+});
 
 // a static import would load the store before the Tauri mocks exist
 const { useModelStore } = await import("@/stores/model-store");

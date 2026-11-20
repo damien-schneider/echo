@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { beforeEach, describe, expect, it } from "bun:test";
 import { toast } from "sonner";
+import { mockExports } from "@/test/mock-exports";
 
 const settingsAtLaunch = {
   bindings: {
@@ -21,12 +22,12 @@ let saved = settingsAtLaunch;
 let savedIsReadable = true;
 let commands: Record<string, Command> = {};
 
-mock.module("@tauri-apps/api/core", () => ({
+await mockExports("@tauri-apps/api/core", {
   invoke: (command: string, args: Record<string, unknown> = {}) =>
     commands[command]?.(args) ?? Promise.resolve(null),
-}));
+});
 
-mock.module("@tauri-apps/plugin-store", () => ({
+await mockExports("@tauri-apps/plugin-store", {
   load: () =>
     Promise.resolve({
       get: () =>
@@ -34,7 +35,7 @@ mock.module("@tauri-apps/plugin-store", () => ({
           ? Promise.resolve(saved)
           : Promise.reject(new Error("settings file is unreadable")),
     }),
-}));
+});
 
 // a static import would load the store before the Tauri mocks exist
 const { useSettingsStore } = await import("@/stores/settings-store");

@@ -9,18 +9,19 @@ import {
 } from "bun:test";
 import { toast } from "sonner";
 import type { HistoryEntry } from "@/components/settings/history/history-entry-component";
+import { mockExports } from "@/test/mock-exports";
 
 const backend: { failure: unknown; rows: unknown[] } = {
   failure: null,
   rows: [],
 };
 
-mock.module("@tauri-apps/api/core", () => ({
+await mockExports("@tauri-apps/api/core", {
   invoke: () =>
     backend.failure === null
       ? Promise.resolve(backend.rows)
       : Promise.reject(backend.failure),
-}));
+});
 
 // a static import would load the actions before the Tauri mock exists
 const actions = await import("@/components/settings/history/history-actions");
