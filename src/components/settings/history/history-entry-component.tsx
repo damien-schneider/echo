@@ -187,9 +187,15 @@ export const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
           </ButtonGroup>
         </TooltipProvider>
       </div>
-      <p className="pb-2 text-sm text-text/90 italic">
-        {entry.transcription_text}
-      </p>
+      {entry.transcription_text ? (
+        <p className="pb-2 text-sm text-text/90 italic">
+          {entry.transcription_text}
+        </p>
+      ) : (
+        <p className="pb-2 text-sm text-text/60">
+          No transcript — retranscribe to try again
+        </p>
+      )}
       {audioUrl && <AudioPlayer className="w-full" src={audioUrl} />}
     </div>
   );

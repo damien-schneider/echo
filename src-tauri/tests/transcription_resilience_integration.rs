@@ -15,7 +15,7 @@
 //! a real model or audio hardware in CI.
 
 use echo_app_lib::actions::{
-    audio_is_silent, decide_end_of_recording, EndOfRecordingAction, TranscribedText,
+    audio_is_silent, decide_end_of_recording, EndOfRecordingAction, RecordedAudio, TranscribedText,
 };
 use echo_app_lib::managers::timeout::{run_with_timeout, TimedOut};
 use echo_app_lib::managers::transcription::TranscribeError;
@@ -75,7 +75,7 @@ fn run_stop_flow(
     timeout: Duration,
     cleanup: impl Fn(&str) -> String,
     chinese_variant: Option<&str>,
-    samples_present: bool,
+    recorded: RecordedAudio,
 ) -> EndOfRecordingAction {
     let raw: Result<String, TranscribeError> = match run_with_timeout(decode, timeout) {
         Ok(Ok(text)) => Ok(text),
@@ -83,7 +83,7 @@ fn run_stop_flow(
         Err(TimedOut) => Err(TranscribeError::TimedOut),
     };
     let outcome = into_outcome(raw, cleanup, chinese_variant);
-    decide_end_of_recording(samples_present, outcome, Some(ModelPass::Rewrite))
+    decide_end_of_recording(recorded, outcome, Some(ModelPass::Rewrite))
 }
 
 // ── Happy path ────────────────────────────────────────────────────────────
@@ -95,7 +95,7 @@ fn valid_speech_routes_to_the_model_pass() {
         Duration::from_secs(2),
         passthrough_cleanup,
         None,
-        true,
+        RecordedAudio::Audible,
     );
     match action {
         EndOfRecordingAction::RunModel { transcript, pass } => {
@@ -113,7 +113,7 @@ fn chinese_variant_routes_to_paste_direct() {
         Duration::from_secs(2),
         passthrough_cleanup,
         Some("TRADITIONAL"),
-        true,
+        RecordedAudio::Audible,
     );
     match action {
         EndOfRecordingAction::PasteDirect { cleaned, pasted } => {
@@ -143,7 +143,7 @@ fn a_stop_before_any_capture_is_classified_within_budget() {
         Duration::from_secs(2),
         passthrough_cleanup,
         None,
-        false,
+        RecordedAudio::Missing,
     );
     assert!(
         matches!(action, EndOfRecordingAction::StoppedBeforeCapture),
@@ -153,50 +153,48 @@ fn a_stop_before_any_capture_is_classified_within_budget() {
 }
 
 #[test]
-fn empty_decode_returns_nothing_to_paste() {
+fn empty_decode_keeps_the_recording_without_pasting() {
     let action = run_stop_flow(
         || Ok(String::new()),
         Duration::from_secs(1),
         passthrough_cleanup,
         None,
-        true,
+        RecordedAudio::Audible,
     );
-    assert!(matches!(action, EndOfRecordingAction::NothingToPaste));
+    assert!(matches!(action, EndOfRecordingAction::NoTextInAudio));
 }
 
 #[test]
-fn hallucination_only_decode_returns_nothing_to_paste() {
-    // Decode came back with a known whisper attractor; the cleanup filter
-    // maps it to "" and the classifier treats it the same as silence.
+fn hallucination_only_decode_keeps_the_recording_without_pasting() {
     let action = run_stop_flow(
         || Ok("Thanks for watching".to_string()),
         Duration::from_secs(1),
         hallucination_filtering_cleanup,
         None,
-        true,
+        RecordedAudio::Audible,
     );
-    assert!(matches!(action, EndOfRecordingAction::NothingToPaste));
+    assert!(matches!(action, EndOfRecordingAction::NoTextInAudio));
 }
 
 #[test]
-fn whisper_error_returns_show_error() {
+fn whisper_error_keeps_the_recording() {
     let action = run_stop_flow(
         || Err(TranscribeError::Failed("model not loaded".to_string())),
         Duration::from_secs(1),
         passthrough_cleanup,
         None,
-        true,
+        RecordedAudio::Audible,
     );
     match action {
-        EndOfRecordingAction::ShowError(msg) => {
+        EndOfRecordingAction::DecodeFailed(msg) => {
             assert!(msg.contains("model not loaded"), "got: {msg}");
         }
-        other => panic!("expected ShowError, got {other:?}"),
+        other => panic!("expected DecodeFailed, got {other:?}"),
     }
 }
 
 #[test]
-fn hung_decode_returns_show_error_for_timeout_within_caller_budget() {
+fn hung_decode_keeps_the_recording_within_caller_budget() {
     let start = Instant::now();
     let action = run_stop_flow(
         || {
@@ -208,7 +206,7 @@ fn hung_decode_returns_show_error_for_timeout_within_caller_budget() {
         Duration::from_millis(100),
         passthrough_cleanup,
         None,
-        true,
+        RecordedAudio::Audible,
     );
     let elapsed = start.elapsed();
     assert!(
@@ -216,10 +214,10 @@ fn hung_decode_returns_show_error_for_timeout_within_caller_budget() {
         "caller blocked for {elapsed:?} despite 100ms timeout"
     );
     match action {
-        EndOfRecordingAction::ShowError(msg) => {
-            assert!(msg.to_lowercase().contains("timeout"), "got: {msg}");
+        EndOfRecordingAction::DecodeFailed(msg) => {
+            assert!(msg.to_lowercase().contains("timed out"), "got: {msg}");
         }
-        other => panic!("expected ShowError, got {other:?}"),
+        other => panic!("expected DecodeFailed, got {other:?}"),
     }
 }
 
@@ -231,7 +229,7 @@ fn panicking_decode_does_not_leave_caller_hanging() {
         Duration::from_millis(500),
         passthrough_cleanup,
         None,
-        true,
+        RecordedAudio::Audible,
     );
     let elapsed = start.elapsed();
     assert!(
@@ -239,10 +237,10 @@ fn panicking_decode_does_not_leave_caller_hanging() {
         "caller blocked for {elapsed:?} after panicking decode"
     );
     // A panicking closure drops the sender; the caller observes TimedOut →
-    // ShowError. The exact message can be either timeout or the original
+    // DecodeFailed. The exact message can be either timeout or the original
     // panic surfaced through the channel — both are acceptable UI states.
     assert!(
-        matches!(action, EndOfRecordingAction::ShowError(_)),
+        matches!(action, EndOfRecordingAction::DecodeFailed(_)),
         "got {action:?}"
     );
 }
@@ -250,7 +248,7 @@ fn panicking_decode_does_not_leave_caller_hanging() {
 // ── Silence-skip guarantee ────────────────────────────────────────────────
 
 #[test]
-fn silent_audio_skips_decode_and_routes_to_nothing_to_paste_within_budget() {
+fn silent_audio_skips_decode_and_is_not_kept_within_budget() {
     let silent_samples = vec![0.0_f32; 20_000];
     let start = Instant::now();
     assert!(
@@ -261,7 +259,7 @@ fn silent_audio_skips_decode_and_routes_to_nothing_to_paste_within_budget() {
         cleaned: String::new(),
         chinese_variant: None,
     });
-    let action = decide_end_of_recording(true, outcome, Some(ModelPass::Rewrite));
+    let action = decide_end_of_recording(RecordedAudio::Silent, outcome, Some(ModelPass::Rewrite));
     let elapsed = start.elapsed();
     assert!(
         matches!(action, EndOfRecordingAction::NothingToPaste),

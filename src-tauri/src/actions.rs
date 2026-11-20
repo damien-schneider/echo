@@ -29,6 +29,13 @@ mod start;
 
 pub(crate) use start::start_dictation;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecordedAudio {
+    Missing,
+    Silent,
+    Audible,
+}
+
 /// Input to pure [`decide_end_of_recording`].
 #[derive(Debug, Clone)]
 pub struct TranscribedText {
@@ -48,9 +55,14 @@ pub enum EndOfRecordingAction {
         cleaned: String,
         pasted: String,
     },
+    /// Digital silence never reaches the decoder, so there is nothing worth keeping.
     NothingToPaste,
+    /// The decoder heard the recording but found no text; History keeps it for a retranscribe.
+    NoTextInAudio,
     /// Stopped while the microphone was still opening: nothing was captured to transcribe.
     StoppedBeforeCapture,
+    /// History keeps the recording so a retranscribe can recover it.
+    DecodeFailed(String),
     ShowError(String),
 }
 
@@ -62,19 +74,19 @@ async fn apply_end_of_recording_action(
     hm: Arc<HistoryManager>,
 ) {
     match action {
-        EndOfRecordingAction::NothingToPaste => end_empty(&ah, gen, "No speech detected"),
+        EndOfRecordingAction::NothingToPaste => end_empty(&ah, gen, NO_SPEECH),
+        EndOfRecordingAction::NoTextInAudio => {
+            let notice = keep_untranscribed(&hm, samples, NO_SPEECH).await;
+            end_empty(&ah, gen, &notice);
+        }
         EndOfRecordingAction::StoppedBeforeCapture => {
             end_empty(&ah, gen, "Stopped before the microphone was ready");
         }
-        EndOfRecordingAction::ShowError(message) => {
-            error!("Transcription stop ended with error: {message}");
-            crate::dictation::abandon(&ah);
-            // Never leave UI stuck on "transcribing".
-            if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
-                show_warning_overlay(&ah, &message);
-                change_tray_icon(&ah, TrayIconState::Idle);
-            }
+        EndOfRecordingAction::DecodeFailed(message) => {
+            let notice = keep_untranscribed(&hm, samples, &message).await;
+            end_with_error(&ah, gen, &notice);
         }
+        EndOfRecordingAction::ShowError(message) => end_with_error(&ah, gen, &message),
         EndOfRecordingAction::PasteDirect { cleaned, pasted } => {
             let record = DictationRecord {
                 samples,
@@ -107,6 +119,32 @@ async fn apply_end_of_recording_action(
                 ModelPassOutcome::Commanded(reply) => report_command(&ah, &reply, gen),
             }
         }
+    }
+}
+
+const NO_SPEECH: &str = "No speech detected";
+
+/// The preview never stands in for the transcript, so the kept entry has none.
+async fn keep_untranscribed(history: &HistoryManager, samples: Vec<f32>, reason: &str) -> String {
+    match history
+        .save_transcription(samples, String::new(), None, None)
+        .await
+    {
+        Ok(_) => format!("{reason} — kept in History"),
+        Err(error) => {
+            error!("Failed to keep the untranscribed recording in History: {error:#}");
+            reason.to_string()
+        }
+    }
+}
+
+fn end_with_error(ah: &AppHandle, gen: u64, message: &str) {
+    error!("Transcription stop ended with error: {message}");
+    crate::dictation::abandon(ah);
+    // Never leave UI stuck on "transcribing".
+    if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
+        show_warning_overlay(ah, message);
+        change_tray_icon(ah, TrayIconState::Idle);
     }
 }
 
@@ -200,12 +238,6 @@ async fn transcribe_stopped_recording(
     tm: &TranscriptionManager,
     samples: &[f32],
 ) -> Result<TranscribedText, TranscribeError> {
-    if audio_is_silent(samples) {
-        return Ok(TranscribedText {
-            cleaned: String::new(),
-            chinese_variant: None,
-        });
-    }
     let decode_time = Instant::now();
     let text = tm
         .transcribe_with_timeout(samples.to_vec(), transcription_timeout(samples.len()))
@@ -274,24 +306,26 @@ fn is_horizontal_whitespace(character: char) -> bool {
 }
 
 pub fn decide_end_of_recording(
-    samples_present: bool,
+    recorded: RecordedAudio,
     transcribe_outcome: Result<TranscribedText, TranscribeError>,
     pass: Option<ModelPass>,
 ) -> EndOfRecordingAction {
-    if !samples_present {
-        return EndOfRecordingAction::StoppedBeforeCapture;
+    match recorded {
+        RecordedAudio::Missing => return EndOfRecordingAction::StoppedBeforeCapture,
+        RecordedAudio::Silent => return EndOfRecordingAction::NothingToPaste,
+        RecordedAudio::Audible => {}
     }
     match transcribe_outcome {
-        Err(TranscribeError::TimedOut) => EndOfRecordingAction::ShowError(
-            "Transcription timeout: the local model did not respond. Try again.".to_string(),
-        ),
+        Err(TranscribeError::TimedOut) => {
+            EndOfRecordingAction::DecodeFailed("Transcription timed out".to_string())
+        }
         Err(TranscribeError::Failed(msg)) => {
-            EndOfRecordingAction::ShowError(format!("Transcription failed: {msg}"))
+            EndOfRecordingAction::DecodeFailed(format!("Transcription failed: {msg}"))
         }
         Ok(t) => {
             let cleaned = sanitize_dictation_output(&t.cleaned);
             if cleaned.is_empty() {
-                return EndOfRecordingAction::NothingToPaste;
+                return EndOfRecordingAction::NoTextInAudio;
             }
             match (t.chinese_variant, pass) {
                 (Some(variant), _) => EndOfRecordingAction::PasteDirect {
@@ -546,17 +580,20 @@ impl ShortcutAction for TranscribeAction {
                     return;
                 }
             };
-            let samples_present = recording_opt.is_some();
+            let recorded = match recording_opt.as_deref() {
+                None => RecordedAudio::Missing,
+                Some(samples) if audio_is_silent(samples) => RecordedAudio::Silent,
+                Some(_) => RecordedAudio::Audible,
+            };
             let samples = recording_opt.unwrap_or_default();
             info!(
-                "stop: stop_recording returned in {:?} — {} samples ({:.1}s audio), present={}",
+                "stop: stop_recording returned in {:?} — {} samples ({:.1}s audio), {recorded:?}",
                 stop_recording_time.elapsed(),
                 samples.len(),
                 samples.len() as f32 / SAMPLE_RATE as f32,
-                samples_present
             );
 
-            let outcome = if samples_present {
+            let outcome = if recorded == RecordedAudio::Audible {
                 transcribe_stopped_recording(&ah, &tm, &samples).await
             } else {
                 Ok(TranscribedText {
@@ -566,7 +603,7 @@ impl ShortcutAction for TranscribeAction {
             };
             let pass = routed_model_pass(&ah);
             info!("stop: model pass {pass:?}");
-            let action = decide_end_of_recording(samples_present, outcome, pass);
+            let action = decide_end_of_recording(recorded, outcome, pass);
             // Moved, never cloned — the buffer is the largest allocation a dictation makes.
             apply_end_of_recording_action(ah, action, gen, samples, hm).await;
         });
@@ -640,7 +677,7 @@ pub static ACTION_MAP: LazyLock<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy
 mod decision_tests {
     use super::{
         decide_end_of_recording, is_current_operation, should_apply_start_feedback,
-        EndOfRecordingAction, TranscribedText,
+        EndOfRecordingAction, RecordedAudio, TranscribedText,
     };
     use crate::managers::transcription::TranscribeError;
     use crate::model_pass::ModelPass;
@@ -661,55 +698,65 @@ mod decision_tests {
 
     #[test]
     fn a_stop_before_any_capture_is_told_apart_from_silence() {
-        let a = decide_end_of_recording(false, Ok(cleaned("anything")), None);
+        let a = decide_end_of_recording(RecordedAudio::Missing, Ok(cleaned("anything")), None);
         assert!(matches!(a, EndOfRecordingAction::StoppedBeforeCapture));
     }
 
     #[test]
-    fn timeout_returns_show_error() {
-        let a = decide_end_of_recording(true, Err(TranscribeError::TimedOut), None);
+    fn digital_silence_is_not_kept() {
+        let a = decide_end_of_recording(RecordedAudio::Silent, Ok(cleaned("")), None);
+        assert!(matches!(a, EndOfRecordingAction::NothingToPaste));
+    }
+
+    #[test]
+    fn a_decode_timeout_keeps_the_recording() {
+        let a =
+            decide_end_of_recording(RecordedAudio::Audible, Err(TranscribeError::TimedOut), None);
         match a {
-            EndOfRecordingAction::ShowError(msg) => {
+            EndOfRecordingAction::DecodeFailed(msg) => {
                 assert!(
-                    msg.to_lowercase().contains("timeout"),
+                    msg.to_lowercase().contains("timed out"),
                     "error message should mention the timeout, got {msg:?}"
                 );
             }
-            other => panic!("expected ShowError, got {other:?}"),
+            other => panic!("expected DecodeFailed, got {other:?}"),
         }
     }
 
     #[test]
-    fn whisper_failure_returns_show_error() {
+    fn a_decode_failure_keeps_the_recording() {
         let a = decide_end_of_recording(
-            true,
+            RecordedAudio::Audible,
             Err(TranscribeError::Failed("model not loaded".to_string())),
             None,
         );
         match a {
-            EndOfRecordingAction::ShowError(msg) => {
+            EndOfRecordingAction::DecodeFailed(msg) => {
                 assert!(msg.to_lowercase().contains("model not loaded"));
             }
-            other => panic!("expected ShowError, got {other:?}"),
+            other => panic!("expected DecodeFailed, got {other:?}"),
         }
     }
 
     #[test]
-    fn empty_cleaned_text_returns_nothing_to_paste() {
-        // Whisper hallucination mapped to "".
-        let a = decide_end_of_recording(true, Ok(cleaned("")), None);
-        assert!(matches!(a, EndOfRecordingAction::NothingToPaste));
+    fn audible_recording_decoded_to_nothing_is_kept() {
+        let a = decide_end_of_recording(RecordedAudio::Audible, Ok(cleaned("")), None);
+        assert!(matches!(a, EndOfRecordingAction::NoTextInAudio));
     }
 
     #[test]
-    fn whitespace_only_cleaned_text_returns_nothing_to_paste() {
-        let a = decide_end_of_recording(true, Ok(cleaned("   \t\n  ")), None);
-        assert!(matches!(a, EndOfRecordingAction::NothingToPaste));
+    fn whitespace_only_cleaned_text_is_kept_without_pasting() {
+        let a = decide_end_of_recording(RecordedAudio::Audible, Ok(cleaned("   \t\n  ")), None);
+        assert!(matches!(a, EndOfRecordingAction::NoTextInAudio));
     }
 
     #[test]
     fn valid_cleaned_text_runs_the_routed_model_pass() {
-        let a = decide_end_of_recording(true, Ok(cleaned("hello world")), Some(ModelPass::Command));
+        let a = decide_end_of_recording(
+            RecordedAudio::Audible,
+            Ok(cleaned("hello world")),
+            Some(ModelPass::Command),
+        );
         match a {
             EndOfRecordingAction::RunModel { transcript, pass } => {
                 assert_eq!(transcript, "hello world");
@@ -721,7 +768,7 @@ mod decision_tests {
 
     #[test]
     fn valid_cleaned_text_without_a_model_pass_pastes_directly() {
-        let a = decide_end_of_recording(true, Ok(cleaned("hello world")), None);
+        let a = decide_end_of_recording(RecordedAudio::Audible, Ok(cleaned("hello world")), None);
         match a {
             EndOfRecordingAction::PasteDirect { cleaned, pasted } => {
                 assert_eq!(cleaned, "hello world");
@@ -734,7 +781,7 @@ mod decision_tests {
     #[test]
     fn blank_audio_control_marker_is_removed_before_output() {
         let a = decide_end_of_recording(
-            true,
+            RecordedAudio::Audible,
             Ok(cleaned(
                 "Ok, je fais juste un test pour voir. Ça a l'air d'être pas mal. [BLANK_AUDIO]",
             )),
@@ -752,7 +799,11 @@ mod decision_tests {
 
     #[test]
     fn blank_audio_control_marker_does_not_require_leading_whitespace() {
-        let a = decide_end_of_recording(true, Ok(cleaned("Salut[BLANK_AUDIO]")), None);
+        let a = decide_end_of_recording(
+            RecordedAudio::Audible,
+            Ok(cleaned("Salut[BLANK_AUDIO]")),
+            None,
+        );
 
         match a {
             EndOfRecordingAction::PasteDirect { pasted, .. } => assert_eq!(pasted, "Salut"),
@@ -763,7 +814,7 @@ mod decision_tests {
     #[test]
     fn unrelated_bracketed_text_is_preserved_before_output() {
         let text = "Keep [BLANK], [AUDIO], and variable[BLANK_AUDIO]suffix.";
-        let a = decide_end_of_recording(true, Ok(cleaned(text)), None);
+        let a = decide_end_of_recording(RecordedAudio::Audible, Ok(cleaned(text)), None);
 
         match a {
             EndOfRecordingAction::PasteDirect { pasted, .. } => assert_eq!(pasted, text),
@@ -772,15 +823,15 @@ mod decision_tests {
     }
 
     #[test]
-    fn blank_audio_control_marker_alone_produces_nothing_to_paste() {
-        let a = decide_end_of_recording(true, Ok(cleaned("[BLANK_AUDIO]")), None);
-        assert!(matches!(a, EndOfRecordingAction::NothingToPaste));
+    fn blank_audio_control_marker_alone_is_kept_without_pasting() {
+        let a = decide_end_of_recording(RecordedAudio::Audible, Ok(cleaned("[BLANK_AUDIO]")), None);
+        assert!(matches!(a, EndOfRecordingAction::NoTextInAudio));
     }
 
     #[test]
     fn chinese_variant_skips_the_model_pass_and_pastes_the_converted_text() {
         let a = decide_end_of_recording(
-            true,
+            RecordedAudio::Audible,
             Ok(cleaned_zh("你好世界", "你好世界")),
             Some(ModelPass::Rewrite),
         );
@@ -792,7 +843,11 @@ mod decision_tests {
 
     #[test]
     fn chinese_variant_takes_precedence_over_cleaned() {
-        let a = decide_end_of_recording(true, Ok(cleaned_zh("simplified", "TRADITIONAL")), None);
+        let a = decide_end_of_recording(
+            RecordedAudio::Audible,
+            Ok(cleaned_zh("simplified", "TRADITIONAL")),
+            None,
+        );
         match a {
             EndOfRecordingAction::PasteDirect { pasted, .. } => assert_eq!(pasted, "TRADITIONAL"),
             other => panic!("expected PasteDirect, got {other:?}"),
@@ -802,7 +857,11 @@ mod decision_tests {
     #[test]
     fn chinese_variant_preserves_cleaned_text_for_history() {
         // Regression: history must keep cleaned (pre-conversion) text distinct from the pasted variant.
-        let a = decide_end_of_recording(true, Ok(cleaned_zh("简体输出", "繁體輸出")), None);
+        let a = decide_end_of_recording(
+            RecordedAudio::Audible,
+            Ok(cleaned_zh("简体输出", "繁體輸出")),
+            None,
+        );
         match a {
             EndOfRecordingAction::PasteDirect { cleaned, pasted } => {
                 assert_eq!(
@@ -871,9 +930,9 @@ mod decision_tests {
     }
 
     #[test]
-    fn empty_cleaned_with_chinese_variant_still_nothing_to_paste() {
-        let a = decide_end_of_recording(true, Ok(cleaned_zh("", "")), None);
-        assert!(matches!(a, EndOfRecordingAction::NothingToPaste));
+    fn empty_cleaned_with_chinese_variant_is_kept_without_pasting() {
+        let a = decide_end_of_recording(RecordedAudio::Audible, Ok(cleaned_zh("", "")), None);
+        assert!(matches!(a, EndOfRecordingAction::NoTextInAudio));
     }
 
     #[test]
