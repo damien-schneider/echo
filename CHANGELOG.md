@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.8.21] - 2026-11-20
+
+### Added
+- On macOS, shortcuts can use the Fn (🌐) key, alone or with other keys, for example `fn` or `fn+space`. They need Echo allowed in Accessibility. Without it, the shortcut is refused when you set it and the previous one stays. At launch it waits and turns on by itself once access is granted. Fn only works on keyboards that send it, such as Apple keyboards.
+
+### Changed
+- A dictation that was heard but came back without text, or whose transcription failed or timed out, is saved to History with an empty transcript instead of disappearing. Retranscribe it from there. The island says "— kept in History".
+- While you record a new shortcut, all of Echo's shortcuts are paused. Pressing another shortcut's keys no longer starts it, and the recording is refused with "'…' is already the … shortcut".
+- A shortcut made of a single typing key, such as `space` or `a`, or one used only with shift, is refused because it would stop that key from typing in every app.
+- Shortcuts are stored in one order, modifiers first, whatever order the keys were pressed in.
+- A shortcut that could not be turned on at launch now says why and what to do, instead of always blaming another app.
+
+### Fixed
+- Recording a shortcut with Fn held recorded only the other key, so `fn+space` became `space`.
+- Recording a shortcut that uses Command could keep waiting after every key was released.
+- Page Up, Page Down, Caps Lock and the keypad's operator keys were recorded under names Echo could not register, so a shortcut using them was refused. Keys the system cannot identify are ignored instead of recorded as "unidentified".
+
 ## [0.8.20] - 2026-11-15
 
 ### Changed
