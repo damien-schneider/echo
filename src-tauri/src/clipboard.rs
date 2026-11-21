@@ -321,6 +321,18 @@ fn resolved_paste_method(app_handle: &AppHandle) -> PasteMethod {
     method
 }
 
+fn log_paste(method: PasteMethod, text: &str) {
+    let shown = if text.len() > 200 {
+        format!("{}...", text.chars().take(200).collect::<String>())
+    } else {
+        text.to_string()
+    };
+    log::info!(
+        "paste(): method={method:?}, text_len={}, text='{shown}'",
+        text.len()
+    );
+}
+
 /// `on_unplaced` stays silent where no promise can be served, since a synthetic paste gives no receipt.
 pub fn paste(
     text: &str,
@@ -329,17 +341,7 @@ pub fn paste(
     on_unplaced: impl FnOnce(String) + Send + 'static,
 ) -> Result<(), String> {
     let paste_method = resolved_paste_method(app_handle);
-
-    log::info!(
-        "paste(): method={:?}, text_len={}, text='{}'",
-        paste_method,
-        text.len(),
-        if text.len() > 200 {
-            format!("{}...", &text[..200])
-        } else {
-            text.to_string()
-        }
-    );
+    log_paste(paste_method, text);
 
     #[cfg(target_os = "macos")]
     let _overlay_key_guard = crate::overlay::OverlaySyntheticKeyGuard::acquire(app_handle);
@@ -349,6 +351,7 @@ pub fn paste(
     }
 
     let _ = (confidence, on_unplaced);
+
     match paste_method {
         PasteMethod::CtrlV => paste_via_clipboard_ctrl_v(text, app_handle)?,
         #[cfg(target_os = "linux")]
