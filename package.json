@@ -24,6 +24,7 @@
     "test": "bun test src",
     "test:e2e": "playwright test",
     "test:macos-overlay-focus": "swift scripts/macos-overlay-focus-smoke.swift",
+    "test:macos-snap-preview": "swift scripts/macos-snap-preview-smoke.swift",
     "test:rust": "cd src-tauri && cargo test",
     "prepare:polish-runtime": "bun run scripts/prepare-polish-runtime.ts",
     "preview": "vite preview",
