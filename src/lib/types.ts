@@ -17,8 +17,7 @@ const AudioDeviceSchema = z.object({
   name: z.string(),
 });
 
-export const OverlayPositionSchema = z.enum(["none", "edge", "top", "bottom"]);
-export type OverlayPosition = z.infer<typeof OverlayPositionSchema>;
+const OverlayPositionSchema = z.enum(["none", "edge"]);
 
 const OverlayDockEdgeSchema = z.enum(["left", "right", "top", "bottom"]);
 

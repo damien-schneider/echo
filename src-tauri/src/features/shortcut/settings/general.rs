@@ -27,8 +27,6 @@ pub fn change_overlay_position_setting(app: AppHandle, position: String) -> Resu
     let parsed = match position.as_str() {
         "none" => OverlayPosition::None,
         "edge" => OverlayPosition::Edge,
-        "top" => OverlayPosition::Top,
-        "bottom" => OverlayPosition::Bottom,
         other => {
             warn!("Invalid overlay position '{}', defaulting to edge", other);
             OverlayPosition::Edge

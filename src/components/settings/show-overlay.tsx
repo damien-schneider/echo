@@ -1,61 +1,29 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@ctrl-ui/react/ui/select";
+import { Switch } from "@ctrl-ui/react/ui/switch";
 import { StackIcon } from "@phosphor-icons/react";
 import { SettingRow } from "@/features/settings/setting-row";
-import { type OverlayPosition, OverlayPositionSchema } from "@/lib/types";
 import {
   useIsSettingUpdating,
   useSetting,
   useSettingsStore,
 } from "@/stores/settings-store";
 
-const overlayOptions: ReadonlyArray<{
-  label: string;
-  value: OverlayPosition;
-}> = [
-  { label: "Docked edge", value: "edge" },
-  { label: "Bottom bar", value: "bottom" },
-  { label: "Top bar", value: "top" },
-  { label: "Hidden", value: "none" },
-];
 export const ShowOverlay = () => {
-  const selectedPosition = useSetting("overlay_position") || "edge";
+  const isShown = (useSetting("overlay_position") ?? "edge") === "edge";
   const updating = useIsSettingUpdating("overlay_position");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
-  const changePosition = (value: string) => {
-    const parsed = OverlayPositionSchema.safeParse(value);
-    if (parsed.success) {
-      updateSetting("overlay_position", parsed.data);
-    }
-  };
   return (
     <SettingRow
-      description="Drag the docked overlay along any screen edge."
+      description="Drag the overlay to any screen edge."
       icon={<StackIcon className="h-4 w-4" />}
       title="Overlay"
     >
-      <Select
+      <Switch
+        checked={isShown}
         disabled={updating}
-        items={overlayOptions}
-        onValueChange={changePosition}
-        value={selectedPosition}
-      >
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {overlayOptions.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        onCheckedChange={(shown) =>
+          updateSetting("overlay_position", shown ? "edge" : "none")
+        }
+      />
     </SettingRow>
   );
 };

@@ -3,7 +3,7 @@ use super::{
     OverlayNotchGeometry, OverlayPlacement, OverlayPresentation, RecordingOverlayMode,
     SurfaceRequest,
 };
-use crate::overlay::layout::{overlay_window_dimensions, OverlayFrame};
+use crate::overlay::layout::{overlay_placement_for_mode, overlay_window_dimensions, OverlayFrame};
 use crate::settings::{OverlayDockEdge, OverlayPosition};
 
 const NOTCHED_MONITOR: MonitorBounds = MonitorBounds {
@@ -19,12 +19,19 @@ const NOTCH: OverlayNotchGeometry = OverlayNotchGeometry {
     width: 196.0,
 };
 
-fn placement(position: OverlayPosition, dock_edge: OverlayDockEdge) -> OverlayPlacement {
+fn docked(dock_edge: OverlayDockEdge) -> OverlayPlacement {
     OverlayPlacement {
         dock_edge,
         dock_offset: 0.5,
-        position,
+        position: OverlayPosition::Edge,
     }
+}
+
+fn notification() -> OverlayPlacement {
+    overlay_placement_for_mode(
+        docked(OverlayDockEdge::Right),
+        RecordingOverlayMode::Recording,
+    )
 }
 
 fn request(
@@ -42,7 +49,7 @@ fn request(
 
 #[test]
 fn transient_surface_keeps_the_notch_strip_and_starts_below_it() {
-    let placement = placement(OverlayPosition::Top, OverlayDockEdge::Top);
+    let placement = notification();
     let surface = overlay_surface(request(
         RecordingOverlayMode::Recording,
         placement,
@@ -58,7 +65,7 @@ fn transient_surface_keeps_the_notch_strip_and_starts_below_it() {
 
 #[test]
 fn chat_and_transcription_windows_start_at_the_same_notch_edge() {
-    let placement = placement(OverlayPosition::Top, OverlayDockEdge::Top);
+    let placement = notification();
 
     for mode in [RecordingOverlayMode::Recording, RecordingOverlayMode::Chat] {
         let request = request(mode, placement, Some(NOTCH));
@@ -79,41 +86,38 @@ fn chat_and_transcription_windows_start_at_the_same_notch_edge() {
     }
 }
 
-/// The notch strip is painted only when the island is wide enough to hide the cut-out.
 #[test]
 fn only_transient_top_surfaces_outgrow_the_notch_they_hang_from() {
-    let top = placement(OverlayPosition::Top, OverlayDockEdge::Top);
     for mode in [
         RecordingOverlayMode::Recording,
         RecordingOverlayMode::Panel,
         RecordingOverlayMode::Chat,
     ] {
-        let surface = overlay_surface(request(mode, top, Some(NOTCH)));
+        let surface = overlay_surface(request(mode, notification(), Some(NOTCH)));
         assert!(surface.island.width >= NOTCH.width, "{mode:?}");
     }
     for mode in [RecordingOverlayMode::Compact, RecordingOverlayMode::Actions] {
-        let surface = overlay_surface(request(mode, top, Some(NOTCH)));
+        let surface = overlay_surface(request(mode, docked(OverlayDockEdge::Top), Some(NOTCH)));
         assert!(surface.island.width < NOTCH.width, "{mode:?}");
     }
 }
 
 #[test]
-fn docked_top_resident_island_clears_the_notch() {
-    let placement = placement(OverlayPosition::Edge, OverlayDockEdge::Top);
+fn top_dock_floats_just_below_the_notch() {
     let surface = overlay_surface(request(
         RecordingOverlayMode::Compact,
-        placement,
+        docked(OverlayDockEdge::Top),
         Some(NOTCH),
     ));
 
-    assert_eq!(surface.island.y, NOTCHED_MONITOR.y + NOTCH.top_inset);
+    assert_eq!(surface.island.y, NOTCHED_MONITOR.y + NOTCH.top_inset + 4.0);
     assert_eq!((surface.island.width, surface.island.height), (38.0, 5.0));
     assert!(surface.island.y + surface.island.height <= surface.window.y + surface.window.height);
 }
 
 #[test]
 fn notchless_screens_leave_top_surfaces_untouched() {
-    let placement = placement(OverlayPosition::Top, OverlayDockEdge::Top);
+    let placement = notification();
     let surface = overlay_surface(request(RecordingOverlayMode::Recording, placement, None));
 
     let (_, height) = overlay_window_dimensions(RecordingOverlayMode::Recording, placement);
@@ -122,16 +126,20 @@ fn notchless_screens_leave_top_surfaces_untouched() {
 }
 
 #[test]
-fn bottom_surfaces_ignore_the_notch() {
-    let placement = placement(OverlayPosition::Bottom, OverlayDockEdge::Bottom);
+fn bottom_dock_floats_off_the_edge_whatever_the_notch() {
+    let placement = docked(OverlayDockEdge::Bottom);
     let with_notch = overlay_surface(request(
-        RecordingOverlayMode::Recording,
+        RecordingOverlayMode::Actions,
         placement,
         Some(NOTCH),
     ));
-    let without_notch = overlay_surface(request(RecordingOverlayMode::Recording, placement, None));
+    let without_notch = overlay_surface(request(RecordingOverlayMode::Actions, placement, None));
 
     assert_eq!(with_notch, without_notch);
+    assert_eq!(
+        (with_notch.island.width, with_notch.island.height),
+        (176.0, 40.0)
+    );
     assert_eq!(
         with_notch.island.y + with_notch.island.height,
         NOTCHED_MONITOR.y + NOTCHED_MONITOR.height - 4.0
@@ -140,7 +148,7 @@ fn bottom_surfaces_ignore_the_notch() {
 
 #[test]
 fn side_docked_resident_hugs_the_screen_edge_at_one_fixed_size() {
-    let placement = placement(OverlayPosition::Edge, OverlayDockEdge::Right);
+    let placement = docked(OverlayDockEdge::Right);
     let compact = overlay_surface(request(RecordingOverlayMode::Compact, placement, None));
     let actions = overlay_surface(request(RecordingOverlayMode::Actions, placement, None));
 
@@ -158,76 +166,69 @@ fn transient_placement_recenters_on_an_offset_notch() {
     };
     let centered = overlay_surface(request(
         RecordingOverlayMode::Recording,
-        placement(OverlayPosition::Top, OverlayDockEdge::Top),
+        notification(),
         Some(offset_notch),
     ));
-    let docked = overlay_surface(request(
+    let top_dock = overlay_surface(request(
         RecordingOverlayMode::Compact,
-        placement(OverlayPosition::Edge, OverlayDockEdge::Top),
+        docked(OverlayDockEdge::Top),
         Some(offset_notch),
     ));
-    let docked_without_notch = overlay_surface(request(
+    let top_dock_without_notch = overlay_surface(request(
         RecordingOverlayMode::Compact,
-        placement(OverlayPosition::Edge, OverlayDockEdge::Top),
+        docked(OverlayDockEdge::Top),
         None,
     ));
 
     let unshifted = overlay_surface(request(
         RecordingOverlayMode::Recording,
-        placement(OverlayPosition::Top, OverlayDockEdge::Top),
+        notification(),
         Some(NOTCH),
     ));
     assert_eq!(centered.window.x, unshifted.window.x + 8.0);
-    assert_eq!(docked.window.x, docked_without_notch.window.x);
+    assert_eq!(top_dock.window.x, top_dock_without_notch.window.x);
 }
 
 #[test]
 fn surfaces_never_leave_the_monitor_or_their_window() {
-    for position in [
-        OverlayPosition::Top,
-        OverlayPosition::Bottom,
-        OverlayPosition::Edge,
+    for edge in [
+        OverlayDockEdge::Left,
+        OverlayDockEdge::Right,
+        OverlayDockEdge::Top,
+        OverlayDockEdge::Bottom,
     ] {
-        for edge in [
-            OverlayDockEdge::Left,
-            OverlayDockEdge::Right,
-            OverlayDockEdge::Top,
-            OverlayDockEdge::Bottom,
+        for mode in [
+            RecordingOverlayMode::Compact,
+            RecordingOverlayMode::Actions,
+            RecordingOverlayMode::Recording,
+            RecordingOverlayMode::Panel,
+            RecordingOverlayMode::Chat,
         ] {
-            for mode in [
-                RecordingOverlayMode::Compact,
-                RecordingOverlayMode::Actions,
-                RecordingOverlayMode::Recording,
-                RecordingOverlayMode::Panel,
-                RecordingOverlayMode::Chat,
-            ] {
-                let surface = overlay_surface(request(
-                    mode,
-                    placement(position, edge),
-                    Some(OverlayNotchGeometry {
-                        center_offset: 120.0,
-                        ..NOTCH
-                    }),
-                ));
-                assert!(surface.window.x >= NOTCHED_MONITOR.x);
-                assert!(
-                    surface.window.x + surface.window.width
-                        <= NOTCHED_MONITOR.x + NOTCHED_MONITOR.width
-                );
-                let context = format!("{position:?} {edge:?} {mode:?}");
-                assert!(surface.island.x >= surface.window.x, "{context}");
-                assert!(surface.island.y >= surface.window.y, "{context}");
-                assert!(
-                    surface.island.x + surface.island.width
-                        <= surface.window.x + surface.window.width,
-                    "{context}"
-                );
-                assert!(
-                    surface.island.y + surface.island.height
-                        <= surface.window.y + surface.window.height,
-                    "{context}"
-                );
-            }
+            let surface = overlay_surface(request(
+                mode,
+                overlay_placement_for_mode(docked(edge), mode),
+                Some(OverlayNotchGeometry {
+                    center_offset: 120.0,
+                    ..NOTCH
+                }),
+            ));
+            assert!(surface.window.x >= NOTCHED_MONITOR.x);
+            assert!(
+                surface.window.x + surface.window.width
+                    <= NOTCHED_MONITOR.x + NOTCHED_MONITOR.width
+            );
+            let context = format!("{edge:?} {mode:?}");
+            assert!(surface.island.x >= surface.window.x, "{context}");
+            assert!(surface.island.y >= surface.window.y, "{context}");
+            assert!(
+                surface.island.x + surface.island.width <= surface.window.x + surface.window.width,
+                "{context}"
+            );
+            assert!(
+                surface.island.y + surface.island.height
+                    <= surface.window.y + surface.window.height,
+                "{context}"
+            );
         }
     }
 }
@@ -244,7 +245,7 @@ fn chat_surface_shrinks_to_a_small_monitor() {
         mode: RecordingOverlayMode::Chat,
         monitor,
         notch: Some(NOTCH),
-        placement: placement(OverlayPosition::Top, OverlayDockEdge::Top),
+        placement: notification(),
     });
 
     assert_eq!(surface.window.width, monitor.width);
@@ -257,20 +258,16 @@ fn chat_surface_shrinks_to_a_small_monitor() {
 
 #[test]
 fn transition_window_covers_both_surfaces_without_leaving_the_monitor() {
-    let docked = overlay_surface(request(
+    let side_dock = overlay_surface(request(
         RecordingOverlayMode::Compact,
-        placement(OverlayPosition::Edge, OverlayDockEdge::Right),
+        docked(OverlayDockEdge::Right),
         None,
     ));
-    let transient = overlay_surface(request(
-        RecordingOverlayMode::Chat,
-        placement(OverlayPosition::Top, OverlayDockEdge::Top),
-        None,
-    ));
+    let transient = overlay_surface(request(RecordingOverlayMode::Chat, notification(), None));
 
-    let union = transition_window(NOTCHED_MONITOR, [docked.window], transient.window);
+    let union = transition_window(NOTCHED_MONITOR, [side_dock.window], transient.window);
 
-    for frame in [docked.window, transient.window] {
+    for frame in [side_dock.window, transient.window] {
         assert!(union.x <= frame.x);
         assert!(union.y <= frame.y);
         assert!(union.x + union.width >= frame.x + frame.width);
@@ -294,7 +291,7 @@ fn transition_window_of_one_frame_is_that_frame() {
 
 #[test]
 fn payload_reports_window_local_geometry_and_screen_origin() {
-    let placement = placement(OverlayPosition::Top, OverlayDockEdge::Top);
+    let placement = notification();
     let surface = overlay_surface(request(
         RecordingOverlayMode::Recording,
         placement,
@@ -323,17 +320,28 @@ fn payload_reports_window_local_geometry_and_screen_origin() {
 }
 
 #[test]
-fn island_stays_put_when_only_the_window_grows_for_a_transition() {
-    let docked = placement(OverlayPosition::Edge, OverlayDockEdge::Right);
-    let surface = overlay_surface(request(RecordingOverlayMode::Compact, docked, None));
-    let transient = overlay_surface(request(
-        RecordingOverlayMode::Chat,
-        placement(OverlayPosition::Top, OverlayDockEdge::Top),
+fn a_floating_dock_still_carries_its_grip_and_gear() {
+    let request = request(
+        RecordingOverlayMode::Actions,
+        docked(OverlayDockEdge::Bottom),
         None,
-    ));
+    );
+    let surface = overlay_surface(request);
+
+    let payload = overlay_surface_payload(request, surface.window).expect("dock is visible");
+
+    assert_eq!(payload.anchor, OverlayDockEdge::Bottom);
+    assert_eq!(payload.presentation, OverlayPresentation::Docked);
+}
+
+#[test]
+fn island_stays_put_when_only_the_window_grows_for_a_transition() {
+    let side_dock = docked(OverlayDockEdge::Right);
+    let surface = overlay_surface(request(RecordingOverlayMode::Compact, side_dock, None));
+    let transient = overlay_surface(request(RecordingOverlayMode::Chat, notification(), None));
     let union = transition_window(NOTCHED_MONITOR, [transient.window], surface.window);
 
-    let compact = request(RecordingOverlayMode::Compact, docked, None);
+    let compact = request(RecordingOverlayMode::Compact, side_dock, None);
     let settled =
         overlay_surface_payload(compact, surface.window).expect("docked placement has a payload");
     let during_transition =
@@ -350,35 +358,11 @@ fn island_stays_put_when_only_the_window_grows_for_a_transition() {
 }
 
 #[test]
-fn hover_box_tracks_the_drawn_island_for_residents() {
-    let docked = placement(OverlayPosition::Edge, OverlayDockEdge::Right);
-    let compact = request(RecordingOverlayMode::Compact, docked, None);
-    let surface = overlay_surface(compact);
-
-    let hover = super::surface_hover_box(compact, surface.window);
-
-    assert_eq!((hover.width, hover.height), (40.0, 228.0));
-    assert_eq!(hover.x + hover.width, surface.window.width);
-}
-
-#[test]
-fn hover_box_covers_the_whole_canvas_for_transient_surfaces() {
-    let top = placement(OverlayPosition::Top, OverlayDockEdge::Top);
-    let chat = request(RecordingOverlayMode::Chat, top, None);
-    let surface = overlay_surface(chat);
-
-    let hover = super::surface_hover_box(chat, surface.window);
-
-    assert_eq!((hover.x, hover.y), (0.0, 0.0));
-    assert_eq!(
-        (hover.width, hover.height),
-        (surface.window.width, surface.window.height)
-    );
-}
-
-#[test]
 fn disabled_placement_has_no_payload() {
-    let hidden = placement(OverlayPosition::None, OverlayDockEdge::Top);
+    let hidden = OverlayPlacement {
+        position: OverlayPosition::None,
+        ..docked(OverlayDockEdge::Top)
+    };
     let surface = overlay_surface(request(RecordingOverlayMode::Compact, hidden, None));
 
     assert!(overlay_surface_payload(
@@ -387,3 +371,6 @@ fn disabled_placement_has_no_payload() {
     )
     .is_none());
 }
+
+#[path = "surface_hover_tests.rs"]
+mod hover;

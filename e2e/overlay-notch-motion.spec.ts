@@ -196,7 +196,7 @@ test("leaves the resting handle floating below the notch", async ({ page }) => {
   await page.setViewportSize({ height: 620, width: 680 });
   await page.goto(overlayUrl);
   await waitForTauriListener(page, "overlay-surface");
-  await setOverlayAnchor(page, "top", "bar");
+  await setOverlayAnchor(page, "top");
   await setOverlayNotch(page, { centerOffset: 0, topInset: 32, width: 196 });
 
   const morph = page.locator('[data-component="echo-island-morph"]');

@@ -87,6 +87,6 @@ fn a_hidden_overlay_draws_the_notification_only_for_a_notice() {
 
 #[test]
 fn a_visible_overlay_always_draws_the_notification() {
-    assert!(notification_is_drawn(OverlayPosition::Top, false));
-    assert!(notification_is_drawn(OverlayPosition::Top, true));
+    assert!(notification_is_drawn(OverlayPosition::Edge, false));
+    assert!(notification_is_drawn(OverlayPosition::Edge, true));
 }

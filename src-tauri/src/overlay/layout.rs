@@ -64,8 +64,7 @@ impl OverlayPlacement {
     pub(super) fn resolved_anchor(self) -> OverlayDockEdge {
         match self.position {
             OverlayPosition::Edge => self.dock_edge,
-            OverlayPosition::Top | OverlayPosition::None => OverlayDockEdge::Top,
-            OverlayPosition::Bottom => OverlayDockEdge::Bottom,
+            OverlayPosition::None => OverlayDockEdge::Top,
         }
     }
 }
@@ -78,7 +77,7 @@ pub(super) fn overlay_placement_for_mode(
         return placement;
     }
     OverlayPlacement {
-        position: OverlayPosition::Top,
+        position: OverlayPosition::Edge,
         dock_edge: OverlayDockEdge::Top,
         dock_offset: 0.5,
     }
@@ -234,13 +233,7 @@ pub(super) fn compute_overlay_geometry_for_size(
     height: f64,
 ) -> (f64, f64, f64, f64) {
     let (x, y) = match placement.position {
-        OverlayPosition::Top | OverlayPosition::None => {
-            (monitor.x + (monitor.width - width) / 2.0, monitor.y)
-        }
-        OverlayPosition::Bottom => (
-            monitor.x + (monitor.width - width) / 2.0,
-            monitor.y + monitor.height - height,
-        ),
+        OverlayPosition::None => (monitor.x + (monitor.width - width) / 2.0, monitor.y),
         OverlayPosition::Edge => match placement.dock_edge {
             OverlayDockEdge::Left => (
                 monitor.x,

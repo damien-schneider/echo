@@ -36,7 +36,9 @@ test("rests as a subtle handle and reveals all actions on hover", async ({
   ).toBeVisible();
 });
 
-test("only the visible compact bar reveals the actions", async ({ page }) => {
+test("only the compact bar and the edge beneath it reveal the actions", async ({
+  page,
+}) => {
   await page.goto(overlayUrl);
 
   const handle = page.getByRole("button", { name: "Open Echo actions" });
@@ -47,7 +49,7 @@ test("only the visible compact bar reveals the actions", async ({ page }) => {
   expect(handleBox).not.toBeNull();
   expect(morphBox).not.toBeNull();
   expect(handleBox?.width).toBe(38);
-  expect(handleBox?.height).toBe(5);
+  expect(handleBox?.height).toBe(9);
   expect(morphBox?.width).toBe(38);
   expect(morphBox?.height).toBe(5);
   if (!handleBox) {
@@ -84,7 +86,7 @@ test("survives repeated hover cycles without a stale open or close", async ({
       return;
     }
     expect(handleBox.width).toBe(38);
-    expect(handleBox.height).toBe(5);
+    expect(handleBox.height).toBe(9);
     await page.mouse.move(
       handleBox.x + handleBox.width / 2,
       handleBox.y + handleBox.height / 2
@@ -97,7 +99,7 @@ test("survives repeated hover cycles without a stale open or close", async ({
     await expect(handle).toBeVisible({ timeout: 350 });
     await expect(toolbar).toBeHidden();
     await expect(handle).toHaveCSS("width", "38px");
-    await expect(handle).toHaveCSS("height", "5px");
+    await expect(handle).toHaveCSS("height", "9px");
   }
 });
 
@@ -148,7 +150,7 @@ test("settles back to the exact compact target before the next hover", async ({
       const box = await handle.boundingBox();
       return box ? [Math.round(box.width), Math.round(box.height)] : null;
     })
-    .toEqual([38, 5]);
+    .toEqual([38, 9]);
 
   const settledBox = await handle.boundingBox();
   if (!settledBox) {

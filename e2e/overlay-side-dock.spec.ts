@@ -7,7 +7,6 @@ import {
 import { pointNative, requiredBox } from "@e2e/overlay-island-probe";
 import { expect, type Locator, type Page } from "@playwright/test";
 import {
-  DOCK_GEAR_SLOT,
   DOCK_SHOULDER,
   dockSilhouettePath,
 } from "@/features/overlay-controls/motion/dock-silhouette";
@@ -173,7 +172,7 @@ test("a lifted island keeps the HUD's own face, minus the edge", async ({
       dockSilhouettePath({
         anchor: "right",
         corner: PILL_RADIUS,
-        gear: { revealed: false, slot: DOCK_GEAR_SLOT },
+        gear: { revealed: false },
         height: frame.height,
         isLifted: true,
         shoulder: DOCK_SHOULDER,

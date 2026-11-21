@@ -96,8 +96,6 @@ fn wayland_anchor_honors_all_resolved_edges() {
 fn explicit_disabled_position_keeps_resident_window_hidden() {
     assert!(!overlay_initially_visible(OverlayPosition::None));
     assert!(overlay_initially_visible(OverlayPosition::Edge));
-    assert!(overlay_initially_visible(OverlayPosition::Top));
-    assert!(overlay_initially_visible(OverlayPosition::Bottom));
 }
 
 #[test]
@@ -116,17 +114,13 @@ fn only_chat_can_accept_keyboard_focus() {
 }
 
 #[test]
-fn resolved_anchor_maps_every_position_to_one_edge() {
+fn resolved_anchor_follows_the_dock_edge_and_hides_at_the_top() {
     assert_eq!(
         edge_placement(OverlayDockEdge::Left, 0.25).resolved_anchor(),
         OverlayDockEdge::Left
     );
     assert_eq!(
-        placement(OverlayPosition::Top, OverlayDockEdge::Right, 0.75).resolved_anchor(),
-        OverlayDockEdge::Top
-    );
-    assert_eq!(
-        placement(OverlayPosition::Bottom, OverlayDockEdge::Left, 0.25).resolved_anchor(),
+        edge_placement(OverlayDockEdge::Bottom, 0.75).resolved_anchor(),
         OverlayDockEdge::Bottom
     );
     assert_eq!(
@@ -316,32 +310,6 @@ fn nearest_edge_offset_is_clamped_for_offscreen_frames() {
 }
 
 #[test]
-fn legacy_top_bottom_and_none_geometry_is_unchanged() {
-    let width = overlay_interaction_dimensions(RecordingOverlayMode::Recording).0;
-    let expected_x = (MONITOR.width - width) / 2.0;
-    let top = compute_overlay_geometry(
-        MONITOR,
-        placement(OverlayPosition::Top, OverlayDockEdge::Left, 0.0),
-        RecordingOverlayMode::Recording,
-    );
-    let bottom = compute_overlay_geometry(
-        MONITOR,
-        placement(OverlayPosition::Bottom, OverlayDockEdge::Right, 1.0),
-        RecordingOverlayMode::Recording,
-    );
-    let none = compute_overlay_geometry(
-        MONITOR,
-        placement(OverlayPosition::None, OverlayDockEdge::Bottom, 0.5),
-        RecordingOverlayMode::Recording,
-    );
-    assert_eq!(top.0, expected_x);
-    assert_eq!(top.1, MONITOR.y);
-    assert_eq!(bottom.0, expected_x);
-    assert_eq!(bottom.1 + bottom.3, MONITOR.y + MONITOR.height);
-    assert_eq!(none, top);
-}
-
-#[test]
 fn each_window_only_parses_the_modes_it_owns() {
     assert_eq!(parse_hud_mode("compact"), Ok(RecordingOverlayMode::Compact));
     assert_eq!(parse_hud_mode("actions"), Ok(RecordingOverlayMode::Actions));
@@ -363,13 +331,11 @@ fn each_window_only_parses_the_modes_it_owns() {
 
 #[test]
 fn only_a_top_anchored_hud_stands_down_for_the_notification() {
-    let yielding = [
-        placement(OverlayPosition::Top, OverlayDockEdge::Bottom, 0.5),
-        edge_placement(OverlayDockEdge::Top, 0.5),
-    ];
+    let yielding = [edge_placement(OverlayDockEdge::Top, 0.5)];
     let standing = [
         edge_placement(OverlayDockEdge::Right, 0.5),
-        placement(OverlayPosition::Bottom, OverlayDockEdge::Top, 0.5),
+        edge_placement(OverlayDockEdge::Bottom, 0.5),
+        edge_placement(OverlayDockEdge::Left, 0.5),
     ];
 
     assert!(yielding.into_iter().all(hud_yields_to_notification));

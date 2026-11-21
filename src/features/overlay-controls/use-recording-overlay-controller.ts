@@ -5,6 +5,7 @@ import {
   isSideDockedSurface,
 } from "@/features/overlay-controls/overlay-presentation";
 import type { OverlayMode } from "@/features/overlay-controls/recording-overlay-state";
+import type { OverlayAnchor } from "@/features/overlay-controls/runtime/overlay-surface";
 import { HUD_WINDOW } from "@/features/overlay-controls/runtime/overlay-windows";
 import { useEdgeDockDrag } from "@/features/overlay-controls/runtime/use-edge-dock-drag";
 import { useResidentHover } from "@/features/overlay-controls/runtime/use-resident-hover";
@@ -30,6 +31,7 @@ const useCollapseOnActiveOperation = (
 const ignorePersistentHover = () => undefined;
 
 interface DockHoverOptions {
+  anchor: OverlayAnchor | undefined;
   isDragging: boolean;
   isSideDocked: boolean;
   onCollapse: () => void;
@@ -39,6 +41,7 @@ interface DockHoverOptions {
 }
 
 const useDockHover = ({
+  anchor,
   isDragging,
   isSideDocked,
   onCollapse,
@@ -49,6 +52,7 @@ const useDockHover = ({
   // collapsing mid-drag would resize the window the compositor is already moving
   const holdsIslandOpen = isSideDocked || isDragging;
   const hover = useResidentHover({
+    anchor,
     isExpanded: renderMode === "actions" && !isSideDocked,
     onCollapse: holdsIslandOpen ? ignorePersistentHover : onCollapse,
     onReveal: holdsIslandOpen ? ignorePersistentHover : onReveal,
@@ -88,6 +92,7 @@ export const useRecordingOverlayController = () => {
   const handoff = useScreenHandoff();
   const isSideDocked = isSideDockedSurface(events.surface);
   const { hover, revealsGear } = useDockHover({
+    anchor: events.surface?.anchor,
     isDragging: drag.isDragging,
     isSideDocked,
     onCollapse: actions.collapseControls,

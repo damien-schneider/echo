@@ -8,7 +8,7 @@ import { pointNative, requiredBox } from "@e2e/overlay-island-probe";
 import { expect, type Page } from "@playwright/test";
 
 const sideDockUrl = "/src/overlay/index.html";
-const barUrl = `${sideDockUrl}?overlayPlacement=bottom`;
+const bottomDockUrl = `${sideDockUrl}?overlayPlacement=bottom`;
 
 test("native hover crossings leave the side dock exactly where it was", async ({
   page,
@@ -158,7 +158,6 @@ const sampleBoundaryTrajectory = (page: Page) =>
     };
 
     const collapsed = await settle(false, 60);
-    const handle = sizeOf(".echo-island-handle-hitbox");
     const expanded = await settle(true, 60);
     const residentSize = sizeOf(".echo-island-resident");
     await settle(false, 4);
@@ -170,7 +169,6 @@ const sampleBoundaryTrajectory = (page: Page) =>
       closingPhase,
       collapsed,
       expanded,
-      handle,
       residentSize,
       reversed,
       samples,
@@ -180,7 +178,7 @@ const sampleBoundaryTrajectory = (page: Page) =>
 test("native pointer boundary reverses a connected resident morph", async ({
   page,
 }) => {
-  await page.goto(barUrl);
+  await page.goto(bottomDockUrl);
   await waitForTauriListener(page, "overlay-pointer");
   const toolbar = page.getByRole("toolbar", { name: "Echo actions" });
 
@@ -189,8 +187,7 @@ test("native pointer boundary reverses a connected resident morph", async ({
 
   const trajectory = await sampleBoundaryTrajectory(page);
 
-  // the shell lands on the handle and the resident boxes, never a stale size between them
-  expect(trajectory.collapsed).toMatchObject(trajectory.handle);
+  expect(trajectory.collapsed).toMatchObject({ height: 5, width: 38 });
   expect(trajectory.expanded).toMatchObject(trajectory.residentSize);
   expect(trajectory.closingPhase).toBe("closing");
   expect(trajectory.reversed).toMatchObject(trajectory.residentSize);
