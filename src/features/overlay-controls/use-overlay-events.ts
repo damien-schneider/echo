@@ -1,4 +1,5 @@
-import { type RefObject, useEffect, useReducer, useState } from "react";
+import type { MotionValue } from "motion/react";
+import { useEffect, useReducer, useState } from "react";
 import {
   initialOverlayActivity,
   reduceOverlayActivity,
@@ -17,9 +18,7 @@ const viewportSurface = () =>
     width: window.innerWidth,
   });
 
-export const useOverlayEvents = (
-  microphoneRef: RefObject<HTMLSpanElement | null>
-) => {
+export const useOverlayEvents = (voice: MotionValue<number>) => {
   const [activity, dispatch] = useReducer(
     reduceOverlayActivity,
     initialOverlayActivity
@@ -35,13 +34,13 @@ export const useOverlayEvents = (
         registrations: (onSurface) =>
           overlayEventRegistrations({
             dispatch,
-            microphoneRef,
             onSurface,
             surfaceEvent: NOTIFICATION_WINDOW.surfaceEvent,
+            voice,
           }),
         setSurface: setSurfaceState,
       }),
-    [microphoneRef]
+    [voice]
   );
 
   return {

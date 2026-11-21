@@ -1,4 +1,9 @@
-import { test, waitForTauriListener } from "@e2e/fixtures";
+import {
+  emitTauriEvent,
+  NOTIFICATION_URL,
+  test,
+  waitForTauriListener,
+} from "@e2e/fixtures";
 import { pointNative, requiredBox } from "@e2e/overlay-island-probe";
 import { expect, type Page } from "@playwright/test";
 
@@ -83,6 +88,27 @@ test("native hover fills the aimed action at once and outranks WebKit's trailing
   expect(fillOnArrival).not.toBe(restingFill);
   await expect(record).toHaveCSS("background-color", restingFill);
   await expect(record).toHaveCSS("scale", "1");
+});
+
+test("once macOS drives hover, WebKit's trailing :hover leaves the cancel button dark", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(NOTIFICATION_URL);
+  await waitForTauriListener(page, "show-overlay");
+  await waitForTauriListener(page, "overlay-pointer");
+  await emitTauriEvent(page, "show-overlay", "recording");
+  const cancel = page.getByRole("button", { name: "Cancel current operation" });
+  await expect(cancel).toBeVisible();
+
+  await pointNative(page, false);
+  await cancel.hover();
+
+  expect(
+    await cancel.evaluate(
+      (element) => getComputedStyle(element).backgroundColor
+    )
+  ).toBe("rgba(0, 0, 0, 0)");
 });
 
 interface MorphFrame {

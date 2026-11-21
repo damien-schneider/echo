@@ -36,6 +36,22 @@ describe("overlay content motion key", () => {
     ).toBe("activity:tool");
   });
 
+  test("keeps a dictation in one shell from preparing through transcribing, so release never crossfades the words", () => {
+    const dictationKey = (overlayState: "preparing" | "transcribing") =>
+      overlayContentKey({
+        mode: "recording",
+        overlayState,
+        polishState: "ready",
+      });
+    const recordingKey = overlayContentKey({
+      mode: "recording",
+      overlayState: "recording",
+      polishState: "ready",
+    });
+    expect(dictationKey("preparing")).toBe(recordingKey);
+    expect(dictationKey("transcribing")).toBe(recordingKey);
+  });
+
   test("animates every Polish preparation phase inside the same panel", () => {
     expect(
       overlayContentKey({

@@ -1,10 +1,10 @@
 import { listen } from "@tauri-apps/api/event";
-import type { RefObject } from "react";
+import type { MotionValue } from "motion/react";
 import { z } from "zod";
 import { DownloadProgressSchema } from "@/features/model-download/download-state";
 import {
   OverlayRemedySchema,
-  updateMicrophoneAmbience,
+  voiceLevel,
 } from "@/features/overlay-controls/recording-overlay-state";
 import type { OverlayActivityEvent } from "@/features/overlay-controls/runtime/overlay-activity-state";
 import {
@@ -38,9 +38,9 @@ const ShowOverlayPayloadSchema = z.union([
 
 export interface OverlayEventPorts {
   dispatch: (event: OverlayActivityEvent) => void;
-  microphoneRef: RefObject<HTMLSpanElement | null>;
   onSurface: (surface: OverlaySurface | null) => void;
   surfaceEvent: string;
+  voice: MotionValue<number>;
 }
 
 type ActivityPorts = Pick<OverlayEventPorts, "dispatch">;
@@ -74,15 +74,17 @@ const surfaceRegistration = (
     }),
 ];
 
+const voiceRegistration = (ports: Pick<OverlayEventPorts, "voice">) => () =>
+  listen<unknown>("mic-level", (event) => {
+    const parsed = z.array(z.number()).safeParse(event.payload);
+    if (parsed.success) {
+      ports.voice.set(voiceLevel(parsed.data));
+    }
+  });
+
 const activityRegistrations = (ports: OverlayEventPorts) => [
   ...visibilityRegistrations(ports),
-  () =>
-    listen<unknown>("mic-level", (event) => {
-      const parsed = z.array(z.number()).safeParse(event.payload);
-      if (parsed.success && ports.microphoneRef.current) {
-        updateMicrophoneAmbience(ports.microphoneRef.current, parsed.data);
-      }
-    }),
+  voiceRegistration(ports),
   () =>
     listen<unknown>("transcription-progress", (event) => {
       const parsed = TranscriptionProgressSchema.safeParse(event.payload);
@@ -122,7 +124,9 @@ export const overlayEventRegistrations = (ports: OverlayEventPorts) => [
   ...surfaceRegistration(ports),
 ];
 
-/// The HUD renders no transcript, download or microphone, so it skips those streams.
-export const hudEventRegistrations = (
-  ports: Omit<OverlayEventPorts, "microphoneRef">
-) => [...visibilityRegistrations(ports), ...surfaceRegistration(ports)];
+/// The HUD renders no transcript or download, so it skips those streams.
+export const hudEventRegistrations = (ports: OverlayEventPorts) => [
+  ...visibilityRegistrations(ports),
+  voiceRegistration(ports),
+  ...surfaceRegistration(ports),
+];

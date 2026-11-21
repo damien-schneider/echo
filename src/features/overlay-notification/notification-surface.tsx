@@ -1,31 +1,13 @@
-import {
-  ArrowLineDownIcon,
-  CheckIcon,
-  SquareIcon,
-} from "@phosphor-icons/react";
 import { ChatPanel } from "@/features/overlay-chat/chat-panel";
 import { useChatSessionHold } from "@/features/overlay-chat/use-chat-session";
 import { PolishModelPanel } from "@/features/overlay-controls/polish-model-panel";
-import type {
-  ActivityAction,
-  NotificationMode,
-} from "@/features/overlay-controls/recording-overlay-state";
+import type { NotificationMode } from "@/features/overlay-controls/recording-overlay-state";
 import {
   ActivityIsland,
   type ActivityIslandAction,
 } from "@/features/overlay-notification/activity-island";
 import { TranscriptPanel } from "@/features/overlay-notification/transcript-panel";
 import type { NotificationController } from "@/features/overlay-notification/use-notification-controller";
-
-const actionIcon = (intent: ActivityAction["intent"]) => {
-  if (intent === "finish_recording") {
-    return <CheckIcon aria-hidden="true" className="size-3.5" />;
-  }
-  if (intent === "stop_meeting") {
-    return <SquareIcon aria-hidden="true" className="size-3" />;
-  }
-  return <ArrowLineDownIcon aria-hidden="true" className="size-3.5" />;
-};
 
 const islandAction = (
   controller: NotificationController
@@ -35,19 +17,20 @@ const islandAction = (
     return null;
   }
   return {
-    icon: actionIcon(action.intent),
+    ...action,
     onAction: () => controller.runActivityAction(action.intent),
-    title: action.title,
   };
 };
 
 interface NotificationSurfaceProps {
   controller: NotificationController;
+  isIslandHovered: boolean;
   mode: NotificationMode;
 }
 
 export const NotificationSurface = ({
   controller,
+  isIslandHovered,
   mode,
 }: NotificationSurfaceProps) => {
   const { chatContext, closedChatGeneration, polish, presentation } =
@@ -99,10 +82,12 @@ export const NotificationSurface = ({
       decoration={presentation.activityDecoration}
       dismissLabel={presentation.activityDismissal?.label ?? null}
       hasFlanks={hasFlanks}
+      isHovered={isIslandHovered}
       onDismiss={controller.dismissActivity}
       text={presentation.activityText}
       textScrollRef={controller.textScrollRef}
       visualState={presentation.activityVisualState}
+      voice={controller.voice}
     />
   );
 };

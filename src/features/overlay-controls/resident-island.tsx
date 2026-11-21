@@ -1,5 +1,6 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { DotsSixIcon, GearSixIcon } from "@phosphor-icons/react";
+import type { MotionValue } from "motion/react";
 import {
   type CSSProperties,
   type MouseEvent,
@@ -32,6 +33,7 @@ interface ActionPorts {
   onChat: () => void;
   onPolish: () => void;
   onRecord: () => void;
+  voice: MotionValue<number>;
 }
 
 interface DockGearStyle extends CSSProperties {
@@ -144,6 +146,7 @@ interface ResidentPanelProps extends ActionPorts {
   actionsRef: RefObject<HTMLDivElement | null>;
   drag: EdgeDockDrag;
   hasGrip: boolean;
+  isHovered: boolean;
   isInteractive: boolean;
   isVisible: boolean;
   orientation: ResidentOrientation;
@@ -257,6 +260,7 @@ const ResidentDock = ({
         actionsRef={actionsRef}
         drag={drag}
         hasGrip={presentation === "docked"}
+        isHovered={hover.isActive}
         isInteractive={isInteractive}
         isVisible={isVisible}
         orientation={orientation}

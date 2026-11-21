@@ -81,15 +81,35 @@
   width: max(310px, calc(var(--echo-island-notch-span, 0px) + 128px));
 }
 
+.echo-island-activity[data-flanked="true"][data-has-text="false"] {
+  width: calc(
+    var(--echo-island-notch-span, 0px) +
+    var(--echo-island-notch-strip, 0px) *
+    2
+  );
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+}
+
 .echo-island-activity output {
   flex: 1;
   min-width: 0;
 }
 
+/* ctrl-ui's own hover follows WebKit's :hover, which trails the pointer here */
+.echo-island [data-control-family="button"] {
+  --cui-button-hover-background: var(--cui-button-background);
+}
+
 .echo-island-activity
-  :is(.echo-island-activity-dismiss, .echo-island-activity-submit) {
+  :is(.echo-island-activity-dismiss, .echo-island-activity-action) {
   z-index: 4;
   flex: none;
+}
+
+.echo-island-activity-action {
+  display: inline-flex;
 }
 
 .echo-island-activity-dismiss {

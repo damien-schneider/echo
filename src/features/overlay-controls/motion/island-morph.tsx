@@ -17,6 +17,7 @@ import {
   dockSilhouettePath,
 } from "@/features/overlay-controls/motion/dock-silhouette";
 import {
+  bridgeBandOf,
   islandCornerRadii,
   PILL_RADIUS,
 } from "@/features/overlay-controls/motion/island-corners";
@@ -27,10 +28,7 @@ import {
   hasDockGearSlot,
   isSideDockedSurface,
 } from "@/features/overlay-controls/overlay-presentation";
-import type {
-  IslandEdge,
-  OverlayMode,
-} from "@/features/overlay-controls/recording-overlay-state";
+import type { OverlayMode } from "@/features/overlay-controls/recording-overlay-state";
 import {
   bridgeToNotch,
   type IslandSize,
@@ -60,6 +58,23 @@ const ISLAND_CONTENT_MOTION = {
   },
   initial: { filter: "blur(4px)", opacity: 0 },
 } as const;
+
+/// Rust pastes ~50 ms after the hide and holds the main thread that commits these frames; the shell waits it out.
+const PASTE_STALL_SECONDS = 0.1;
+
+const ISLAND_COLLAPSE = {
+  delay: PASTE_STALL_SECONDS,
+  duration: 0.5,
+  ease: [0.645, 0.045, 0.355, 1],
+} as const;
+
+const ISLAND_FADE_OUT = {
+  opacity: 0,
+  transition: ISLAND_CONTENT_FADE,
+} as const;
+
+const islandExit = (entry: IslandEntry, reduceMotion: boolean): IslandEntry =>
+  reduceMotion ? ISLAND_FADE_OUT : { ...entry, transition: ISLAND_COLLAPSE };
 
 const isResidentMode = (mode: OverlayMode) =>
   mode === "compact" || mode === "actions";
@@ -221,7 +236,7 @@ const islandMorphTarget = ({
 }: MorphTargetOptions) => ({
   ...islandCornerRadii({
     anchor: surface.anchor,
-    bridgeBand: bridgesNotch ? frame.height - strip : null,
+    bridgeBand: bridgesNotch ? bridgeBandOf(frame.height, strip) : null,
     isPill:
       mode === "compact"
         ? !isSideDockedSurface(surface)
@@ -255,37 +270,37 @@ const islandMorphTarget = ({
 interface IslandMorphProps {
   children: ReactNode;
   contentKey: string;
-  /// Rides the whole silhouette, cut-out strip included, never the content box inside it.
-  edge?: IslandEdge | null;
+  /// Rides the whole silhouette, cut-out strip included, under the content.
+  edgeLight?: ReactNode;
   /// Only the notification has one — the HUD is already on screen and never enters.
   entry?: IslandEntry;
   /// A handoff teleports the window — the island lands with it instead of springing across.
   freezesLayout?: boolean;
   isDragging?: boolean;
-  /// Listening energy lands here — the ambience only exists while edge is "ambience".
-  microphoneRef?: Ref<HTMLSpanElement>;
   mode: OverlayMode;
   onMorphComplete: () => void;
   /// Docked HUD only — grows the settings lobe out of the panel's far end.
   revealsGear?: boolean;
   surface: OverlaySurface;
+  zoneRef?: Ref<HTMLDivElement>;
 }
 
 // the canvas cancels the window origin, so growing the native window cannot drag the island along
 export const IslandMorph = ({
   children,
   contentKey,
-  edge,
+  edgeLight,
   entry,
   freezesLayout,
   isDragging,
-  microphoneRef,
   mode,
   onMorphComplete,
   revealsGear,
   surface,
+  zoneRef,
 }: IslandMorphProps) => {
   const reduceMotion = useReducedMotion() === true;
+  const isPresent = useIsPresent();
   const { canvasOrigin, toCanvas, transition } = useIslandLanding({
     freezesLayout: freezesLayout === true,
     isDragging: isDragging === true,
@@ -336,23 +351,16 @@ export const IslandMorph = ({
         data-dragging={isDragging}
         data-mode={mode}
         data-notch-bridge={bridgesNotch}
+        data-presence={isPresent ? "active" : "exiting"}
         data-presentation={surface.presentation}
-        exit={entry}
+        exit={entry && islandExit(entry, reduceMotion)}
         initial={entry ?? false}
         onAnimationComplete={onMorphComplete}
+        ref={zoneRef}
         style={notchStrip}
         transition={transition}
       >
-        {edge === "trace" ? (
-          <span aria-hidden="true" className="echo-island-edge-trace" />
-        ) : null}
-        {edge === "ambience" ? (
-          <span
-            aria-hidden="true"
-            className="echo-island-microphone-ambience"
-            ref={microphoneRef}
-          />
-        ) : null}
+        {edgeLight}
         <div className="echo-island-morph-measure">
           <IslandMorphContent
             anchor={surface.anchor}

@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { useMotionValue } from "motion/react";
 import {
   type KeyboardEvent,
   type RefObject,
@@ -256,9 +257,9 @@ const finishRecording = async () => {
 };
 
 export const useNotificationController = () => {
-  const microphoneRef = useRef<HTMLSpanElement>(null);
+  const voice = useMotionValue(0);
   const textScrollRef = useRef<HTMLOutputElement>(null);
-  const events = useOverlayEvents(microphoneRef);
+  const events = useOverlayEvents(voice);
   const polish = usePolishModel();
   const modelState = useModelState();
   const {
@@ -292,7 +293,8 @@ export const useNotificationController = () => {
   useOverlayKey("cancel", presentation.escapeIntent === "cancel_operation");
   useOverlayKey(
     "finish",
-    presentation.activityAction?.intent === "finish_recording"
+    presentation.activityAction?.intent === "finish_recording" &&
+      !presentation.activityAction.isPending
   );
   useFollowStreamingText(events.streamingText, textScrollRef);
 
@@ -339,7 +341,7 @@ export const useNotificationController = () => {
     heldTranscript,
     handleKeyDown: (event: KeyboardEvent<HTMLDivElement>) =>
       dismissFromKeyboard(event, presentation.escapeIntent, dismissSurface),
-    microphoneRef,
+    voice,
     /// The prompt returns at once; the context watch notices the grant and reads the selection then.
     requestAccessibilityAccess: async () => {
       await requestAccessibilityPermission();

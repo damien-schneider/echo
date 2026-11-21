@@ -4,7 +4,9 @@ import { useEffect, useEffectEvent } from "react";
 import { IslandMorph } from "@/features/overlay-controls/motion/island-morph";
 import { notchEntry } from "@/features/overlay-controls/motion/notch-entry";
 import { activityEdgeFor } from "@/features/overlay-controls/recording-overlay-state";
+import { useHoverZone } from "@/features/overlay-controls/runtime/use-hover-zone";
 import { useNativeHover } from "@/features/overlay-controls/runtime/use-native-hover";
+import { EdgeLight } from "@/features/overlay-notification/edge-light/edge-light";
 import { NotificationSurface } from "@/features/overlay-notification/notification-surface";
 import {
   NOTIFICATION_RELEASE_DELAY_MS,
@@ -27,6 +29,7 @@ const useReleaseEmptyWindow = (isEmpty: boolean, release: () => void) => {
 const NotificationOverlay = () => {
   const controller = useNotificationController();
   useNativeHover();
+  const island = useHoverZone();
   const surface = controller.events.surface;
   const mode = controller.renderMode;
   useReleaseEmptyWindow(
@@ -53,19 +56,30 @@ const NotificationOverlay = () => {
         {surface && mode ? (
           <IslandMorph
             contentKey={controller.contentKey}
-            edge={
-              mode === "recording"
-                ? activityEdgeFor(controller.presentation.activityDecoration)
-                : null
+            edgeLight={
+              <EdgeLight
+                edge={
+                  mode === "recording"
+                    ? activityEdgeFor(
+                        controller.presentation.activityDecoration
+                      )
+                    : null
+                }
+                voice={controller.voice}
+              />
             }
             entry={notchEntry(surface)}
             key="notification"
-            microphoneRef={controller.microphoneRef}
             mode={mode}
             onMorphComplete={controller.finishMorph}
             surface={surface}
+            zoneRef={island.zoneRef}
           >
-            <NotificationSurface controller={controller} mode={mode} />
+            <NotificationSurface
+              controller={controller}
+              isIslandHovered={island.isHovered}
+              mode={mode}
+            />
           </IslandMorph>
         ) : null}
       </AnimatePresence>

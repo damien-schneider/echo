@@ -100,7 +100,7 @@ describe("island presentation states", () => {
     ).toBe("progress");
   });
 
-  it("withholds the listening breath until capture is live", () => {
+  it("keeps the edge dark while the model loads, the finish slot already says it", () => {
     expect(
       activityDecorationFor({
         hasError: false,
@@ -108,15 +108,15 @@ describe("island presentation states", () => {
         isPreparing: true,
         isRecording: false,
         isTranscribing: false,
-        showsDownload: false,
+        showsDownload: true,
       })
-    ).toBe("progress");
+    ).toBe("none");
   });
 
-  it("rings work in flight, breathes while listening, leaves a settled edge bare", () => {
-    expect(activityEdgeFor("orbit")).toBe("trace");
-    expect(activityEdgeFor("progress")).toBe("trace");
-    expect(activityEdgeFor("microphone")).toBe("ambience");
+  it("lets light drift along the free edge while Echo works, lets it follow the voice while it listens, leaves a settled edge dark", () => {
+    expect(activityEdgeFor("orbit")).toBe("drift");
+    expect(activityEdgeFor("progress")).toBe("drift");
+    expect(activityEdgeFor("microphone")).toBe("voice");
     expect(activityEdgeFor("none")).toBeNull();
   });
 });
@@ -210,19 +210,39 @@ describe("modelDownloadLabel", () => {
 
 describe("modelStateLabel", () => {
   it("returns null when model is Ready (no badge)", () => {
-    expect(modelStateLabel("Ready")).toBeNull();
+    expect(
+      modelStateLabel({ modelState: "Ready", overlayState: "transcribing" })
+    ).toBeNull();
   });
 
   it("returns null when Unloaded (no badge until user acts)", () => {
-    expect(modelStateLabel("Unloaded")).toBeNull();
+    expect(
+      modelStateLabel({ modelState: "Unloaded", overlayState: "transcribing" })
+    ).toBeNull();
   });
 
   it("returns an English preparing label while Loading", () => {
-    expect(modelStateLabel("Loading")).toBe("Preparing local model…");
+    expect(
+      modelStateLabel({ modelState: "Loading", overlayState: "transcribing" })
+    ).toBe("Preparing local model…");
   });
 
   it("returns an English error label on Error", () => {
-    expect(modelStateLabel("Error")).toBe("Local model error");
+    expect(
+      modelStateLabel({ modelState: "Error", overlayState: "transcribing" })
+    ).toBe("Local model error");
+  });
+
+  it("stays quiet about a loading model while capturing, yet still reports a failed one", () => {
+    expect(
+      modelStateLabel({ modelState: "Loading", overlayState: "preparing" })
+    ).toBeNull();
+    expect(
+      modelStateLabel({ modelState: "Loading", overlayState: "recording" })
+    ).toBeNull();
+    expect(
+      modelStateLabel({ modelState: "Error", overlayState: "recording" })
+    ).toBe("Local model error");
   });
 });
 
@@ -336,17 +356,6 @@ describe("overlayActivityText", () => {
         streamingText: "",
       })
     ).toBe("");
-  });
-
-  it("says the model is still loading so nobody speaks into a dead recorder", () => {
-    expect(
-      overlayActivityText({
-        ...base,
-        download: null,
-        state: "preparing",
-        streamingText: "",
-      })
-    ).toBe("Preparing local model…");
   });
 });
 

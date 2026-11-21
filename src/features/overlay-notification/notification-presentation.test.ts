@@ -93,8 +93,48 @@ describe("notification presentation", () => {
     expect(recording.activityDecoration).toBe("microphone");
     expect(recording.activityAction).toEqual({
       intent: "finish_recording",
+      isPending: false,
       title: "Finish recording and transcribe",
     });
+  });
+
+  it("holds the finish button back while the model loads, with no words on the island", () => {
+    const preparing = createNotificationPresentation({
+      events: events({ isVisible: true, state: "preparing" }),
+      meetingNotice: null,
+      modelState: "Loading",
+      request: null,
+      updateNotice: null,
+    });
+
+    expect(preparing.activityText).toBe("");
+    expect(preparing.activityDecoration).toBe("none");
+    expect(preparing.activityAction).toEqual({
+      intent: "finish_recording",
+      isPending: true,
+      title: "Preparing local model…",
+    });
+  });
+
+  it("keeps a live recording wordless even when a late load event arrives, and names the load once transcribing waits on it", () => {
+    const recording = createNotificationPresentation({
+      events: events({ isVisible: true, state: "recording" }),
+      meetingNotice: null,
+      modelState: "Loading",
+      request: null,
+      updateNotice: null,
+    });
+    const transcribing = createNotificationPresentation({
+      events: events({ isVisible: true, state: "transcribing" }),
+      meetingNotice: null,
+      modelState: "Loading",
+      request: null,
+      updateNotice: null,
+    });
+
+    expect(recording.activityText).toBe("");
+    expect(recording.activityAction?.isPending).toBe(false);
+    expect(transcribing.activityText).toBe("Preparing local model…");
   });
 
   it("shows a background download only when nothing was requested", () => {
@@ -194,6 +234,7 @@ describe("notification presentation", () => {
     expect(blocked.mode).toBe("recording");
     expect(blocked.activityAction).toEqual({
       intent: "download_transcription_model",
+      isPending: false,
       title: "Download the transcription model",
     });
     expect(blocked.activityDismissal?.intent).toBe("dismiss_surface");
@@ -228,6 +269,7 @@ describe("update notices in the notch", () => {
     expect(offered.activityText).toBe("Update available — v0.5.0");
     expect(offered.activityAction).toEqual({
       intent: "install_update",
+      isPending: false,
       title: "Install the update and restart Echo",
     });
     expect(offered.activityDismissal).toEqual({
@@ -325,6 +367,7 @@ describe("meeting notices in the notch", () => {
     expect(running.activityDecoration).toBe("microphone");
     expect(running.activityAction).toEqual({
       intent: "stop_meeting",
+      isPending: false,
       title: "Stop the meeting and transcribe it",
     });
     expect(running.activityDismissal).toEqual({

@@ -1,3 +1,4 @@
+import { useMotionValue } from "motion/react";
 import { useEffect, useReducer, useState } from "react";
 import {
   initialOverlayActivity,
@@ -17,13 +18,14 @@ const viewportSurface = () =>
     width: window.innerWidth,
   });
 
-/// The HUD listens only for whether an operation is running; the words belong to the notification.
+/// The HUD listens for whether an operation is running and how loud the voice is; the words belong to the notification.
 export const useHudEvents = () => {
   const [activity, dispatch] = useReducer(
     reduceOverlayActivity,
     initialOverlayActivity
   );
   const [surfaceState, setSurfaceState] = useState(initialSurfaceState);
+  const voice = useMotionValue(0);
 
   useEffect(
     () =>
@@ -36,10 +38,11 @@ export const useHudEvents = () => {
             dispatch,
             onSurface,
             surfaceEvent: HUD_WINDOW.surfaceEvent,
+            voice,
           }),
         setSurface: setSurfaceState,
       }),
-    []
+    [voice]
   );
 
   return {
@@ -47,5 +50,6 @@ export const useHudEvents = () => {
     isVisible: activity.isVisible,
     state: activity.state,
     surface: surfaceState.surface,
+    voice,
   };
 };

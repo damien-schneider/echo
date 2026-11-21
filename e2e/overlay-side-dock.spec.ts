@@ -69,8 +69,7 @@ test("a side dock stacks round, separated actions across its full width", async 
   for (const name of actionNames) {
     const action = page.getByRole("button", { name });
     await expect(action).toHaveCSS("box-shadow", "none");
-    // a resting fill separates neighbours before any hover
-    await expect(action).not.toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(action).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   }
 
   const panel = await requiredBox(page.locator(".echo-island-resident-panel"));
@@ -318,4 +317,29 @@ test("a native drop settles the drag the webview never saw end", async ({
       "snap_recording_overlay_to_nearest_edge"
     )
   ).toBe(false);
+});
+
+test("while recording, the dock's record button shows the live voice wave instead of a filled disc and offers the check when pointed at", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto(sideDockUrl);
+  await waitForTauriListener(page, "show-overlay");
+  await waitForTauriListener(page, "mic-level");
+  await emitTauriEvent(page, "show-overlay", "recording");
+
+  const stop = page.getByRole("button", { name: "Stop recording" });
+  const mark = stop.locator(".echo-finish-mark");
+  await expect(mark).toHaveAttribute("data-stage", "wave");
+  await expect(stop.locator("svg")).toHaveCount(1);
+  await expect(stop).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+
+  const wave = mark.locator(".echo-finish-mark-live");
+  const shape = () => wave.evaluate((path) => path.getAttribute("d"));
+  const quiet = await shape();
+  await emitTauriEvent(page, "mic-level", [0.9]);
+  await expect.poll(shape).not.toBe(quiet);
+
+  await stop.hover();
+  await expect(mark).toHaveAttribute("data-stage", "check");
 });

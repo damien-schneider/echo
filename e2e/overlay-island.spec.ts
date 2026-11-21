@@ -336,7 +336,7 @@ test("morphs one shared island shell between the handle and its actions", async 
   );
 });
 
-test("traces the whole outline only while Polish is processing", async ({
+test("lets light drift along the island only while Polish is processing", async ({
   page,
 }) => {
   await page.goto(`${NOTIFICATION_URL}?polish=ready`);
@@ -350,10 +350,13 @@ test("traces the whole outline only while Polish is processing", async ({
   const activity = page.getByRole("region", { name: "Echo activity" });
   await expect(activity).toHaveAttribute("aria-busy", "true");
   await expect(activity).toHaveText("Polishing…");
-  await expect(page.locator(".echo-island-edge-trace")).toBeVisible();
+  await expect(page.locator(".echo-island-edge")).toHaveAttribute(
+    "data-edge",
+    "drift"
+  );
 });
 
-test("stops the edge trace when reduced motion is requested", async ({
+test("holds the drifting light still when reduced motion is requested", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -364,7 +367,7 @@ test("stops the edge trace when reduced motion is requested", async ({
     state: "processing",
   });
 
-  await expect(page.locator(".echo-island-edge-trace")).toHaveCSS(
+  await expect(page.locator(".echo-island-edge-rim > span").first()).toHaveCSS(
     "animation-name",
     "none"
   );

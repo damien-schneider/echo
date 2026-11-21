@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { islandCornerRadii } from "@/features/overlay-controls/motion/island-corners";
+import {
+  bridgeBandOf,
+  islandCornerRadii,
+} from "@/features/overlay-controls/motion/island-corners";
 
 describe("island corner radii", () => {
   test("the floating compact handle is a full pill", () => {
@@ -148,5 +151,17 @@ describe("island corner radii", () => {
       }).borderBottomLeftRadius;
     expect(bottomFor(700)).toBe(28);
     expect(bottomFor(12)).toBe(10);
+  });
+
+  test("a strip-only island curves its ears by half the strip, the band under the cut-out otherwise", () => {
+    const bottomFor = (height: number, strip: number) =>
+      islandCornerRadii({
+        anchor: "top",
+        bridgeBand: bridgeBandOf(height, strip),
+        isPill: false,
+        presentation: "bar",
+      }).borderBottomLeftRadius;
+    expect(bottomFor(32, 32)).toBe(16);
+    expect(bottomFor(84, 32)).toBe(26);
   });
 });
