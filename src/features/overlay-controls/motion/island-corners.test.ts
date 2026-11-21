@@ -5,13 +5,13 @@ import {
 } from "@/features/overlay-controls/motion/island-corners";
 
 describe("island corner radii", () => {
-  test("the floating compact handle is a full pill", () => {
+  test("a top or bottom dock's handle floats as a full pill", () => {
     expect(
       islandCornerRadii({
-        anchor: "top",
+        anchor: "bottom",
         bridgeBand: null,
         isPill: true,
-        presentation: "bar",
+        presentation: "docked",
       })
     ).toEqual({
       borderBottomLeftRadius: 999,
@@ -37,7 +37,7 @@ describe("island corner radii", () => {
     });
   });
 
-  test("a docked surface squares the corners touching its edge", () => {
+  test("a side dock squares the corners touching its edge", () => {
     expect(
       islandCornerRadii({
         anchor: "right",
@@ -64,48 +64,24 @@ describe("island corner radii", () => {
       borderTopLeftRadius: 0,
       borderTopRightRadius: 10,
     });
-    expect(
-      islandCornerRadii({
-        anchor: "top",
-        bridgeBand: null,
-        isPill: false,
-        presentation: "docked",
-      })
-    ).toEqual({
-      borderBottomLeftRadius: 10,
-      borderBottomRightRadius: 10,
-      borderTopLeftRadius: 0,
-      borderTopRightRadius: 0,
-    });
-    expect(
-      islandCornerRadii({
-        anchor: "bottom",
-        bridgeBand: null,
-        isPill: false,
-        presentation: "docked",
-      })
-    ).toEqual({
-      borderBottomLeftRadius: 0,
-      borderBottomRightRadius: 0,
-      borderTopLeftRadius: 10,
-      borderTopRightRadius: 10,
-    });
   });
 
-  test("a docked compact handle keeps its pill away from the edge", () => {
-    expect(
-      islandCornerRadii({
-        anchor: "bottom",
-        bridgeBand: null,
-        isPill: true,
-        presentation: "docked",
-      })
-    ).toEqual({
-      borderBottomLeftRadius: 0,
-      borderBottomRightRadius: 0,
-      borderTopLeftRadius: 999,
-      borderTopRightRadius: 999,
-    });
+  test("a top or bottom dock rounds every corner: it floats off its edge", () => {
+    for (const anchor of ["top", "bottom"] as const) {
+      expect(
+        islandCornerRadii({
+          anchor,
+          bridgeBand: null,
+          isPill: false,
+          presentation: "docked",
+        })
+      ).toEqual({
+        borderBottomLeftRadius: 10,
+        borderBottomRightRadius: 10,
+        borderTopLeftRadius: 10,
+        borderTopRightRadius: 10,
+      });
+    }
   });
 
   test("a lifted island rounds every corner: it hangs off nothing", () => {

@@ -89,7 +89,7 @@ fn transient_surface_placement_uses_top_center_notch() {
     let notch = OverlayPlacement {
         dock_edge: OverlayDockEdge::Top,
         dock_offset: 0.5,
-        position: OverlayPosition::Top,
+        position: OverlayPosition::Edge,
     };
     for mode in [
         RecordingOverlayMode::Recording,

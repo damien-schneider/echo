@@ -4,12 +4,8 @@ export const setupOverlaySurface = () => {
   const INSET = 4;
   const params = new URLSearchParams(window.location.search);
   const placement = params.get("overlayPlacement");
-  state.overlayAnchor = "right";
-  state.overlayPresentation = "docked";
-  if (placement === "bottom" || placement === "top") {
-    state.overlayAnchor = placement;
-    state.overlayPresentation = "bar";
-  }
+  state.overlayAnchor =
+    placement === "bottom" || placement === "top" ? placement : "right";
   state.overlayHidden = placement === "none";
   state.overlayMode = "compact";
   state.overlayNotch = null;
@@ -20,10 +16,10 @@ export const setupOverlaySurface = () => {
   const anchorFor = (mode: string) =>
     isResident(mode) ? state.overlayAnchor : "top";
   const presentationFor = (mode: string) =>
-    isResident(mode) ? state.overlayPresentation : "bar";
+    isResident(mode) ? "docked" : "bar";
 
   const isSideDocked = (mode: string) =>
-    presentationFor(mode) === "docked" &&
+    isResident(mode) &&
     (anchorFor(mode) === "left" || anchorFor(mode) === "right");
 
   // mirrors resident_island_dimensions in surface.rs
@@ -34,9 +30,7 @@ export const setupOverlaySurface = () => {
     if (mode === "compact") {
       return { height: 5, width: 38 };
     }
-    return presentationFor(mode) === "docked"
-      ? { height: 40, width: 228 }
-      : { height: 40, width: 116 };
+    return { height: 40, width: 176 };
   };
 
   const notchInset = (mode: string) =>
@@ -45,9 +39,8 @@ export const setupOverlaySurface = () => {
       : 0;
 
   const contentBox = (mode: string) => {
-    const docked = presentationFor(mode) === "docked";
     const edge = (anchor: string) =>
-      docked && anchorFor(mode) === anchor ? 0 : INSET;
+      isSideDocked(mode) && anchorFor(mode) === anchor ? 0 : INSET;
     const top = edge("top") + notchInset(mode);
     return {
       height: window.innerHeight - top - edge("bottom"),

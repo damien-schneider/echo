@@ -235,7 +235,7 @@ test("keeps the bottom edge and horizontal center pinned while hover expands", a
   ).toBe(true);
 });
 
-test("keeps every dock edge fixed with persistent actions on the sides", async ({
+test("keeps every dock edge fixed: sides attached, top and bottom floating", async ({
   page,
 }) => {
   await page.setViewportSize({ height: 620, width: 680 });
@@ -254,7 +254,7 @@ test("keeps every dock edge fixed with persistent actions on the sides", async (
       x: 0,
       y: 0,
     });
-    await setOverlayAnchor(page, anchor, "docked");
+    await setOverlayAnchor(page, anchor);
     await expect(root).toHaveAttribute("data-anchor", anchor);
     if (isSide) {
       await expect(handle).toHaveCount(0);
@@ -302,21 +302,23 @@ test("keeps every dock edge fixed with persistent actions on the sides", async (
       expect(frameDrift(expanded, compact)).toBeLessThanOrEqual(1);
     } else if (anchor === "top") {
       expect(Math.abs(compact.y - expanded.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(expanded.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(expanded.y - 4)).toBeLessThanOrEqual(1);
       expect(expanded.height - compact.height).toBeGreaterThan(20);
     } else {
       expect(
         Math.abs(compact.y + compact.height - (expanded.y + expanded.height))
       ).toBeLessThanOrEqual(1);
-      expect(Math.abs(620 - expanded.y - expanded.height)).toBeLessThanOrEqual(
-        1
-      );
+      expect(
+        Math.abs(620 - expanded.y - expanded.height - 4)
+      ).toBeLessThanOrEqual(1);
       expect(expanded.height - compact.height).toBeGreaterThan(20);
     }
   }
 });
 
-test("preserves centered four-pixel inset bars", async ({ page }) => {
+test("floats top and bottom docks centred, four pixels off their edge", async ({
+  page,
+}) => {
   await page.setViewportSize({ height: 620, width: 680 });
   await page.goto(overlayUrl);
   await waitForTauriListener(page, "overlay-surface");
@@ -324,11 +326,11 @@ test("preserves centered four-pixel inset bars", async ({ page }) => {
   const morph = page.locator('[data-component="echo-island-morph"]');
 
   for (const anchor of ["top", "bottom"]) {
-    await setOverlayAnchor(page, anchor, "bar");
+    await setOverlayAnchor(page, anchor);
     await expect(morph).toHaveCSS("width", "38px");
     await expect(morph).toHaveCSS("height", "5px");
     await expect(root).toHaveAttribute("data-anchor", anchor);
-    await expect(root).toHaveAttribute("data-presentation", "bar");
+    await expect(root).toHaveAttribute("data-presentation", "docked");
     await expect
       .poll(async () => {
         const box = await morph.boundingBox();

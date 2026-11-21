@@ -12,7 +12,6 @@ import {
   useEffectEvent,
 } from "react";
 import {
-  DOCK_GEAR_SLOT,
   dockShoulder,
   dockSilhouettePath,
 } from "@/features/overlay-controls/motion/dock-silhouette";
@@ -196,11 +195,7 @@ const morphFrame = ({ mode, size, surface }: MorphFrameOptions): MorphFrame => {
     surface
   );
   const bridgesNotch = bridged.strip > 0;
-  const shoulder = dockShoulder({
-    anchor: surface.anchor,
-    mode,
-    presentation: surface.presentation,
-  });
+  const shoulder = dockShoulder(surface);
   return {
     bridgesNotch,
     frame: bridged.frame,
@@ -238,9 +233,8 @@ const islandMorphTarget = ({
     anchor: surface.anchor,
     bridgeBand: bridgesNotch ? bridgeBandOf(frame.height, strip) : null,
     isPill:
-      mode === "compact"
-        ? !isSideDockedSurface(surface)
-        : mode === "actions" && surface.presentation === "bar",
+      (mode === "compact" || mode === "actions") &&
+      !isSideDockedSurface(surface),
     isDragging,
     presentation: surface.presentation,
   }),
@@ -251,7 +245,7 @@ const islandMorphTarget = ({
     corner:
       isSideDockedSurface(surface) || mode === "actions" ? PILL_RADIUS : 0,
     gear: hasDockGearSlot(surface, mode)
-      ? { revealed: revealsGear, slot: DOCK_GEAR_SLOT }
+      ? { revealed: revealsGear }
       : undefined,
     height: frame.height,
     isLifted: isDragging,

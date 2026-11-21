@@ -14,7 +14,8 @@ const DOCK_PANEL: f64 = 176.0;
 /// Room past a docked panel for the settings lobe — mirrors DOCK_GEAR_SLOT in dock-silhouette.ts.
 const DOCK_GEAR_SLOT: f64 = 52.0;
 pub(super) const DOCKED_TOOLBAR: f64 = DOCK_PANEL + DOCK_GEAR_SLOT;
-const BAR_TOOLBAR: (f64, f64) = (116.0, TOOLBAR_THICKNESS);
+/// The pill, then the settings bubble beside it — mirrored by resident-island.css.
+const FLOATING_TOOLBAR: (f64, f64) = (176.0, TOOLBAR_THICKNESS);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct OverlaySurface {
@@ -80,14 +81,10 @@ fn surface_insets(placement: OverlayPlacement) -> SurfaceInsets {
         right: SURFACE_INSET,
         top: SURFACE_INSET,
     };
-    if placement.position != OverlayPosition::Edge {
-        return insets;
-    }
     match placement.dock_edge {
-        OverlayDockEdge::Bottom => insets.bottom = 0.0,
-        OverlayDockEdge::Left => insets.left = 0.0,
-        OverlayDockEdge::Right => insets.right = 0.0,
-        OverlayDockEdge::Top => insets.top = 0.0,
+        OverlayDockEdge::Left if placement_is_side_docked(placement) => insets.left = 0.0,
+        OverlayDockEdge::Right if placement_is_side_docked(placement) => insets.right = 0.0,
+        _ => {}
     }
     insets
 }
@@ -100,9 +97,10 @@ fn notch_top_inset(placement: OverlayPlacement, notch: Option<OverlayNotchGeomet
     }
 }
 
-fn notch_center_shift(placement: OverlayPlacement, notch: Option<OverlayNotchGeometry>) -> f64 {
+/// A notification hangs from the notch, so it follows an off-centre one; a dock keeps its dropped spot.
+fn notch_center_shift(mode: RecordingOverlayMode, notch: Option<OverlayNotchGeometry>) -> f64 {
     match notch {
-        Some(notch) if placement.position == OverlayPosition::Top => notch.center_offset,
+        Some(notch) if !overlay_mode_is_resident(mode) => notch.center_offset,
         _ => 0.0,
     }
 }
@@ -118,10 +116,7 @@ fn resident_island_dimensions(
     if mode == RecordingOverlayMode::Compact {
         return COMPACT_BAR;
     }
-    if placement.position == OverlayPosition::Edge {
-        return (DOCKED_TOOLBAR, TOOLBAR_THICKNESS);
-    }
-    BAR_TOOLBAR
+    FLOATING_TOOLBAR
 }
 
 fn clamped_origin(origin: f64, size: f64, bound_origin: f64, bound_size: f64) -> f64 {
@@ -142,7 +137,7 @@ fn window_frame(request: SurfaceRequest) -> OverlayFrame {
         height,
         width,
         x: clamped_origin(
-            x + notch_center_shift(request.placement, request.notch),
+            x + notch_center_shift(request.mode, request.notch),
             width,
             request.monitor.x,
             request.monitor.width,
@@ -236,19 +231,51 @@ fn window_local_box(island: OverlayFrame, window: OverlayFrame) -> OverlayBoxPay
     }
 }
 
-/// Hit testing follows the drawn island, not the transparent canvas; transient surfaces fill theirs.
+/// Hit testing follows the drawn island out to its screen edge, not the transparent canvas; transient surfaces fill theirs.
 pub(super) fn surface_hover_box(
     request: SurfaceRequest,
     window: OverlayFrame,
 ) -> OverlayBoxPayload {
     if overlay_mode_is_resident(request.mode) {
-        return island_box(request, window);
+        return reaching_the_screen_edge(
+            island_box(request, window),
+            window,
+            request.placement.resolved_anchor(),
+        );
     }
     OverlayBoxPayload {
         height: window.height,
         width: window.width,
         x: 0.0,
         y: 0.0,
+    }
+}
+
+/// The pointer pushed into the screen edge still lands on a dock floating just off it.
+fn reaching_the_screen_edge(
+    island: OverlayBoxPayload,
+    window: OverlayFrame,
+    anchor: OverlayDockEdge,
+) -> OverlayBoxPayload {
+    match anchor {
+        OverlayDockEdge::Bottom => OverlayBoxPayload {
+            height: window.height - island.y,
+            ..island
+        },
+        OverlayDockEdge::Left => OverlayBoxPayload {
+            width: island.x + island.width,
+            x: 0.0,
+            ..island
+        },
+        OverlayDockEdge::Right => OverlayBoxPayload {
+            width: window.width - island.x,
+            ..island
+        },
+        OverlayDockEdge::Top => OverlayBoxPayload {
+            height: island.y + island.height,
+            y: 0.0,
+            ..island
+        },
     }
 }
 
@@ -273,10 +300,13 @@ pub(super) fn overlay_surface_payload(
     request: SurfaceRequest,
     window: OverlayFrame,
 ) -> Option<OverlaySurfacePayload> {
-    let presentation = match request.placement.position {
-        OverlayPosition::None => return None,
-        OverlayPosition::Edge => OverlayPresentation::Docked,
-        OverlayPosition::Bottom | OverlayPosition::Top => OverlayPresentation::Bar,
+    if request.placement.position == OverlayPosition::None {
+        return None;
+    }
+    let presentation = if overlay_mode_is_resident(request.mode) {
+        OverlayPresentation::Docked
+    } else {
+        OverlayPresentation::Bar
     };
     Some(OverlaySurfacePayload {
         anchor: request.placement.resolved_anchor(),

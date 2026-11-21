@@ -57,13 +57,34 @@ fn retire_removed_sound_themes(raw: &mut serde_json::Value) -> bool {
     }
 }
 
+fn retire_overlay_bars(raw: &mut serde_json::Value) -> bool {
+    let Some(fields) = raw.as_object_mut() else {
+        return false;
+    };
+    let edge = match fields
+        .get("overlay_position")
+        .and_then(serde_json::Value::as_str)
+    {
+        Some(bar @ ("top" | "bottom")) => bar.to_string(),
+        _ => return false,
+    };
+    fields.insert("overlay_position".to_string(), serde_json::json!("edge"));
+    fields.insert("overlay_dock_edge".to_string(), serde_json::json!(edge));
+    fields.insert("overlay_dock_offset".to_string(), serde_json::json!(0.5));
+    true
+}
+
+fn retire_removed_values(raw: &mut serde_json::Value) -> bool {
+    retire_removed_sound_themes(raw) | retire_overlay_bars(raw)
+}
+
 pub(super) fn load_stored_settings(
     mut raw: serde_json::Value,
 ) -> serde_json::Result<(AppSettings, bool)> {
-    let retired_theme = retire_removed_sound_themes(&mut raw);
+    let retired = retire_removed_values(&mut raw);
     let mut settings = AppSettings::deserialize(&raw)?;
     let updated = apply_settings_migrations_from_raw(&mut settings, Some(&raw));
-    Ok((settings, retired_theme || updated))
+    Ok((settings, retired || updated))
 }
 
 /// Probes each stored field alone against default settings; legacy keys stay for the migrations.
@@ -108,7 +129,7 @@ fn recover_readable_fields(raw: &serde_json::Value) -> AppSettings {
     } else {
         serde_json::json!({})
     };
-    retire_removed_sound_themes(&mut readable);
+    retire_removed_values(&mut readable);
     let reset = reset_unreadable_fields(&mut readable, &mut defaults);
     error!("Unreadable settings fields fall back to their defaults: {reset:?}");
     if AppSettings::deserialize(&readable).is_err() {

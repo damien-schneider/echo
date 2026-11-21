@@ -1,6 +1,7 @@
 import { listen } from "@tauri-apps/api/event";
 import {
   type FocusEvent,
+  type PointerEvent,
   type RefObject,
   useEffect,
   useEffectEvent,
@@ -11,6 +12,7 @@ import {
   OVERLAY_POINTER_EVENT,
   type OverlayPointer,
 } from "@/features/overlay-controls/runtime/native-pointer";
+import type { OverlayAnchor } from "@/features/overlay-controls/runtime/overlay-surface";
 import {
   boundaryToHoverEvent,
   initialResidentHoverSources,
@@ -19,7 +21,26 @@ import {
 } from "@/features/overlay-controls/runtime/resident-hover";
 import { listenCancellable } from "@/lib/tauri-listener";
 
+type PointerPoint = Pick<MouseEvent, "clientX" | "clientY">;
+
+// a floating dock also owns the gap to its screen edge — mirrors surface_hover_box
+const isWithinReach = (
+  resident: HTMLElement,
+  anchor: OverlayAnchor | undefined,
+  { clientX, clientY }: PointerPoint
+) => {
+  const bounds = resident.getBoundingClientRect();
+  const left = anchor === "left" ? 0 : bounds.left;
+  const right = anchor === "right" ? window.innerWidth : bounds.right;
+  const top = anchor === "top" ? 0 : bounds.top;
+  const bottom = anchor === "bottom" ? window.innerHeight : bounds.bottom;
+  return (
+    clientX >= left && clientX < right && clientY >= top && clientY < bottom
+  );
+};
+
 interface ResidentPointerExitOptions {
+  anchor: OverlayAnchor | undefined;
   isExpanded: boolean;
   onDomLeave: () => void;
   residentRef: RefObject<HTMLDivElement | null>;
@@ -27,22 +48,14 @@ interface ResidentPointerExitOptions {
 
 // DOM fallback for platforms with no native boundary event; macOS uses the native one
 const useResidentPointerExit = ({
+  anchor,
   isExpanded,
   onDomLeave,
   residentRef,
 }: ResidentPointerExitOptions) => {
   const handlePointerMove = useEffectEvent((event: globalThis.PointerEvent) => {
     const resident = residentRef.current;
-    if (!resident) {
-      return;
-    }
-    const bounds = resident.getBoundingClientRect();
-    const pointerInside =
-      event.clientX >= bounds.left &&
-      event.clientX < bounds.right &&
-      event.clientY >= bounds.top &&
-      event.clientY < bounds.bottom;
-    if (!pointerInside) {
+    if (resident && !isWithinReach(resident, anchor, event)) {
       onDomLeave();
     }
   });
@@ -79,6 +92,7 @@ const useNativePointerBoundary = (
 };
 
 interface ResidentHoverOptions {
+  anchor: OverlayAnchor | undefined;
   isExpanded: boolean;
   onCollapse: () => void;
   onReveal: () => void;
@@ -91,11 +105,12 @@ export interface ResidentHover {
   onFocusCapture: (event: FocusEvent<HTMLDivElement>) => void;
   onPointerDownCapture: () => void;
   onPointerEnter: () => void;
-  onPointerLeave: () => void;
+  onPointerLeave: (event: PointerEvent<HTMLDivElement>) => void;
   onTriggerPointerEnter: () => void;
 }
 
 export const useResidentHover = ({
+  anchor,
   isExpanded,
   onCollapse,
   onReveal,
@@ -120,6 +135,7 @@ export const useResidentHover = ({
   };
   useNativePointerBoundary(dispatch);
   useResidentPointerExit({
+    anchor,
     isExpanded: isExpanded || isActive,
     onDomLeave: () => dispatch({ type: "dom-pointer-leave" }),
     residentRef,
@@ -146,7 +162,11 @@ export const useResidentHover = ({
     },
     onPointerDownCapture: () => dispatch({ type: "pointer-down" }),
     onPointerEnter: () => dispatch({ type: "dom-pointer-enter" }),
-    onPointerLeave: () => dispatch({ type: "dom-pointer-leave" }),
+    onPointerLeave: (event: PointerEvent<HTMLDivElement>) => {
+      if (!isWithinReach(event.currentTarget, anchor, event)) {
+        dispatch({ type: "dom-pointer-leave" });
+      }
+    },
     onTriggerPointerEnter: () => dispatch({ type: "dom-pointer-enter" }),
   };
 };

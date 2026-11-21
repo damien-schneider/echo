@@ -45,7 +45,7 @@ export const isSideDockedSurface = (
   surface.presentation === "docked" &&
   (surface.anchor === "left" || surface.anchor === "right");
 
-/// Docked toolbars keep room past the panel for the settings lobe; a floating bar has nowhere to hang one.
+/// Docked toolbars keep room past the panel for the settings gear; a bar has nowhere to put one.
 export const hasDockGearSlot = (
   surface: Pick<OverlaySurface, "anchor" | "presentation">,
   mode: OverlayMode

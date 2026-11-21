@@ -181,12 +181,6 @@ fn apply_settings_migrations_from_raw(
     if !has_overlay_dock_edge {
         settings.overlay_dock_edge = OverlayDockEdge::Right;
         settings.overlay_dock_offset = 0.5;
-        if matches!(
-            settings.overlay_position,
-            OverlayPosition::Top | OverlayPosition::Bottom
-        ) {
-            settings.overlay_position = OverlayPosition::Edge;
-        }
         updated = true;
     }
 

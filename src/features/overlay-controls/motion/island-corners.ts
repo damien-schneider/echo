@@ -31,7 +31,7 @@ const bridgedBottomRadius = (band: number) =>
 export const bridgeBandOf = (height: number, strip: number) =>
   height > strip ? height - strip : strip;
 
-// corners touching a screen edge stay square so the surface reads as attached, not floating
+// a side dock squares the corners touching its edge so it reads as attached; top and bottom docks float
 export const islandCornerRadii = ({
   anchor,
   bridgeBand,
@@ -75,8 +75,5 @@ export const islandCornerRadii = ({
       borderTopRightRadius: 0,
     };
   }
-  if (anchor === "top") {
-    return { ...radii, borderTopLeftRadius: 0, borderTopRightRadius: 0 };
-  }
-  return { ...radii, borderBottomLeftRadius: 0, borderBottomRightRadius: 0 };
+  return radii;
 };

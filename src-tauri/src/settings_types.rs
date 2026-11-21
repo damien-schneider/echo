@@ -21,8 +21,6 @@ pub struct DictionaryEntrySetting {
 pub enum OverlayPosition {
     None,
     Edge,
-    Top,
-    Bottom,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]

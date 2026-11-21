@@ -141,25 +141,24 @@ mod tests {
     }
 
     #[test]
-    fn legacy_visible_positions_migrate_once_to_right_centered_edge() {
-        for legacy_position in [OverlayPosition::Top, OverlayPosition::Bottom] {
-            let (mut settings, raw) = raw_settings_without_dock_metadata(legacy_position);
+    fn a_store_from_the_bar_era_floats_on_the_bars_edge_centred() {
+        for (bar, edge) in [
+            ("top", OverlayDockEdge::Top),
+            ("bottom", OverlayDockEdge::Bottom),
+        ] {
+            let mut raw = a_customised_store();
+            raw["overlay_position"] = serde_json::json!(bar);
+            raw["overlay_dock_edge"] = serde_json::json!("left");
+            raw["overlay_dock_offset"] = serde_json::json!(0.25);
 
-            assert!(apply_settings_migrations_from_raw(
-                &mut settings,
-                Some(&raw)
-            ));
-            assert_eq!(settings.overlay_position, OverlayPosition::Edge);
-            assert_eq!(settings.overlay_dock_edge, OverlayDockEdge::Right);
-            assert_eq!(settings.overlay_dock_offset, 0.5);
+            let load = load_settings(Some(raw));
 
-            let migrated_raw = serde_json::to_value(&settings).unwrap();
-            assert!(migrated_raw.get("overlay_dock_edge").is_some());
-            assert!(migrated_raw.get("overlay_dock_offset").is_some());
-            assert!(!apply_settings_migrations_from_raw(
-                &mut settings,
-                Some(&migrated_raw)
-            ));
+            assert_eq!(load.settings.overlay_position, OverlayPosition::Edge);
+            assert_eq!(load.settings.overlay_dock_edge, edge);
+            assert_eq!(load.settings.overlay_dock_offset, 0.5);
+            assert_customisations_survive(&load.settings);
+            let written: Vec<&str> = load.store_writes.iter().map(|(key, _)| *key).collect();
+            assert_eq!(written, [SETTINGS_KEY]);
         }
     }
 
@@ -178,12 +177,7 @@ mod tests {
 
     #[test]
     fn migrated_settings_preserve_every_explicit_position() {
-        for position in [
-            OverlayPosition::Bottom,
-            OverlayPosition::Top,
-            OverlayPosition::None,
-            OverlayPosition::Edge,
-        ] {
+        for position in [OverlayPosition::None, OverlayPosition::Edge] {
             let mut settings = get_default_settings();
             settings.overlay_position = position;
             settings.overlay_dock_edge = OverlayDockEdge::Left;

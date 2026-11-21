@@ -1,4 +1,4 @@
-/* Mirrors TOOLBAR_THICKNESS, DOCK_PANEL and BAR_TOOLBAR in surface.rs. */
+/* Mirrors TOOLBAR_THICKNESS and DOCK_PANEL in surface.rs. */
 .echo-island-resident {
   --echo-toolbar-thickness: 40px;
   --echo-dock-panel: 176px;
@@ -11,8 +11,15 @@
   pointer-events: auto;
 }
 
-.echo-island-resident[data-presentation="docked"] {
-  width: calc(var(--echo-dock-panel) + var(--echo-dock-gear-slot));
+/* floating, the pill sheds both shoulders and the gear bubble sits beside it — FLOATING_TOOLBAR in surface.rs */
+.echo-island-resident[data-presentation="docked"][data-orientation="horizontal"] {
+  --echo-dock-panel: 136px;
+  width: calc(
+    var(--echo-dock-panel) +
+    var(--echo-dock-gear-reach) +
+    var(--echo-dock-gear-size) /
+    2
+  );
 }
 
 /* One size: a side dock already shows every action, so it never grows. */
@@ -34,7 +41,7 @@
   justify-content: center;
 }
 
-/* the rest of the frame is the settings lobe's slot */
+/* the rest of the frame is the settings gear's slot */
 .echo-island-resident[data-presentation="docked"] .echo-island-resident-panel {
   flex: 0 0 var(--echo-dock-panel);
 }
@@ -51,9 +58,12 @@
   transition: none;
 }
 
+/* auto size: a frame given by two opposite edges stretches between them instead of keeping the button's height */
 .echo-island-handle-hitbox {
   position: fixed;
   z-index: 10;
+  width: auto;
+  height: auto;
   padding: 0;
   cursor: pointer;
   background: transparent;

@@ -9,10 +9,10 @@ import {
   pointOnCircle,
   sweepTarget,
 } from "@/features/overlay-controls/motion/silhouette-geometry";
-import type { OverlayMode } from "@/features/overlay-controls/recording-overlay-state";
+import { isSideDockedSurface } from "@/features/overlay-controls/overlay-presentation";
 import type {
   OverlayAnchor,
-  OverlayPresentation,
+  OverlaySurface,
 } from "@/features/overlay-controls/runtime/overlay-surface";
 
 export const DOCK_SHOULDER = 20;
@@ -21,6 +21,8 @@ export const DOCK_GEAR_SLOT = 52;
 export const DOCK_GEAR_DIAMETER = 36;
 /// Panel end to gear centre; the rest of the slot is the flare back onto the edge.
 export const DOCK_GEAR_REACH = 22;
+/// A floating pill's bubble needs no flare home: reach to its centre, then its radius.
+const FLOATING_GEAR_SLOT = DOCK_GEAR_REACH + DOCK_GEAR_DIAMETER / 2;
 const GEAR_NECK = 16;
 
 const QUARTER = Math.PI / 2;
@@ -179,22 +181,45 @@ const gearLobe = (
   ];
 };
 
-interface GearLobeOptions {
+// clockwise like the outline, so the two merge while the bubble splits off instead of cutting a hole
+const gearBubble = (edge: PanelEdge, isOut: boolean): SilhouetteSegment[] => {
+  const middle = edge.depth / 2;
+  // tucked, it waits as a point inside the pill's end, so revealing it grows out of the pill
+  const bubble: EdgeCircle = isOut
+    ? {
+        center: { along: edge.span + DOCK_GEAR_REACH, depth: middle },
+        radius: Math.min(DOCK_GEAR_DIAMETER / 2, middle),
+      }
+    : {
+        center: {
+          along: Math.max(edge.span - middle, edge.span / 2),
+          depth: middle,
+        },
+        radius: 0,
+      };
+  return [
+    { points: [pointOnCircle(bubble, Math.PI)], verb: "M" },
+    curve(arcCurve(bubble, Math.PI, QUARTER)),
+    curve(arcCurve(bubble, QUARTER, 0)),
+    curve(arcCurve(bubble, 0, -QUARTER)),
+    curve(arcCurve(bubble, -QUARTER, -Math.PI)),
+  ];
+};
+
+interface GearOptions {
   revealed: boolean;
-  /// Length past the panel kept for the lobe; 0 when the surface has no room for one.
-  slot: number;
 }
 
 interface DockSilhouetteOptions extends SilhouetteBox {
   /// A lifted panel rounds its own corners — border-radius cannot reach a panel ending mid-frame.
   corner?: number;
-  gear?: GearLobeOptions;
+  gear?: GearOptions;
   /// Shoulders retract into the body instead of stretching it — the ends stay where they sat docked.
   isLifted?: boolean;
   shoulder: number;
 }
 
-/// Concave shoulders melting into the screen edge — the surface reads as attached, not stuck on.
+/// Docked to a side, concave shoulders melt it into the edge; floating, the gear splits off as its own bubble.
 export const dockSilhouettePath = ({
   corner = 0,
   gear,
@@ -208,7 +233,9 @@ export const dockSilhouettePath = ({
   if (!(span > 0 && depth > 0)) {
     return "none";
   }
-  const slot = gear && gear.slot < span ? gear.slot : 0;
+  const isFloating = shoulder <= 0;
+  const gearSlot = isFloating ? FLOATING_GEAR_SLOT : DOCK_GEAR_SLOT;
+  const slot = gear && gearSlot < span ? gearSlot : 0;
   const panelSpan = span - slot;
   const fittedShoulder = Math.max(
     0,
@@ -226,35 +253,23 @@ export const dockSilhouettePath = ({
     shoulder: flare,
     span: bodySpan,
   };
-  const lobe =
-    gear?.revealed && slot > 0 && edge.shoulder > 0
-      ? gearLobe(edge, slot)
-      : null;
+  const isGearOut = Boolean(gear?.revealed) && slot > 0 && !isLifted;
+  const lobe = isGearOut && !isFloating ? gearLobe(edge, slot) : null;
   const segments = [
     ...panelStart(edge),
     line({ along: edge.span - edge.shoulder - edge.corner, depth }),
     ...(lobe ?? panelEnd(edge)),
   ];
-  const drawn = segments.map((segment) => drawSegment(box, segment, inset));
-  return `path("${[...drawn, "Z"].join(" ")}")`;
+  // every surface draws the bubble, so motion never meets a path with a different command list
+  const [outline, bubble] = [
+    segments,
+    gearBubble(edge, isGearOut && isFloating),
+  ].map((subpath) =>
+    subpath.map((segment) => drawSegment(box, segment, inset)).join(" ")
+  );
+  return `path("${outline} Z ${bubble} Z")`;
 };
 
-interface DockShoulderOptions {
-  anchor: OverlayAnchor;
-  mode: OverlayMode;
-  presentation: OverlayPresentation;
-}
-
-export const dockShoulder = ({
-  anchor,
-  mode,
-  presentation,
-}: DockShoulderOptions) => {
-  if (presentation !== "docked") {
-    return 0;
-  }
-  if (anchor === "left" || anchor === "right") {
-    return DOCK_SHOULDER;
-  }
-  return mode === "actions" ? DOCK_SHOULDER : 0;
-};
+export const dockShoulder = (
+  surface: Pick<OverlaySurface, "anchor" | "presentation">
+) => (isSideDockedSurface(surface) ? DOCK_SHOULDER : 0);

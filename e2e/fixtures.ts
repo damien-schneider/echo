@@ -21,7 +21,7 @@ interface EchoTestApi {
   resolveAccessibilityCheck: (index: number, granted: boolean) => void;
   resolveOverlayModePreflight: (index: number) => void;
   setAccessibilityPermission: (granted: boolean) => void;
-  setOverlayAnchor: (anchor: string, presentation: string) => void;
+  setOverlayAnchor: (anchor: string) => void;
   setOverlayNotch: (notch: OverlayNotchGeometry | null) => void;
   setPolishStatus: (state: string) => void;
 }
@@ -56,7 +56,6 @@ interface EchoTestState {
   overlayModePreflightResolvers: Array<() => void>;
   overlayModePreflightsToDefer: number;
   overlayNotch: OverlayNotchGeometry | null;
-  overlayPresentation: string;
   polishStatus: string;
   registerEvent: (args: unknown) => number;
   respond: (command: string, args?: unknown) => unknown;
@@ -151,7 +150,6 @@ const setupEchoTestState = () => {
     overlayModePreflightResolvers: [],
     overlayModePreflightsToDefer: 0,
     overlayNotch: null,
-    overlayPresentation: "docked",
     polishStatus:
       new URLSearchParams(window.location.search).get("polish") ??
       "not_downloaded",
@@ -400,9 +398,8 @@ const setupEchoTestApi = () => {
       const [resolve] = state.overlayModePreflightResolvers.splice(index, 1);
       resolve?.();
     },
-    setOverlayAnchor: (anchor, presentation) => {
+    setOverlayAnchor: (anchor) => {
       state.overlayAnchor = anchor;
-      state.overlayPresentation = presentation;
       state.emitOverlaySurface(state.overlayMode);
     },
     setOverlayNotch: (notch) => {
@@ -545,15 +542,10 @@ export const waitForOverlayModePreflights = (page: Page, count: number) =>
     count
   );
 
-export const setOverlayAnchor = (
-  page: Page,
-  anchor: string,
-  presentation: string
-) =>
+export const setOverlayAnchor = (page: Page, anchor: string) =>
   page.evaluate(
-    ({ nextAnchor, nextPresentation }) =>
-      window.__ECHO_TEST__.setOverlayAnchor(nextAnchor, nextPresentation),
-    { nextAnchor: anchor, nextPresentation: presentation }
+    (nextAnchor) => window.__ECHO_TEST__.setOverlayAnchor(nextAnchor),
+    anchor
   );
 
 export const setOverlayNotch = (

@@ -19,8 +19,8 @@ import {
 import type { IslandActionState } from "@/features/overlay-controls/recording-overlay-state";
 import type { IslandControlMotionPhase } from "@/features/overlay-controls/runtime/island-control-state";
 import type {
-  OverlayBox,
   OverlayPresentation,
+  OverlaySurface,
 } from "@/features/overlay-controls/runtime/overlay-surface";
 import type { EdgeDockDrag } from "@/features/overlay-controls/runtime/use-edge-dock-drag";
 import type { ResidentHover } from "@/features/overlay-controls/runtime/use-resident-hover";
@@ -66,40 +66,62 @@ const useResidentActionFocus = (isExpanded: boolean, onReveal: () => void) => {
   return { actionsRef, revealForActivation };
 };
 
+type TriggerSurface = Pick<OverlaySurface, "anchor" | "island">;
+
 interface ResidentTriggerProps {
-  box: OverlayBox;
   motionPhase: IslandControlMotionPhase;
   onActivate: (event: MouseEvent<HTMLButtonElement>) => void;
   onPointerEnter: () => void;
+  surface: TriggerSurface;
 }
 
+// the pointer pushed into the screen edge still lands on a handle floating just off it — mirrors surface_hover_box
+const edgeReachingFrame = ({
+  anchor,
+  island,
+}: TriggerSurface): CSSProperties => {
+  if (anchor === "bottom") {
+    return { bottom: 0, left: island.x, top: island.y, width: island.width };
+  }
+  if (anchor === "left") {
+    return {
+      height: island.height,
+      left: 0,
+      top: island.y,
+      width: island.x + island.width,
+    };
+  }
+  if (anchor === "right") {
+    return { height: island.height, left: island.x, right: 0, top: island.y };
+  }
+  return {
+    height: island.y + island.height,
+    left: island.x,
+    top: 0,
+    width: island.width,
+  };
+};
+
 const ResidentTrigger = ({
-  box,
   motionPhase,
   onActivate,
   onPointerEnter,
-}: ResidentTriggerProps) => {
-  const frame: CSSProperties = {
-    height: box.height,
-    left: box.x,
-    top: box.y,
-    width: box.width,
-  };
-  return createPortal(
+  surface,
+}: ResidentTriggerProps) =>
+  createPortal(
     <Button
       aria-label="Open Echo actions"
       className="echo-island-handle-hitbox"
       data-motion={motionPhase}
       onClick={onActivate}
       onPointerEnter={onPointerEnter}
-      style={frame}
+      style={edgeReachingFrame(surface)}
       title="Open Echo actions"
       type="button"
       variant="ghost"
     />,
     document.body
   );
-};
 
 interface DockGripProps {
   drag: EdgeDockDrag;
@@ -219,7 +241,7 @@ const ResidentFrame = ({
 interface ResidentDockProps extends ActionPorts {
   actionsRef: RefObject<HTMLDivElement | null>;
   drag: EdgeDockDrag;
-  /// Docked toolbars only — a floating bar has no edge to hang the lobe from.
+  /// Docked toolbars only — the bar has no slot beside it for the gear.
   hasGearSlot: boolean;
   hover: ResidentHover;
   isVisible: boolean;
@@ -284,7 +306,7 @@ interface ResidentIslandProps
   isSideDocked: boolean;
   motionPhase: IslandControlMotionPhase;
   onReveal: () => void;
-  triggerBox: OverlayBox;
+  trigger: TriggerSurface;
 }
 
 export const ResidentIsland = ({
@@ -292,7 +314,7 @@ export const ResidentIsland = ({
   isSideDocked,
   motionPhase,
   onReveal,
-  triggerBox,
+  trigger,
   ...dock
 }: ResidentIslandProps) => {
   const showsActions = isSideDocked || isExpanded;
@@ -304,10 +326,10 @@ export const ResidentIsland = ({
     <>
       {showsActions ? null : (
         <ResidentTrigger
-          box={triggerBox}
           motionPhase={motionPhase}
           onActivate={revealForActivation}
           onPointerEnter={dock.hover.onTriggerPointerEnter}
+          surface={trigger}
         />
       )}
       <ResidentDock
