@@ -11,10 +11,14 @@ use super::window_modes::update_overlay_position;
 use crate::settings::{self, OverlayPosition};
 use log::{debug, info, warn};
 use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::utils::config::BackgroundThrottlingPolicy;
 use tauri::{AppHandle, Manager, WebviewWindow, WebviewWindowBuilder};
 
 /// Set when no screen was there to place the windows on; the next show builds them once one is.
 static AWAITS_SCREEN: AtomicBool = AtomicBool::new(false);
+
+/// Suspend and Throttle both put a webview hidden ~4 min to sleep; waking it delayed the island by up to ~280 ms.
+const HIDDEN_OVERLAY_THROTTLING: BackgroundThrottlingPolicy = BackgroundThrottlingPolicy::Disabled;
 
 /// Main thread only. A webview built there deadlocks on Windows, so that build moves to its own thread.
 pub(super) fn retry_overlay_awaiting_screen(app_handle: &AppHandle) {
@@ -125,6 +129,7 @@ fn build_overlay_notification(
     .focusable(initial_overlay_focusable())
     .focused(false)
     .visible(false)
+    .background_throttling(HIDDEN_OVERLAY_THROTTLING)
     .build()
 }
 
@@ -163,7 +168,8 @@ fn build_recording_overlay(
     .transparent(true)
     .focusable(initial_overlay_focusable())
     .focused(false)
-    .visible(false);
+    .visible(false)
+    .background_throttling(HIDDEN_OVERLAY_THROTTLING);
     #[cfg(not(target_os = "macos"))]
     let builder = builder.visible(overlay_initially_visible(_position));
     builder.build()
