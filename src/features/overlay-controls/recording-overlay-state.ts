@@ -80,6 +80,7 @@ export interface ActivityAction {
     | "finish_recording"
     | "install_update"
     | "stop_meeting";
+  isPending: boolean;
   title: string;
 }
 
@@ -147,7 +148,7 @@ export const activityDecorationFor = ({
     return "orbit";
   }
   if (isPreparing) {
-    return "progress";
+    return "none";
   }
   if (isRecording) {
     return "microphone";
@@ -158,16 +159,15 @@ export const activityDecorationFor = ({
   return showsDownload ? "progress" : "none";
 };
 
-export type IslandEdge = "ambience" | "trace";
+export type IslandEdge = "drift" | "voice";
 
-/// Work in flight rings the whole island, listening breathes on it, a settled surface leaves it alone.
 export const activityEdgeFor = (
   decoration: ActivityDecoration
 ): IslandEdge | null => {
   if (decoration === "orbit" || decoration === "progress") {
-    return "trace";
+    return "drift";
   }
-  return decoration === "microphone" ? "ambience" : null;
+  return decoration === "microphone" ? "voice" : null;
 };
 
 export const hudModeFor = (isControlsOpen: boolean): HudMode =>
@@ -195,13 +195,16 @@ interface OverlayContentKeyOptions {
   polishState: PolishStatus["state"];
 }
 
+const sharesDictationShell = (state: OverlayState) =>
+  state === "preparing" || state === "recording" || state === "transcribing";
+
 export const overlayContentKey = ({
   mode,
   overlayState,
   polishState,
 }: OverlayContentKeyOptions) => {
   if (mode === "recording") {
-    return `activity:${overlayState}`;
+    return `activity:${sharesDictationShell(overlayState) ? "dictation" : overlayState}`;
   }
   if (mode === "panel") {
     return `panel:${polishState}`;
@@ -231,13 +234,24 @@ export const polishControlIntent = (
   status: PolishStatus
 ): "run" | "open_panel" => (status.state === "ready" ? "run" : "open_panel");
 
-const PREPARING_LABEL = "Preparing local model…";
+export const PREPARING_LABEL = "Preparing local model…";
 
-export const modelStateLabel = (state: ModelState): string | null => {
-  if (state === "Loading") {
+interface ModelStateLabelOptions {
+  modelState: ModelState;
+  overlayState: OverlayState;
+}
+
+/// Capture shows the load on the finish button; recording goes live only after the model has loaded.
+export const modelStateLabel = ({
+  modelState,
+  overlayState,
+}: ModelStateLabelOptions): string | null => {
+  const isCapturing =
+    overlayState === "preparing" || overlayState === "recording";
+  if (modelState === "Loading" && !isCapturing) {
     return PREPARING_LABEL;
   }
-  if (state === "Error") {
+  if (modelState === "Error") {
     return "Local model error";
   }
   return null;
@@ -284,7 +298,6 @@ export const overlayDisplayText = ({
 
 /// What the island says when a state has nothing of its own to show yet.
 const ACTIVITY_FALLBACK_TEXT: Partial<Record<OverlayState, string>> = {
-  preparing: PREPARING_LABEL,
   transcribing: "Transcribing…",
 };
 
@@ -316,37 +329,13 @@ export const overlayActivityText = ({
   return "";
 };
 
-interface MicrophoneAmbienceElement {
-  style: { setProperty: (name: string, value: string) => void };
-}
+// meter maps -60…-6 dB to 0…1: room noise (~-50 dB) reads 0.28, speech (~-20 dB) 0.8
+const ROOM_NOISE_LEVEL = 0.3;
+const SPEECH_LEVEL = 0.8;
 
-const normalizedLevel = (level: number) => {
-  if (!Number.isFinite(level)) {
-    return 0;
-  }
-  return Math.min(1, Math.max(0, level));
-};
-
-export const microphoneIntensity = (levels: number[]) => {
-  if (levels.length === 0) {
-    return { energy: 0, peak: 0 };
-  }
-  let squaredTotal = 0;
-  let peak = 0;
-  for (const level of levels) {
-    const normalized = normalizedLevel(level);
-    squaredTotal += normalized * normalized;
-    peak = Math.max(peak, normalized);
-  }
-  const rootMeanSquare = Math.sqrt(squaredTotal / levels.length);
-  return { energy: rootMeanSquare ** 0.55, peak };
-};
-
-export const updateMicrophoneAmbience = (
-  element: MicrophoneAmbienceElement,
-  levels: number[]
-) => {
-  const intensity = microphoneIntensity(levels);
-  element.style.setProperty("--echo-mic-energy", intensity.energy.toFixed(3));
-  element.style.setProperty("--echo-mic-peak", intensity.peak.toFixed(3));
+export const voiceLevel = (levels: number[]) => {
+  const loudest = Math.max(0, ...levels.filter(Number.isFinite));
+  const voice =
+    (loudest - ROOM_NOISE_LEVEL) / (SPEECH_LEVEL - ROOM_NOISE_LEVEL);
+  return Math.min(1, Math.max(0, voice));
 };

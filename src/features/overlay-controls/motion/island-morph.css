@@ -1,15 +1,3 @@
-@property --echo-island-trace-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 0deg;
-}
-
-@keyframes echo-island-edge-trace {
-  to {
-    --echo-island-trace-angle: 360deg;
-  }
-}
-
 @keyframes echo-polish-phase-spin {
   to {
     rotate: 360deg;
@@ -139,6 +127,23 @@
   pointer-events: none;
 }
 
+.echo-island-morph[data-presence="exiting"] > .echo-island-morph-measure {
+  opacity: 0;
+  filter: blur(4px);
+  translate: 0 -6px;
+  transition:
+    opacity 520ms cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    filter 380ms cubic-bezier(0.22, 1, 0.36, 1),
+    translate 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-island-morph[data-presence="exiting"] > .echo-island-morph-measure {
+    filter: none;
+    translate: none;
+  }
+}
+
 .echo-island-morph::before,
 .echo-island-morph::after {
   position: absolute;
@@ -211,92 +216,6 @@
   opacity: 0;
 }
 
-/* rides the frame, not the content: the trace runs the whole outline, cut-out strip included */
-.echo-island-edge-trace {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  padding: 2px;
-  pointer-events: none;
-  /* arc stays under the ~148° the top edge subtends, so the comet fully hides while crossing it */
-  background: conic-gradient(
-    from var(--echo-island-trace-angle),
-    transparent 0deg 252deg,
-    rgba(139, 178, 255, 0.2) 282deg,
-    rgba(207, 220, 255, 0.6) 312deg,
-    rgba(255, 255, 255, 0.95) 336deg,
-    rgba(255, 190, 224, 0.45) 348deg,
-    transparent 356deg 360deg
-  );
-  border-radius: inherit;
-  opacity: 1;
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  animation: echo-island-edge-trace 3.4s linear infinite;
-}
-
-@property --echo-microphone-orbit-angle {
-  syntax: "<angle>";
-  inherits: false;
-  initial-value: 12deg;
-}
-
-@keyframes echo-microphone-orbit {
-  to {
-    --echo-microphone-orbit-angle: 372deg;
-  }
-}
-
-/* same frame ride as the trace — listening breathes on the whole outline, not the text box */
-.echo-island-microphone-ambience {
-  --echo-mic-energy: 0;
-  --echo-mic-peak: 0;
-  position: absolute;
-  inset: 1px;
-  z-index: 5;
-  padding: 1px;
-  pointer-events: none;
-  background: conic-gradient(
-    from var(--echo-microphone-orbit-angle),
-    transparent 0deg 42deg,
-    rgba(101, 135, 213, 0.42) 68deg,
-    rgba(222, 232, 255, 0.9) 92deg,
-    transparent 132deg 224deg,
-    rgba(255, 190, 218, 0.34) 258deg,
-    rgba(216, 230, 255, 0.72) 288deg,
-    transparent 330deg 360deg
-  );
-  border-radius: inherit;
-  opacity: calc(0.22 + var(--echo-mic-energy) * 0.66);
-  filter: saturate(1.08);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  scale: calc(0.99 + var(--echo-mic-energy) * 0.02);
-  transition:
-    opacity 75ms linear,
-    scale 90ms cubic-bezier(0.25, 1, 0.5, 1);
-  animation: echo-microphone-orbit 7.2s linear infinite;
-  will-change: scale, opacity;
-}
-
-/* a bridged frame fuses with the bezel — its top run would read as a stray line on the screen edge */
-.echo-island-morph[data-notch-bridge="true"]
-:is(.echo-island-edge-trace, .echo-island-microphone-ambience) {
-  top: -4px;
-}
-
 .echo-polish-phase-indicator {
   width: 16px;
   height: 16px;
@@ -339,16 +258,10 @@
   .echo-island-morph,
   .echo-island-morph::before,
   .echo-island-morph::after,
-  .echo-island-edge-trace,
-  .echo-island-microphone-ambience,
   .recording-overlay-root[data-handoff="leaving"] .echo-island-morph,
   .recording-overlay-root[data-handoff="arriving"] .echo-island-morph {
     transition: none;
     animation: none;
-  }
-
-  .echo-island-microphone-ambience {
-    --echo-microphone-orbit-angle: 34deg;
   }
 
   .echo-polish-phase-indicator,

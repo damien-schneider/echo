@@ -28,6 +28,7 @@ export const HudSurface = ({ controller, surface }: HudSurfaceProps) => {
       residentRef={controller.residentRef}
       revealsGear={controller.revealsGear}
       triggerBox={surface.island}
+      voice={controller.events.voice}
     />
   );
 };

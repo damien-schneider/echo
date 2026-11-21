@@ -164,30 +164,62 @@ fn end_empty(ah: &AppHandle, gen: u64, reason: &str) {
     change_tray_icon(ah, TrayIconState::Idle);
 }
 
+/// The paste holds the main thread, which commits the island's frames, so the exit gets onto the screen first.
+const EXIT_HEAD_START: Duration = Duration::from_millis(48);
+
 /// The one exit every dictation takes. Awaited, so the next press waits until the text has landed.
 async fn deliver_transcript(ah: &AppHandle, text: String, gen: u64) {
-    let (landed, has_landed) = tokio::sync::oneshot::channel();
-    let ah_clone = ah.clone();
-    let scheduled = ah.run_on_main_thread(move || {
+    let Some(caret_text) = on_main_thread(ah, move |ah| leave_unless_stale(ah, text, gen)).await
+    else {
         if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
-            utils::hide_recording_overlay(&ah_clone);
-            crate::dictation::deliver(&ah_clone, text);
-            change_tray_icon(&ah_clone, TrayIconState::Idle);
+            utils::hide_recording_overlay(ah);
+            change_tray_icon(ah, TrayIconState::Idle);
         }
-        let _ = landed.send(());
-    });
-    match scheduled {
-        Ok(()) => {
-            let _ = has_landed.await;
+        return;
+    };
+    let Some(text) = caret_text else {
+        return;
+    };
+    tokio::time::sleep(EXIT_HEAD_START).await;
+    on_main_thread(ah, move |ah| {
+        if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
+            crate::dictation::deliver_to_caret(ah, text);
+            change_tray_icon(ah, TrayIconState::Idle);
         }
-        Err(error) => {
-            error!("Failed to deliver the transcription: {error:?}");
-            if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
-                utils::hide_recording_overlay(ah);
-                change_tray_icon(ah, TrayIconState::Idle);
-            }
-        }
+    })
+    .await;
+}
+
+fn leave_unless_stale(
+    ah: &AppHandle,
+    text: String,
+    gen: u64,
+) -> Option<crate::dictation::CaretText> {
+    if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
+        return None;
     }
+    utils::hide_recording_overlay(ah);
+    let caret_text = crate::dictation::deliver_off_caret(ah, text);
+    if caret_text.is_none() {
+        change_tray_icon(ah, TrayIconState::Idle);
+    }
+    caret_text
+}
+
+async fn on_main_thread<T: Send + 'static>(
+    ah: &AppHandle,
+    work: impl FnOnce(&AppHandle) -> T + Send + 'static,
+) -> Option<T> {
+    let (done, result) = tokio::sync::oneshot::channel();
+    let on_main = ah.clone();
+    let scheduled = ah.run_on_main_thread(move || {
+        let _ = done.send(work(&on_main));
+    });
+    if let Err(error) = scheduled {
+        error!("Failed to deliver the transcription: {error:?}");
+        return None;
+    }
+    result.await.ok()
 }
 
 struct DictationRecord {

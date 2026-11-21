@@ -17,7 +17,7 @@ export interface IslandCornerRadii {
 
 interface IslandCornerOptions {
   anchor: OverlayAnchor;
-  /// Island height left under the notch strip — null when the island does not bridge it.
+  /// Band under the cut-out, the strip itself when nothing hangs below — null when the island does not bridge the notch.
   bridgeBand: number | null;
   isDragging?: boolean;
   /// pill → round buttons sit concentric in the ends
@@ -27,6 +27,9 @@ interface IslandCornerOptions {
 
 const bridgedBottomRadius = (band: number) =>
   Math.min(Math.max(band / 2, SURFACE_RADIUS), BRIDGE_RADIUS_MAX);
+
+export const bridgeBandOf = (height: number, strip: number) =>
+  height > strip ? height - strip : strip;
 
 // corners touching a screen edge stay square so the surface reads as attached, not floating
 export const islandCornerRadii = ({

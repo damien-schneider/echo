@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { motionValue } from "motion/react";
 import {
   initialOverlayActivity,
   reduceOverlayActivity,
@@ -34,9 +35,9 @@ const activityAfter = async (deliveries: [string, unknown][]) => {
     dispatch: (event) => {
       activity = reduceOverlayActivity(activity, event);
     },
-    microphoneRef: { current: null },
     onSurface: () => undefined,
     surfaceEvent: "notification-surface",
+    voice: motionValue(0),
   });
   await Promise.all(registrations.map((register) => register()));
   for (const [event, payload] of deliveries) {

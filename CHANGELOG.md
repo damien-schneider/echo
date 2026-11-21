@@ -11,11 +11,20 @@
 - A shortcut made of a single typing key, such as `space` or `a`, or one used only with shift, is refused because it would stop that key from typing in every app.
 - Shortcuts are stored in one order, modifiers first, whatever order the keys were pressed in.
 - A shortcut that could not be turned on at launch now says why and what to do, instead of always blaming another app.
+- The island lights up the moment the microphone is live, so you know when to start talking: two threads of light run down from the top of the island, along both sides, and meet underneath. From there, light drifts along its bottom edge, growing brighter, reaching higher up the sides and running faster as it hears your voice, and slowing down when you go quiet; background noise leaves it calm. When you finish, the same light carries on at its usual pace while Echo transcribes or polishes and settles into a steady drift, instead of switching to a different effect. Notices such as "No speech detected" stay unlit. With Reduce Motion on, the light appears without the opening sweep and holds still.
+- On a Mac with a notch, a recording that has not heard a word yet stays beside the notch, with cancel on the left and finish on the right. The island opens below the notch once the first words appear.
+- While the transcription model loads, the island no longer says "Preparing local model…". The finish button shows a spinning arc instead and can't be pressed yet. Once the microphone is live, the arc curls inward into a thin line that ripples with your voice for as long as you talk. Pointing at the island, or pausing briefly once words have appeared, folds the line into a plain, thin check, so you can see that finishing is one click away; speaking again turns it back into the wave. With Reduce Motion on, the arc holds still, the line swells with your voice without rippling along, and the check appears at once.
+- Finishing a dictation is smoother. When you let go, the words stay exactly where they are and only the finish button fades away, instead of the whole island redrawing. When the island closes, the text blurs, lifts and fades while the island folds back into the notch over half a second. With Reduce Motion on, the island simply fades. Echo now starts closing the island about 50 milliseconds before it pastes, so the closing animation is already running and no longer stutters at its start.
+- The buttons on the island docked to the side of the screen no longer sit on grey discs. A disc appears only under the button you point at. While you record, the microphone button shows the same line that ripples with your voice as the island's finish button, instead of turning into a white disc. Pointing at the dock folds the line into a check, the same as on the island.
 
 ### Fixed
 - Recording a shortcut with Fn held recorded only the other key, so `fn+space` became `space`.
 - Recording a shortcut that uses Command could keep waiting after every key was released.
 - Page Up, Page Down, Caps Lock and the keypad's operator keys were recorded under names Echo could not register, so a shortcut using them was refused. Keys the system cannot identify are ignored instead of recorded as "unidentified".
+- Pasting a dictation longer than about 200 characters could fail or crash Echo when an accented letter or emoji fell on the 200th byte, because the paste log cut the text there.
+- On macOS, the first dictation after Echo sat unused for hours could hold the island still for a moment as it opened, because macOS had suspended the island's hidden window and had to wake it first. The island's windows are no longer suspended while hidden.
+- On macOS, when you started dragging the island, the drop preview popped in slightly smaller than the screen and bounced into place, so for its first frames it stopped short of the screen edge. It now appears in place from the first frame.
+- Pointing at the island's cancel button (X), or other island buttons, could turn it into a light grey disc with the X barely visible. The buttons now keep the island's dark look and only lighten slightly under the pointer.
 
 ## [0.8.20] - 2026-11-15
 

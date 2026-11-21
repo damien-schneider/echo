@@ -162,18 +162,21 @@
   line-height: 0;
 }
 
-/* ctrl-ui's own hover follows WebKit's :hover, which trails the pointer here */
-.echo-island-action,
-.echo-island-gear {
-  --cui-button-hover-background: var(--cui-button-background);
+.echo-island-record-glyph {
+  display: grid;
+  place-items: center;
 }
 
-/* a resting fill keeps each action its own target on the black */
+.echo-island-record-glyph > * {
+  display: grid;
+  grid-area: 1 / 1;
+  place-items: center;
+}
+
 .echo-island .echo-island-action {
   --cui-button-height: 32px;
   --cui-button-radius: 999px;
   --cui-button-icon: 16px;
-  --cui-button-background: rgba(255, 255, 255, 0.07);
   --cui-button-shadow: none;
   --cui-button-hover-shadow: none;
   --cui-button-press-shadow: none;

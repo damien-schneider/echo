@@ -1,0 +1,267 @@
+@property --echo-trace {
+  syntax: "<angle>";
+  inherits: true;
+  initial-value: 0deg;
+}
+
+@property --echo-glow {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0.4;
+}
+
+@keyframes echo-island-edge-trace {
+  from {
+    --echo-trace: 90deg;
+  }
+}
+
+@keyframes echo-island-edge-spark {
+  0%,
+  70% {
+    opacity: 0.85;
+  }
+}
+
+/* co-prime periods with uneven stops, so the pattern takes minutes to repeat; the first light never fades below half */
+@keyframes echo-island-drift-a {
+  0%,
+  100% {
+    translate: -6cqw 0;
+    opacity: 0.9;
+  }
+
+  23% {
+    translate: 14cqw 0;
+    opacity: 0.55;
+  }
+
+  41% {
+    translate: 4cqw 0;
+    opacity: 1;
+  }
+
+  67% {
+    translate: -19cqw 0;
+    opacity: 0.6;
+  }
+
+  84% {
+    translate: -11cqw 0;
+    opacity: 0.85;
+  }
+}
+
+@keyframes echo-island-drift-b {
+  0%,
+  100% {
+    translate: 22cqw 0;
+    opacity: 0;
+  }
+
+  18% {
+    translate: 9cqw 0;
+    opacity: 0.7;
+  }
+
+  46% {
+    translate: -14cqw 0;
+    opacity: 0.45;
+  }
+
+  61% {
+    translate: -26cqw 0;
+    opacity: 0.75;
+  }
+
+  82% {
+    translate: -31cqw 0;
+    opacity: 0;
+  }
+}
+
+@keyframes echo-island-drift-c {
+  0%,
+  100% {
+    translate: -24cqw 0;
+    opacity: 0;
+  }
+
+  29% {
+    translate: -3cqw 0;
+    opacity: 0.35;
+  }
+
+  53% {
+    translate: 17cqw 0;
+    opacity: 0.5;
+  }
+
+  78% {
+    translate: 28cqw 0;
+    opacity: 0.2;
+  }
+}
+
+/* the var fallbacks keep a WebKit without @property on a whole, steady light */
+.echo-island-edge {
+  --echo-glow: 0.4;
+  --echo-trace-reveal: conic-gradient(
+    from 180deg at 50% 0,
+    transparent calc(var(--echo-trace, 0deg) - 6deg),
+    #000 var(--echo-trace, 0deg) calc(360deg - var(--echo-trace, 0deg)),
+    transparent calc(366deg - var(--echo-trace, 0deg))
+  );
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  border-radius: inherit;
+  transition: --echo-glow 600ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.echo-island-edge[data-edge="voice"] {
+  --echo-glow: var(--echo-voice, 0.4);
+  transition-timing-function: linear;
+  transition-duration: 90ms;
+  animation: echo-island-edge-trace 0.9s cubic-bezier(0.45, 0, 0.25, 1);
+}
+
+.echo-island-edge-haze,
+.echo-island-edge-rim,
+.echo-island-edge-trace {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.echo-island-edge-haze,
+.echo-island-edge-rim {
+  container-type: inline-size;
+}
+
+.echo-island-edge-rim {
+  --echo-rim-fade: linear-gradient(
+    to top,
+    #000 calc(12% + var(--echo-glow) * 20%),
+    transparent calc(44% + var(--echo-glow) * 40%)
+  );
+  padding: 1px;
+  opacity: calc(0.3 + var(--echo-glow) * 0.75);
+  -webkit-mask:
+    var(--echo-trace-reveal),
+    var(--echo-rim-fade),
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    var(--echo-trace-reveal),
+    var(--echo-rim-fade),
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: source-in, source-in, xor;
+  mask-composite: intersect, intersect, exclude;
+}
+
+.echo-island-edge-haze {
+  --echo-haze-fade: linear-gradient(
+    to top,
+    #000,
+    transparent calc(16px + var(--echo-glow) * 20px)
+  );
+  opacity: calc(0.04 + var(--echo-glow) * 0.15);
+  -webkit-mask: var(--echo-trace-reveal), var(--echo-haze-fade);
+  mask: var(--echo-trace-reveal), var(--echo-haze-fade);
+  -webkit-mask-composite: source-in;
+  mask-composite: intersect;
+}
+
+.echo-island-edge-rim > span,
+.echo-island-edge-haze > span {
+  --echo-drift-width: clamp(3rem, 22cqw, 12rem);
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: var(--echo-drift-width);
+  margin-left: calc(var(--echo-drift-width) / -2);
+  animation: echo-island-drift-a 6.3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+.echo-island-edge-rim > span:nth-child(2),
+.echo-island-edge-haze > span:nth-child(2) {
+  --echo-drift-width: clamp(2rem, 13cqw, 7rem);
+  animation-name: echo-island-drift-b;
+  animation-duration: 8.9s;
+  animation-delay: -2.7s;
+}
+
+.echo-island-edge-rim > span:nth-child(3),
+.echo-island-edge-haze > span:nth-child(3) {
+  --echo-drift-width: clamp(4rem, 30cqw, 16rem);
+  animation-name: echo-island-drift-c;
+  animation-duration: 11.3s;
+  animation-delay: -6.1s;
+}
+
+.echo-island-edge-rim > span {
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 0.7) 40%,
+    #fff,
+    rgb(255 255 255 / 0.7) 60%,
+    transparent
+  );
+}
+
+.echo-island-edge-haze > span {
+  background-image: radial-gradient(50% 24px at 50% 100%, #fff, transparent);
+}
+
+.echo-island-edge-trace {
+  --echo-trace-heads: conic-gradient(
+    from 180deg at 50% 0,
+    transparent calc(var(--echo-trace, 0deg) - 3deg),
+    #000 var(--echo-trace, 0deg),
+    transparent calc(var(--echo-trace, 0deg) + 18deg)
+      calc(342deg - var(--echo-trace, 0deg)),
+    #000 calc(360deg - var(--echo-trace, 0deg)),
+    transparent calc(363deg - var(--echo-trace, 0deg))
+  );
+  padding: 0 1px 1px;
+  background: #fff;
+  opacity: 0;
+  -webkit-mask:
+    var(--echo-trace-heads),
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    var(--echo-trace-heads),
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: source-in, xor;
+  mask-composite: intersect, exclude;
+}
+
+.echo-island-edge[data-edge="voice"] .echo-island-edge-trace {
+  animation: echo-island-edge-spark 0.9s linear;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .echo-island-edge[data-edge],
+  .echo-island-edge[data-edge] .echo-island-edge-trace,
+  .echo-island-edge-rim > span,
+  .echo-island-edge-haze > span {
+    animation: none;
+  }
+
+  .echo-island-edge-rim > span:not(:first-child),
+  .echo-island-edge-haze > span:not(:first-child) {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .echo-island-edge {
+    display: none;
+  }
+}

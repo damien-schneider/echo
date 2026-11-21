@@ -2,8 +2,7 @@ import { describe, expect, it } from "bun:test";
 import {
   activityDismissalFor,
   isActiveOverlayState,
-  microphoneIntensity,
-  updateMicrophoneAmbience,
+  voiceLevel,
 } from "@/features/overlay-controls/recording-overlay-state";
 
 describe("recording activity semantics", () => {
@@ -57,43 +56,21 @@ describe("recording activity semantics", () => {
   });
 });
 
-describe("microphone ambience", () => {
-  it("summarizes all bands without favoring a fixed four-bar layout", () => {
-    expect(microphoneIntensity([])).toEqual({ energy: 0, peak: 0 });
-    const quiet = microphoneIntensity([0.04, 0.04, 0.04, 0.04]);
-    const loud = microphoneIntensity([0.8, 0.9, 0.7, 1]);
+describe("voice level", () => {
+  it("keeps the edge light calm for room noise and fully lit for speech", () => {
+    const roomNoise = voiceLevel([0.28]);
+    const quietSpeech = voiceLevel([0.56]);
+    const speech = voiceLevel([0.8]);
 
-    expect(loud.energy).toBeGreaterThan(quiet.energy);
-    expect(loud.peak).toBe(1);
+    expect(roomNoise).toBe(0);
+    expect(quietSpeech).toBeGreaterThan(0.3);
+    expect(quietSpeech).toBeLessThan(speech);
+    expect(speech).toBe(1);
   });
 
-  it("maps microphone energy to compositor-friendly CSS variables", () => {
-    const properties = new Map<string, string>();
-    updateMicrophoneAmbience(
-      {
-        style: {
-          setProperty: (name, value) => properties.set(name, value),
-        },
-      },
-      [0.04, 0.09, 0.16, 0.25]
-    );
-
-    expect(Number(properties.get("--echo-mic-energy"))).toBeGreaterThan(0);
-    expect(Number(properties.get("--echo-mic-peak"))).toBeCloseTo(0.25);
-  });
-
-  it("clamps malformed and overdriven input to the visual range", () => {
-    const properties = new Map<string, string>();
-    updateMicrophoneAmbience(
-      {
-        style: {
-          setProperty: (name, value) => properties.set(name, value),
-        },
-      },
-      [Number.NaN, -1, 4]
-    );
-
-    expect(Number(properties.get("--echo-mic-energy"))).toBeLessThanOrEqual(1);
-    expect(Number(properties.get("--echo-mic-peak"))).toBe(1);
+  it("reads malformed and overdriven levels within the visual range", () => {
+    expect(voiceLevel([])).toBe(0);
+    expect(voiceLevel([Number.NaN, -1])).toBe(0);
+    expect(voiceLevel([4])).toBe(1);
   });
 });

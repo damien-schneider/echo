@@ -13,6 +13,7 @@ import {
   type OverlayRemedy,
   overlayActivityText,
   overlayEscapeIntent,
+  PREPARING_LABEL,
 } from "@/features/overlay-controls/recording-overlay-state";
 import { tellsDownloadFailure } from "@/features/overlay-controls/runtime/overlay-activity-state";
 import type { NotificationRequest } from "@/features/overlay-controls/runtime/overlay-windows";
@@ -47,6 +48,7 @@ interface ActivityShape {
 }
 
 interface ActivityActionOptions {
+  isPreparing: boolean;
   isRecording: boolean;
   meeting: MeetingNotice | null;
   notice: UpdateNotice | null;
@@ -54,29 +56,37 @@ interface ActivityActionOptions {
 }
 
 const activityActionFor = ({
+  isPreparing,
   isRecording,
   meeting,
   notice,
   remedy,
 }: ActivityActionOptions): ActivityAction | null => {
-  if (isRecording) {
+  if (isPreparing || isRecording) {
     return {
       intent: "finish_recording",
-      title: "Finish recording and transcribe",
+      isPending: isPreparing,
+      title: isPreparing ? PREPARING_LABEL : "Finish recording and transcribe",
     };
   }
   if (remedy !== null) {
-    return { intent: remedy, title: "Download the transcription model" };
+    return {
+      intent: remedy,
+      isPending: false,
+      title: "Download the transcription model",
+    };
   }
   if (meeting?.actionLabel) {
     return {
       intent: "stop_meeting",
+      isPending: false,
       title: "Stop the meeting and transcribe it",
     };
   }
   if (notice?.actionLabel) {
     return {
       intent: "install_update",
+      isPending: false,
       title: "Install the update and restart Echo",
     };
   }
@@ -136,7 +146,7 @@ export const createNotificationPresentation = ({
         activityError,
         download: events.download,
         isVisible,
-        modelBadge: modelStateLabel(modelState),
+        modelBadge: modelStateLabel({ modelState, overlayState: events.state }),
         state: events.state,
         streamingText: events.streamingText,
         warningMessage: events.warningMessage,
@@ -153,6 +163,7 @@ export const createNotificationPresentation = ({
 
   return {
     activityAction: activityActionFor({
+      isPreparing,
       isRecording,
       meeting,
       notice,
