@@ -62,6 +62,7 @@ mod notification_panel {
 mod snap_preview_panel {
     use super::{overlay_collection_behavior, require_main_thread};
     use tauri::WebviewWindow;
+    use tauri_nspanel::objc2_app_kit::NSWindowAnimationBehavior;
     use tauri_nspanel::{PanelLevel, StyleMask, WebviewWindowExt};
 
     tauri_nspanel::tauri_panel!(EchoSnapPreviewPanel {
@@ -85,6 +86,10 @@ mod snap_preview_panel {
             .map_err(|error| format!("Failed to make the snap preview non-activating: {error}"))?;
         panel.set_collection_behavior(overlay_collection_behavior().into());
         panel.set_level(PanelLevel::ModalPanel.value());
+        // AppKit pops modal-level panels in like alerts, landing the ghost off the edge for its first frames
+        panel
+            .as_panel()
+            .setAnimationBehavior(NSWindowAnimationBehavior::None);
         panel.set_hides_on_deactivate(false);
         panel.set_released_when_closed(false);
         panel.set_ignores_mouse_events(true);
