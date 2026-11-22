@@ -210,12 +210,9 @@ fn offer_when_unplaced(app_handle: &AppHandle) -> Box<dyn FnOnce(String) + Send 
     })
 }
 
-pub(crate) struct CaretText(String);
-
-/// The single exit of every dictation — both the direct and the post-processed one end here.
-pub(crate) fn deliver_off_caret(app_handle: &AppHandle, text: String) -> Option<CaretText> {
+/// Where a transcript goes, or `None` when there is nothing in it to deliver.
+pub(crate) fn landing(app_handle: &AppHandle, text: &str) -> Option<Landing> {
     if text.trim().is_empty() {
-        abandon(app_handle);
         return None;
     }
     let destination = if routes_to_chat() {
@@ -227,20 +224,29 @@ pub(crate) fn deliver_off_caret(app_handle: &AppHandle, text: String) -> Option<
         crate::settings::get_settings(app_handle).paste_method,
         crate::keystroke::is_permitted(),
     );
-    match landing_for(destination, overlay::chat_surface_is_open(), can_paste) {
-        Landing::Caret => return Some(CaretText(text)),
-        Landing::ChatComposer => {
+    Some(landing_for(
+        destination,
+        overlay::chat_surface_is_open(),
+        can_paste,
+    ))
+}
+
+/// The single exit of every dictation — both the direct and the post-processed one end here.
+pub(crate) fn deliver(app_handle: &AppHandle, landing: Option<Landing>, text: String) {
+    match landing {
+        None => abandon(app_handle),
+        Some(Landing::Caret) => paste_at_caret(app_handle, text),
+        Some(Landing::ChatComposer) => {
             hold(text);
             overlay::hand_transcript_to_chat(app_handle);
         }
-        Landing::Held => hold_out(app_handle, text),
-        Landing::Unpermitted => permission::keep_without_pasting(app_handle, &text),
+        Some(Landing::Held) => hold_out(app_handle, text),
+        Some(Landing::Unpermitted) => permission::keep_without_pasting(app_handle, &text),
     }
-    None
 }
 
 /// Text-deaf focus still gets the paste but the card shows at once, since such apps fake the receipt.
-pub(crate) fn deliver_to_caret(app_handle: &AppHandle, CaretText(text): CaretText) {
+fn paste_at_caret(app_handle: &AppHandle, text: String) {
     let sight = combined_caret_sight();
     let frontmost = frontmost_identity();
     log::info!("deliver: caret sight {sight:?}, frontmost {frontmost:?}");
