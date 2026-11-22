@@ -58,3 +58,13 @@ bun run tauri:dev
 ```
 
 The Silero VAD model Echo needs ships in the repository at `src-tauri/resources/models/silero_vad_v4.onnx`; no download step is required.
+
+## App Icon
+
+The icon's source is the Icon Composer document `src-tauri/icons/Echo.icon`. After editing it, regenerate every platform's icon on a Mac with Xcode 26 or later:
+
+```bash
+bun run generate:app-icons
+```
+
+It writes `Assets.car` (macOS 26+ Liquid Glass, with Dark, Clear and Tinted styles) and `icon.icns` (older macOS and `tauri:dev`) on Apple's icon grid, plus `icon.ico` (Windows) and the PNGs (Linux) with a small margin and no shadow. Don't use `tauri icon`: it draws the artwork edge to edge, so Echo looks bigger than other apps in the Dock and the app switcher.
