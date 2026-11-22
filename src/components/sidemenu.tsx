@@ -181,10 +181,10 @@ function SettingsPanel({
   const { state } = useSidebar();
   const sidebarIsCollapsed = state === "collapsed";
   return (
-    <SidebarInset className="overflow-hidden" render={<main />}>
+    <SidebarInset className="settings-panel overflow-hidden" render={<main />}>
       <header
         className={cn(
-          "flex h-10 shrink-0 items-center gap-1.5 px-2",
+          "flex shrink-0 items-center gap-1.5 p-(--settings-panel-inset)",
           sidebarIsCollapsed && usesNativeTrafficLights && "pl-[84px]"
         )}
         data-tauri-drag-region

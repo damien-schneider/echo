@@ -237,103 +237,89 @@ export const DictionaryEditor = () => {
         </div>
       </SettingRow>
 
-      {dictionary.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {dictionary.map((entry) => {
-            const isEditing = editingCanonical === entry.canonical;
-            if (isEditing) {
-              return (
-                <div
-                  className="flex flex-col gap-2 rounded-md border border-border/20 bg-muted/5 p-2"
-                  key={entry.canonical}
+      {dictionary.map((entry) => {
+        const isEditing = editingCanonical === entry.canonical;
+        if (isEditing) {
+          return (
+            <div className="flex flex-col gap-2" key={entry.canonical}>
+              <Input
+                disabled={updating}
+                onChange={(e) => setEditCanonicalDraft(e.target.value)}
+                placeholder="Canonical"
+                type="text"
+                value={editCanonicalDraft}
+              />
+              <Input
+                disabled={updating}
+                onChange={(e) => setEditVariantsDraft(e.target.value)}
+                placeholder="Variants, comma-separated"
+                type="text"
+                value={editVariantsDraft}
+              />
+              <div className="flex gap-2">
+                <Button
+                  disabled={!editCanonicalDraft.trim() || updating}
+                  onClick={handleSaveEdit}
+                  size="xs"
+                  tone="primary"
+                  variant="solid"
                 >
-                  <Input
-                    disabled={updating}
-                    onChange={(e) => setEditCanonicalDraft(e.target.value)}
-                    placeholder="Canonical"
-                    type="text"
-                    value={editCanonicalDraft}
-                  />
-                  <Input
-                    disabled={updating}
-                    onChange={(e) => setEditVariantsDraft(e.target.value)}
-                    placeholder="Variants, comma-separated"
-                    type="text"
-                    value={editVariantsDraft}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      disabled={!editCanonicalDraft.trim() || updating}
-                      onClick={handleSaveEdit}
-                      size="xs"
-                      tone="primary"
-                      variant="solid"
-                    >
-                      Save
-                    </Button>
-                    <Button
-                      onClick={handleCancelEdit}
-                      size="xs"
-                      variant="ghost"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              );
-            }
-            return (
-              <div
-                className="flex flex-col gap-1 rounded-md border border-border/20 bg-muted/5 p-2"
-                key={entry.canonical}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-sm">{entry.canonical}</span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      aria-label={`Edit ${entry.canonical}`}
-                      disabled={updating}
-                      iconOnly
-                      onClick={() => handleStartEdit(entry)}
-                      size="md"
-                      variant="ghost"
-                    >
-                      <PencilSimpleIcon className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      aria-label={`Remove ${entry.canonical}`}
-                      disabled={updating}
-                      iconOnly
-                      onClick={() => handleRemoveEntry(entry.canonical)}
-                      size="md"
-                      variant="ghost"
-                    >
-                      <TrashIcon className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-                {entry.variants.length > 0 && (
-                  <ButtonGroup className="w-full flex-wrap gap-1">
-                    {entry.variants.map((variant) => (
-                      <span
-                        className="rounded-full bg-muted/30 px-2 py-0.5 text-muted-foreground text-xs"
-                        key={variant}
-                      >
-                        {variant}
-                      </span>
-                    ))}
-                  </ButtonGroup>
-                )}
-                {entry.variants.length === 0 && (
-                  <span className="text-muted-foreground/60 text-xs">
-                    No variants
-                  </span>
-                )}
+                  Save
+                </Button>
+                <Button onClick={handleCancelEdit} size="xs" variant="ghost">
+                  Cancel
+                </Button>
               </div>
-            );
-          })}
-        </div>
-      )}
+            </div>
+          );
+        }
+        return (
+          <div className="flex flex-col gap-1" key={entry.canonical}>
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-sm">{entry.canonical}</span>
+              <div className="flex items-center gap-1">
+                <Button
+                  aria-label={`Edit ${entry.canonical}`}
+                  disabled={updating}
+                  iconOnly
+                  onClick={() => handleStartEdit(entry)}
+                  size="md"
+                  variant="ghost"
+                >
+                  <PencilSimpleIcon className="h-3 w-3" />
+                </Button>
+                <Button
+                  aria-label={`Remove ${entry.canonical}`}
+                  disabled={updating}
+                  iconOnly
+                  onClick={() => handleRemoveEntry(entry.canonical)}
+                  size="md"
+                  variant="ghost"
+                >
+                  <TrashIcon className="h-3 w-3" />
+                </Button>
+              </div>
+            </div>
+            {entry.variants.length > 0 && (
+              <ButtonGroup className="w-full flex-wrap gap-1">
+                {entry.variants.map((variant) => (
+                  <span
+                    className="rounded-full bg-muted/30 px-2 py-0.5 text-muted-foreground text-xs"
+                    key={variant}
+                  >
+                    {variant}
+                  </span>
+                ))}
+              </ButtonGroup>
+            )}
+            {entry.variants.length === 0 && (
+              <span className="text-muted-foreground/60 text-xs">
+                No variants
+              </span>
+            )}
+          </div>
+        );
+      })}
     </>
   );
 };

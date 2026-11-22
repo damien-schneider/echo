@@ -1,6 +1,7 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -80,7 +81,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
           )
         }
       />
-      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto [--dialog-nest-radius:var(--radius-group)]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <InfoIcon className="h-5 w-5" />
@@ -91,7 +92,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <DialogBody>
           <SettingsSection defaultOpen={true} title="About">
             <SettingRow description="Current version of Echo" title="Version">
               <span className="font-mono text-sm">v{version}</span>
@@ -172,7 +173,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ trigger }) => {
             <LogLevelSelector />
             <MuteWhileRecording />
           </SettingsSection>
-        </div>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   );

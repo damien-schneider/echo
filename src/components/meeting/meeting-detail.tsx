@@ -86,7 +86,7 @@ export const MeetingDetail = () => {
       />
 
       {meeting.status === "recorded" && (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-border/40 px-3 py-2">
+        <div className="concentric-2 concentric-rim flex items-center justify-between gap-3 border-border/40">
           <span className="text-muted-foreground text-sm">
             The transcript hasn't been built yet
           </span>

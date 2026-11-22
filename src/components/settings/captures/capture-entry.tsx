@@ -77,7 +77,7 @@ export const CaptureEntry = ({ capture, onDelete }: CaptureEntryProps) => {
           </ButtonGroup>
         </TooltipProvider>
       </div>
-      <p className="whitespace-pre-wrap rounded-md bg-muted/50 p-2 text-sm text-text/90">
+      <p className="whitespace-pre-wrap rounded-control bg-muted/50 p-2 text-sm text-text/90">
         {capture.content}
       </p>
     </div>

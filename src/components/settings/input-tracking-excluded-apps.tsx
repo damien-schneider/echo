@@ -142,7 +142,11 @@ export const InputTrackingExcludedApps = () => {
         <div>
           <div className="flex flex-wrap gap-1.5">
             {excludedApps.map((bundleId) => (
-              <Badge className="gap-1" key={bundleId} variant="default">
+              <Badge
+                className="removable-badge gap-1"
+                key={bundleId}
+                variant="default"
+              >
                 <span className="max-w-[150px] truncate">
                   {getAppName(bundleId)}
                 </span>

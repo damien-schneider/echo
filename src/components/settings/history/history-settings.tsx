@@ -143,10 +143,10 @@ export const HistorySettings = () => {
       </div>
 
       <div className="flex items-center justify-center">
-        <div className="inline-flex rounded-lg bg-muted p-1">
+        <div className="concentric-1 inline-flex bg-muted">
           <button
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
+              "inline-flex items-center gap-1.5 rounded-control px-3 py-1.5 font-medium text-sm transition-colors",
               activeTab === "transcriptions"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -159,7 +159,7 @@ export const HistorySettings = () => {
           </button>
           <button
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 font-medium text-sm transition-colors",
+              "inline-flex items-center gap-1.5 rounded-control px-3 py-1.5 font-medium text-sm transition-colors",
               activeTab === "keyboard"
                 ? "bg-background text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"

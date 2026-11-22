@@ -1,3 +1,19 @@
+.markdown-editor {
+  --editor-toolbar-inset: calc(var(--spacing) * 1);
+  --editor-toolbar-item-radius: var(--radius-sm);
+  --cui-field-padding-inline: 0px;
+  --cui-field-radius: calc(
+    var(--editor-toolbar-item-radius) +
+    var(--editor-toolbar-inset) +
+    var(--cui-field-border-width)
+  );
+}
+
+.markdown-editor [data-control-family="toolbar"][data-slot="root"] {
+  --cui-toolbar-padding: var(--editor-toolbar-inset);
+  --cui-toolbar-item-radius: var(--editor-toolbar-item-radius);
+}
+
 [data-slate-editor] {
   min-height: 180px;
   font-size: var(--text-body);

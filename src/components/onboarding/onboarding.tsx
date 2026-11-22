@@ -85,7 +85,7 @@ const Onboarding = ({ onModelReady }: OnboardingProps) => {
             const stats = downloadStats.get(profile.size);
             return (
               <TranscriptionModelRow
-                className="rounded-panel bg-surface-group px-4 py-3"
+                className="rounded-(--radius-group) bg-surface-group p-(--group-inset)"
                 downloadProgress={progress?.percentage}
                 downloadSpeed={stats?.speed}
                 isBusy={isBusy}
