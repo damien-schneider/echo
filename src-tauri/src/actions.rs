@@ -25,6 +25,7 @@ use std::time::Instant;
 use tauri::AppHandle;
 use tauri::Manager;
 
+mod departure;
 mod start;
 
 pub(crate) use start::start_dictation;
@@ -164,46 +165,22 @@ fn end_empty(ah: &AppHandle, gen: u64, reason: &str) {
     change_tray_icon(ah, TrayIconState::Idle);
 }
 
-/// The paste holds the main thread, which commits the island's frames, so the exit gets onto the screen first.
-const EXIT_HEAD_START: Duration = Duration::from_millis(48);
-
 /// The one exit every dictation takes. Awaited, so the next press waits until the text has landed.
 async fn deliver_transcript(ah: &AppHandle, text: String, gen: u64) {
-    let Some(caret_text) = on_main_thread(ah, move |ah| leave_unless_stale(ah, text, gen)).await
-    else {
-        if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
-            utils::hide_recording_overlay(ah);
-            change_tray_icon(ah, TrayIconState::Idle);
-        }
-        return;
-    };
-    let Some(text) = caret_text else {
-        return;
-    };
-    tokio::time::sleep(EXIT_HEAD_START).await;
-    on_main_thread(ah, move |ah| {
-        if OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
-            crate::dictation::deliver_to_caret(ah, text);
-            change_tray_icon(ah, TrayIconState::Idle);
-        }
-    })
-    .await;
-}
-
-fn leave_unless_stale(
-    ah: &AppHandle,
-    text: String,
-    gen: u64,
-) -> Option<crate::dictation::CaretText> {
-    if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
-        return None;
-    }
-    utils::hide_recording_overlay(ah);
-    let caret_text = crate::dictation::deliver_off_caret(ah, text);
-    if caret_text.is_none() {
+    let delivered = on_main_thread(ah, move |ah| deliver_unless_stale(ah, text, gen)).await;
+    if delivered.is_none() && OPERATION_GENERATION.load(Ordering::SeqCst) == gen {
+        utils::hide_recording_overlay(ah);
         change_tray_icon(ah, TrayIconState::Idle);
     }
-    caret_text
+}
+
+fn deliver_unless_stale(ah: &AppHandle, text: String, gen: u64) {
+    if OPERATION_GENERATION.load(Ordering::SeqCst) != gen {
+        return;
+    }
+    let landing = crate::dictation::landing(ah, &text);
+    departure::depart(&departure::AppDeparture(ah), landing, text);
+    change_tray_icon(ah, TrayIconState::Idle);
 }
 
 async fn on_main_thread<T: Send + 'static>(
