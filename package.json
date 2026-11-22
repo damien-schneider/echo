@@ -27,6 +27,7 @@
     "test:macos-snap-preview": "swift scripts/macos-snap-preview-smoke.swift",
     "test:rust": "cd src-tauri && cargo test",
     "prepare:polish-runtime": "bun run scripts/prepare-polish-runtime.ts",
+    "generate:app-icons": "swift scripts/generate-app-icons.swift",
     "preview": "vite preview",
     "tauri": "bun run scripts/tauri.ts",
     "tauri:dev": "bun run scripts/tauri.ts dev",
