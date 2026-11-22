@@ -26,6 +26,27 @@
   --color-surface-group: var(--surface-group);
 }
 
+@property --concentric-rim {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@utility concentric-* {
+  --concentric-inset: calc(var(--spacing) * --value(integer));
+  padding: var(--concentric-inset);
+  border-radius: calc(
+    var(--radius-control) +
+    var(--concentric-inset) +
+    var(--concentric-rim)
+  );
+}
+
+@utility concentric-rim {
+  --concentric-rim: var(--control-rim-width);
+  border-width: var(--concentric-rim);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -49,4 +70,43 @@
 
 [data-control-family="sidebar"][data-slot="skip-link"] {
   display: none;
+}
+
+.settings-panel {
+  --settings-panel-inset: calc(var(--spacing) * 1);
+  --cui-sidebar-inset-radius: calc(
+    var(--radius-control) +
+    var(--settings-panel-inset)
+  );
+}
+
+.removable-badge {
+  --cui-badge-radius: 9999px;
+  padding-inline-end: calc(var(--spacing) * 0.5);
+}
+
+.file-transcriptions-popover {
+  --file-transcriptions-inset: calc(var(--spacing) * 3);
+  --cui-popup-radius: calc(
+    var(--radius-control) +
+    var(--file-transcriptions-inset)
+  );
+}
+
+[data-sonner-toaster][data-sonner-theme] {
+  --toast-inset: calc(var(--spacing) * 4);
+  --border-radius: calc(
+    var(--radius-control) +
+    var(--toast-inset) +
+    var(--control-rim-width)
+  );
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] {
+  padding: var(--toast-inset);
+  border-width: var(--control-rim-width);
+}
+
+[data-sonner-toaster] [data-sonner-toast][data-styled="true"] [data-button] {
+  border-radius: var(--radius-control);
 }

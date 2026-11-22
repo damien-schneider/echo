@@ -81,7 +81,7 @@ const AvailableCommands = ({
     <ul className="flex flex-col gap-1">
       {VOICE_COMMANDS.map(({ icon: Icon, name, example }) => (
         <li
-          className="flex items-center gap-3 rounded-md bg-muted/40 px-3 py-2 text-label"
+          className="flex items-center gap-3 rounded-control bg-muted/40 px-3 py-2 text-label"
           key={name}
         >
           <Icon className="size-4 shrink-0 text-muted-foreground" />

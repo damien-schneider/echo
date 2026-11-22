@@ -88,8 +88,13 @@ export function FileTranscriptionCenter() {
           </span>
         )}
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-96" padding="none" side="top">
-        <div className="flex items-center justify-between border-foreground/10 border-b px-4 py-3">
+      <PopoverContent
+        align="start"
+        className="file-transcriptions-popover w-96"
+        padding="none"
+        side="top"
+      >
+        <div className="flex items-center justify-between border-foreground/10 border-b p-(--file-transcriptions-inset)">
           <h3 className="font-semibold text-sm">File transcriptions</h3>
           {hasCompleted && (
             <Button onClick={() => clearCompleted()} size="xs" variant="ghost">
@@ -115,7 +120,7 @@ export function FileTranscriptionCenter() {
           {transcriptions.map((item) => (
             <div
               className={cn(
-                "border-foreground/5 border-b px-4 py-3 transition-colors hover:bg-foreground/5",
+                "border-foreground/5 border-b p-(--file-transcriptions-inset) transition-colors hover:bg-foreground/5",
                 item.status === "error" && "bg-destructive/5"
               )}
               key={item.id}

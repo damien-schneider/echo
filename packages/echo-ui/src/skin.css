@@ -47,7 +47,9 @@
   --radius: 6px;
   --radius-control: 8px;
   --radius-panel: 12px;
-  --radius-popover: 12px;
+  --radius-popup-item: var(--radius-control);
+  --group-inset: calc(var(--spacing) * 3);
+  --radius-group: calc(var(--radius-control) + var(--group-inset));
   --font-sans:
     "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-body: var(--font-sans);
@@ -93,6 +95,15 @@
   --cui-button-radius: var(--nest-radius, var(--radius-control));
 }
 
+[data-skin="echo"] :where([data-control-family="popup"][data-surface="modal"]) {
+  --dialog-inset: calc(var(--spacing) * 4);
+  --cui-popup-close-inset: var(--dialog-inset);
+  --cui-popup-radius: calc(
+    var(--dialog-nest-radius, var(--radius-control)) +
+    var(--dialog-inset)
+  );
+}
+
 [data-skin="echo"]
   :where([data-control-family="collapsible"][data-slot="root"]) {
   --cui-collapsible-trigger-hover-background: transparent;
@@ -116,7 +127,9 @@
   ) {
   --cui-field-group-background: transparent;
   --cui-field-group-border-width: 0px;
-  --cui-field-group-radius: var(--radius-panel);
+  --cui-field-group-padding-block: var(--group-inset);
+  --cui-field-group-padding-inline: var(--group-inset);
+  --cui-field-group-radius: var(--radius-group);
   --cui-field-group-separator-color: transparent;
   gap: 1px;
 }

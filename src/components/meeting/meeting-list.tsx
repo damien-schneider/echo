@@ -77,7 +77,7 @@ function MeetingListItem({
   onSelect: () => void;
 }) {
   return (
-    <div className="group flex items-center justify-between rounded-md px-3 py-2 hover:bg-foreground/5">
+    <div className="group concentric-2 flex items-center justify-between hover:bg-foreground/5">
       <button
         className="flex flex-1 flex-col gap-0.5 text-left"
         onClick={onSelect}

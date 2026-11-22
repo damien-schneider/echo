@@ -65,7 +65,7 @@ export const MeetingAudioPlayer = ({
     return null;
   }
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border/20 px-3 py-2">
+    <div className="concentric-2 concentric-rim flex items-center gap-3 border-border/20">
       <audio
         onEnded={() => setIsPlaying(false)}
         onLoadedMetadata={handleLoadedMetadata}
