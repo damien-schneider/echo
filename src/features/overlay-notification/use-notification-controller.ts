@@ -1,18 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { useMotionValue } from "motion/react";
-import {
-  type KeyboardEvent,
-  type RefObject,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { requestAccessibilityPermission } from "tauri-plugin-macos-permissions-api";
 import { z } from "zod";
+import { useChatEdge } from "@/features/overlay-chat/use-chat-session";
 import { useNativeOverlayTransition } from "@/features/overlay-controls/motion/use-native-overlay-transition";
 import {
   type ActivityAction,
+  activityEdgeFor,
   type OverlayEscapeIntent,
   overlayContentKey,
 } from "@/features/overlay-controls/recording-overlay-state";
@@ -31,6 +27,7 @@ import {
   NotificationRequestEventSchema,
   OVERLAY_WARNING_COMMAND,
 } from "@/features/overlay-controls/runtime/overlay-windows";
+import { useFollowLatestText } from "@/features/overlay-controls/use-follow-latest-text";
 import { useOverlayEvents } from "@/features/overlay-controls/use-overlay-events";
 import {
   closedChatSurface,
@@ -183,24 +180,6 @@ const useClearRequestOnActiveOperation = (
   }, [clearRequest, hasActiveOperation]);
 };
 
-const useFollowStreamingText = (
-  text: string,
-  textScrollRef: RefObject<HTMLOutputElement | null>
-) => {
-  useEffect(() => {
-    if (!(text && textScrollRef.current)) {
-      return;
-    }
-    const frame = requestAnimationFrame(() => {
-      const output = textScrollRef.current;
-      if (output) {
-        output.scrollLeft = output.scrollWidth;
-      }
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [text, textScrollRef]);
-};
-
 const UPDATE_NOTICE_LINGER_MS = 15_000;
 
 /// A notification, not a banner — the offer steps aside so the HUD handle comes back.
@@ -285,6 +264,14 @@ export const useNotificationController = () => {
     mode: presentation.mode,
   });
   const renderMode = presentation.mode === null ? null : transition.staged.mode;
+  const chatGeneration =
+    chatContext?.generation ??
+    (renderMode === "chat" ? closedChatGeneration : null);
+  const chatEdge = useChatEdge(chatGeneration, polish.status.state);
+  const activityEdge =
+    renderMode === "recording"
+      ? activityEdgeFor(presentation.activityDecoration)
+      : null;
 
   useClearRequestOnActiveOperation(
     presentation.hasActiveOperation,
@@ -296,7 +283,7 @@ export const useNotificationController = () => {
     presentation.activityAction?.intent === "finish_recording" &&
       !presentation.activityAction.isPending
   );
-  useFollowStreamingText(events.streamingText, textScrollRef);
+  useFollowLatestText(events.streamingText, textScrollRef);
 
   /// Takes back only what the HUD asked for — passive activity behind it resurfaces.
   const dismissSurface = () => {
@@ -310,7 +297,7 @@ export const useNotificationController = () => {
 
   return {
     chatContext,
-    closedChatGeneration,
+    chatGeneration,
     contentKey: overlayContentKey({
       mode: renderMode ?? "recording",
       overlayState: events.state,
@@ -336,6 +323,7 @@ export const useNotificationController = () => {
       await invoke(HELD_TRANSCRIPT_COMMAND.copy);
     },
     dismissSurface,
+    edge: renderMode === "chat" ? chatEdge : activityEdge,
     events,
     finishMorph: () => transition.settle(transition.staged.generation),
     heldTranscript,

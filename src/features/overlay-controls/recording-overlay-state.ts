@@ -159,7 +159,7 @@ export const activityDecorationFor = ({
   return showsDownload ? "progress" : "none";
 };
 
-export type IslandEdge = "drift" | "voice";
+export type IslandEdge = "drift" | "pulse" | "voice";
 
 export const activityEdgeFor = (
   decoration: ActivityDecoration

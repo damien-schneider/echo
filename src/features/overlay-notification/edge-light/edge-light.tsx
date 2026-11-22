@@ -8,6 +8,7 @@ import {
 import type { IslandEdge } from "@/features/overlay-controls/recording-overlay-state";
 import "@/features/overlay-notification/edge-light/edge-light.css";
 import { useDriftTempo } from "@/features/overlay-notification/edge-light/use-drift-tempo";
+import { usePulseLevel } from "@/features/overlay-notification/edge-light/use-pulse-level";
 
 const EDGE_HANDOFF = {
   animate: { opacity: 1 },
@@ -36,8 +37,10 @@ const Threads = () => (
 export const EdgeLight = ({ edge, voice }: EdgeLightProps) => {
   const isIslandPresent = useIsPresent();
   const shownEdge = isIslandPresent ? edge : null;
-  const edgeRef = useDriftTempo(shownEdge, voice);
-  const voiceGlow: VoiceGlowStyle = { "--echo-voice": voice };
+  const pulse = usePulseLevel(shownEdge === "pulse");
+  const level = shownEdge === "pulse" ? pulse : voice;
+  const edgeRef = useDriftTempo(shownEdge, level);
+  const voiceGlow: VoiceGlowStyle = { "--echo-voice": level };
   return (
     <AnimatePresence initial={false}>
       {shownEdge === null ? null : (

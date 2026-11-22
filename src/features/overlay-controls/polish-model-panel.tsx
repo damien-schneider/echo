@@ -18,7 +18,7 @@ interface PolishModelPanelProps {
   status: PolishStatus;
 }
 const polishActionClassName =
-  "rounded-full bg-white px-4 text-black hover:bg-white/88";
+  "echo-island-panel-control bg-white px-4 text-black hover:bg-white/88";
 const StatusIcon = ({ state }: Pick<PolishStatus, "state">) => {
   if (state === "ready") {
     return (
@@ -54,7 +54,7 @@ const PolishPanelHeader = ({ onClose, status }: PolishPanelHeaderProps) => {
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="flex min-w-0 items-start gap-3">
-        <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white/8">
+        <span className="flex size-(--echo-panel-control) shrink-0 items-center justify-center rounded-full bg-white/8">
           <StatusIcon state={status.state} />
         </span>
         <div className="min-w-0">
@@ -68,7 +68,7 @@ const PolishPanelHeader = ({ onClose, status }: PolishPanelHeaderProps) => {
       </div>
       <Button
         aria-label="Close Polish model panel"
-        className="size-7 rounded-full text-white/55 hover:bg-white/10 hover:text-white"
+        className="echo-island-panel-control text-white/55 hover:bg-white/10 hover:text-white"
         iconOnly
         onClick={onClose}
         size="xs"
