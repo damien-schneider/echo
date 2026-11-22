@@ -265,6 +265,47 @@ async fn empty_copied_text_returns_without_inference() {
 }
 
 #[tokio::test]
+async fn the_line_zed_copies_when_nothing_is_selected_is_not_a_selection() {
+    let fixture = fixture_with_options(FixtureOptions {
+        selection: "alpha bravo charlie\n",
+        copy_metadata: Some(r#"[{"len":20,"is_entire_line":true,"first_line_indent":0}]"#),
+        ..FixtureOptions::default()
+    });
+    let original = fixture.clipboard.current();
+    let generation = fixture.cancellation.begin();
+
+    let outcome = fixture
+        .transaction
+        .run(SelectionMode::ReplaceSelection, generation)
+        .await
+        .unwrap();
+
+    assert_eq!(outcome, PolishOutcome::NoSelection);
+    assert_eq!(fixture.paste_count.load(Ordering::SeqCst), 0);
+    assert_eq!(fixture.clipboard.current(), original);
+}
+
+#[tokio::test]
+async fn a_zed_copy_with_any_real_selection_is_captured() {
+    let fixture = fixture_with_options(FixtureOptions {
+        selection: "bravo\nalpha bravo charlie\n",
+        copy_metadata: Some(
+            r#"[{"len":5,"is_entire_line":false,"first_line_indent":0},{"len":20,"is_entire_line":true,"first_line_indent":0}]"#,
+        ),
+        ..FixtureOptions::default()
+    });
+    let generation = fixture.cancellation.begin();
+
+    let captured = fixture
+        .transaction
+        .capture_text(SelectionMode::ReplaceSelection, generation)
+        .await
+        .unwrap();
+
+    assert_eq!(captured.as_deref(), Some("bravo\nalpha bravo charlie\n"));
+}
+
+#[tokio::test]
 async fn focus_loss_and_newer_invocation_never_paste() {
     let focus_lost = fixture_with_options(FixtureOptions {
         focus_change: Some("com.example.Other"),

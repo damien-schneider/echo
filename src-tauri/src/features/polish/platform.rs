@@ -142,6 +142,11 @@ impl ClipboardPort for PlatformClipboard {
         context.get_text().map_err(clipboard_error)
     }
 
+    fn read_format(&self, name: &str) -> Option<Vec<u8>> {
+        let context = self.context.lock().ok()?;
+        context.get_buffer(name).ok()
+    }
+
     fn write_text(&self, text: &str) -> Result<()> {
         let context = self
             .context

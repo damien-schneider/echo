@@ -49,6 +49,12 @@ impl ClipboardPort for FakeClipboard {
             .unwrap_or_default())
     }
 
+    fn read_format(&self, name: &str) -> Option<Vec<u8>> {
+        let current = self.current.lock().unwrap();
+        let format = current.formats.iter().find(|format| format.name == name);
+        format.map(|format| format.data.clone())
+    }
+
     fn write_text(&self, text: &str) -> Result<()> {
         *self.current.lock().unwrap() = snapshot(text);
         Ok(())
@@ -63,12 +69,26 @@ impl ClipboardPort for FakeClipboard {
     }
 }
 
+impl FakeClipboard {
+    fn answer_copy(&self, selection: &str, metadata: Option<&str>) -> Result<()> {
+        self.write_text(selection)?;
+        if let Some(metadata) = metadata {
+            self.current.lock().unwrap().formats.push(ClipboardFormat {
+                name: ZED_COPY_METADATA.to_string(),
+                data: metadata.as_bytes().to_vec(),
+            });
+        }
+        Ok(())
+    }
+}
+
 struct FakeKeyboard {
     clipboard: FakeClipboard,
     selection: String,
     paste_count: Arc<AtomicU64>,
     pasted_text: Arc<Mutex<Option<String>>>,
     copies_selection: bool,
+    copy_metadata: Option<String>,
     copy_delay: Duration,
 }
 
@@ -78,14 +98,17 @@ impl KeyboardPort for FakeKeyboard {
             return Ok(());
         }
         if self.copy_delay.is_zero() {
-            return self.clipboard.write_text(&self.selection);
+            return self
+                .clipboard
+                .answer_copy(&self.selection, self.copy_metadata.as_deref());
         }
         let clipboard = self.clipboard.clone();
         let selection = self.selection.clone();
+        let metadata = self.copy_metadata.clone();
         let delay = self.copy_delay;
         tokio::spawn(async move {
             tokio::time::sleep(delay).await;
-            let _ = clipboard.write_text(&selection);
+            let _ = clipboard.answer_copy(&selection, metadata.as_deref());
         });
         Ok(())
     }
@@ -153,6 +176,7 @@ pub(super) struct FixtureOptions<'a> {
     pub(super) selection: &'a str,
     pub(super) output: &'a str,
     pub(super) copies_selection: bool,
+    pub(super) copy_metadata: Option<&'a str>,
     pub(super) token_count: usize,
     pub(super) clipboard_change: Option<&'a str>,
     pub(super) focus_change: Option<&'a str>,
@@ -166,6 +190,7 @@ impl Default for FixtureOptions<'_> {
             selection: "This are wrong.",
             output: "This is wrong.",
             copies_selection: true,
+            copy_metadata: None,
             token_count: 20,
             clipboard_change: None,
             focus_change: None,
@@ -217,6 +242,7 @@ pub(super) fn fixture_with_options(options: FixtureOptions<'_>) -> Fixture {
             paste_count: paste_count.clone(),
             pasted_text: pasted_text.clone(),
             copies_selection: options.copies_selection,
+            copy_metadata: options.copy_metadata.map(str::to_string),
             copy_delay: options.copy_delay,
         }),
         focus: Arc::new(FakeFocus {
@@ -267,6 +293,7 @@ fn capture_transaction(
             paste_count: Arc::new(AtomicU64::new(0)),
             pasted_text: Arc::new(Mutex::new(None)),
             copies_selection: true,
+            copy_metadata: None,
             copy_delay,
         }),
         focus: Arc::new(FakeFocus {
