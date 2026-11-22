@@ -301,8 +301,11 @@ impl PolishManager {
         self.record_failure(PolishFailureStage::Loading, load_result)
     }
 
+    /// A running model stays Ready: a Loading flash on every chat open blocks sending for nothing.
     async fn load_runtime(&self) -> Result<()> {
-        self.set_status(PolishState::Loading, "Loading Polish model");
+        if !self.runtime.is_loaded().await {
+            self.set_status(PolishState::Loading, "Loading Polish model");
+        }
         self.runtime.ensure_ready().await?;
         self.set_status(PolishState::Ready, "Polish is ready");
         Ok(())
