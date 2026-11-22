@@ -102,19 +102,31 @@ impl ShownChatContext {
         }
     }
 
-    /// An empty read only clears text accessibility produced itself; returns whether the panel changed.
+    /// An unproven empty read only clears text accessibility produced itself; returns whether the panel changed.
     pub(crate) fn absorb(&mut self, observed: DirectSelection) -> bool {
         let next = match observed {
             DirectSelection::Unavailable => return false,
             DirectSelection::Empty if !self.read_by_accessibility => return false,
-            DirectSelection::Empty => ChatContextCapture::Ready(None),
+            DirectSelection::Empty | DirectSelection::NothingSelected => {
+                ChatContextCapture::Ready(None)
+            }
             DirectSelection::PermissionRequired => ChatContextCapture::PermissionRequired,
             DirectSelection::Text(text) => ChatContextCapture::Ready(Some(chat_text_context(
                 text,
                 ChatContextSource::Selection,
             ))),
         };
-        self.read_by_accessibility = true;
+        self.show(next, true)
+    }
+
+    /// A copy that found nothing proves nothing: only found text replaces what the panel shows.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn absorb_copy(&mut self, copied: Option<ChatTextContext>) -> bool {
+        copied.is_some_and(|copied| self.show(ChatContextCapture::Ready(Some(copied)), false))
+    }
+
+    fn show(&mut self, next: ChatContextCapture, read_by_accessibility: bool) -> bool {
+        self.read_by_accessibility = read_by_accessibility;
         if next == self.capture {
             return false;
         }
@@ -231,5 +243,26 @@ mod tests {
         assert!(shown.absorb(DirectSelection::Text("hello".to_owned())));
         assert!(shown.absorb(DirectSelection::Empty));
         assert_eq!(shown.capture, ChatContextCapture::Ready(None));
+    }
+
+    #[test]
+    fn a_terminal_proven_empty_clears_whatever_the_panel_shows() {
+        let mut shown = ShownChatContext::read_by_copy(selected("Slack thread"));
+
+        assert!(shown.absorb(DirectSelection::NothingSelected));
+        assert_eq!(shown.capture, ChatContextCapture::Ready(None));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn text_copied_after_a_selection_gesture_stays_until_another_selection_replaces_it() {
+        let mut shown = ShownChatContext::read_by_accessibility(selected("Slack thread"));
+        let copied = || chat_text_context("cargo test output".to_owned(), ChatContextSource::Selection);
+
+        assert!(shown.absorb_copy(Some(copied())));
+        assert!(!shown.absorb_copy(None));
+        assert!(!shown.absorb(DirectSelection::Empty));
+        assert_eq!(shown.capture, selected("cargo test output"));
+        assert!(shown.absorb(DirectSelection::Text("Slack reply".to_owned())));
     }
 }

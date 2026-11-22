@@ -316,7 +316,7 @@ fn fetcher_of(connection: &RustConnection, window: Window, requestor: Window) ->
 }
 
 /// X namespaces resource ids per client, so shared high bits mean one application.
-fn same_client(one: Window, other: Window, client_mask: u32) -> bool {
+pub(crate) fn same_client(one: Window, other: Window, client_mask: u32) -> bool {
     (one & !client_mask) == (other & !client_mask)
 }
 

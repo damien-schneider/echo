@@ -14,7 +14,8 @@ use crate::overlay::{show_processing_overlay, show_tool_overlay, show_warning_ov
 use crate::settings;
 
 use super::chat_context::{
-    chat_request_turns, chat_text_context, ChatContextCapture, ChatContextSource, ShownChatContext,
+    chat_request_turns, chat_text_context, ChatContextCapture, ChatContextSource, ChatTextContext,
+    ShownChatContext,
 };
 use super::platform::{
     read_selected_text, settled_selection, DirectSelection, PlatformClipboard, PlatformFocus,
@@ -42,6 +43,7 @@ struct ChatAnswerEvent {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SelectionRead {
+    NothingSelected,
     PermissionRequired,
     Selected(String),
     Copied {
@@ -61,7 +63,7 @@ impl SelectionRead {
             | Self::Copied {
                 text: Some(text), ..
             } => Ok(Some(text)),
-            Self::Copied { text: None, .. } => Ok(None),
+            Self::NothingSelected | Self::Copied { text: None, .. } => Ok(None),
         }
     }
 }
@@ -73,6 +75,7 @@ async fn selection_read(transaction: &PolishTransaction, generation: u64) -> Res
         DirectSelection::Unavailable
     });
     match settled_selection(observed) {
+        Some(SettledSelection::NothingSelected) => return Ok(SelectionRead::NothingSelected),
         Some(SettledSelection::PermissionRequired) => return Ok(SelectionRead::PermissionRequired),
         Some(SettledSelection::Text(text)) => return Ok(SelectionRead::Selected(text)),
         None => {}
@@ -82,6 +85,14 @@ async fn selection_read(transaction: &PolishTransaction, generation: u64) -> Res
         mode,
         text: transaction.capture_text(mode, generation).await?,
     })
+}
+
+fn copied_chat_context(mode: SelectionMode, text: Option<String>) -> Option<ChatTextContext> {
+    let source = match mode {
+        SelectionMode::ReplaceSelection => ChatContextSource::Selection,
+        SelectionMode::ClipboardOnly => ChatContextSource::Clipboard,
+    };
+    text.map(|text| chat_text_context(text, source))
 }
 
 /// Focus is read before the selection: a user who switches app mid-capture must not be pasted into.
@@ -159,6 +170,9 @@ impl PolishManager {
 
     pub(crate) async fn capture_chat_context(&self, generation: u64) -> Result<ShownChatContext> {
         Ok(match self.read_selection(generation).await? {
+            SelectionRead::NothingSelected => {
+                ShownChatContext::read_by_accessibility(ChatContextCapture::Ready(None))
+            }
             SelectionRead::PermissionRequired => {
                 ShownChatContext::read_by_accessibility(ChatContextCapture::PermissionRequired)
             }
@@ -167,16 +181,20 @@ impl PolishManager {
                     chat_text_context(text, ChatContextSource::Selection),
                 )))
             }
-            SelectionRead::Copied { mode, text } => {
-                let source = match mode {
-                    SelectionMode::ReplaceSelection => ChatContextSource::Selection,
-                    SelectionMode::ClipboardOnly => ChatContextSource::Clipboard,
-                };
-                ShownChatContext::read_by_copy(ChatContextCapture::Ready(
-                    text.map(|text| chat_text_context(text, source)),
-                ))
-            }
+            SelectionRead::Copied { mode, text } => ShownChatContext::read_by_copy(
+                ChatContextCapture::Ready(copied_chat_context(mode, text)),
+            ),
         })
+    }
+
+    /// Accessibility is blind to this app's selection, so only the copy shortcut can read it.
+    #[cfg(target_os = "macos")]
+    pub(crate) async fn copy_selection_for_chat(&self) -> Result<Option<ChatTextContext>> {
+        let generation = self.begin_selection_read();
+        let transaction = self.transaction_with_cancellation(self.chat_cancellation.clone())?;
+        let mode = selection_mode();
+        let text = transaction.capture_text(mode, generation).await?;
+        Ok(copied_chat_context(mode, text))
     }
 
     pub(crate) fn observe_selected_text(&self) -> Result<DirectSelection> {
@@ -469,6 +487,7 @@ mod selection_read_tests {
             .unwrap(),
             None
         );
+        assert_eq!(SelectionRead::NothingSelected.text().unwrap(), None);
         assert_eq!(
             SelectionRead::PermissionRequired
                 .text()

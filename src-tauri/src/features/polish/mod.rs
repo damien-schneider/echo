@@ -14,6 +14,7 @@ mod selection;
 pub(crate) mod summarize;
 pub(crate) mod transform;
 
+pub(crate) use platform::DirectSelection;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
