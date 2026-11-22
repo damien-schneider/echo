@@ -10,22 +10,18 @@ import {
 import { builtInMacBookProNotch } from "@e2e/overlay-chat/notch";
 import { expect, type Locator, type Page } from "@playwright/test";
 
-test("chat opens passively and accepts focus only after an input click", async ({
+test("chat puts the caret in the message box as it opens and closes on Escape", async ({
   page,
 }) => {
   await page.goto(`${NOTIFICATION_URL}?polish=ready`);
   await waitForTauriListener(page, "overlay-notification-request");
   await requestNotificationSurface(page, "chat");
-  const chatInput = page.getByPlaceholder("Ask anything");
-  await expect(chatInput).toBeVisible();
-  await expect(chatInput).not.toBeFocused();
-
-  await chatInput.click();
+  const chatInput = page.getByRole("textbox", { name: "Message" });
   await expect(chatInput).toBeFocused();
 
   await page.keyboard.press("Escape");
 
-  await expect(page.getByPlaceholder("Ask anything")).toBeHidden();
+  await expect(chatInput).toBeHidden();
 });
 
 test("chat restores an early request with model loading inside its window", async ({

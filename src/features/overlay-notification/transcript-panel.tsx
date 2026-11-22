@@ -73,7 +73,7 @@ export const TranscriptPanel = ({
       open={true}
     >
       <div className="flex items-center gap-3">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-white/8">
+        <span className="flex size-(--echo-panel-control) shrink-0 items-center justify-center rounded-full bg-white/8">
           <WaveformIcon aria-hidden="true" className="size-4 text-white/70" />
         </span>
         <p className="min-w-0 flex-1 text-center text-[12px] text-white/58">
@@ -81,7 +81,7 @@ export const TranscriptPanel = ({
         </p>
         <Button
           aria-label="Dismiss the dictated text"
-          className="size-7 shrink-0 rounded-full text-white/55 hover:bg-white/10 hover:text-white"
+          className="echo-island-panel-control shrink-0 text-white/55 hover:bg-white/10 hover:text-white"
           iconOnly
           onClick={onClose}
           size="xs"
@@ -96,7 +96,7 @@ export const TranscriptPanel = ({
       <div className="mt-auto flex items-center justify-end gap-2">
         <Button
           aria-label="Send the dictated text to Echo chat"
-          className="size-9 rounded-full bg-white/8 text-white/80 hover:bg-white/14 hover:text-white"
+          className="echo-island-panel-control bg-white/8 text-white/80 hover:bg-white/14 hover:text-white"
           iconOnly
           onClick={send}
           size="md"
@@ -106,7 +106,7 @@ export const TranscriptPanel = ({
           <ChatTextIcon aria-hidden="true" className="size-4" />
         </Button>
         <Button
-          className="rounded-full bg-white/12 px-4 text-white hover:bg-white/20"
+          className="echo-island-panel-control bg-white/12 px-4 text-white hover:bg-white/20"
           onClick={copy}
           size="sm"
           tone="primary"

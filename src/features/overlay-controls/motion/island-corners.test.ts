@@ -1,40 +1,53 @@
 import { describe, expect, test } from "bun:test";
 import {
-  bridgeBandOf,
+  type IslandCornerRadii,
   islandCornerRadii,
 } from "@/features/overlay-controls/motion/island-corners";
 
+const chatCorners: IslandCornerRadii = {
+  borderBottomLeftRadius: 37,
+  borderBottomRightRadius: 37,
+  borderTopLeftRadius: 28,
+  borderTopRightRadius: 28,
+};
+
 describe("island corner radii", () => {
-  test("a top or bottom dock's handle floats as a full pill", () => {
+  test("a floating island wears its content's corners, so what sits in them stays concentric", () => {
     expect(
       islandCornerRadii({
-        anchor: "bottom",
+        anchor: "top",
         bridgeBand: null,
-        isPill: true,
-        presentation: "docked",
+        presentation: "bar",
+        shape: chatCorners,
+      })
+    ).toEqual(chatCorners);
+  });
+
+  test("a bridged island hangs square under the cut-out and keeps its content's bottom curve", () => {
+    expect(
+      islandCornerRadii({
+        anchor: "top",
+        bridgeBand: 700,
+        presentation: "bar",
+        shape: chatCorners,
       })
     ).toEqual({
-      borderBottomLeftRadius: 999,
-      borderBottomRightRadius: 999,
-      borderTopLeftRadius: 999,
-      borderTopRightRadius: 999,
+      borderBottomLeftRadius: 37,
+      borderBottomRightRadius: 37,
+      borderTopLeftRadius: 0,
+      borderTopRightRadius: 0,
     });
   });
 
-  test("surfaces round every corner while they float", () => {
+  test("a bridged pill curves by half the band it hangs below the cut-out", () => {
     expect(
       islandCornerRadii({
-        anchor: "bottom",
-        bridgeBand: null,
-        isPill: false,
+        anchor: "top",
+        bridgeBand: 40,
         presentation: "bar",
-      })
-    ).toEqual({
-      borderBottomLeftRadius: 10,
-      borderBottomRightRadius: 10,
-      borderTopLeftRadius: 10,
-      borderTopRightRadius: 10,
-    });
+        shape: "pill",
+      }).borderBottomLeftRadius
+    ).toBe(20);
   });
 
   test("a side dock squares the corners touching its edge", () => {
@@ -42,46 +55,26 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "right",
         bridgeBand: null,
-        isPill: false,
         presentation: "docked",
+        shape: chatCorners,
       })
     ).toEqual({
-      borderBottomLeftRadius: 10,
+      ...chatCorners,
       borderBottomRightRadius: 0,
-      borderTopLeftRadius: 10,
       borderTopRightRadius: 0,
     });
     expect(
       islandCornerRadii({
         anchor: "left",
         bridgeBand: null,
-        isPill: false,
         presentation: "docked",
+        shape: chatCorners,
       })
     ).toEqual({
+      ...chatCorners,
       borderBottomLeftRadius: 0,
-      borderBottomRightRadius: 10,
       borderTopLeftRadius: 0,
-      borderTopRightRadius: 10,
     });
-  });
-
-  test("a top or bottom dock rounds every corner: it floats off its edge", () => {
-    for (const anchor of ["top", "bottom"] as const) {
-      expect(
-        islandCornerRadii({
-          anchor,
-          bridgeBand: null,
-          isPill: false,
-          presentation: "docked",
-        })
-      ).toEqual({
-        borderBottomLeftRadius: 10,
-        borderBottomRightRadius: 10,
-        borderTopLeftRadius: 10,
-        borderTopRightRadius: 10,
-      });
-    }
   });
 
   test("a lifted island rounds every corner: it hangs off nothing", () => {
@@ -89,55 +82,10 @@ describe("island corner radii", () => {
       islandCornerRadii({
         anchor: "right",
         bridgeBand: null,
-        isPill: false,
         isDragging: true,
         presentation: "docked",
+        shape: chatCorners,
       })
-    ).toEqual({
-      borderBottomLeftRadius: 10,
-      borderBottomRightRadius: 10,
-      borderTopLeftRadius: 10,
-      borderTopRightRadius: 10,
-    });
-  });
-
-  test("a bridged surface hangs square and curves with the band under the cut-out", () => {
-    expect(
-      islandCornerRadii({
-        anchor: "top",
-        bridgeBand: 56,
-        isPill: false,
-        presentation: "bar",
-      })
-    ).toEqual({
-      borderBottomLeftRadius: 28,
-      borderBottomRightRadius: 28,
-      borderTopLeftRadius: 0,
-      borderTopRightRadius: 0,
-    });
-  });
-
-  test("the bridged curve never outgrows tall panels nor undercuts shallow bands", () => {
-    const bottomFor = (bridgeBand: number) =>
-      islandCornerRadii({
-        anchor: "top",
-        bridgeBand,
-        isPill: false,
-        presentation: "bar",
-      }).borderBottomLeftRadius;
-    expect(bottomFor(700)).toBe(28);
-    expect(bottomFor(12)).toBe(10);
-  });
-
-  test("a strip-only island curves its ears by half the strip, the band under the cut-out otherwise", () => {
-    const bottomFor = (height: number, strip: number) =>
-      islandCornerRadii({
-        anchor: "top",
-        bridgeBand: bridgeBandOf(height, strip),
-        isPill: false,
-        presentation: "bar",
-      }).borderBottomLeftRadius;
-    expect(bottomFor(32, 32)).toBe(16);
-    expect(bottomFor(84, 32)).toBe(26);
+    ).toEqual(chatCorners);
   });
 });

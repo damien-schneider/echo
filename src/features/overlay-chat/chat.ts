@@ -79,6 +79,10 @@ export const withDictatedText = (input: string, dictated: string) => {
   return typed ? `${typed} ${dictated}` : dictated;
 };
 
+/// Heard words sit where the transcript will land, so the box doesn't jump when it arrives.
+export const withDictationPreview = (input: string, preview: string) =>
+  preview ? withDictatedText(input, preview) : input;
+
 export const makeMessageId = (): string => crypto.randomUUID();
 
 const withTurn = (

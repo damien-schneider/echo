@@ -82,16 +82,22 @@ const voiceRegistration = (ports: Pick<OverlayEventPorts, "voice">) => () =>
     }
   });
 
+/// Each update carries the whole utterance heard so far, not just the newest words.
+export const listenTranscriptionProgress = (onHeard: (text: string) => void) =>
+  listen<unknown>("transcription-progress", (event) => {
+    const parsed = TranscriptionProgressSchema.safeParse(event.payload);
+    if (parsed.success) {
+      onHeard(parsed.data);
+    }
+  });
+
 const activityRegistrations = (ports: OverlayEventPorts) => [
   ...visibilityRegistrations(ports),
   voiceRegistration(ports),
   () =>
-    listen<unknown>("transcription-progress", (event) => {
-      const parsed = TranscriptionProgressSchema.safeParse(event.payload);
-      if (parsed.success) {
-        ports.dispatch({ text: parsed.data, type: "progress" });
-      }
-    }),
+    listenTranscriptionProgress((text) =>
+      ports.dispatch({ text, type: "progress" })
+    ),
 ];
 
 const downloadRegistrations = (ports: OverlayEventPorts) => [

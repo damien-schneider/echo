@@ -1,7 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent } from "react";
 import { z } from "zod";
+import type { ChatDictationState } from "@/features/overlay-chat/session/chat-session-store";
+import { listenTranscriptionProgress } from "@/features/overlay-controls/runtime/overlay-event-registrations";
 import {
   CHAT_DICTATION_COMMAND,
   CHAT_DICTATION_EVENT,
@@ -10,9 +12,8 @@ import {
 } from "@/features/overlay-controls/runtime/overlay-windows";
 import { listenCancellable } from "@/lib/tauri-listener";
 
-type ChatDictationState = "idle" | "recording" | "transcribing";
-
 export interface ChatDictation {
+  preview: string;
   state: ChatDictationState;
   toggle: () => void;
 }
@@ -20,6 +21,10 @@ export interface ChatDictation {
 interface ChatDictationPorts {
   onDictated: (dictated: DictatedTranscript) => void;
   onError: (message: string) => void;
+  onHeard: (preview: string) => void;
+  onStateChange: (state: ChatDictationState) => void;
+  preview: string;
+  state: ChatDictationState;
 }
 
 const DictationFailureSchema = z.string().catch("Couldn’t dictate. Try again.");
@@ -34,49 +39,59 @@ const takeDictated = async () => {
 export const useChatDictation = ({
   onDictated,
   onError,
+  onHeard,
+  onStateChange,
+  preview,
+  state,
 }: ChatDictationPorts): ChatDictation => {
-  const [state, setState] = useState<ChatDictationState>("idle");
   const collect = useEffectEvent(() => {
     takeDictated()
       .then((dictated) => {
-        setState("idle");
+        onStateChange("idle");
         if (dictated) {
           onDictated(dictated);
         }
       })
-      .catch(() => setState("idle"));
+      .catch(() => onStateChange("idle"));
   });
+  const hear = useEffectEvent(onHeard);
   /// A composer that goes away mid-dictation would leave the microphone open behind it.
   const dropRecording = useEffectEvent(() => {
     if (state === "recording") {
       invoke(CHAT_DICTATION_COMMAND.stop).catch(() => undefined);
     }
+    onStateChange("idle");
   });
   useEffect(() => {
     collect();
     const stopListening = listenCancellable(() =>
       listen(CHAT_DICTATION_EVENT, () => collect())
     );
+    const stopHearing = listenCancellable(() =>
+      listenTranscriptionProgress(hear)
+    );
     return () => {
       stopListening();
+      stopHearing();
       dropRecording();
     };
   }, []);
   const start = () => {
-    setState("recording");
+    onStateChange("recording");
     invoke(CHAT_DICTATION_COMMAND.start).catch((caught) => {
-      setState("idle");
+      onStateChange("idle");
       onError(DictationFailureSchema.parse(caught));
     });
   };
   const stop = () => {
-    setState("transcribing");
+    onStateChange("transcribing");
     invoke(CHAT_DICTATION_COMMAND.stop).catch((caught) => {
-      setState("idle");
+      onStateChange("idle");
       onError(DictationFailureSchema.parse(caught));
     });
   };
   return {
+    preview,
     state,
     toggle: () => {
       if (state === "recording") {

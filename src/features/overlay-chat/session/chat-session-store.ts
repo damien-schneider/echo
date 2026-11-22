@@ -5,8 +5,11 @@ import {
   withPendingTurn,
   withPromptRun,
 } from "@/features/overlay-chat/chat";
+import type { IslandEdge } from "@/features/overlay-controls/recording-overlay-state";
 import type { ChatContextEvent } from "@/features/overlay-controls/runtime/overlay-windows";
 import type { PolishStatus } from "@/lib/types";
+
+export type ChatDictationState = "idle" | "recording" | "transcribing";
 
 export interface ChatSessionState {
   error: string;
@@ -26,13 +29,32 @@ const FRESH_CHAT_SESSION: ChatSessionState = {
   request: null,
 };
 
+/// One microphone per window: dictation outlives the chat it started in.
 interface ChatSessionStore {
+  dictation: ChatDictationState;
+  dictationPreview: string;
   open: { generation: number; session: ChatSessionState } | null;
 }
 
 export const useChatSessionStore = create<ChatSessionStore>(() => ({
+  dictation: "idle",
+  dictationPreview: "",
   open: null,
 }));
+
+/// Heard words belong to one dictation: they outlast the stop while the transcript is made, never the next start.
+export const changeChatDictation = (dictation: ChatDictationState) =>
+  useChatSessionStore.setState((store) => ({
+    dictation,
+    dictationPreview:
+      dictation === "transcribing" ? store.dictationPreview : "",
+  }));
+
+/// The microphone may be dictating elsewhere; only the chat's own dictation previews here.
+export const hearChatDictation = (preview: string) =>
+  useChatSessionStore.setState((store) =>
+    store.dictation === "idle" ? store : { dictationPreview: preview }
+  );
 
 /// Keyed by the chat request, so a panel that remounts finds its conversation and a new chat starts empty.
 export const chatSessionFor = (
@@ -190,3 +212,34 @@ export const pendingQuestionIsDue = ({
   session.request === null &&
   contextState !== "loading" &&
   modelState === "ready";
+
+const IS_MODEL_GETTING_READY: Record<PolishStatus["state"], boolean> = {
+  downloading: true,
+  loading: true,
+  not_downloaded: false,
+  preparing: true,
+  ready: false,
+  repair: false,
+  verifying: true,
+};
+
+interface ChatEdgeInputs {
+  generation: number;
+  modelState: PolishStatus["state"];
+  store: ChatSessionStore;
+}
+
+export const chatEdgeFor = ({
+  generation,
+  modelState,
+  store,
+}: ChatEdgeInputs): IslandEdge | null => {
+  if (store.dictation === "recording") {
+    return "voice";
+  }
+  const isWorking =
+    store.dictation === "transcribing" ||
+    chatSessionFor(store, generation).request !== null ||
+    IS_MODEL_GETTING_READY[modelState];
+  return isWorking ? "pulse" : null;
+};

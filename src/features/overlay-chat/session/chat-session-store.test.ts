@@ -2,13 +2,17 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import {
   updateAssistantMessage,
   visibleMessages,
+  withDictationPreview,
 } from "@/features/overlay-chat/chat";
 import {
   type ChatRequestHandle,
+  changeChatDictation,
   changeChatSession,
   changeChatSessionFromRequest,
+  chatEdgeFor,
   chatSessionFor,
   failedTurn,
+  hearChatDictation,
   holdChatSession,
   pendingQuestionIsDue,
   restartChatSession,
@@ -51,7 +55,11 @@ const fail = (turn: StreamingTurn, question: string | null) =>
   );
 
 beforeEach(() => {
-  useChatSessionStore.setState({ open: null });
+  useChatSessionStore.setState({
+    dictation: "idle",
+    dictationPreview: "",
+    open: null,
+  });
 });
 
 describe("a chat covered by another surface", () => {
@@ -252,5 +260,91 @@ describe("a question handed over from dictation", () => {
 
     expect(sessionOf(1).isQuestionPending).toBe(false);
     expect(sessionOf(1).input).toBe("");
+  });
+});
+
+describe("the island edge around a chat", () => {
+  const edgeOf = (
+    generation: number,
+    modelState: Parameters<typeof chatEdgeFor>[0]["modelState"]
+  ) =>
+    chatEdgeFor({
+      generation,
+      modelState,
+      store: useChatSessionStore.getState(),
+    });
+
+  test("follows the voice while a message is dictated, even over a streaming answer", () => {
+    startTurn(1, "What is this?");
+    useChatSessionStore.setState({ dictation: "recording" });
+
+    expect(edgeOf(1, "ready")).toBe("voice");
+  });
+
+  test("keeps following the voice when a newer chat replaces the one being dictated into", () => {
+    startTurn(1, "What is this?");
+    useChatSessionStore.setState({ dictation: "recording" });
+    changeChatSession(2, () => ({ input: "" }));
+
+    expect(edgeOf(2, "ready")).toBe("voice");
+  });
+
+  test("pulses like a voice while Echo works: transcribing, answering or readying the model", () => {
+    useChatSessionStore.setState({ dictation: "transcribing" });
+    expect(edgeOf(1, "ready")).toBe("pulse");
+
+    useChatSessionStore.setState({ dictation: "idle" });
+    const turn = startTurn(1, "What is this?");
+    expect(edgeOf(1, "ready")).toBe("pulse");
+
+    changeChatSessionFromRequest(turn.handle, () => ({ request: null }));
+    expect(edgeOf(1, "downloading")).toBe("pulse");
+    expect(edgeOf(1, "loading")).toBe("pulse");
+  });
+
+  test("rests while the chat waits on the user", () => {
+    expect(edgeOf(1, "ready")).toBeNull();
+    expect(edgeOf(1, "not_downloaded")).toBeNull();
+    expect(edgeOf(1, "repair")).toBeNull();
+  });
+});
+
+const boxOf = (generation: number) =>
+  withDictationPreview(
+    sessionOf(generation).input,
+    useChatSessionStore.getState().dictationPreview
+  );
+
+describe("the message box while a message is dictated", () => {
+  test("shows the words heard so far after what is typed", () => {
+    changeChatSession(1, () => ({ input: "Summarize" }));
+    changeChatDictation("recording");
+    hearChatDictation("in two lines");
+
+    expect(boxOf(1)).toBe("Summarize in two lines");
+  });
+
+  test("keeps the heard words while the transcript is made", () => {
+    changeChatDictation("recording");
+    hearChatDictation("in two lines");
+    changeChatDictation("transcribing");
+
+    expect(boxOf(1)).toBe("in two lines");
+  });
+
+  test("starts the next dictation without the words of the previous one", () => {
+    changeChatDictation("recording");
+    hearChatDictation("first thought");
+    changeChatDictation("idle");
+    changeChatDictation("recording");
+
+    expect(boxOf(1)).toBe("");
+  });
+
+  test("ignores words dictated into another app while the chat is open", () => {
+    changeChatSession(1, () => ({ input: "Draft" }));
+    hearChatDictation("meant for the editor");
+
+    expect(boxOf(1)).toBe("Draft");
   });
 });

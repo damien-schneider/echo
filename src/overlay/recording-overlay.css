@@ -26,11 +26,18 @@
 
 .echo-island-hud {
   position: relative;
-  border-radius: inherit;
 }
 
-.echo-island-hud-body {
-  border-radius: inherit;
+.echo-island-hud[data-layout="activity"] {
+  --echo-activity-band: 52px;
+  --echo-activity-control: 24px;
+  border-radius: calc(var(--echo-activity-band) / 2);
+}
+
+.echo-island-hud[data-layout="activity"][data-flanked="true"]:has(
+  .echo-island-activity[data-has-text="false"]
+) {
+  border-radius: calc(var(--echo-island-notch-strip, 0px) / 2);
 }
 
 .echo-island-hud-flank {
@@ -65,10 +72,10 @@
   gap: 8px;
   align-items: center;
   width: 310px;
-  min-height: 52px;
-  padding: 0 12px;
+  min-height: var(--echo-activity-band);
+  padding: 0
+    calc((var(--echo-activity-band) - var(--echo-activity-control)) / 2);
   overflow: hidden;
-  border-radius: inherit;
 }
 
 .echo-island-activity[data-has-text="false"] {
@@ -112,6 +119,11 @@
   display: inline-flex;
 }
 
+:is(.echo-island-activity-dismiss, .echo-island-activity-submit) {
+  --cui-button-height: var(--echo-activity-control);
+  --cui-button-radius: 999px;
+}
+
 .echo-island-activity-dismiss {
   opacity: 0.78;
   transition:
@@ -120,23 +132,25 @@
     opacity 120ms ease-out;
 }
 
-/* optical padding for the inline row only: the glyph lines up with the edge, not its round hit area */
-.echo-island-activity .echo-island-activity-dismiss {
-  margin-right: -5px;
-}
-
 :where(:root:not([data-native-hover])) .echo-island-activity-dismiss:hover,
 .echo-island-activity-dismiss[data-hovered] {
   opacity: 1;
 }
 
 .echo-island-panel {
+  --echo-panel-inset: 12px;
+  --echo-panel-control: 32px;
   position: relative;
   width: 360px;
-  padding: 16px;
+  padding: var(--echo-panel-inset);
   color: white;
   background: transparent;
-  border-radius: inherit;
+  border-radius: calc(var(--echo-panel-control) / 2 + var(--echo-panel-inset));
+}
+
+.echo-island-panel-control {
+  --cui-button-height: var(--echo-panel-control);
+  --cui-button-radius: 999px;
 }
 
 .notch-transcript-text-overflowing {
@@ -158,7 +172,7 @@
 
 .echo-island-countdown {
   position: absolute;
-  inset-inline: 16px;
+  inset-inline: var(--echo-panel-inset);
   bottom: 7px;
   height: 2px;
   background: rgba(255, 255, 255, 0.22);

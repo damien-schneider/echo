@@ -1,12 +1,13 @@
 import { Button } from "@ctrl-ui/react/ui/button";
 import { CaretDownIcon, XIcon } from "@phosphor-icons/react";
-import type { FormEvent, ReactNode } from "react";
+import type { MotionValue } from "motion/react";
+import type { ReactNode } from "react";
 import {
   type BundledChatModel,
   BundledModelSetup,
   ChatReference,
 } from "@/features/overlay-chat/chat-context";
-import { ChatComposer } from "@/features/overlay-chat/conversation/chat-composer";
+import { MessageComposer } from "@/features/overlay-chat/conversation/message-composer";
 import { MessageList } from "@/features/overlay-chat/conversation/message-list";
 import {
   PROMPT_MENU_ID,
@@ -29,7 +30,6 @@ import type {
   ChatContextEvent,
   ChatTextContext,
 } from "@/features/overlay-controls/runtime/overlay-windows";
-import { cn } from "@/lib/utils";
 import "@/features/overlay-chat/chat-panel.css";
 
 interface ChatPanelProps {
@@ -40,6 +40,7 @@ interface ChatPanelProps {
   hasFlanks: boolean;
   onClose: () => void;
   onRequestAccessibility: () => Promise<void>;
+  voice: MotionValue<number>;
 }
 const ChatPromptPill = ({
   label,
@@ -52,7 +53,7 @@ const ChatPromptPill = ({
     aria-controls={menu.isOpen ? PROMPT_MENU_ID : undefined}
     aria-expanded={menu.isOpen}
     aria-haspopup="listbox"
-    className="h-8 shrink-0 gap-1 rounded-full border border-white/10 bg-white/7 px-3 text-[11px] text-white/72 hover:bg-white/12 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
+    className="echo-chat-control echo-chat-pill shrink-0 gap-1"
     onClick={menu.toggle}
     onMouseDown={(event) => event.preventDefault()}
     size="xs"
@@ -67,7 +68,7 @@ const ChatPromptPill = ({
 const CloseChatButton = ({ onClose }: { onClose: () => void }) => (
   <Button
     aria-label="Close chat"
-    className="size-7 shrink-0 rounded-full bg-white/8 text-white/80 hover:bg-white/14 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
+    className="echo-chat-control echo-chat-close shrink-0"
     iconOnly
     onClick={onClose}
     size="xs"
@@ -83,21 +84,16 @@ interface ChatPanelShellProps {
   hasFlanks: boolean;
   leftFlank: ReactNode;
   onClose: () => void;
-  panelHeightClass: string;
 }
 const ChatPanelShell = ({
   children,
   hasFlanks,
   leftFlank,
-  panelHeightClass,
   onClose,
 }: ChatPanelShellProps) => (
   <IslandHud
-    bodyClassName="flex min-h-0 min-w-0 flex-1 flex-col gap-3"
-    className={cn(
-      "echo-island-chat min-h-0 min-w-0 max-w-full p-3",
-      panelHeightClass
-    )}
+    bodyClassName="flex max-h-96 min-w-0 flex-1 flex-col gap-3"
+    className="echo-island-chat min-h-0 min-w-0 max-w-full"
     hasFlanks={hasFlanks}
     layout="chat"
     leftFlank={leftFlank}
@@ -112,10 +108,9 @@ interface ChatPanelContentProps {
   chatPrompt: ChatPromptChoice;
   context: ChatTextContext | null;
   contextState: ChatContextEvent["state"];
-  hasConversation: boolean;
-  isBundledModelReady: boolean;
   menu: PromptMenu;
   onRequestAccessibility: () => Promise<void>;
+  voice: MotionValue<number>;
 }
 const composerPlaceholder = (
   prompt: ChatPromptChoice["prompt"],
@@ -132,47 +127,34 @@ const ChatPanelContent = ({
   chatPrompt,
   context,
   contextState,
-  hasConversation,
-  isBundledModelReady,
   menu,
   onRequestAccessibility,
-}: ChatPanelContentProps) => {
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    chat.send();
-  };
-  return (
-    <>
-      <ChatReference
-        context={context}
-        onRequestAccessibility={onRequestAccessibility}
-        state={contextState}
-      />
-      <BundledModelSetup model={bundledModel} />
-      {hasConversation ? (
-        <MessageList
-          error={chat.error}
-          isResponding={chat.isResponding}
-          messages={chat.messages}
-        />
-      ) : null}
-      <PromptMenuList activeChoice={chatPrompt.activeChoice} menu={menu} />
-      <form className="mt-auto w-full min-w-0 shrink-0" onSubmit={handleSubmit}>
-        <ChatComposer
-          dictation={chat.dictation}
-          input={chat.input}
-          inputRef={chat.inputRef}
-          isContextLoading={contextState === "loading"}
-          isModelReady={isBundledModelReady}
-          isResponding={chat.isResponding}
-          menu={menu}
-          onStop={chat.stop}
-          placeholder={composerPlaceholder(chatPrompt.prompt, context)}
-        />
-      </form>
-    </>
-  );
-};
+  voice,
+}: ChatPanelContentProps) => (
+  <>
+    <ChatReference
+      context={context}
+      onRequestAccessibility={onRequestAccessibility}
+      state={contextState}
+    />
+    <BundledModelSetup model={bundledModel} />
+    <MessageList
+      error={chat.error}
+      isResponding={chat.isResponding}
+      messages={chat.messages}
+    />
+    <PromptMenuList activeChoice={chatPrompt.activeChoice} menu={menu} />
+    <MessageComposer
+      canSend={
+        bundledModel.status.state === "ready" && contextState !== "loading"
+      }
+      chat={chat}
+      menu={menu}
+      placeholder={composerPlaceholder(chatPrompt.prompt, context)}
+      voice={voice}
+    />
+  </>
+);
 interface PromptedChatOptions {
   context: ChatTextContext | null;
   contextState: ChatContextEvent["state"];
@@ -211,25 +193,19 @@ export const ChatPanel = ({
   hasFlanks,
   onClose,
   onRequestAccessibility,
+  voice,
 }: ChatPanelProps) => {
-  const isBundledModelReady = bundledModel.status.state === "ready";
   const { chat, chatPrompt, menu } = usePromptedChat({
     context,
     contextState,
     generation,
     modelState: bundledModel.status.state,
   });
-  const hasConversation =
-    chat.messages.length > 0 || chat.isResponding || chat.error.length > 0;
-  const panelHeightClass = hasConversation
-    ? "h-[430px] max-h-[calc(100vh-16px)]"
-    : "min-h-[172px]";
   return (
     <ChatPanelShell
       hasFlanks={hasFlanks}
       leftFlank={<ChatPromptPill label={chatPrompt.label} menu={menu} />}
       onClose={onClose}
-      panelHeightClass={panelHeightClass}
     >
       <ChatPanelContent
         bundledModel={bundledModel}
@@ -237,10 +213,9 @@ export const ChatPanel = ({
         chatPrompt={chatPrompt}
         context={context}
         contextState={contextState}
-        hasConversation={hasConversation}
-        isBundledModelReady={isBundledModelReady}
         menu={menu}
         onRequestAccessibility={onRequestAccessibility}
+        voice={voice}
       />
     </ChatPanelShell>
   );

@@ -64,7 +64,7 @@ const ActivityDismissButton = ({
 }: ActivityDismissButtonProps) => (
   <Button
     aria-label={label}
-    className="echo-island-activity-dismiss size-6 rounded-full text-white/50 hover:bg-white/10 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
+    className="echo-island-activity-dismiss text-white/50 hover:bg-white/10 hover:text-white focus-visible:ring-1 focus-visible:ring-white/45"
     iconOnly
     onClick={onDismiss}
     size="xs"
@@ -108,7 +108,7 @@ const ActivityActionButton = (props: ActivityActionButtonProps) => {
     <Button
       aria-label={action.title}
       className={cn(
-        "echo-island-activity-submit size-6 rounded-full focus-visible:ring-1 focus-visible:ring-white/60",
+        "echo-island-activity-submit focus-visible:ring-1 focus-visible:ring-white/60",
         isFinish
           ? "text-white hover:bg-white/10 disabled:opacity-100"
           : "bg-white/90 text-black shadow-none hover:bg-white"

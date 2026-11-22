@@ -30,7 +30,7 @@ export const useDriftTempo = (
   const tempo = useSpring(DRIFT_TEMPO, TEMPO_SPRING);
 
   useEffect(() => {
-    if (edge !== "voice") {
+    if (edge === null || edge === "drift") {
       tempo.set(DRIFT_TEMPO);
       return;
     }

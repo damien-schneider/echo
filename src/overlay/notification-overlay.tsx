@@ -3,7 +3,6 @@ import { AnimatePresence } from "motion/react";
 import { useEffect, useEffectEvent } from "react";
 import { IslandMorph } from "@/features/overlay-controls/motion/island-morph";
 import { notchEntry } from "@/features/overlay-controls/motion/notch-entry";
-import { activityEdgeFor } from "@/features/overlay-controls/recording-overlay-state";
 import { useHoverZone } from "@/features/overlay-controls/runtime/use-hover-zone";
 import { useNativeHover } from "@/features/overlay-controls/runtime/use-native-hover";
 import { EdgeLight } from "@/features/overlay-notification/edge-light/edge-light";
@@ -57,16 +56,7 @@ const NotificationOverlay = () => {
           <IslandMorph
             contentKey={controller.contentKey}
             edgeLight={
-              <EdgeLight
-                edge={
-                  mode === "recording"
-                    ? activityEdgeFor(
-                        controller.presentation.activityDecoration
-                      )
-                    : null
-                }
-                voice={controller.voice}
-              />
+              <EdgeLight edge={controller.edge} voice={controller.voice} />
             }
             entry={notchEntry(surface)}
             key="notification"

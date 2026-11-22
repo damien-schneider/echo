@@ -19,10 +19,13 @@ import { usePromptAutoRun } from "@/features/overlay-chat/prompt-picker/use-prom
 import {
   type ChatRequestHandle,
   type ChatSessionChange,
+  changeChatDictation,
   changeChatSession,
   changeChatSessionFromRequest,
+  chatEdgeFor,
   chatSessionFor,
   failedTurn,
+  hearChatDictation,
   holdChatSession,
   pendingQuestionIsDue,
   restartChatSession,
@@ -66,7 +69,7 @@ export interface ChatSession {
   dictation: ChatDictation;
   error: string;
   input: string;
-  inputRef: RefObject<HTMLInputElement | null>;
+  inputRef: RefObject<HTMLTextAreaElement | null>;
   isResponding: boolean;
   messages: ChatMessage[];
   restart: () => void;
@@ -178,15 +181,30 @@ export const useChatSessionHold = (generation: number | null) => {
   );
 };
 
-const useSessionDictation = (generation: number) =>
-  useChatDictation({
+export const useChatEdge = (
+  generation: number | null,
+  modelState: PolishStatus["state"]
+) =>
+  useChatSessionStore((store) =>
+    generation === null ? null : chatEdgeFor({ generation, modelState, store })
+  );
+
+const useSessionDictation = (generation: number) => {
+  const state = useChatSessionStore((store) => store.dictation);
+  const preview = useChatSessionStore((store) => store.dictationPreview);
+  return useChatDictation({
     onDictated: (dictated) =>
       changeChatSession(generation, (current) => ({
         input: withDictatedText(current.input, dictated.text),
         isQuestionPending: dictated.handover === "ask",
       })),
     onError: (error) => changeChatSession(generation, () => ({ error })),
+    onHeard: hearChatDictation,
+    onStateChange: changeChatDictation,
+    preview,
+    state,
   });
+};
 
 const usePendingQuestion = (isDue: boolean, ask: () => void) => {
   const askPendingQuestion = useEffectEvent(ask);
@@ -208,7 +226,7 @@ export const useChatSession = ({
   const session = useChatSessionStore((store) =>
     chatSessionFor(store, generation)
   );
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const change = (next: ChatSessionChange) =>
     changeChatSession(generation, next);
   const sendTurn = (question: string | null) =>

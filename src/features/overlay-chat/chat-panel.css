@@ -24,16 +24,193 @@
   grid-row: 2;
   grid-column: 1 / -1;
   min-width: 0;
-  min-height: 0;
+  min-height: 10rem;
 }
 
 .echo-island-chat {
+  --echo-chat-inset: 12px;
+  --echo-chat-control: 32px;
+  --echo-chat-cta: 28px;
+  --echo-chat-shell-inset: 8px;
+  --echo-chat-shell-border: 1px;
+  --echo-chat-shell-radius: calc(
+    var(--echo-chat-control) /
+    2 +
+    var(--echo-chat-shell-inset) +
+    var(--echo-chat-shell-border)
+  );
+  --echo-chat-top-radius: calc(
+    var(--echo-chat-control) /
+    2 +
+    var(--echo-chat-inset)
+  );
+  --echo-chat-bottom-radius: calc(
+    var(--echo-chat-shell-radius) +
+    var(--echo-chat-inset)
+  );
   width: min(672px, calc(100vw - 8px));
   min-width: 0;
   max-width: calc(100vw - 8px);
   max-height: calc(100vh - 8px);
+  padding: var(--echo-chat-inset);
   overflow: hidden;
-  border-radius: inherit;
+  border-radius: var(--echo-chat-top-radius) var(--echo-chat-top-radius)
+    var(--echo-chat-bottom-radius) var(--echo-chat-bottom-radius);
+}
+
+/* the island fades its content in, so the composer skips its own entrance */
+.echo-chat-composer {
+  --cui-chat-composer-shell-background: rgb(255 255 255 / 0.08);
+  --cui-chat-composer-shell-border-color: rgb(255 255 255 / 0.1);
+  --cui-chat-composer-shell-border-width: var(--echo-chat-shell-border);
+  --cui-chat-composer-shell-radius: var(--echo-chat-shell-radius);
+  --cui-chat-composer-shell-shadow: none;
+  --cui-chat-composer-input-foreground: #fff;
+  --cui-chat-composer-input-placeholder-foreground: rgb(255 255 255 / 0.5);
+  padding: 0;
+  transition: none;
+}
+
+.echo-chat-composer [data-slot="shell"] {
+  outline: none;
+  transition:
+    background-color 150ms ease-out,
+    border-color 150ms ease-out;
+}
+
+.echo-chat-composer [data-slot="shell"]:focus-within {
+  --cui-chat-composer-shell-background: rgb(255 255 255 / 0.1);
+  --cui-chat-composer-shell-border-color: rgb(255 255 255 / 0.25);
+}
+
+.echo-chat-composer [data-slot="textarea"] {
+  --padding-x: 0px;
+  --padding-y: 6px;
+  --text-body: 14px;
+  --leading-relaxed: 20px;
+}
+
+.echo-chat-control {
+  --cui-button-radius: 999px;
+  --cui-button-shadow: none;
+  --cui-button-hover-shadow: none;
+  --cui-button-press-shadow: none;
+  --focus-ring: rgb(255 255 255 / 0.45);
+}
+
+.echo-chat-action {
+  --cui-button-height: var(--echo-chat-control);
+  --cui-button-icon: 16px;
+  margin-block: var(--echo-chat-shell-inset);
+}
+
+.echo-chat-send {
+  margin-inline-end: var(--echo-chat-shell-inset);
+}
+
+.echo-chat-dictate {
+  --cui-button-background: transparent;
+  --cui-button-foreground: rgb(255 255 255 / 0.68);
+  --cui-button-hover-foreground: #fff;
+}
+
+.echo-chat-pill {
+  --cui-button-height: var(--echo-chat-control);
+  --cui-button-padding-inline: 12px;
+  --cui-button-font-size: 11px;
+  --cui-button-border-width: 1px;
+  --cui-button-border-color: rgb(255 255 255 / 0.1);
+  --cui-button-background: rgb(255 255 255 / 0.07);
+  --cui-button-foreground: rgb(255 255 255 / 0.72);
+  --cui-button-hover-foreground: #fff;
+}
+
+.echo-chat-close {
+  --cui-button-height: var(--echo-chat-control);
+  --cui-button-background: rgb(255 255 255 / 0.08);
+  --cui-button-foreground: rgb(255 255 255 / 0.8);
+  --cui-button-hover-foreground: #fff;
+}
+
+.echo-chat-send,
+.echo-chat-cta {
+  --cui-button-background: #fff;
+  --cui-button-foreground: #000;
+  --cui-button-hover-foreground: #000;
+}
+
+.echo-chat-cta {
+  --cui-button-height: var(--echo-chat-cta);
+  --cui-button-padding-inline: 12px;
+  --cui-button-font-size: 11px;
+}
+
+.echo-chat-dictate[aria-pressed="true"] {
+  --cui-button-foreground: #fff;
+}
+
+:where(:root:not([data-native-hover])) .echo-chat-dictate:hover:not(:disabled),
+.echo-chat-dictate[data-hovered]:not(:disabled) {
+  --cui-button-background: rgb(255 255 255 / 0.1);
+  --cui-button-foreground: #fff;
+}
+
+:where(:root:not([data-native-hover])) .echo-chat-pill:hover,
+.echo-chat-pill[data-hovered],
+.echo-chat-pill[aria-expanded="true"] {
+  --cui-button-background: rgb(255 255 255 / 0.12);
+  --cui-button-foreground: #fff;
+}
+
+:where(:root:not([data-native-hover])) .echo-chat-close:hover,
+.echo-chat-close[data-hovered] {
+  --cui-button-background: rgb(255 255 255 / 0.14);
+  --cui-button-foreground: #fff;
+}
+
+:where(:root:not([data-native-hover]))
+  :is(.echo-chat-send, .echo-chat-cta):hover:not(:disabled),
+:is(.echo-chat-send, .echo-chat-cta)[data-hovered]:not(:disabled) {
+  --cui-button-background: rgb(255 255 255 / 0.88);
+}
+
+.echo-chat-callout {
+  --echo-chat-callout-inset: 8px;
+  padding: var(--echo-chat-callout-inset);
+  padding-inline-start: var(--echo-chat-inset);
+  border-radius: calc(
+    var(--echo-chat-cta) /
+    2 +
+    var(--echo-chat-callout-inset)
+  );
+}
+
+.echo-prompt-menu {
+  --echo-prompt-menu-inset: 4px;
+  --echo-prompt-option-radius: 12px;
+  padding: var(--echo-prompt-menu-inset);
+  background: rgb(255 255 255 / 0.06);
+  border: var(--echo-chat-shell-border) solid rgb(255 255 255 / 0.1);
+  border-radius: calc(
+    var(--echo-prompt-option-radius) +
+    var(--echo-prompt-menu-inset) +
+    var(--echo-chat-shell-border)
+  );
+}
+
+.echo-prompt-option {
+  --cui-item-radius: var(--echo-prompt-option-radius);
+  --cui-item-padding-block: 6px;
+  --cui-item-padding-inline: 12px;
+  --cui-item-foreground: rgb(255 255 255 / 0.8);
+  --cui-item-hover-background: transparent;
+  --cui-item-selected-background: rgb(255 255 255 / 0.12);
+  --cui-item-selected-foreground: #fff;
+}
+
+.echo-chat-shimmer {
+  --foreground: rgb(255 255 255 / 0.9);
+  --muted-foreground: rgb(255 255 255 / 0.45);
 }
 
 @media (min-width: 640px) {
@@ -52,7 +229,7 @@
   .echo-island-morph[data-anchor="top"][data-mode="chat"][data-notch-bridge="true"]
     .echo-island-hud[data-flanked="true"][data-layout="chat"]
     > .echo-island-hud-flank {
-    padding-inline: 12px;
+    padding-inline: var(--echo-chat-inset);
   }
 
   .echo-island-morph[data-anchor="top"][data-mode="chat"][data-notch-bridge="true"]

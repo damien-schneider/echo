@@ -33,13 +33,10 @@ export const NotificationSurface = ({
   isIslandHovered,
   mode,
 }: NotificationSurfaceProps) => {
-  const { chatContext, closedChatGeneration, polish, presentation } =
-    controller;
+  const { chatContext, chatGeneration, polish, presentation } = controller;
   const surface = controller.events.surface;
   const hasFlanks =
     surface !== null && surface.notch !== null && surface.anchor === "top";
-  const chatGeneration =
-    chatContext?.generation ?? (mode === "chat" ? closedChatGeneration : null);
   const isChatReplaced = mode === "panel" || mode === "transcript";
   useChatSessionHold(isChatReplaced ? null : chatGeneration);
   if (mode === "chat" && chatGeneration !== null) {
@@ -52,6 +49,7 @@ export const NotificationSurface = ({
         hasFlanks={hasFlanks}
         onClose={controller.dismissSurface}
         onRequestAccessibility={controller.requestAccessibilityAccess}
+        voice={controller.voice}
       />
     );
   }

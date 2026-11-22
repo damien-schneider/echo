@@ -25,34 +25,29 @@ interface ChatReferenceProps {
   onRequestAccessibility: () => Promise<void>;
   state: ChatContextEvent["state"];
 }
+const STATUS_ROW_CLASS =
+  "m-0 flex min-h-7 min-w-0 items-center gap-2 border-0 p-0 px-1 text-[12px] text-white/45 leading-4";
 const LoadingChatReference = () => (
-  <output
-    aria-label="Selected text context"
-    className="flex min-w-0 items-center gap-2 rounded-lg bg-white/7 px-3 py-2 text-[12px] text-white/60"
-  >
-    <CircleNotchIcon aria-hidden="true" className="size-3 animate-spin" />
-    <span>Checking selected text…</span>
+  <output aria-label="Selected text context" className={STATUS_ROW_CLASS}>
+    <CircleNotchIcon
+      aria-hidden="true"
+      className="size-3.5 shrink-0 animate-spin"
+    />
+    <span className="echo-chat-shimmer shimmer-text">
+      Checking selected text…
+    </span>
   </output>
 );
 const AccessibilityChatReference = ({
   onRequestAccessibility,
 }: Pick<ChatReferenceProps, "onRequestAccessibility">) => (
-  <fieldset
-    aria-label="Selected text context"
-    className="m-0 flex min-w-0 items-center gap-2 rounded-lg border-0 bg-white/7 px-3 py-2"
-  >
-    <QuotesIcon
-      aria-hidden="true"
-      className="size-3.5 shrink-0 text-white/48"
-    />
-    <div className="min-w-0 flex-1">
-      <div className="font-medium text-[11px] text-white/72">Selected text</div>
-      <div className="truncate text-[12px] text-white/48">
-        Accessibility access needed
-      </div>
-    </div>
+  <fieldset aria-label="Selected text context" className={STATUS_ROW_CLASS}>
+    <QuotesIcon aria-hidden="true" className="size-3.5 shrink-0" />
+    <span className="min-w-0 flex-1 truncate">
+      Accessibility access needed to read selected text
+    </span>
     <Button
-      className="h-7 shrink-0 rounded-full bg-white px-3 text-[11px] text-black hover:bg-white/88"
+      className="echo-chat-control echo-chat-cta shrink-0"
       onClick={onRequestAccessibility}
       size="sm"
       tone="primary"
@@ -63,34 +58,31 @@ const AccessibilityChatReference = ({
     </Button>
   </fieldset>
 );
-const SelectedChatReference = ({
-  context,
-}: Pick<ChatReferenceProps, "context">) => {
+const EmptyChatReference = () => (
+  <fieldset aria-label="Selected text context" className={STATUS_ROW_CLASS}>
+    <QuotesIcon aria-hidden="true" className="size-3.5 shrink-0" />
+    <span>No text selected</span>
+  </fieldset>
+);
+const SelectedChatReference = ({ context }: { context: ChatTextContext }) => {
   const referenceLabel =
-    context?.source === "clipboard" ? "Clipboard text" : "Selected text";
-  const label = context?.truncated
-    ? `${referenceLabel} · shortened`
-    : referenceLabel;
+    context.source === "clipboard" ? "Clipboard text" : "Selected text";
   return (
     <fieldset
       aria-label="Selected text context"
-      className="m-0 flex min-w-0 items-start gap-2 rounded-lg border-0 bg-white/7 px-3 py-2"
+      className="m-0 flex min-w-0 items-start gap-2 rounded-xl border-0 bg-white/7 px-3 py-2"
     >
       <QuotesIcon
         aria-hidden="true"
         className="mt-0.5 size-3.5 shrink-0 text-white/48"
       />
       <div className="min-w-0 flex-1">
-        <div className="font-medium text-[11px] text-white/72">{label}</div>
-        {context === null ? (
-          <div className="text-[12px] text-white/52 leading-4">
-            No text selected
-          </div>
-        ) : (
-          <blockquote className="line-clamp-2 break-words text-[12px] text-white/58 leading-4 [overflow-wrap:anywhere]">
-            {context.text}
-          </blockquote>
-        )}
+        <div className="font-medium text-[11px] text-white/55 leading-4">
+          {context.truncated ? `${referenceLabel} · shortened` : referenceLabel}
+        </div>
+        <blockquote className="line-clamp-3 break-words text-[12px] text-white/85 leading-4 [overflow-wrap:anywhere]">
+          {context.text}
+        </blockquote>
       </div>
     </fieldset>
   );
@@ -110,7 +102,11 @@ export const ChatReference = ({
       />
     );
   }
-  return <SelectedChatReference context={context} />;
+  return context === null ? (
+    <EmptyChatReference />
+  ) : (
+    <SelectedChatReference context={context} />
+  );
 };
 interface BundledModelSetupProps {
   model: BundledChatModel;
@@ -131,13 +127,13 @@ const bundledModelProgressLabel = (model: BundledChatModel) => {
 const DownloadBundledModel = ({
   download,
 }: Pick<BundledChatModel, "download">) => (
-  <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-white/7 px-3 py-2">
+  <div className="echo-chat-callout flex min-w-0 items-center justify-between gap-3 bg-white/7">
     <span className="min-w-0 text-[12px] text-white/62">
       Private, on-device
     </span>
     <Button
       aria-label={`Download ${polishModelName} model, 2.5 GB`}
-      className="h-8 shrink-0 rounded-full bg-white px-3 text-[11px] text-black hover:bg-white/88"
+      className="echo-chat-control echo-chat-cta shrink-0"
       onClick={download}
       size="sm"
       tone="primary"
@@ -155,13 +151,13 @@ interface RepairBundledModelProps {
 }
 const RepairBundledModel = ({ message, repair }: RepairBundledModelProps) => (
   <div
-    className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-red-400/10 px-3 py-2"
+    className="echo-chat-callout flex min-w-0 items-center justify-between gap-3 bg-red-400/10"
     role="alert"
   >
     <span className="min-w-0 truncate text-[12px] text-red-100">{message}</span>
     <Button
       aria-label={`Repair ${polishModelName} model`}
-      className="h-8 shrink-0 rounded-full bg-white px-3 text-[11px] text-black hover:bg-white/88"
+      className="echo-chat-control echo-chat-cta shrink-0"
       onClick={repair}
       size="sm"
       tone="primary"
@@ -189,9 +185,14 @@ export const BundledModelSetup = ({ model }: BundledModelSetupProps) => {
     );
   }
   return (
-    <output className="flex min-w-0 items-center gap-2 rounded-lg bg-white/7 px-3 py-2 text-[12px] text-white/62">
-      <CircleNotchIcon aria-hidden="true" className="size-3 animate-spin" />
-      <span>{bundledModelProgressLabel(model)}</span>
+    <output className={STATUS_ROW_CLASS}>
+      <CircleNotchIcon
+        aria-hidden="true"
+        className="size-3.5 shrink-0 animate-spin"
+      />
+      <span className="echo-chat-shimmer shimmer-text">
+        {bundledModelProgressLabel(model)}
+      </span>
     </output>
   );
 };

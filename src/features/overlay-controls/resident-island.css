@@ -172,17 +172,6 @@
   line-height: 0;
 }
 
-.echo-island-record-glyph {
-  display: grid;
-  place-items: center;
-}
-
-.echo-island-record-glyph > * {
-  display: grid;
-  grid-area: 1 / 1;
-  place-items: center;
-}
-
 .echo-island .echo-island-action {
   --cui-button-height: 32px;
   --cui-button-radius: 999px;

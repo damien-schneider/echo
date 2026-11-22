@@ -1,3 +1,4 @@
+import { isComposingKey } from "@ctrl-ui/react/hooks/use-trigger-menu";
 import { type KeyboardEvent, type RefObject, useState } from "react";
 import {
   matchingChoices,
@@ -11,7 +12,7 @@ type MenuOpener = "closed" | "pill" | "slash";
 interface PromptMenuOptions {
   chatPrompt: ChatPromptChoice;
   input: string;
-  inputRef: RefObject<HTMLInputElement | null>;
+  inputRef: RefObject<HTMLTextAreaElement | null>;
   onChoose: (choice: string) => void;
   setInput: (value: string) => void;
 }
@@ -38,7 +39,7 @@ export const usePromptMenu = ({
     close();
     onChoose(choice);
   };
-  const handleKey = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleKey = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       const step = event.key === "ArrowDown" ? 1 : -1;
       setHighlight((current) => movedHighlight(current, step, visible.length));
@@ -58,6 +59,7 @@ export const usePromptMenu = ({
   return {
     choose,
     highlight,
+    highlightAt: setHighlight,
     isOpen: opener !== "closed",
     onInput: (value: string) => {
       setInput(value);
@@ -68,8 +70,8 @@ export const usePromptMenu = ({
         setOpener("closed");
       }
     },
-    onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => {
-      if (opener !== "closed") {
+    onKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (opener !== "closed" && !isComposingKey(event.nativeEvent)) {
         handleKey(event);
       }
     },

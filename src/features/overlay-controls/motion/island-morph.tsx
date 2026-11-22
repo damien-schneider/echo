@@ -16,11 +16,12 @@ import {
   dockSilhouettePath,
 } from "@/features/overlay-controls/motion/dock-silhouette";
 import {
-  bridgeBandOf,
+  type IslandCornerRadii,
+  type IslandShape,
   islandCornerRadii,
   PILL_RADIUS,
 } from "@/features/overlay-controls/motion/island-corners";
-import { useMeasuredIslandSize } from "@/features/overlay-controls/motion/island-measurement";
+import { useMeasuredIsland } from "@/features/overlay-controls/motion/island-measurement";
 import type { IslandEntry } from "@/features/overlay-controls/motion/notch-entry";
 import { useIslandLanding } from "@/features/overlay-controls/motion/use-island-landing";
 import {
@@ -205,8 +206,20 @@ const morphFrame = ({ mode, size, surface }: MorphFrameOptions): MorphFrame => {
   };
 };
 
+const islandShape = (
+  mode: OverlayMode,
+  surface: OverlaySurface,
+  corners: IslandCornerRadii | null
+): IslandShape => {
+  if (isResidentMode(mode)) {
+    return isSideDockedSurface(surface) ? "surface" : "pill";
+  }
+  return corners ?? "surface";
+};
+
 interface MorphTargetOptions {
   bridgesNotch: boolean;
+  corners: IslandCornerRadii | null;
   frame: OverlayBox;
   isDragging: boolean;
   isMeasured: boolean;
@@ -220,6 +233,7 @@ interface MorphTargetOptions {
 // silhouette rides the same spring as the box, so the shoulders never sit off the edge mid-morph
 const islandMorphTarget = ({
   bridgesNotch,
+  corners,
   frame,
   isDragging,
   isMeasured,
@@ -231,12 +245,10 @@ const islandMorphTarget = ({
 }: MorphTargetOptions) => ({
   ...islandCornerRadii({
     anchor: surface.anchor,
-    bridgeBand: bridgesNotch ? bridgeBandOf(frame.height, strip) : null,
-    isPill:
-      (mode === "compact" || mode === "actions") &&
-      !isSideDockedSurface(surface),
+    bridgeBand: bridgesNotch ? frame.height - strip : null,
     isDragging,
     presentation: surface.presentation,
+    shape: islandShape(mode, surface, corners),
   }),
   // never "none": motion interpolates path to path, and a swap would snap the silhouette
   clipPath: dockSilhouettePath({
@@ -301,10 +313,10 @@ export const IslandMorph = ({
     reduceMotion,
     surface,
   });
-  const { measurementRef, size } = useMeasuredIslandSize();
+  const { measurement, measurementRef } = useMeasuredIsland();
   const { bridgesNotch, frame, isMeasured, shoulder, strip } = morphFrame({
     mode,
-    size,
+    size: measurement?.size ?? null,
     surface,
   });
   const notifyComplete = useEffectEvent(onMorphComplete);
@@ -329,6 +341,7 @@ export const IslandMorph = ({
       <m.div
         animate={islandMorphTarget({
           bridgesNotch,
+          corners: measurement?.corners ?? null,
           frame: toCanvas(frame),
           isDragging: isDragging === true,
           isMeasured,
