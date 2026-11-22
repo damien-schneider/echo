@@ -1,4 +1,10 @@
 mod pasteboard_types;
+#[cfg(any(target_os = "windows", target_os = "linux", test))]
+mod terminal;
+#[cfg(target_os = "windows")]
+mod uia_selection;
+#[cfg(target_os = "linux")]
+mod x11_selection;
 
 #[cfg(target_os = "windows")]
 use anyhow::Context;
@@ -29,6 +35,9 @@ fn platform_format_naming() -> FormatNaming {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DirectSelection {
     Empty,
+    /// A terminal holds no selection; the copy shortcut there would interrupt its process instead.
+    #[cfg_attr(target_os = "macos", allow(dead_code))]
+    NothingSelected,
     PermissionRequired,
     Text(String),
     Unavailable,
@@ -36,13 +45,15 @@ pub(crate) enum DirectSelection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SettledSelection {
+    NothingSelected,
     PermissionRequired,
     Text(String),
 }
 
-/// Accessibility proves a selection but never its absence: a focused composer answers "nothing" while the page around it is highlighted.
+/// Accessibility proves a selection but never its absence (a focused composer answers "nothing" while the page around it is highlighted); only a terminal's absence is proven.
 pub(crate) fn settled_selection(observed: DirectSelection) -> Option<SettledSelection> {
     match observed {
+        DirectSelection::NothingSelected => Some(SettledSelection::NothingSelected),
         DirectSelection::PermissionRequired => Some(SettledSelection::PermissionRequired),
         DirectSelection::Text(text) => Some(SettledSelection::Text(text)),
         DirectSelection::Empty | DirectSelection::Unavailable => None,
@@ -59,8 +70,35 @@ pub(super) fn read_selected_text() -> Result<DirectSelection> {
         crate::macos_accessibility::SelectedText::Text(text) => DirectSelection::Text(text),
         crate::macos_accessibility::SelectedText::Unavailable => DirectSelection::Unavailable,
     });
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    return Ok(terminal::settled_in_terminal(
+        uia_selection::selected_text(),
+        focused_windows_terminal(),
+    ));
+    #[cfg(target_os = "linux")]
+    return Ok(x11_selected_text());
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
     Ok(DirectSelection::Unavailable)
+}
+
+#[cfg(target_os = "windows")]
+fn focused_windows_terminal() -> bool {
+    PlatformFocusedAppProvider
+        .current()
+        .and_then(|focused| focused.process_name)
+        .is_some_and(|name| terminal::is_windows_terminal(&name))
+}
+
+#[cfg(target_os = "linux")]
+fn x11_selected_text() -> DirectSelection {
+    if crate::wayland::is_wayland() {
+        return DirectSelection::Unavailable;
+    }
+    let focused = x11_selection::focused_selection();
+    let in_terminal = focused
+        .focused_pid
+        .is_some_and(terminal::is_terminal_process);
+    terminal::settled_in_terminal(focused.selection, in_terminal)
 }
 
 pub(super) struct PlatformClipboard {
@@ -341,6 +379,14 @@ mod settled_selection_tests {
         assert_eq!(
             settled_selection(DirectSelection::PermissionRequired),
             Some(SettledSelection::PermissionRequired)
+        );
+    }
+
+    #[test]
+    fn a_terminal_proven_empty_never_reaches_the_copy_shortcut() {
+        assert_eq!(
+            settled_selection(DirectSelection::NothingSelected),
+            Some(SettledSelection::NothingSelected)
         );
     }
 }

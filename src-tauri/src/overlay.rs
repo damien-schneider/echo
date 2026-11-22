@@ -1,4 +1,5 @@
 mod activity;
+mod chat_context_follow;
 pub(crate) mod context_menu;
 mod drag_preview;
 mod events;
@@ -12,6 +13,8 @@ mod macos_hover;
 mod macos_hover_sync;
 #[cfg(target_os = "macos")]
 mod macos_panel;
+#[cfg(target_os = "macos")]
+mod macos_selection_gesture;
 mod monitor;
 #[cfg(target_os = "macos")]
 mod screen_follow;
@@ -25,8 +28,8 @@ mod windows_topmost;
 
 use crate::features::polish::chat_context::{ChatContextCapture, ShownChatContext};
 use crate::features::polish::manager::PolishManager;
+use chat_context_follow::{log_chat_context_capture, watch_chat_context};
 use std::sync::Arc;
-use std::time::Duration;
 use tauri::{AppHandle, Manager, State};
 
 pub(crate) use activity::{
@@ -90,55 +93,6 @@ impl OverlaySyntheticKeyGuard {
 impl Drop for OverlaySyntheticKeyGuard {
     fn drop(&mut self) {
         macos_panel::end_synthetic_key_suppression();
-    }
-}
-const CHAT_CONTEXT_WATCH_INTERVAL: Duration = Duration::from_millis(350);
-
-fn log_chat_context_capture(capture: &ChatContextCapture) {
-    match capture {
-        ChatContextCapture::PermissionRequired => {
-            log::warn!("Chat cannot read selected text without Accessibility access");
-        }
-        ChatContextCapture::Ready(Some(context)) => {
-            log::info!("Chat attached {} selected characters", context.text.len());
-        }
-        ChatContextCapture::Ready(None) => {
-            log::info!("Chat found no selected text");
-        }
-    }
-}
-
-/// Follows the selection while the user's app owns the keyboard; while chat owns it, nothing can change.
-async fn watch_chat_context(
-    app_handle: AppHandle,
-    manager: Arc<PolishManager>,
-    request: events::NotificationRequestEvent,
-    mut shown: ShownChatContext,
-) {
-    let mut interval = tokio::time::interval(CHAT_CONTEXT_WATCH_INTERVAL);
-    interval.tick().await;
-    loop {
-        interval.tick().await;
-        if !events::notification_request_is_current(request) {
-            return;
-        }
-        let observed = match manager.observe_selected_text() {
-            Ok(observed) => observed,
-            Err(error) => {
-                log::debug!("Could not refresh selected Chat text: {error:#}");
-                continue;
-            }
-        };
-        if !shown.absorb(observed) {
-            continue;
-        }
-        log_chat_context_capture(&shown.capture);
-        let generation = events::current_chat_context_generation();
-        if let Err(error) =
-            events::emit_chat_context_capture(&app_handle, generation, &shown.capture)
-        {
-            log::warn!("{error}");
-        }
     }
 }
 
@@ -261,50 +215,89 @@ pub(crate) async fn request_overlay_notification(
 ) -> Result<(), String> {
     let requested = events::parse_notification_request(&surface)?;
     let request = events::record_notification_request(requested);
-    let chat_capture = if requested == "chat" {
-        let generation = manager.begin_selection_read();
-        if let Err(error) = events::emit_chat_context_loading(&app_handle, generation) {
-            events::clear_notification_request();
-            return Err(error);
-        }
-        #[cfg(target_os = "macos")]
-        let selection_key_guard = OverlaySyntheticKeyGuard::acquire(&app_handle);
-        let context_manager = Arc::clone(manager.inner());
-        let shown = match context_manager.capture_chat_context(generation).await {
-            Ok(shown) => shown,
-            Err(error) => {
-                log::warn!("Could not capture text for chat: {error:#}");
-                ShownChatContext::read_by_copy(ChatContextCapture::Ready(None))
-            }
-        };
-        #[cfg(target_os = "macos")]
-        drop(selection_key_guard);
-        if !events::notification_request_is_current(request) {
-            return Ok(());
-        }
-        Some((generation, context_manager, shown))
-    } else {
-        None
-    };
-    show_notification_surface(&app_handle, request, requested)?;
-    let Some((generation, context_manager, shown)) = chat_capture else {
+    if requested != CHAT_SURFACE {
+        return show_notification_surface(&app_handle, request, requested);
+    }
+    let generation = manager.begin_selection_read();
+    if let Err(error) = events::emit_chat_context_loading(&app_handle, generation) {
+        events::clear_notification_request();
+        return Err(error);
+    }
+    let context_manager = Arc::clone(manager.inner());
+    prepare_chat_model(&context_manager);
+    let Some(shown) =
+        show_chat_around_capture(&app_handle, &context_manager, request, generation).await?
+    else {
         return Ok(());
     };
     log_chat_context_capture(&shown.capture);
     events::emit_chat_context_capture(&app_handle, generation, &shown.capture)?;
-    let watch_manager = Arc::clone(&context_manager);
-    let watch_handle = app_handle.clone();
-    tauri::async_runtime::spawn(async move {
-        watch_chat_context(watch_handle, watch_manager, request, shown).await;
-    });
-    if manager.is_downloaded() {
-        tauri::async_runtime::spawn(async move {
-            if let Err(error) = context_manager.prepare().await {
-                log::warn!("Chat model preparation unavailable: {error:#}");
-            }
-        });
-    }
+    tauri::async_runtime::spawn(watch_chat_context(
+        app_handle,
+        context_manager,
+        request,
+        shown,
+    ));
     Ok(())
+}
+
+fn prepare_chat_model(manager: &Arc<PolishManager>) {
+    if !manager.is_downloaded() {
+        return;
+    }
+    let manager = Arc::clone(manager);
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = manager.prepare().await {
+            log::warn!("Chat model preparation unavailable: {error:#}");
+        }
+    });
+}
+
+async fn captured_chat_context(manager: &PolishManager, generation: u64) -> ShownChatContext {
+    manager
+        .capture_chat_context(generation)
+        .await
+        .unwrap_or_else(|error| {
+            log::warn!("Could not capture text for chat: {error:#}");
+            ShownChatContext::read_by_copy(ChatContextCapture::Ready(None))
+        })
+}
+
+/// The chat shows at once; the keyboard waits until the copy shortcut has reached the user's app.
+#[cfg(target_os = "macos")]
+async fn show_chat_around_capture(
+    app_handle: &AppHandle,
+    manager: &PolishManager,
+    request: events::NotificationRequestEvent,
+    generation: u64,
+) -> Result<Option<ShownChatContext>, String> {
+    let key_guard = OverlaySyntheticKeyGuard::acquire(app_handle);
+    show_notification_surface(app_handle, request, CHAT_SURFACE)?;
+    let shown = captured_chat_context(manager, generation).await;
+    drop(key_guard);
+    if !events::notification_request_is_current(request) {
+        return Ok(None);
+    }
+    if let Err(error) = macos_panel::take_key(app_handle, window::OVERLAY_NOTIFICATION_LABEL) {
+        log::warn!("Chat could not take the keyboard: {error}");
+    }
+    Ok(Some(shown))
+}
+
+/// Showing focuses the window here, so the copy shortcut has to run first.
+#[cfg(not(target_os = "macos"))]
+async fn show_chat_around_capture(
+    app_handle: &AppHandle,
+    manager: &PolishManager,
+    request: events::NotificationRequestEvent,
+    generation: u64,
+) -> Result<Option<ShownChatContext>, String> {
+    let shown = captured_chat_context(manager, generation).await;
+    if !events::notification_request_is_current(request) {
+        return Ok(None);
+    }
+    show_notification_surface(app_handle, request, CHAT_SURFACE)?;
+    Ok(Some(shown))
 }
 
 /// The HUD handle is a few pixels tall — failures surface as a warning notification instead.

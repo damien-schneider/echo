@@ -19,6 +19,9 @@ use macos as platform;
 #[cfg(target_os = "windows")]
 use windows as platform;
 
+#[cfg(target_os = "linux")]
+pub(crate) use linux::same_client;
+
 /// Only X11 names the requesting client; macOS and Windows fetch anonymously.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]

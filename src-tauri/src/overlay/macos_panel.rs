@@ -1,12 +1,13 @@
-use super::layout::{overlay_mode_accepts_keyboard, OverlaySurfaceKind, RecordingOverlayMode};
+use super::layout::{OverlaySurfaceKind, RecordingOverlayMode};
 use super::macos_hover::{
     hud_panel_can_become_key_window, panel_hover_state_for_label, PanelHoverState, HOVER_PANELS,
     SYNTHETIC_KEY_SUPPRESSED,
 };
 use super::macos_hover_sync::{register_panel_window, sync_hover_key_possession};
+use super::macos_selection_gesture::watch_selection_gestures;
 use super::surface::OverlayBoxPayload;
 use std::{sync::atomic::Ordering, sync::mpsc, time::Duration};
-use tauri::{AppHandle, WebviewWindow};
+use tauri::{AppHandle, Manager, Webview, WebviewWindow};
 use tauri_nspanel::objc2_foundation::MainThreadMarker as AppKitMainThreadMarker;
 use tauri_nspanel::{CollectionBehavior, ManagerExt, PanelLevel, StyleMask, WebviewWindowExt};
 
@@ -20,6 +21,7 @@ enum PanelOperation {
     ReleaseKey,
     SetLayout(RecordingOverlayMode, OverlayBoxPayload),
     Show,
+    TakeKey,
 }
 
 tauri_nspanel::tauri_panel!(EchoOverlayPanel {
@@ -134,7 +136,11 @@ pub(super) fn configure(
 /// The notification never opens on its own — activity or a HUD action asks Rust to show it.
 pub(super) fn configure_notification(window: &WebviewWindow) -> Result<(), String> {
     notification_panel::configure(window)?;
-    register_panel_window(OverlaySurfaceKind::Notification, window)
+    register_panel_window(OverlaySurfaceKind::Notification, window)?;
+    if let Err(error) = watch_selection_gestures() {
+        log::warn!("Chat will not follow selections accessibility cannot read: {error}");
+    }
+    Ok(())
 }
 
 pub(super) fn configure_snap_preview(window: &WebviewWindow) -> Result<(), String> {
@@ -172,6 +178,10 @@ pub(super) fn hide(app_handle: &AppHandle, label: &'static str) -> Result<(), St
 
 pub(super) fn release_key(app_handle: &AppHandle, label: &'static str) -> Result<(), String> {
     run_panel_operation(app_handle, label, PanelOperation::ReleaseKey)
+}
+
+pub(super) fn take_key(app_handle: &AppHandle, label: &'static str) -> Result<(), String> {
+    run_panel_operation(app_handle, label, PanelOperation::TakeKey)
 }
 
 fn run_panel_operation(
@@ -212,9 +222,11 @@ fn perform_panel_operation(
         PanelOperation::SetLayout(mode, hover) => {
             state.replace_hover_box(hover);
             apply_layout(&panel, state, mode);
+            take_keyboard(app_handle, label, &panel, state);
             sync_hover_key_possession(app_handle);
         }
         PanelOperation::Show => panel.show(),
+        PanelOperation::TakeKey => take_keyboard(app_handle, label, &panel, state),
     }
     Ok(())
 }
@@ -223,15 +235,29 @@ fn overlay_panel_level(_: RecordingOverlayMode) -> PanelLevel {
     PanelLevel::Status
 }
 
-/// Only a surface the user types into asks for the keyboard.
 fn apply_layout(panel: &OverlayPanelHandle, state: &PanelHoverState, mode: RecordingOverlayMode) {
-    let accepts_keyboard = overlay_mode_accepts_keyboard(mode);
     state.set_key_policy(mode);
     panel.set_level(overlay_panel_level(mode).value());
-    if !accepts_keyboard || SYNTHETIC_KEY_SUPPRESSED.load(Ordering::Acquire) {
+}
+
+/// Key alone leaves keystrokes with the window: the webview must be first responder to get them.
+fn take_keyboard(
+    app_handle: &AppHandle,
+    label: &str,
+    panel: &OverlayPanelHandle,
+    state: &PanelHoverState,
+) {
+    if !state.can_become_key_window() {
         return;
     }
     panel.make_key_window();
+    let Some(window) = app_handle.get_webview_window(label) else {
+        return;
+    };
+    let webview: &Webview = window.as_ref();
+    if let Err(error) = webview.set_focus() {
+        log::warn!("Could not hand the keyboard to the {label} webview: {error}");
+    }
 }
 
 fn require_main_thread() -> Result<(), String> {
