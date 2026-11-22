@@ -5,11 +5,13 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 mod copy_wait;
+mod line_copy;
 
 use super::policy::validate_polish_input;
 use super::transform::{transform, Framing, TransformRequest};
 use crate::settings::Instruction;
 use copy_wait::copy_poll_delays;
+use line_copy::{copied_line_without_selection, ZED_COPY_METADATA};
 
 const MAX_POLISH_TOKENS: usize = 1_500;
 
@@ -27,6 +29,7 @@ pub(super) struct ClipboardSnapshot {
 pub(super) trait ClipboardPort: Send + Sync {
     fn snapshot(&self) -> Result<ClipboardSnapshot>;
     fn read_text(&self) -> Result<String>;
+    fn read_format(&self, name: &str) -> Option<Vec<u8>>;
     fn write_text(&self, text: &str) -> Result<()>;
     fn restore(&self, snapshot: &ClipboardSnapshot) -> Result<()>;
 }
@@ -241,7 +244,12 @@ impl PolishTransaction {
             self.ensure_current(generation)?;
             if let Ok(selected) = self.ports.clipboard.read_text() {
                 if selected != marker {
-                    return Ok(Some(selected));
+                    let line_without_selection = self
+                        .ports
+                        .clipboard
+                        .read_format(ZED_COPY_METADATA)
+                        .is_some_and(|metadata| copied_line_without_selection(&metadata));
+                    return Ok((!line_without_selection).then_some(selected));
                 }
             }
             tokio::time::sleep(delay).await;

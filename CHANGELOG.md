@@ -26,6 +26,7 @@
 
 ### Fixed
 - The island could close before your dictation was pasted, so in an app slow to take the paste nothing on screen showed the text was still coming. It now stays open until the paste has gone out.
+- In Zed, opening the chat or running Polish with nothing selected took the whole line under the caret as the selected text, because Zed copies that line when nothing is selected. Polish then pasted the rewritten line at the caret, so the line appeared twice. Echo now treats it as nothing selected.
 - Pasting a dictation longer than about 200 characters could fail or crash Echo when an accented letter or emoji fell on the 200th byte, because the paste log cut the text there.
 - On macOS, the first dictation after Echo sat unused for hours could hold the island still for a moment as it opened, because macOS had suspended the island's hidden window and had to wake it first. The island's windows are no longer suspended while hidden.
 - On macOS, when you started dragging the island, the drop preview popped in slightly smaller than the screen and bounced into place, so for its first frames it stopped short of the screen edge. It now appears in place from the first frame.
