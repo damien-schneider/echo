@@ -99,7 +99,7 @@ impl PolishRuntime {
         true
     }
 
-    async fn is_loaded(&self) -> bool {
+    pub(super) async fn is_loaded(&self) -> bool {
         self.process.lock().await.state == ServerState::Ready
     }
 
