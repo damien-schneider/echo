@@ -1,7 +1,7 @@
 use super::receipt;
 use super::recovery::{partial_recovery, PartialRecovery};
 use super::verification::VerificationTarget;
-use super::{DownloadContext, DownloadPaths};
+use super::{DownloadContext, DownloadFailure, DownloadPaths};
 use crate::managers::model::ModelManager;
 use anyhow::{Context, Result};
 use bzip2::read::BzDecoder;
@@ -174,10 +174,9 @@ impl ModelManager {
         let hash = context.model.sha256.as_deref();
         if !self.partial_matches_checksum(context, hash) {
             remove_file_if_present(&context.paths.partial);
-            anyhow::bail!(
-                "Downloaded model {} failed integrity verification",
-                context.model.id
-            );
+            anyhow::bail!(DownloadFailure::Damaged {
+                model: context.model.id.clone(),
+            });
         }
         fs::rename(&context.paths.partial, &context.paths.model)?;
         if let Some(hash) = hash {

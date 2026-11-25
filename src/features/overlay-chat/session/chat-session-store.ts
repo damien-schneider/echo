@@ -17,7 +17,7 @@ export interface ChatSessionState {
   isPromptRunArmed: boolean;
   isQuestionPending: boolean;
   messages: ChatMessage[];
-  request: AbortController | null;
+  request: ChatRequestHandle | null;
 }
 
 const FRESH_CHAT_SESSION: ChatSessionState = {
@@ -29,18 +29,23 @@ const FRESH_CHAT_SESSION: ChatSessionState = {
   request: null,
 };
 
-/// One microphone per window: dictation outlives the chat it started in.
+/// One microphone per window: dictation outlives the chat it started in. Think likewise stays on until turned off.
 interface ChatSessionStore {
   dictation: ChatDictationState;
   dictationPreview: string;
   open: { generation: number; session: ChatSessionState } | null;
+  thinking: boolean;
 }
 
 export const useChatSessionStore = create<ChatSessionStore>(() => ({
   dictation: "idle",
   dictationPreview: "",
   open: null,
+  thinking: false,
 }));
+
+export const chooseThinking = (thinking: boolean) =>
+  useChatSessionStore.setState({ thinking });
 
 /// Heard words belong to one dictation: they outlast the stop while the transcript is made, never the next start.
 export const changeChatDictation = (dictation: ChatDictationState) =>
@@ -79,7 +84,7 @@ export const changeChatSession = (
     return;
   }
   if (store.open !== null && generation > store.open.generation) {
-    store.open.session.request?.abort();
+    store.open.session.request?.controller.abort();
   }
   const session = chatSessionFor(store, generation);
   useChatSessionStore.setState({
@@ -87,9 +92,10 @@ export const changeChatSession = (
   });
 };
 
-/// Switching prompt starts over, keeping only what is typed.
+/// Switching prompt starts over, keeping the composer draft.
 export const restartChatSession = (generation: number) => {
-  chatSessionFor(useChatSessionStore.getState(), generation).request?.abort();
+  const session = chatSessionFor(useChatSessionStore.getState(), generation);
+  session.request?.controller.abort();
   changeChatSession(generation, () => ({
     error: "",
     isPromptRunArmed: true,
@@ -101,6 +107,7 @@ export const restartChatSession = (generation: number) => {
 export interface ChatRequestHandle {
   controller: AbortController;
   generation: number;
+  thinking: boolean;
 }
 
 /// Only the live request writes — a superseded one must not touch what replaced it.
@@ -111,7 +118,7 @@ export const changeChatSessionFromRequest = (
   const { open } = useChatSessionStore.getState();
   if (
     open?.generation !== handle.generation ||
-    open.session.request !== handle.controller
+    open.session.request !== handle
   ) {
     return;
   }
@@ -125,7 +132,7 @@ const closeUnheldChatSession = (generation: number) => {
   if (sessionHolders.has(generation) || open?.generation !== generation) {
     return;
   }
-  open.session.request?.abort();
+  open.session.request?.controller.abort();
   useChatSessionStore.setState({ open: null });
 };
 
@@ -146,16 +153,16 @@ export const holdChatSession = (generation: number) => {
 
 interface StartedTurn {
   assistantId: string;
-  controller: AbortController;
   /// `null` runs the active prompt on the reference instead of asking.
   question: string | null;
+  request: ChatRequestHandle;
 }
 
 export const startedTurn = (
   session: ChatSessionState,
   turn: StartedTurn
 ): ChatSessionState => {
-  const started = { ...session, error: "", request: turn.controller };
+  const started = { ...session, error: "", request: turn.request };
   if (turn.question === null) {
     return {
       ...started,

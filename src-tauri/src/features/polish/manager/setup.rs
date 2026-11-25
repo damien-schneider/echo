@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
-use crate::managers::model::{ModelManager, POLISH_MODEL_ID};
+use crate::managers::model::ModelManager;
 
 use super::super::runtime::PolishRuntimeConfig;
 use super::super::selection::SelectionMode;
@@ -48,12 +48,13 @@ pub(super) fn polish_initialization(
 pub(super) fn polish_runtime_config(
     app: &AppHandle,
     models: &ModelManager,
+    model_id: &str,
 ) -> Result<PolishRuntimeConfig> {
     let runtime_directory = polish_runtime_directory(app)?;
     Ok(PolishRuntimeConfig {
         server_path: runtime_directory.join(polish_server_filename()),
         working_directory: runtime_directory,
-        model_path: models.model_file_path(POLISH_MODEL_ID)?,
+        model_path: models.model_file_path(model_id)?,
         server_record: app_file(app.path().app_data_dir(), "polish-server.json"),
         server_log: app_file(app.path().app_log_dir(), "llama-server.log"),
     })

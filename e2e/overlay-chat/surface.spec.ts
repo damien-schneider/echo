@@ -38,26 +38,48 @@ test("chat restores an early request with model loading inside its window", asyn
     .toContain("get_overlay_notification_request");
 });
 
-test("chat runs on Qwen3 4B and offers its download inline", async ({
-  page,
-}) => {
+test("chat offers the selected model's download inline", async ({ page }) => {
   await page.goto(`${NOTIFICATION_URL}?polish=not_downloaded`);
+  await waitForTauriListener(page, "polish-status-changed");
   await waitForTauriListener(page, "overlay-notification-request");
   await requestNotificationSurface(page, "chat");
 
-  await expect(page.getByText("Qwen3 4B", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Download 2.5 GB", exact: true })
+  ).toBeVisible();
+  await emitTauriEvent(page, "polish-status-changed", {
+    message: "Not downloaded",
+    model: {
+      download_size_mb: 3428,
+      id: "polish-gemma-4-e2b-it",
+      name: "Gemma 4 E2B",
+      supports_thinking: true,
+      supports_voice_commands: false,
+    },
+    state: "not_downloaded",
+  });
+  await expect(
+    page.getByText("Gemma 4 E2B · Private, on-device")
+  ).toBeVisible();
   await expect(
     page
       .getByRole("button", { name: "Cloud" })
       .or(page.getByRole("combobox", { name: "Provider and model" }))
   ).toHaveCount(0);
   await page
-    .getByRole("button", { name: "Download Qwen3 4B model, 2.5 GB" })
+    .getByRole("button", { name: "Download 3.4 GB", exact: true })
     .click();
   await expect
     .poll(() => invokedCommands(page))
     .toContain("download_polish_model");
-  await expect(page.getByText("Downloading Qwen3 4B · 0%")).toBeVisible();
+  await expect(page.getByText("Downloading Gemma 4 E2B…")).toBeVisible();
+  await emitTauriEvent(page, "model-download-progress", {
+    downloaded: 1_713_940_192,
+    model_id: "polish-gemma-4-e2b-it",
+    percentage: 50,
+    total: 3_427_880_384,
+  });
+  await expect(page.getByText("Downloading Gemma 4 E2B · 50%")).toBeVisible();
 });
 
 test("chat repair reports its reason and visibly starts recovery", async ({
@@ -67,6 +89,8 @@ test("chat repair reports its reason and visibly starts recovery", async ({
   await waitForTauriListener(page, "polish-status-changed");
   await waitForTauriListener(page, "overlay-notification-request");
   await requestNotificationSurface(page, "chat");
+  const repair = page.getByRole("button", { name: "Repair Qwen3 4B" });
+  await expect(repair).toBeVisible();
   await emitTauriEvent(page, "polish-status-changed", {
     message:
       "The local Polish service could not start. Restart Echo, then choose Repair.",
@@ -76,7 +100,7 @@ test("chat repair reports its reason and visibly starts recovery", async ({
   await expect(page.getByRole("alert")).toContainText(
     "The local Polish service could not start"
   );
-  await page.getByRole("button", { name: "Repair Qwen3 4B model" }).click();
+  await repair.click();
   await expect(page.getByText("Checking Qwen3 4B…")).toBeVisible();
   await expect
     .poll(() => invokedCommands(page))
@@ -248,7 +272,7 @@ const assertNotchControlsInteractive = async (page: Page) => {
   await expect(
     hud
       .locator(':scope > .echo-island-hud-flank[data-side="left"]')
-      .getByText("Qwen3 4B", { exact: true })
+      .getByRole("button", { name: "Free chat", exact: true })
   ).toBeVisible();
   const closeButton = hud
     .locator(':scope > .echo-island-hud-flank[data-side="right"]')

@@ -13,10 +13,10 @@ import {
   isPolishModelEvent,
   type PolishModelProgress,
   polishModelFailure,
-  polishModelId,
   runPolishModelCommand,
 } from "@/features/polish/polish-model-state";
-import { PolishStatusSchema } from "@/lib/types";
+import { type PolishStatus, PolishStatusSchema } from "@/lib/types";
+import { errorMessage } from "@/lib/utils";
 
 interface PolishModelPorts {
   isStopped: () => boolean;
@@ -40,6 +40,7 @@ const registerDownloadComplete = (ports: PolishModelPorts) =>
   listen<unknown>("model-download-complete", (event) => {
     if (!ports.isStopped()) {
       handlePolishDownloadComplete({
+        modelId: ports.statusSynchronizer.currentModelId(),
         payload: event.payload,
         refreshStatus: ports.statusSynchronizer.requestRefresh,
         setProgress: ports.setProgress,
@@ -49,7 +50,13 @@ const registerDownloadComplete = (ports: PolishModelPorts) =>
 
 const registerDownloadFailure = (ports: PolishModelPorts) =>
   listen<unknown>("model-download-failed", (event) => {
-    if (!ports.isStopped() && isPolishModelEvent(event.payload)) {
+    if (
+      !ports.isStopped() &&
+      isPolishModelEvent(
+        event.payload,
+        ports.statusSynchronizer.currentModelId()
+      )
+    ) {
       acceptPolishModelStatus({
         setProgress: ports.setProgress,
         status: polishModelFailure("download"),
@@ -62,6 +69,7 @@ const registerDownloadProgress = (ports: PolishModelPorts) =>
   listen<unknown>("model-download-progress", (event) => {
     if (!ports.isStopped()) {
       handlePolishDownloadProgress({
+        modelId: ports.statusSynchronizer.currentModelId(),
         payload: event.payload,
         setProgress: ports.setProgress,
         statusSynchronizer: ports.statusSynchronizer,
@@ -71,7 +79,13 @@ const registerDownloadProgress = (ports: PolishModelPorts) =>
 
 const registerVerificationStart = (ports: PolishModelPorts) =>
   listen<unknown>("model-verification-started", (event) => {
-    if (!ports.isStopped() && isPolishModelEvent(event.payload)) {
+    if (
+      !ports.isStopped() &&
+      isPolishModelEvent(
+        event.payload,
+        ports.statusSynchronizer.currentModelId()
+      )
+    ) {
       acceptPolishModelStatus({
         setProgress: ports.setProgress,
         status: { message: "Verifying Polish model", state: "verifying" },
@@ -84,6 +98,7 @@ const registerVerificationProgress = (ports: PolishModelPorts) =>
   listen<unknown>("model-verification-progress", (event) => {
     if (!ports.isStopped()) {
       handlePolishVerificationProgress({
+        modelId: ports.statusSynchronizer.currentModelId(),
         payload: event.payload,
         setProgress: ports.setProgress,
         statusSynchronizer: ports.statusSynchronizer,
@@ -144,34 +159,52 @@ const usePolishModelEvents = ({
   }, [session, setProgress]);
 };
 
+interface PolishCommandError {
+  message: string;
+  state: PolishStatus["state"] | undefined;
+}
+
 export const usePolishModel = () => {
   const [status, setStatus] = useState(initialPolishModelStatus);
   const [progress, setProgress] = useState<PolishModelProgress>();
+  const [commandError, setCommandError] = useState<PolishCommandError>();
   const [session] = useState(() =>
     createPolishModelSession({
       readStatus: () => invoke<unknown>("get_polish_status"),
-      setStatus,
+      setStatus: (next) => {
+        setStatus(next);
+        setCommandError((error) =>
+          error?.state === next.state ? error : undefined
+        );
+      },
     })
   );
   usePolishModelEvents({ session, setProgress });
 
-  const download = () =>
-    runPolishModelCommand({
-      invokeCommand: () => invoke("download_polish_model"),
-      setProgress,
-      statusSynchronizer: session,
-    });
-  const repair = () =>
-    runPolishModelCommand({
-      invokeCommand: () => invoke("repair_polish_model"),
-      pendingState: "preparing",
-      setProgress,
-      statusSynchronizer: session,
-    });
-  const remove = async () => {
-    await invoke("delete_model", { modelId: polishModelId });
-    await session.refresh();
+  const run = async (
+    command: "download_polish_model" | "repair_polish_model"
+  ) => {
+    setCommandError(undefined);
+    try {
+      await runPolishModelCommand({
+        invokeCommand: () => invoke(command),
+        pendingState:
+          command === "download_polish_model" ? "downloading" : "preparing",
+        setProgress,
+        statusSynchronizer: session,
+      });
+    } catch (error) {
+      setCommandError({
+        message: errorMessage(error, "Something went wrong. Retry."),
+        state: session.currentState(),
+      });
+    }
   };
-
-  return { download, progress, remove, repair, status };
+  return {
+    download: () => run("download_polish_model"),
+    error: commandError?.message,
+    progress,
+    repair: () => run("repair_polish_model"),
+    status,
+  };
 };

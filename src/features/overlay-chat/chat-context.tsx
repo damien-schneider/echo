@@ -9,13 +9,13 @@ import type {
   ChatContextEvent,
   ChatTextContext,
 } from "@/features/overlay-controls/runtime/overlay-windows";
-import {
-  type PolishModelProgress,
-  polishModelName,
-} from "@/features/polish/polish-model-state";
+import type { PolishModelProgress } from "@/features/polish/polish-model-state";
 import type { PolishStatus } from "@/lib/types";
+import { formatModelSize } from "@/lib/utils/format";
+
 export interface BundledChatModel {
   download: () => Promise<void>;
+  error?: string;
   progress?: PolishModelProgress;
   repair: () => Promise<void>;
   status: PolishStatus;
@@ -112,51 +112,71 @@ interface BundledModelSetupProps {
   model: BundledChatModel;
 }
 const bundledModelProgressLabel = (model: BundledChatModel) => {
-  const percentage = Math.round(model.progress?.percentage ?? 0);
-  if (model.status.state === "downloading") {
-    return `Downloading ${polishModelName} · ${percentage}%`;
+  const { status, progress } = model;
+  const name = status.model?.name ?? "the language model";
+  const { state } = status;
+  if (state !== "downloading" && state !== "verifying") {
+    const verb = state === "loading" ? "Loading" : "Checking";
+    return `${verb} ${name}…`;
   }
-  if (model.status.state === "verifying") {
-    return `Verifying ${polishModelName} · ${percentage}%`;
-  }
-  if (model.status.state === "loading") {
-    return `Loading ${polishModelName}…`;
-  }
-  return `Checking ${polishModelName}…`;
+  const [verb, phase] =
+    state === "downloading"
+      ? ["Downloading", "download"]
+      : ["Verifying", "verification"];
+  const suffix =
+    progress?.phase === phase ? ` · ${Math.round(progress.percentage)}%` : "…";
+  return `${verb} ${name}${suffix}`;
 };
 const DownloadBundledModel = ({
   download,
-}: Pick<BundledChatModel, "download">) => (
-  <div className="echo-chat-callout flex min-w-0 items-center justify-between gap-3 bg-white/7">
-    <span className="min-w-0 text-[12px] text-white/62">
-      Private, on-device
-    </span>
-    <Button
-      aria-label={`Download ${polishModelName} model, 2.5 GB`}
-      className="echo-chat-control echo-chat-cta shrink-0"
-      onClick={download}
-      size="sm"
-      tone="primary"
-      type="button"
-      variant="solid"
-    >
-      <DownloadSimpleIcon aria-hidden="true" className="size-3.5" />
-      Download 2.5 GB
-    </Button>
-  </div>
-);
-interface RepairBundledModelProps {
-  message: string;
-  repair: () => Promise<void>;
-}
-const RepairBundledModel = ({ message, repair }: RepairBundledModelProps) => (
+  error,
+  status,
+}: Pick<BundledChatModel, "download" | "error" | "status">) => {
+  const { model } = status;
+  const sizeMb = model?.download_size_mb;
+  const downloadLabel =
+    sizeMb && Number.isFinite(sizeMb) && sizeMb > 0
+      ? `Download ${formatModelSize(sizeMb)}`
+      : "Download model";
+  return (
+    <div className="echo-chat-callout flex min-w-0 items-center justify-between gap-3 bg-white/7">
+      {error ? (
+        <span className="min-w-0 text-[12px] text-red-100" role="alert">
+          {error}
+        </span>
+      ) : (
+        <span className="min-w-0 text-[12px] text-white/62">
+          {model ? `${model.name} · Private, on-device` : "Private, on-device"}
+        </span>
+      )}
+      <Button
+        className="echo-chat-control echo-chat-cta shrink-0"
+        onClick={download}
+        size="sm"
+        tone="primary"
+        type="button"
+        variant="solid"
+      >
+        <DownloadSimpleIcon aria-hidden="true" className="size-3.5" />
+        {downloadLabel}
+      </Button>
+    </div>
+  );
+};
+const RepairBundledModel = ({
+  error,
+  repair,
+  status,
+}: Pick<BundledChatModel, "error" | "repair" | "status">) => (
   <div
     className="echo-chat-callout flex min-w-0 items-center justify-between gap-3 bg-red-400/10"
     role="alert"
   >
-    <span className="min-w-0 truncate text-[12px] text-red-100">{message}</span>
+    <span className="min-w-0 truncate text-[12px] text-red-100">
+      {error ?? status.message}
+    </span>
     <Button
-      aria-label={`Repair ${polishModelName} model`}
+      aria-label={`Repair ${status.model?.name ?? "language model"}`}
       className="echo-chat-control echo-chat-cta shrink-0"
       onClick={repair}
       size="sm"
@@ -174,13 +194,20 @@ export const BundledModelSetup = ({ model }: BundledModelSetupProps) => {
     return null;
   }
   if (model.status.state === "not_downloaded") {
-    return <DownloadBundledModel download={model.download} />;
+    return (
+      <DownloadBundledModel
+        download={model.download}
+        error={model.error}
+        status={model.status}
+      />
+    );
   }
   if (model.status.state === "repair") {
     return (
       <RepairBundledModel
-        message={model.status.message}
+        error={model.error}
         repair={model.repair}
+        status={model.status}
       />
     );
   }

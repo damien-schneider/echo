@@ -27,19 +27,26 @@ const PlainText = ({ text }: { text: string }) => (
     {text}
   </span>
 );
-const PendingAnswer = () => (
-  <span className="echo-chat-shimmer shimmer-text">Thinking…</span>
+const PendingAnswer = ({ isThinking }: { isThinking: boolean }) => (
+  <output className="echo-chat-shimmer shimmer-text">
+    {isThinking ? "Thinking…" : "Answering…"}
+  </output>
 );
 interface MessageBodyProps {
   isStreaming: boolean;
+  isThinking: boolean;
   message: ChatMessage;
 }
-const MessageBody = ({ isStreaming, message }: MessageBodyProps) => {
+const MessageBody = ({
+  isStreaming,
+  isThinking,
+  message,
+}: MessageBodyProps) => {
   if (message.role === CHAT_ROLES.user) {
     return <PlainText text={message.content} />;
   }
   if (!message.content) {
-    return <PendingAnswer />;
+    return <PendingAnswer isThinking={isThinking} />;
   }
   return (
     <Suspense fallback={<PlainText text={message.content} />}>
@@ -60,11 +67,13 @@ const EnteringRow = ({ chatRole, children, className }: EnteringRowProps) => (
 interface MessageListProps {
   error: string;
   isResponding: boolean;
+  isThinking: boolean;
   messages: ChatMessage[];
 }
 export const MessageList = ({
   error,
   isResponding,
+  isThinking,
   messages,
 }: MessageListProps) => {
   const rows = visibleMessages(messages);
@@ -97,6 +106,7 @@ export const MessageList = ({
             >
               <MessageBody
                 isStreaming={isResponding && message.id === lastMessage?.id}
+                isThinking={isThinking}
                 message={message}
               />
             </EnteringRow>

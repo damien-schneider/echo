@@ -1,9 +1,5 @@
-import { z } from "zod";
 import { DownloadProgressSchema } from "@/features/model-download/download-state";
 import { type PolishStatus, PolishStatusSchema } from "@/lib/types";
-
-export const polishModelId = "polish-qwen3-4b-instruct-2507";
-export const polishModelName = "Qwen3 4B";
 
 export interface PolishModelProgress {
   percentage: number;
@@ -15,27 +11,30 @@ export const initialPolishModelStatus: PolishStatus = {
   state: "preparing",
 };
 
-const polishModelEventSchema = z.literal(polishModelId);
-
 const failureStatuses = {
   download: {
     message:
-      "The Polish model download failed. Check your connection and retry.",
+      "The language model download failed. Check your connection and storage, then retry.",
     state: "repair",
   },
   setup: {
     message:
-      "Polish could not connect to its local model service. Reopen Echo and try again.",
+      "Echo could not connect to its language model service. Reopen Echo and try again.",
     state: "repair",
   },
 } satisfies Record<"download" | "setup", PolishStatus>;
 
-export const isPolishModelEvent = (payload: unknown) =>
-  polishModelEventSchema.safeParse(payload).success;
+export const isPolishModelEvent = (
+  payload: unknown,
+  modelId: string | undefined
+) => typeof payload === "string" && payload === modelId;
 
-export const parsePolishDownloadProgress = (payload: unknown) => {
+export const parsePolishDownloadProgress = (
+  payload: unknown,
+  modelId: string | undefined
+) => {
   const parsed = DownloadProgressSchema.safeParse(payload);
-  if (!parsed.success || parsed.data.model_id !== polishModelId) {
+  if (!parsed.success || parsed.data.model_id !== modelId) {
     return;
   }
   return parsed.data.percentage;
@@ -74,9 +73,10 @@ export const createPolishStatusSynchronizer = (
   let generation = 0;
   const accept = (status: PolishStatus) => {
     generation += 1;
-    currentStatus = status;
+    const model = status.model ?? currentStatus?.model;
+    currentStatus = model && !status.model ? { ...status, model } : status;
     if (!options.isStopped()) {
-      options.setStatus(status);
+      options.setStatus(currentStatus);
     }
   };
   let currentStatus: PolishStatus | undefined;
@@ -87,10 +87,7 @@ export const createPolishStatusSynchronizer = (
     return synchronizePolishModelStatus({
       isStopped: () => options.isStopped() || refreshGeneration !== generation,
       readStatus: options.readStatus,
-      setStatus: (status) => {
-        currentStatus = status;
-        options.setStatus(status);
-      },
+      setStatus: accept,
     });
   };
   const requestRefresh = () => {
@@ -98,6 +95,7 @@ export const createPolishStatusSynchronizer = (
   };
   return {
     accept,
+    currentModelId: () => currentStatus?.model?.id,
     currentState: () => currentStatus?.state,
     refresh,
     requestRefresh,
@@ -158,6 +156,7 @@ export const acceptPolishModelStatus = ({
 };
 
 interface HandleDownloadProgressOptions {
+  modelId: string | undefined;
   payload: unknown;
   setProgress: (progress: PolishModelProgress) => void;
   statusSynchronizer: Pick<PolishStatusSynchronizer, "accept" | "currentState">;
@@ -173,11 +172,12 @@ const blocksEarlierProgress = (state: PolishStatus["state"] | undefined) =>
   state === "verifying" || isPastProgress(state);
 
 export const handlePolishDownloadProgress = ({
+  modelId,
   payload,
   setProgress,
   statusSynchronizer,
 }: HandleDownloadProgressOptions) => {
-  const progress = parsePolishDownloadProgress(payload);
+  const progress = parsePolishDownloadProgress(payload, modelId);
   if (
     progress === undefined ||
     blocksEarlierProgress(statusSynchronizer.currentState())
@@ -192,11 +192,12 @@ export const handlePolishDownloadProgress = ({
 };
 
 export const handlePolishVerificationProgress = ({
+  modelId,
   payload,
   setProgress,
   statusSynchronizer,
 }: HandleDownloadProgressOptions) => {
-  const progress = parsePolishDownloadProgress(payload);
+  const progress = parsePolishDownloadProgress(payload, modelId);
   if (
     progress === undefined ||
     isPastProgress(statusSynchronizer.currentState())
@@ -211,17 +212,19 @@ export const handlePolishVerificationProgress = ({
 };
 
 interface HandleDownloadCompleteOptions {
+  modelId: string | undefined;
   payload: unknown;
   refreshStatus: () => void;
   setProgress: (progress: PolishModelProgress | undefined) => void;
 }
 
 export const handlePolishDownloadComplete = ({
+  modelId,
   payload,
   refreshStatus,
   setProgress,
 }: HandleDownloadCompleteOptions) => {
-  if (!isPolishModelEvent(payload)) {
+  if (!isPolishModelEvent(payload, modelId)) {
     return;
   }
   setProgress(undefined);
@@ -241,11 +244,6 @@ export const runPolishModelCommand = async ({
   setProgress,
   statusSynchronizer,
 }: RunPolishModelCommandOptions) => {
-  setProgress(
-    pendingState === "downloading"
-      ? { percentage: 0, phase: "download" }
-      : undefined
-  );
   statusSynchronizer.accept({
     message:
       pendingState === "downloading"
@@ -255,10 +253,9 @@ export const runPolishModelCommand = async ({
   });
   try {
     await invokeCommand();
-  } catch {
-    setProgress(undefined);
+  } catch (error) {
     await statusSynchronizer.refresh();
-    return;
+    throw error;
   }
   await statusSynchronizer.refresh();
   /// A duplicate command returns to a running transfer — the bar belongs to that operation.

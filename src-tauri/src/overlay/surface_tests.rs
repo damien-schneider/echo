@@ -103,16 +103,56 @@ fn only_transient_top_surfaces_outgrow_the_notch_they_hang_from() {
 }
 
 #[test]
-fn top_dock_floats_just_below_the_notch() {
+fn top_dock_rests_clear_of_the_notch() {
     let surface = overlay_surface(request(
         RecordingOverlayMode::Compact,
         docked(OverlayDockEdge::Top),
         Some(NOTCH),
     ));
 
-    assert_eq!(surface.island.y, NOTCHED_MONITOR.y + NOTCH.top_inset + 4.0);
-    assert_eq!((surface.island.width, surface.island.height), (38.0, 5.0));
+    assert_eq!(surface.island.y, NOTCHED_MONITOR.y + NOTCH.top_inset + 10.0);
+    assert_eq!((surface.island.width, surface.island.height), (48.0, 8.0));
     assert!(surface.island.y + surface.island.height <= surface.window.y + surface.window.height);
+}
+
+#[test]
+fn bottom_dock_rests_clear_of_the_screen_edge() {
+    let surface = overlay_surface(request(
+        RecordingOverlayMode::Compact,
+        docked(OverlayDockEdge::Bottom),
+        None,
+    ));
+
+    assert_eq!(
+        surface.island.y + surface.island.height,
+        NOTCHED_MONITOR.y + NOTCHED_MONITOR.height - 10.0
+    );
+    assert_eq!((surface.island.width, surface.island.height), (48.0, 8.0));
+}
+
+#[test]
+fn the_opened_dock_grows_from_where_the_bar_rests() {
+    for (edge, notch) in [
+        (OverlayDockEdge::Bottom, None),
+        (OverlayDockEdge::Top, Some(NOTCH)),
+    ] {
+        let resting = overlay_surface(request(RecordingOverlayMode::Compact, docked(edge), notch));
+        let opened = overlay_surface(request(RecordingOverlayMode::Actions, docked(edge), notch));
+
+        if edge == OverlayDockEdge::Bottom {
+            assert_eq!(
+                opened.island.y + opened.island.height,
+                resting.island.y + resting.island.height
+            );
+        } else {
+            assert_eq!(opened.island.y, resting.island.y);
+        }
+        assert!(opened.island.y >= opened.window.y, "{edge:?}");
+        assert!(
+            opened.island.y + opened.island.height <= opened.window.y + opened.window.height,
+            "{edge:?}"
+        );
+    }
 }
 
 #[test]
@@ -142,7 +182,7 @@ fn bottom_dock_floats_off_the_edge_whatever_the_notch() {
     );
     assert_eq!(
         with_notch.island.y + with_notch.island.height,
-        NOTCHED_MONITOR.y + NOTCHED_MONITOR.height - 4.0
+        NOTCHED_MONITOR.y + NOTCHED_MONITOR.height - 10.0
     );
 }
 

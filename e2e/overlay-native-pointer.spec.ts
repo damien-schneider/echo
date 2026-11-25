@@ -187,7 +187,7 @@ test("native pointer boundary reverses a connected resident morph", async ({
 
   const trajectory = await sampleBoundaryTrajectory(page);
 
-  expect(trajectory.collapsed).toMatchObject({ height: 5, width: 38 });
+  expect(trajectory.collapsed).toMatchObject({ height: 8, width: 48 });
   expect(trajectory.expanded).toMatchObject(trajectory.residentSize);
   expect(trajectory.closingPhase).toBe("closing");
   expect(trajectory.reversed).toMatchObject(trajectory.residentSize);
@@ -205,7 +205,7 @@ test("native pointer boundary reverses a connected resident morph", async ({
     Math.max(...trajectory.samples.map(({ centerGap }) => Math.abs(centerGap)))
   ).toBeLessThanOrEqual(1);
   expect(
-    Math.max(...trajectory.samples.map(({ edgeGap }) => Math.abs(edgeGap - 4)))
+    Math.max(...trajectory.samples.map(({ edgeGap }) => Math.abs(edgeGap - 10)))
   ).toBeLessThanOrEqual(1);
   await expect(toolbar).toBeVisible();
 });

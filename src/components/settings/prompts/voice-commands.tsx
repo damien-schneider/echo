@@ -1,3 +1,4 @@
+import { Button } from "@ctrl-ui/react/ui/button";
 import { Switch } from "@ctrl-ui/react/ui/switch";
 import {
   AppWindowIcon,
@@ -5,6 +6,10 @@ import {
   MusicNotesIcon,
   SpeakerHighIcon,
 } from "@phosphor-icons/react";
+import {
+  OPEN_MODELS_LABEL,
+  openModelsPage,
+} from "@/features/meeting/open-models-page";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
 import {
@@ -31,19 +36,35 @@ const VOICE_COMMANDS = [
   },
 ] as const;
 
-const VoiceCommandsToggle = ({ enabled }: { enabled: boolean }) => {
+const VoiceCommandsToggle = ({
+  enabled,
+  supported,
+}: {
+  enabled: boolean;
+  supported: boolean;
+}) => {
   const isUpdating = useIsSettingUpdating("voice_commands");
   const updateSetting = useSettingsStore((s) => s.updateSetting);
   return (
     <SettingRow
-      description="When no text field has focus, what you say runs as a command."
+      description={
+        supported
+          ? "When no text field has focus, what you say runs as a command."
+          : "Select Qwen3 4B in Models to use voice commands."
+      }
       title="Voice commands"
     >
-      <Switch
-        checked={enabled}
-        disabled={isUpdating}
-        onCheckedChange={(value) => updateSetting("voice_commands", value)}
-      />
+      {supported ? (
+        <Switch
+          checked={enabled}
+          disabled={isUpdating}
+          onCheckedChange={(value) => updateSetting("voice_commands", value)}
+        />
+      ) : (
+        <Button onClick={openModelsPage} size="sm" variant="surface">
+          {OPEN_MODELS_LABEL}
+        </Button>
+      )}
     </SettingRow>
   );
 };
@@ -97,11 +118,15 @@ const AvailableCommands = ({
   </SettingRow>
 );
 
-export const VoiceCommandsSettings = () => {
-  const commandsEnabled = useSetting("voice_commands") ?? true;
+export const VoiceCommandsSettings = ({
+  supported,
+}: {
+  supported: boolean;
+}) => {
+  const commandsEnabled = (useSetting("voice_commands") ?? true) && supported;
   return (
     <SettingsSection title="Voice commands">
-      <VoiceCommandsToggle enabled={commandsEnabled} />
+      <VoiceCommandsToggle enabled={commandsEnabled} supported={supported} />
       <SpeakRepliesToggle commandsEnabled={commandsEnabled} />
       <AvailableCommands commandsEnabled={commandsEnabled} />
     </SettingsSection>

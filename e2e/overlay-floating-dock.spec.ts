@@ -73,7 +73,7 @@ test("hovered, a bottom dock floats as a pill with its gear split off beside it"
     page.getByRole("button", { name: "Move Echo control" })
   ).toBeVisible();
   const frame = await settledFrame(morph);
-  expect(Math.round(620 - frame.y - frame.height)).toBe(4);
+  expect(Math.round(620 - frame.y - frame.height)).toBe(10);
 
   const panel = await requiredBox(page.locator(".echo-island-resident-panel"));
   const gearBox = await requiredBox(gear);

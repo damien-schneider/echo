@@ -156,12 +156,30 @@ impl InferencePort for FakeInference {
 
 pub(super) struct Fixture {
     pub(super) transaction: PolishTransaction,
+    inference: FakeInference,
     pub(super) clipboard: FakeClipboard,
     pub(super) paste_count: Arc<AtomicU64>,
     pub(super) pasted_text: Arc<Mutex<Option<String>>>,
     pub(super) cancellation: Arc<CancellationClock>,
     pub(super) token_count_calls: Arc<AtomicU64>,
     pub(super) polish_calls: Arc<AtomicU64>,
+}
+
+impl Fixture {
+    pub(super) async fn run(&self, mode: SelectionMode, generation: u64) -> Result<PolishOutcome> {
+        let focused_application = self.transaction.focused_application();
+        let Some(text) = self.transaction.capture_text(mode, generation).await? else {
+            return Ok(PolishOutcome::NoSelection);
+        };
+        self.transaction
+            .complete(
+                CapturedPolishInput::new(text, focused_application, mode)?,
+                generation,
+                &crate::settings::Instruction::Builtin(crate::settings::PolishLevel::default()),
+                &self.inference,
+            )
+            .await
+    }
 }
 
 pub(super) fn fixture(selection: &str, output: &str) -> Fixture {
@@ -248,17 +266,17 @@ pub(super) fn fixture_with_options(options: FixtureOptions<'_>) -> Fixture {
         focus: Arc::new(FakeFocus {
             application: focus.clone(),
         }),
-        inference: Arc::new(FakeInference {
+        cancellation: cancellation.clone(),
+    };
+    Fixture {
+        transaction: PolishTransaction::new(ports),
+        inference: FakeInference {
             output: options.output.to_string(),
             token_count: options.token_count,
             during_inference,
             token_count_calls: token_count_calls.clone(),
             polish_calls: polish_calls.clone(),
-        }),
-        cancellation: cancellation.clone(),
-    };
-    Fixture {
-        transaction: PolishTransaction::new(ports),
+        },
         clipboard,
         paste_count,
         pasted_text,
@@ -298,13 +316,6 @@ fn capture_transaction(
         }),
         focus: Arc::new(FakeFocus {
             application: Arc::new(Mutex::new(Some("com.example.Editor".to_string()))),
-        }),
-        inference: Arc::new(FakeInference {
-            output: String::new(),
-            token_count: 0,
-            during_inference: None,
-            token_count_calls: Arc::new(AtomicU64::new(0)),
-            polish_calls: Arc::new(AtomicU64::new(0)),
         }),
         cancellation: cancellation.clone(),
     });

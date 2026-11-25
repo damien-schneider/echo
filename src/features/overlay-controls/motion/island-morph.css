@@ -152,9 +152,10 @@
   content: "";
 }
 
+/* Mirrors COMPACT_BAR in surface.rs. */
 .echo-island-morph::before {
-  width: 38px;
-  height: 5px;
+  width: 48px;
+  height: 8px;
   background: rgba(5, 5, 5, 0.97);
   border-radius: inherit;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.56);
@@ -167,8 +168,8 @@
 .recording-overlay-root:is([data-anchor="left"], [data-anchor="right"])
   .echo-island-morph::before {
   top: 50%;
-  width: 5px;
-  height: 38px;
+  width: 8px;
+  height: 48px;
   transform: translateY(-50%);
 }
 

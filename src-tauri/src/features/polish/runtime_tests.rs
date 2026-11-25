@@ -48,14 +48,7 @@ fn bundled_chat_serializes_the_frontend_conversation() {
         ]))
         .unwrap();
     let request_messages = bundled_chat_request_messages("Echo system", &messages);
-    let request = ChatRequest {
-        model: "polish",
-        messages: &request_messages,
-        stream: false,
-        temperature: 0.2,
-        seed: 0,
-        max_tokens: 2_048,
-    };
+    let request = ChatRequest::for_chat(&request_messages, false);
     let serialized = serde_json::to_value(request).unwrap();
 
     assert_eq!(
@@ -66,6 +59,31 @@ fn bundled_chat_serializes_the_frontend_conversation() {
             { "content": "It means…", "role": "assistant" }
         ])
     );
+}
+
+#[test]
+fn fast_chat_and_correction_keep_the_server_thinking_default() {
+    let chat = ChatRequest::for_chat(&[], false);
+    let correction = ChatRequest::for_correction(&[]);
+
+    for request in [chat, correction] {
+        let serialized = serde_json::to_value(request).unwrap();
+        assert!(serialized.get("chat_template_kwargs").is_none());
+        assert!(serialized.get("reasoning_budget_tokens").is_none());
+        assert!(serialized.get("reasoning_format").is_none());
+    }
+}
+
+#[test]
+fn think_chat_reserves_most_of_its_completion_for_the_visible_answer() {
+    let serialized = serde_json::to_value(ChatRequest::for_chat(&[], true)).unwrap();
+
+    assert_eq!(serialized["stream"], true);
+    assert_eq!(serialized["chat_template_kwargs"]["enable_thinking"], true);
+    assert_eq!(serialized["reasoning_format"], "deepseek");
+    let thinking_tokens = serialized["reasoning_budget_tokens"].as_u64().unwrap();
+    let completion_tokens = serialized["max_tokens"].as_u64().unwrap();
+    assert!(thinking_tokens > 0 && thinking_tokens < completion_tokens / 2);
 }
 
 #[tokio::test]

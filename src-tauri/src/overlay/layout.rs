@@ -1,4 +1,4 @@
-use super::surface::{DOCKED_TOOLBAR, SURFACE_INSET, TOOLBAR_THICKNESS};
+use super::surface::{DOCKED_TOOLBAR, FLOATING_DOCK_GAP, SURFACE_INSET, TOOLBAR_THICKNESS};
 use crate::settings::{AppSettings, OverlayDockEdge, OverlayPosition};
 #[cfg(target_os = "linux")]
 use tauri::WebviewWindow;
@@ -6,7 +6,8 @@ use tauri::WebviewWindow;
 const COMPACT_OVERLAY_WIDTH: f64 = 64.0;
 const COMPACT_OVERLAY_HEIGHT: f64 = 28.0;
 const ACTIONS_OVERLAY_WIDTH: f64 = DOCKED_TOOLBAR + 2.0 * SURFACE_INSET;
-const ACTIONS_OVERLAY_HEIGHT: f64 = TOOLBAR_THICKNESS + 2.0 * SURFACE_INSET;
+const SIDE_DOCK_OVERLAY_WIDTH: f64 = TOOLBAR_THICKNESS + 2.0 * SURFACE_INSET;
+const FLOATING_DOCK_OVERLAY_HEIGHT: f64 = TOOLBAR_THICKNESS + SURFACE_INSET + FLOATING_DOCK_GAP;
 /// Notch-bridged widths carry 20px of slack past the content so the flank controls fit either side.
 const RECORDING_OVERLAY_WIDTH: f64 = 354.0;
 const RECORDING_OVERLAY_HEIGHT: f64 = 96.0;
@@ -109,7 +110,7 @@ pub(super) struct MonitorBounds {
 pub(super) fn overlay_interaction_dimensions(mode: RecordingOverlayMode) -> (f64, f64) {
     match mode {
         RecordingOverlayMode::Compact => (COMPACT_OVERLAY_WIDTH, COMPACT_OVERLAY_HEIGHT),
-        RecordingOverlayMode::Actions => (ACTIONS_OVERLAY_WIDTH, ACTIONS_OVERLAY_HEIGHT),
+        RecordingOverlayMode::Actions => (ACTIONS_OVERLAY_WIDTH, FLOATING_DOCK_OVERLAY_HEIGHT),
         RecordingOverlayMode::Recording => (RECORDING_OVERLAY_WIDTH, RECORDING_OVERLAY_HEIGHT),
         RecordingOverlayMode::Panel | RecordingOverlayMode::Transcript => {
             (PANEL_OVERLAY_WIDTH, PANEL_OVERLAY_HEIGHT)
@@ -132,12 +133,12 @@ pub(super) fn overlay_window_dimensions(
 ) -> (f64, f64) {
     let side_docked = placement_is_side_docked(placement);
     if overlay_mode_is_resident(mode) && side_docked {
-        return (ACTIONS_OVERLAY_HEIGHT, ACTIONS_OVERLAY_WIDTH);
+        return (SIDE_DOCK_OVERLAY_WIDTH, ACTIONS_OVERLAY_WIDTH);
     }
 
     #[cfg(target_os = "macos")]
     if overlay_mode_is_resident(mode) {
-        return (ACTIONS_OVERLAY_WIDTH, ACTIONS_OVERLAY_HEIGHT);
+        return (ACTIONS_OVERLAY_WIDTH, FLOATING_DOCK_OVERLAY_HEIGHT);
     }
 
     overlay_interaction_dimensions(mode)

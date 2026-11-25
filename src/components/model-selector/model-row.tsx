@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { type ReactNode, useId, useState } from "react";
+import { Fragment, type ReactNode, type Ref, useId, useState } from "react";
 import { ModelFileActions } from "@/components/model-selector/model-file-actions";
 import ProgressBar from "@/components/shared/progress-bar";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,8 @@ interface ModelRowProps {
   diskMb?: number;
   download?: ModelRowDownload;
   files?: ModelRowFiles;
+  headingRef?: Ref<HTMLHeadingElement>;
+  languages?: ReactNode;
   memoryMb?: number;
   name: string;
   status?: ModelRowStatus;
@@ -45,6 +47,8 @@ export const ModelRow = ({
   diskMb,
   download,
   files,
+  languages,
+  headingRef,
   memoryMb,
   name,
   status,
@@ -59,12 +63,18 @@ export const ModelRow = ({
       setFileActionError(`${error}`);
     }
   };
-  const footprint = [
-    diskMb === undefined ? null : `Disk ${formatModelSize(diskMb)}`,
-    memoryMb === undefined ? null : `RAM ~${formatModelSize(memoryMb)}`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const facts = [
+    {
+      key: "disk",
+      value: diskMb === undefined ? null : `Disk ${formatModelSize(diskMb)}`,
+    },
+    {
+      key: "memory",
+      value:
+        memoryMb === undefined ? null : `RAM ~${formatModelSize(memoryMb)}`,
+    },
+    { key: "languages", value: languages ?? null },
+  ].filter((fact) => fact.value !== null);
 
   return (
     <article
@@ -74,31 +84,43 @@ export const ModelRow = ({
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-medium text-label" id={headingId}>
+            <h3
+              className="font-medium text-label"
+              id={headingId}
+              ref={headingRef}
+              tabIndex={headingRef ? -1 : undefined}
+            >
               {name}
             </h3>
             {badges}
           </div>
-          {footprint ? (
+          {facts.length > 0 ? (
             <p className="mt-0.5 text-caption text-muted-foreground tabular-nums">
-              {footprint}
+              {facts.map((fact, index) => (
+                <Fragment key={fact.key}>
+                  {index > 0 ? " · " : null}
+                  {fact.value}
+                </Fragment>
+              ))}
             </p>
           ) : null}
           <p className="mt-1 text-caption text-muted-foreground">
             {description}
           </p>
-          {status ? (
-            <p
-              className={cn(
-                "mt-1 text-caption",
-                status.tone === "error"
-                  ? "text-destructive"
-                  : "text-muted-foreground"
-              )}
-            >
-              {status.message}
-            </p>
-          ) : null}
+          <div aria-live="polite">
+            {status ? (
+              <p
+                className={cn(
+                  "mt-1 text-caption",
+                  status.tone === "error"
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+                )}
+              >
+                {status.message}
+              </p>
+            ) : null}
+          </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {files ? (

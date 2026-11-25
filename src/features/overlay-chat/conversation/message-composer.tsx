@@ -3,9 +3,12 @@ import {
   ChatComposerShell,
   ChatComposerSubmit,
   ChatComposerTextarea,
+  ChatComposerToolbar,
+  ChatComposerTools,
 } from "@ctrl-ui/react/chat-composer";
 import { Button } from "@ctrl-ui/react/ui/button";
-import { ArrowUpIcon, SquareIcon } from "@phosphor-icons/react";
+import { Toggle } from "@ctrl-ui/react/ui/toggle";
+import { ArrowUpIcon, LightbulbIcon, SquareIcon } from "@phosphor-icons/react";
 import type { MotionValue } from "motion/react";
 import { useEffect, useState } from "react";
 import { withDictationPreview } from "@/features/overlay-chat/chat";
@@ -73,7 +76,7 @@ export const MessageComposer = ({
   placeholder,
   voice,
 }: MessageComposerProps) => {
-  const { inputRef } = chat;
+  const { inputRef, thinkingMode } = chat;
   useEffect(() => {
     inputRef.current?.focus();
   }, [inputRef]);
@@ -101,7 +104,7 @@ export const MessageComposer = ({
       state={chat.isResponding ? "submitting" : "idle"}
       value={withDictationPreview(chat.input, chat.dictation.preview)}
     >
-      <ChatComposerShell className="flex items-end gap-1.5">
+      <ChatComposerShell>
         <ChatComposerTextarea
           aria-activedescendant={
             highlighted ? promptOptionId(highlighted.value) : undefined
@@ -109,25 +112,44 @@ export const MessageComposer = ({
           aria-autocomplete="list"
           aria-controls={menu.isOpen ? PROMPT_MENU_ID : undefined}
           aria-haspopup="listbox"
-          className="my-2 ms-4 max-h-28 min-h-8 flex-1"
+          className="max-h-28 min-h-8"
           onKeyDown={menu.onKeyDown}
           placeholder={placeholder}
           readOnly={chat.dictation.state !== "idle"}
           ref={chat.inputRef}
           rows={1}
         />
-        <DictateButton dictation={chat.dictation} voice={voice} />
-        <ChatComposerSubmit
-          aria-label="Send"
-          className="echo-chat-control echo-chat-action echo-chat-send shrink-0"
-          disabled={!(chat.isResponding || canSend)}
-          iconOnly
-          onStop={chat.stop}
-          size="sm"
-          stopIcon={submitGlyph}
-        >
-          {submitGlyph}
-        </ChatComposerSubmit>
+        <ChatComposerToolbar>
+          <ChatComposerTools>
+            {thinkingMode && (
+              <Toggle
+                className="echo-chat-control echo-chat-think"
+                onPressedChange={thinkingMode.setSelected}
+                pressed={thinkingMode.selected}
+                size="sm"
+                variant="ghost"
+              >
+                <LightbulbIcon
+                  aria-hidden="true"
+                  weight={thinkingMode.selected ? "fill" : "regular"}
+                />
+                Think
+              </Toggle>
+            )}
+          </ChatComposerTools>
+          <DictateButton dictation={chat.dictation} voice={voice} />
+          <ChatComposerSubmit
+            aria-label="Send"
+            className="echo-chat-control echo-chat-action echo-chat-send shrink-0"
+            disabled={!(chat.isResponding || canSend)}
+            iconOnly
+            onStop={chat.stop}
+            size="sm"
+            stopIcon={submitGlyph}
+          >
+            {submitGlyph}
+          </ChatComposerSubmit>
+        </ChatComposerToolbar>
       </ChatComposerShell>
     </ChatComposer>
   );

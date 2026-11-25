@@ -33,7 +33,7 @@ const verificationProgress = (percentage: number) => ({
   total: 2_497_280_448,
 });
 
-test("shows determinate zero progress immediately after Download", async ({
+test("shows an indeterminate download until bytes are reported", async ({
   page,
 }) => {
   await startPolishDownload(page);
@@ -42,10 +42,36 @@ test("shows determinate zero progress immediately after Download", async ({
     name: "Polish model download",
   });
   await expect(progress).toBeVisible();
-  await expect(progress).toHaveAttribute("value", "0");
+  await expect(progress).not.toHaveAttribute("value");
   await expect(
-    page.getByRole("dialog", { name: "Local Polish model" })
-  ).toContainText("0%");
+    page
+      .getByRole("dialog", { name: "Local Polish model" })
+      .getByText(percentagePattern)
+  ).toHaveCount(0);
+});
+
+test("a rejected download says why and offers the download again", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const state = window.__ECHO_TEST_STATE__;
+    const respond = state.respond;
+    state.respond = (command, args) =>
+      command === "download_polish_model"
+        ? Promise.reject(
+            "Wait for the current language model operation to finish."
+          )
+        : respond(command, args);
+  });
+  await startPolishDownload(page);
+
+  const panel = page.getByRole("dialog", { name: "Local Polish model" });
+  await expect(panel.getByRole("alert")).toHaveText(
+    "Wait for the current language model operation to finish."
+  );
+  await expect(
+    panel.getByRole("button", { name: "Download 2.5 GB" })
+  ).toBeEnabled();
 });
 
 test("shows real verification percentage from the verification event", async ({

@@ -6,7 +6,6 @@ import {
   OPEN_MODELS_LABEL,
   openModelsPage,
 } from "@/features/meeting/open-models-page";
-import { polishModelName } from "@/features/polish/polish-model-state";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
 import {
@@ -49,7 +48,7 @@ const SummarySettings = () => {
   return (
     <SettingsSection title="Summary">
       <SettingRow
-        description={`Summarize each meeting with ${polishModelName} on this computer when it ends`}
+        description="Summarize each meeting on this computer when it ends"
         icon={<SparkleIcon className="h-4 w-4" />}
         title="Auto-generate summary"
       >

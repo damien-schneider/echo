@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { polishModelName } from "@/features/polish/polish-model-state";
 import { PolishStatusSchema } from "@/lib/types";
 
 // A summary that cannot run until its model is downloaded from Models.
@@ -64,7 +63,7 @@ async function localEngine(): Promise<SummaryEngine> {
   );
   if (polish.success && polish.data.state === "not_downloaded") {
     throw new MeetingSummaryError(
-      `Summaries run on ${polishModelName}, which is not downloaded yet.`
+      `Download ${polish.data.model?.name ?? "the language model"} in Settings → Models to summarize meetings.`
     );
   }
   const charBudget = await invoke<number>("local_summary_char_budget");

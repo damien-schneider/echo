@@ -170,6 +170,8 @@ pub struct AppSettings {
     pub autostart_enabled: bool,
     #[serde(default)]
     pub transcription_model_size: TranscriptionModelSize,
+    #[serde(default)]
+    pub polish_model_id: Option<String>,
     #[serde(default = "default_always_on_microphone")]
     pub always_on_microphone: bool,
     #[serde(default)]

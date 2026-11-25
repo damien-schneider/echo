@@ -28,7 +28,7 @@ use protocol::{
     parse_chat_response, ChatRequest, ChatRequestMessage, ChatStreamDecoder, TokenizeRequest,
     TokenizeResponse,
 };
-use server_args::{local_input_char_budget, MAX_RESPONSE_TOKENS};
+use server_args::local_input_char_budget;
 
 const POLISH_REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 const CHAT_STREAM_TIMEOUT: Duration = Duration::from_secs(180);
@@ -182,23 +182,6 @@ impl PolishRuntime {
             .await
     }
 
-    async fn post_chat(
-        &self,
-        messages: &[ChatRequestMessage<'_>],
-        temperature: f32,
-        stream: bool,
-    ) -> Result<reqwest::Response> {
-        self.post_completion(&ChatRequest {
-            model: "polish",
-            messages,
-            stream,
-            temperature,
-            seed: 0,
-            max_tokens: MAX_RESPONSE_TOKENS,
-        })
-        .await
-    }
-
     async fn post_completion(&self, body: &(impl Serialize + Sync)) -> Result<reqwest::Response> {
         let (url, api_key) = self.endpoint_auth("/v1/chat/completions").await?;
         let response = self
@@ -237,7 +220,7 @@ impl PolishRuntime {
     async fn send_polish_request(&self, messages: &[ChatRequestMessage<'_>]) -> Result<String> {
         let operation = async {
             let body = self
-                .post_chat(messages, 0.0, false)
+                .post_completion(&ChatRequest::for_correction(messages))
                 .await
                 .context("Polish correction request failed")?
                 .text()
@@ -263,9 +246,20 @@ impl PolishRuntime {
         messages: &[BundledChatMessage],
         publish: &(dyn Fn(&str) + Send + Sync),
     ) -> Result<String> {
+        self.chat_with_thinking(system, messages, false, publish)
+            .await
+    }
+
+    pub(super) async fn chat_with_thinking(
+        &self,
+        system: &str,
+        messages: &[BundledChatMessage],
+        thinking: bool,
+        publish: &(dyn Fn(&str) + Send + Sync),
+    ) -> Result<String> {
         let _request = self.activity.begin_request();
         let request_messages = bundled_chat_request_messages(system, messages);
-        self.run_with_restart(|| self.stream_chat_request(&request_messages, publish))
+        self.run_with_restart(|| self.stream_chat_request(&request_messages, thinking, publish))
             .await
     }
 
@@ -273,11 +267,12 @@ impl PolishRuntime {
     async fn stream_chat_request(
         &self,
         messages: &[ChatRequestMessage<'_>],
+        thinking: bool,
         publish: &(dyn Fn(&str) + Send + Sync),
     ) -> Result<String> {
         let operation = async {
             let response = self
-                .post_chat(messages, 0.2, true)
+                .post_completion(&ChatRequest::for_chat(messages, thinking))
                 .await
                 .context("Echo chat request failed")?;
             publish("");

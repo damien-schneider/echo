@@ -110,7 +110,6 @@ fn polish_use_preparation(is_downloaded: bool, status: PolishState) -> PolishUse
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PolishFailureStage {
-    Waiting,
     Runtime,
     Verification,
     Download,
@@ -124,9 +123,6 @@ struct PolishFailureStatus {
 
 fn polish_failure_status(stage: PolishFailureStage) -> PolishFailureStatus {
     let message = match stage {
-        PolishFailureStage::Waiting => {
-            "Another Polish operation did not finish. Restart Echo and try again."
-        }
         PolishFailureStage::Runtime => {
             "The local Polish service is missing. Reinstall Echo to restore it."
         }
@@ -143,10 +139,6 @@ fn polish_failure_status(stage: PolishFailureStage) -> PolishFailureStatus {
     PolishFailureStatus { message }
 }
 
-fn polish_failure_updates_shared_status(stage: PolishFailureStage) -> bool {
-    stage != PolishFailureStage::Waiting
-}
-
 fn polish_preparation_plan(
     is_downloaded: bool,
     partial_size: u64,
@@ -159,14 +151,6 @@ fn polish_preparation_plan(
         return PolishPreparationPlan::RecoverDownload;
     }
     PolishPreparationPlan::Download
-}
-
-/// A duplicate request rides the running task's status and progress events instead of queueing.
-fn polish_joins_active_operation(state: PolishState) -> bool {
-    matches!(
-        state,
-        PolishState::Downloading | PolishState::Verifying | PolishState::Loading
-    )
 }
 
 fn polish_status_for_availability(is_downloaded: bool) -> PolishStatus {
@@ -260,7 +244,6 @@ mod tests {
     #[test]
     fn terminal_statuses_are_actionable_without_exposing_internal_paths() {
         let statuses = [
-            polish_failure_status(PolishFailureStage::Waiting),
             polish_failure_status(PolishFailureStage::Runtime),
             polish_failure_status(PolishFailureStage::Verification),
             polish_failure_status(PolishFailureStage::Download),
@@ -268,23 +251,9 @@ mod tests {
         ];
         assert!(statuses.iter().all(|status| !status.message.contains('/')));
         assert_eq!(
-            statuses[0].message,
-            "Another Polish operation did not finish. Restart Echo and try again."
-        );
-        assert_eq!(
-            statuses[2].message,
+            statuses[1].message,
             "The installed Polish model could not be verified. Choose Repair to download a clean copy."
         );
-    }
-
-    #[test]
-    fn waiting_failure_does_not_replace_active_operation_status() {
-        assert!(!polish_failure_updates_shared_status(
-            PolishFailureStage::Waiting
-        ));
-        assert!(polish_failure_updates_shared_status(
-            PolishFailureStage::Download
-        ));
     }
 
     #[test]
@@ -303,22 +272,6 @@ mod tests {
     fn a_repair_checks_the_installed_model_again_instead_of_trusting_its_receipt() {
         assert!(PolishPreparationIntent::Repair.rehashes_installed_model());
         assert!(!PolishPreparationIntent::Download.rehashes_installed_model());
-    }
-
-    /// A 2.5 GB transfer outlives any wait, so a second click attaches instead of timing out.
-    #[test]
-    fn a_second_request_joins_an_operation_already_in_flight() {
-        assert!(polish_joins_active_operation(PolishState::Downloading));
-        assert!(polish_joins_active_operation(PolishState::Verifying));
-        assert!(polish_joins_active_operation(PolishState::Loading));
-    }
-
-    #[test]
-    fn a_request_against_a_settled_status_still_takes_the_lock() {
-        assert!(!polish_joins_active_operation(PolishState::Preparing));
-        assert!(!polish_joins_active_operation(PolishState::NotDownloaded));
-        assert!(!polish_joins_active_operation(PolishState::Ready));
-        assert!(!polish_joins_active_operation(PolishState::Repair));
     }
 
     #[test]

@@ -13,7 +13,7 @@ Echo is a desktop application built with Tauri (Rust + React/TypeScript). Press 
 
 - **Dictation**: Whisper (Small, Medium or Large) turns what you say into text and pastes it into the focused app.
 - **Meetings**: Echo records your microphone and, optionally, system audio, transcribes live with Voxtral Mini 4B Realtime on Apple Silicon Macs with 16 GB of memory (Whisper elsewhere) and labels speakers with Sortformer diarization.
-- **Polish and chat**: Qwen3 4B cleans up transcripts, summarizes meetings and answers in the built-in chat.
+- **Polish and chat**: Qwen3 4B cleans up transcripts, summarizes meetings, and answers in Chat by default. Choose a different on-device language model in **Settings → Models**. On models that support it, select **Think** for a harder Chat question.
 - **On-device**: every model is downloaded once and runs locally.
 - **Free and open source**: MIT-licensed.
 

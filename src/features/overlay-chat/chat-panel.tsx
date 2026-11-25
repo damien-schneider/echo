@@ -79,16 +79,38 @@ const CloseChatButton = ({ onClose }: { onClose: () => void }) => (
     <XIcon aria-hidden="true" className="size-3.5" />
   </Button>
 );
+const ChatHeaderEnd = ({
+  modelName,
+  onClose,
+}: {
+  modelName?: string;
+  onClose: () => void;
+}) => (
+  <div className="flex min-w-0 items-center gap-2">
+    {modelName ? (
+      <p
+        className="echo-chat-model truncate"
+        title="Language model answering in Chat"
+      >
+        <span className="sr-only">Answering with </span>
+        {modelName}
+      </p>
+    ) : null}
+    <CloseChatButton onClose={onClose} />
+  </div>
+);
 interface ChatPanelShellProps {
   children: ReactNode;
   hasFlanks: boolean;
   leftFlank: ReactNode;
+  modelName?: string;
   onClose: () => void;
 }
 const ChatPanelShell = ({
   children,
   hasFlanks,
   leftFlank,
+  modelName,
   onClose,
 }: ChatPanelShellProps) => (
   <IslandHud
@@ -97,7 +119,7 @@ const ChatPanelShell = ({
     hasFlanks={hasFlanks}
     layout="chat"
     leftFlank={leftFlank}
-    rightFlank={<CloseChatButton onClose={onClose} />}
+    rightFlank={<ChatHeaderEnd modelName={modelName} onClose={onClose} />}
   >
     {children}
   </IslandHud>
@@ -141,6 +163,7 @@ const ChatPanelContent = ({
     <MessageList
       error={chat.error}
       isResponding={chat.isResponding}
+      isThinking={chat.isThinking}
       messages={chat.messages}
     />
     <PromptMenuList activeChoice={chatPrompt.activeChoice} menu={menu} />
@@ -159,9 +182,9 @@ interface PromptedChatOptions {
   context: ChatTextContext | null;
   contextState: ChatContextEvent["state"];
   generation: number;
-  modelState: BundledChatModel["status"]["state"];
+  modelStatus: BundledChatModel["status"];
 }
-/// Switching prompt starts over, keeping only what is typed.
+/// Switching prompt starts over, keeping the composer draft.
 const usePromptedChat = (options: PromptedChatOptions) => {
   const chatPrompt = useChatPrompt();
   const chat = useChatSession({
@@ -199,12 +222,13 @@ export const ChatPanel = ({
     context,
     contextState,
     generation,
-    modelState: bundledModel.status.state,
+    modelStatus: bundledModel.status,
   });
   return (
     <ChatPanelShell
       hasFlanks={hasFlanks}
       leftFlank={<ChatPromptPill label={chatPrompt.label} menu={menu} />}
+      modelName={bundledModel.status.model?.name}
       onClose={onClose}
     >
       <ChatPanelContent
