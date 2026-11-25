@@ -1,18 +1,15 @@
 # Changelog
 
-## [Unreleased]
+## [0.8.23] - 2026-11-25
 
 ### Added
-
 - Choose Qwen3 4B, Gemma 4 E2B, MiniCPM5-2B, or Ling 3.0 Tiny in Settings → Models. Each one states the languages its developer documents, and Chat shows which one is answering. Qwen stays selected by default. Echo checks free space, resumes interrupted downloads, and keeps the previous model selected until the new one is verified and running. Switching away from Qwen pauses voice commands but keeps dictation rewrites available.
 - Turn on **Think** below the Chat message box for slower, more careful answers on supported models. It stays on for later questions until you turn it off; Polish and summaries still run without thinking.
 
 ### Changed
-
 - The island docked to the top or bottom of the screen is easier to spot and to reach. At rest, the bar is 48 by 8 points instead of 38 by 5. The bar and the toolbar it opens into both sit 10 points from the edge instead of 4.
 
 ### Fixed
-
 - Smaller models in Chat are less likely to reply that there is no text to work on when you ask about your selection: the selected text now goes in with your latest question instead of sitting in the model's instructions.
 
 ## [0.8.22] - 2026-11-21
