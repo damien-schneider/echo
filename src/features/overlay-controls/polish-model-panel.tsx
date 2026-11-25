@@ -9,8 +9,10 @@ import ProgressBar from "@/components/shared/progress-bar";
 import type { PolishModelProgress } from "@/features/polish/polish-model-state";
 import { polishStatusCopy } from "@/features/polish/polish-status-copy";
 import type { PolishStatus } from "@/lib/types";
+import { formatModelSize } from "@/lib/utils/format";
 
 interface PolishModelPanelProps {
+  error?: string;
   onClose: () => void;
   onDownload: () => Promise<void>;
   onRepair: () => Promise<void>;
@@ -84,21 +86,27 @@ interface PolishProgressProps {
   state: PolishStatus["state"];
 }
 const determinateProgress = ({ progress, state }: PolishProgressProps) => {
-  if (state === "downloading") {
+  if (state === "downloading" && progress?.phase === "download") {
     return {
       ariaLabel: "Polish model download",
-      percentage: progress?.phase === "download" ? progress.percentage : 0,
+      percentage: progress.percentage,
     };
   }
-  if (state === "verifying") {
+  if (state === "verifying" && progress?.phase === "verification") {
     return {
       ariaLabel: "Polish model verification",
-      percentage: progress?.phase === "verification" ? progress.percentage : 0,
+      percentage: progress.percentage,
     };
   }
   return null;
 };
 const indeterminateProgressLabel = (state: PolishStatus["state"]) => {
+  if (state === "downloading") {
+    return "Polish model download";
+  }
+  if (state === "verifying") {
+    return "Polish model verification";
+  }
   if (state === "loading") {
     return "Polish model loading";
   }
@@ -142,11 +150,12 @@ const PolishPanelAction = ({
   onClose,
   onDownload,
   onRepair,
-  state,
-}: Pick<PolishModelPanelProps, "onClose" | "onDownload" | "onRepair"> & {
-  state: PolishStatus["state"];
-}) => {
-  if (state === "not_downloaded") {
+  status,
+}: Pick<
+  PolishModelPanelProps,
+  "onClose" | "onDownload" | "onRepair" | "status"
+>) => {
+  if (status.state === "not_downloaded") {
     return (
       <Button
         className={polishActionClassName}
@@ -156,11 +165,13 @@ const PolishPanelAction = ({
         variant="solid"
       >
         <DownloadSimpleIcon aria-hidden="true" />
-        Download 2.5 GB
+        {status.model
+          ? `Download ${formatModelSize(status.model.download_size_mb)}`
+          : "Download"}
       </Button>
     );
   }
-  if (state === "repair") {
+  if (status.state === "repair") {
     return (
       <Button
         className={polishActionClassName}
@@ -174,7 +185,7 @@ const PolishPanelAction = ({
       </Button>
     );
   }
-  if (state === "ready") {
+  if (status.state === "ready") {
     return (
       <Button
         className={polishActionClassName}
@@ -190,37 +201,41 @@ const PolishPanelAction = ({
   return null;
 };
 export const PolishModelPanel = ({
+  error,
   onClose,
   onDownload,
   onRepair,
   progress,
   status,
-}: PolishModelPanelProps) => (
-  <dialog
-    aria-busy={isBusyState(status.state)}
-    aria-label="Local Polish model"
-    className="echo-island-panel m-0 border-0"
-    data-polish-status-layer={status.state}
-    data-state={status.state}
-    open={true}
-  >
-    <PolishPanelHeader onClose={onClose} status={status} />
+}: PolishModelPanelProps) => {
+  const problem = error ?? (status.state === "repair" ? status.message : null);
+  return (
+    <dialog
+      aria-busy={isBusyState(status.state)}
+      aria-label="Local Polish model"
+      className="echo-island-panel m-0 border-0"
+      data-polish-status-layer={status.state}
+      data-state={status.state}
+      open={true}
+    >
+      <PolishPanelHeader onClose={onClose} status={status} />
 
-    <PolishProgress progress={progress} state={status.state} />
+      <PolishProgress progress={progress} state={status.state} />
 
-    <div className="mt-4 flex justify-end">
-      <PolishPanelAction
-        onClose={onClose}
-        onDownload={onDownload}
-        onRepair={onRepair}
-        state={status.state}
-      />
-    </div>
+      <div className="mt-4 flex justify-end">
+        <PolishPanelAction
+          onClose={onClose}
+          onDownload={onDownload}
+          onRepair={onRepair}
+          status={status}
+        />
+      </div>
 
-    {status.state === "repair" ? (
-      <p className="mt-3 text-[11px] text-red-200" role="alert">
-        {status.message}
-      </p>
-    ) : null}
-  </dialog>
-);
+      {problem ? (
+        <p className="mt-3 text-[11px] text-red-200" role="alert">
+          {problem}
+        </p>
+      ) : null}
+    </dialog>
+  );
+};

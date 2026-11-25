@@ -14,7 +14,6 @@ async fn replaces_selection_and_restores_all_clipboard_formats() {
     let generation = fixture.cancellation.begin();
 
     let outcome = fixture
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .unwrap();
@@ -33,7 +32,6 @@ async fn restores_selected_line_structure_when_the_model_reflows_text() {
     let generation = fixture.cancellation.begin();
 
     let outcome = fixture
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .unwrap();
@@ -52,7 +50,6 @@ async fn rejected_output_explains_that_the_original_text_was_kept() {
     let generation = fixture.cancellation.begin();
 
     let error = fixture
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .unwrap_err();
@@ -71,7 +68,6 @@ async fn captures_selection_identical_to_existing_clipboard() {
 
     assert_eq!(
         fixture
-            .transaction
             .run(SelectionMode::ReplaceSelection, generation)
             .await
             .unwrap(),
@@ -120,7 +116,6 @@ async fn restores_user_clipboard_change_made_during_inference() {
     let generation = fixture.cancellation.begin();
 
     fixture
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .unwrap();
@@ -145,7 +140,6 @@ async fn missing_selection_gives_up_within_the_copy_wait_budget() {
 
     assert_eq!(
         fixture
-            .transaction
             .run(SelectionMode::ReplaceSelection, generation)
             .await
             .unwrap(),
@@ -168,7 +162,6 @@ async fn selection_answered_late_by_a_busy_application_is_still_captured() {
     let generation = fixture.cancellation.begin();
 
     let outcome = fixture
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .unwrap();
@@ -194,7 +187,6 @@ async fn a_clipboard_that_reads_back_empty_does_not_end_the_wait() {
     let generation = fixture.cancellation.begin();
 
     let outcome = fixture
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .unwrap();
@@ -215,7 +207,6 @@ async fn a_clipboard_that_cannot_be_restored_still_polishes_the_selection() {
     let generation = fixture.cancellation.begin();
 
     let outcome = fixture
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .unwrap();
@@ -253,7 +244,6 @@ async fn empty_copied_text_returns_without_inference() {
 
     assert_eq!(
         fixture
-            .transaction
             .run(SelectionMode::ReplaceSelection, generation)
             .await
             .unwrap(),
@@ -275,7 +265,6 @@ async fn the_line_zed_copies_when_nothing_is_selected_is_not_a_selection() {
     let generation = fixture.cancellation.begin();
 
     let outcome = fixture
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .unwrap();
@@ -314,7 +303,6 @@ async fn focus_loss_and_newer_invocation_never_paste() {
     let generation = focus_lost.cancellation.begin();
 
     assert!(focus_lost
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .is_err());
@@ -324,7 +312,6 @@ async fn focus_loss_and_newer_invocation_never_paste() {
     let generation = stale.cancellation.begin();
     stale.cancellation.cancel();
     assert!(stale
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .is_err());
@@ -339,7 +326,6 @@ async fn token_limit_and_unchanged_output_do_not_paste() {
     });
     let generation = too_many.cancellation.begin();
     assert!(too_many
-        .transaction
         .run(SelectionMode::ReplaceSelection, generation)
         .await
         .is_err());
@@ -348,7 +334,6 @@ async fn token_limit_and_unchanged_output_do_not_paste() {
     let generation = unchanged.cancellation.begin();
     assert_eq!(
         unchanged
-            .transaction
             .run(SelectionMode::ReplaceSelection, generation)
             .await
             .unwrap(),
@@ -365,7 +350,6 @@ async fn clipboard_only_mode_leaves_polished_text_copied() {
 
     assert_eq!(
         fixture
-            .transaction
             .run(SelectionMode::ClipboardOnly, generation)
             .await
             .unwrap(),

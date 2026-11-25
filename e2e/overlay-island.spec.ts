@@ -48,10 +48,10 @@ test("only the compact bar and the edge beneath it reveal the actions", async ({
 
   expect(handleBox).not.toBeNull();
   expect(morphBox).not.toBeNull();
-  expect(handleBox?.width).toBe(38);
-  expect(handleBox?.height).toBe(9);
-  expect(morphBox?.width).toBe(38);
-  expect(morphBox?.height).toBe(5);
+  expect(handleBox?.width).toBe(48);
+  expect(handleBox?.height).toBe(18);
+  expect(morphBox?.width).toBe(48);
+  expect(morphBox?.height).toBe(8);
   if (!handleBox) {
     return;
   }
@@ -85,8 +85,8 @@ test("survives repeated hover cycles without a stale open or close", async ({
     if (!handleBox) {
       return;
     }
-    expect(handleBox.width).toBe(38);
-    expect(handleBox.height).toBe(9);
+    expect(handleBox.width).toBe(48);
+    expect(handleBox.height).toBe(18);
     await page.mouse.move(
       handleBox.x + handleBox.width / 2,
       handleBox.y + handleBox.height / 2
@@ -98,8 +98,8 @@ test("survives repeated hover cycles without a stale open or close", async ({
     await page.mouse.move(0, 0);
     await expect(handle).toBeVisible({ timeout: 350 });
     await expect(toolbar).toBeHidden();
-    await expect(handle).toHaveCSS("width", "38px");
-    await expect(handle).toHaveCSS("height", "9px");
+    await expect(handle).toHaveCSS("width", "48px");
+    await expect(handle).toHaveCSS("height", "18px");
   }
 });
 
@@ -150,7 +150,7 @@ test("settles back to the exact compact target before the next hover", async ({
       const box = await handle.boundingBox();
       return box ? [Math.round(box.width), Math.round(box.height)] : null;
     })
-    .toEqual([38, 9]);
+    .toEqual([48, 18]);
 
   const settledBox = await handle.boundingBox();
   if (!settledBox) {
@@ -216,7 +216,7 @@ test("reopens through the persistent hit target during exit", async ({
   expect(closingBox.y + closingBox.height).toBeGreaterThanOrEqual(
     residentCenter.y
   );
-  await closingHandle.hover({ position: { x: 1, y: 1 } });
+  await closingHandle.hover({ position: { x: closingBox.width / 2, y: 1 } });
   await page.waitForTimeout(220);
 
   await expect(toolbar).toBeVisible();

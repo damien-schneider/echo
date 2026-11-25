@@ -66,6 +66,7 @@ export const NotificationSurface = ({
   if (mode === "panel") {
     return (
       <PolishModelPanel
+        error={polish.error}
         onClose={controller.dismissSurface}
         onDownload={polish.download}
         onRepair={polish.repair}

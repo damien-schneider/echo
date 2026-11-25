@@ -9,33 +9,27 @@ import {
   OPEN_MODELS_LABEL,
   openModelsPage,
 } from "@/features/meeting/open-models-page";
-import { polishModelName } from "@/features/polish/polish-model-state";
 import { usePolishModel } from "@/features/polish/use-polish-model";
 import { usePromptLibraryStore } from "@/features/prompts/prompt-library-store";
 import { SettingRow } from "@/features/settings/setting-row";
 import { SettingsSection } from "@/features/settings/settings-section";
 import { getNormalizedOsPlatform } from "@/lib/os";
+import type { PolishStatus } from "@/lib/types";
 import { useSettingsStore } from "@/stores/settings-store";
 
 // Linux has no focus probe, so Echo never learns that no text field has focus.
 const voiceCommandsAreAvailable = getNormalizedOsPlatform() !== "linux";
 
-const MODEL_SETUP_TITLES = {
-  not_downloaded: `Download ${polishModelName}`,
-  repair: `Repair ${polishModelName}`,
-} as const;
-
-const LocalModelSetup = () => {
-  const { status } = usePolishModel();
+const LocalModelSetup = ({ status }: { status: PolishStatus }) => {
   if (status.state !== "not_downloaded" && status.state !== "repair") {
     return null;
   }
   return (
     <SettingsSection title="Model">
       <SettingRow
-        description="Prompts and voice commands run on it."
+        description="Chat and Polish prompts run on the selected model."
         icon={<CubeIcon className="h-4 w-4" />}
-        title={MODEL_SETUP_TITLES[status.state]}
+        title={`${status.state === "repair" ? "Repair" : "Download"} ${status.model?.name ?? "the language model"}`}
       >
         <Button onClick={openModelsPage} size="sm" variant="surface">
           {OPEN_MODELS_LABEL}
@@ -82,10 +76,17 @@ const PromptLibrary = () => {
   );
 };
 
-export const PromptsSettings = () => (
-  <div className="space-y-5">
-    <LocalModelSetup />
-    <PromptLibrary />
-    {voiceCommandsAreAvailable && <VoiceCommandsSettings />}
-  </div>
-);
+export const PromptsSettings = () => {
+  const { status } = usePolishModel();
+  return (
+    <div className="space-y-5">
+      <LocalModelSetup status={status} />
+      <PromptLibrary />
+      {voiceCommandsAreAvailable && (
+        <VoiceCommandsSettings
+          supported={status.model?.supports_voice_commands !== false}
+        />
+      )}
+    </div>
+  );
+};

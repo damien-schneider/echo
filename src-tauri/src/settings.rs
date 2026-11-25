@@ -50,6 +50,7 @@ pub fn get_default_settings() -> AppSettings {
         start_hidden: default_start_hidden(),
         autostart_enabled: default_autostart_enabled(),
         transcription_model_size: TranscriptionModelSize::default(),
+        polish_model_id: None,
         always_on_microphone: false,
         selected_microphone: None,
         clamshell_microphone: None,

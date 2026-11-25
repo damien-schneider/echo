@@ -1,90 +1,94 @@
 use anyhow::{Context, Result};
-use std::time::Duration;
-
-use crate::managers::model::POLISH_MODEL_ID;
 
 use super::super::{
-    polish_joins_active_operation, polish_preparation_plan, PolishFailureStage,
-    PolishPreparationIntent, PolishPreparationPlan, PolishState,
+    polish_preparation_plan, PolishFailureStage, PolishPreparationIntent, PolishPreparationPlan,
+    PolishState,
 };
+use super::model_failure::failed_at;
 use super::PolishManager;
+use super::PolishRuntime;
 
 impl PolishManager {
     pub(super) async fn repair(&self) -> Result<()> {
-        self.wait_and_prepare_explicit(PolishPreparationIntent::Repair)
+        let operation = self.begin_model_operation(None)?;
+        self.wait_and_prepare_explicit(PolishPreparationIntent::Repair, operation.id)
             .await
     }
 
     pub(super) async fn download(&self) -> Result<()> {
-        self.wait_and_prepare_explicit(PolishPreparationIntent::Download)
+        let operation = self.begin_model_operation(None)?;
+        self.prepare_selection(operation.id).await
+    }
+
+    pub(super) async fn prepare_selection(&self, model_id: &'static str) -> Result<()> {
+        self.wait_and_prepare_explicit(PolishPreparationIntent::Download, model_id)
             .await
     }
 
-    async fn wait_and_prepare_explicit(&self, intent: PolishPreparationIntent) -> Result<()> {
-        let Some(_guard) = self.acquire_preparation().await? else {
-            return Ok(());
-        };
+    async fn wait_and_prepare_explicit(
+        &self,
+        intent: PolishPreparationIntent,
+        model_id: &'static str,
+    ) -> Result<()> {
+        let _guard = self.preparation.lock().await;
         if intent.reuses_ready_status() && self.status().state == PolishState::Ready {
             return Ok(());
         }
+        let runtime = self.runtime.exclusive().await?;
         if intent.resets_runtime() {
-            let reset_result = self.runtime.reset().await;
-            self.record_failure(PolishFailureStage::Runtime, reset_result)?;
+            let reset_result = runtime.reset().await;
+            self.record_step(PolishFailureStage::Runtime, reset_result)?;
         }
         if intent.rehashes_installed_model() {
-            self.models.forget_verification(POLISH_MODEL_ID);
+            self.models.forget_verification(model_id);
         }
         let runtime_result = self.require_runtime();
-        self.record_failure(PolishFailureStage::Runtime, runtime_result)?;
-        let plan = self.preparation_plan();
+        self.record_step(PolishFailureStage::Runtime, runtime_result)?;
+        let plan = self.preparation_plan(model_id);
         self.set_preparation_status(plan);
-        self.prepare_explicit(plan).await
-    }
-
-    /// `None` — another task owns the operation; its status events are the answer.
-    async fn acquire_preparation(&self) -> Result<Option<tokio::sync::MutexGuard<'_, ()>>> {
-        if let Ok(guard) = self.preparation.try_lock() {
-            return Ok(Some(guard));
-        }
-        if polish_joins_active_operation(self.status().state) {
-            log::info!("Joining the Polish operation already in flight");
-            return Ok(None);
-        }
-        let wait_result = tokio::time::timeout(Duration::from_secs(75), self.preparation.lock())
+        runtime
+            .unless_closed(self.prepare_explicit(plan, model_id, &runtime))
             .await
-            .context("Timed out waiting for another Polish operation");
-        self.record_failure(PolishFailureStage::Waiting, wait_result)
-            .map(Some)
     }
 
-    async fn prepare_explicit(&self, plan: PolishPreparationPlan) -> Result<()> {
+    fn record_step<T>(&self, stage: PolishFailureStage, result: Result<T>) -> Result<T> {
+        self.record_failure(stage, result)
+            .map_err(|error| failed_at(stage, error))
+    }
+
+    async fn prepare_explicit(
+        &self,
+        plan: PolishPreparationPlan,
+        model_id: &'static str,
+        runtime: &PolishRuntime,
+    ) -> Result<()> {
         if !plan.requires_preload_verification() {
-            return self.download_and_load().await;
+            return self.download_and_load(model_id, runtime).await;
         }
-        if let Err(error) = self.models.verify_downloaded_model(POLISH_MODEL_ID) {
+        if let Err(error) = self.verify_model(model_id).await {
             log::warn!("Discarding invalid Polish model before repair: {error:#}");
             let delete_result = self
                 .models
-                .delete_model(POLISH_MODEL_ID)
+                .delete_model(model_id)
                 .context("Failed to discard invalid Polish model");
-            self.record_failure(PolishFailureStage::Verification, delete_result)?;
+            self.record_step(PolishFailureStage::Verification, delete_result)?;
             self.set_status(PolishState::Downloading, "Downloading Polish model");
-            return self.download_and_load().await;
+            return self.download_and_load(model_id, runtime).await;
         }
-        let load_result = self.load_runtime().await;
-        self.record_failure(PolishFailureStage::Loading, load_result)
+        let load_result = self.load_runtime(runtime).await;
+        self.record_step(PolishFailureStage::Loading, load_result)
     }
 
-    async fn download_and_load(&self) -> Result<()> {
-        let download_result = self.models.download_model(POLISH_MODEL_ID).await;
-        self.record_failure(PolishFailureStage::Download, download_result)?;
-        let load_result = self.load_runtime().await;
-        self.record_failure(PolishFailureStage::Loading, load_result)
+    async fn download_and_load(&self, model_id: &str, runtime: &PolishRuntime) -> Result<()> {
+        let download_result = self.models.download_model(model_id).await;
+        self.record_step(PolishFailureStage::Download, download_result)?;
+        let load_result = self.load_runtime(runtime).await;
+        self.record_step(PolishFailureStage::Loading, load_result)
     }
 
-    fn preparation_plan(&self) -> PolishPreparationPlan {
+    fn preparation_plan(&self, model_id: &str) -> PolishPreparationPlan {
         self.models
-            .get_model_info(POLISH_MODEL_ID)
+            .get_model_info(model_id)
             .map(|model| {
                 polish_preparation_plan(model.is_downloaded, model.partial_size, model.size_bytes)
             })

@@ -16,62 +16,75 @@ import {
 } from "@/features/polish/polish-model-state";
 import type { PolishStatus } from "@/lib/types";
 
+const qwenId = "polish-qwen3-4b-instruct-2507";
+const gemmaId = "polish-gemma-4-e2b-it";
+
 describe("Polish model state", () => {
-  test("accepts progress only for the fixed Polish model", () => {
+  test("accepts progress only for the selected language model", () => {
     expect(
-      parsePolishDownloadProgress({
-        downloaded: 1_048_576,
-        model_id: "polish-qwen3-4b-instruct-2507",
-        percentage: 42,
-        total: 2_497_280_448,
-      })
+      parsePolishDownloadProgress(
+        {
+          downloaded: 1_048_576,
+          model_id: gemmaId,
+          percentage: 42,
+          total: 2_497_280_448,
+        },
+        gemmaId
+      )
     ).toBe(42);
     expect(
-      parsePolishDownloadProgress({
-        downloaded: 1_048_576,
-        model_id: "medium",
-        percentage: 42,
-        total: 574_041_195,
-      })
+      parsePolishDownloadProgress(
+        {
+          downloaded: 1_048_576,
+          model_id: qwenId,
+          percentage: 42,
+          total: 574_041_195,
+        },
+        gemmaId
+      )
     ).toBeUndefined();
   });
 
   test("accepts the complete payload emitted by the Rust downloader", () => {
     expect(
-      parsePolishDownloadProgress({
-        downloaded: 624_320_112,
-        model_id: "polish-qwen3-4b-instruct-2507",
-        percentage: 25,
-        total: 2_497_280_448,
-      })
+      parsePolishDownloadProgress(
+        {
+          downloaded: 624_320_112,
+          model_id: "polish-qwen3-4b-instruct-2507",
+          percentage: 25,
+          total: 2_497_280_448,
+        },
+        qwenId
+      )
     ).toBe(25);
   });
 
   test("rejects malformed and out-of-range progress", () => {
     expect(
-      parsePolishDownloadProgress({
-        downloaded: 1_048_576,
-        model_id: "polish-qwen3-4b-instruct-2507",
-        percentage: 101,
-        total: 2_497_280_448,
-      })
+      parsePolishDownloadProgress(
+        {
+          downloaded: 1_048_576,
+          model_id: "polish-qwen3-4b-instruct-2507",
+          percentage: 101,
+          total: 2_497_280_448,
+        },
+        qwenId
+      )
     ).toBeUndefined();
-    expect(parsePolishDownloadProgress("42%")).toBeUndefined();
+    expect(parsePolishDownloadProgress("42%", qwenId)).toBeUndefined();
   });
 
   test("validates model event identifiers at the boundary", () => {
-    expect(isPolishModelEvent("polish-qwen3-4b-instruct-2507")).toBe(true);
-    expect(
-      isPolishModelEvent({ model_id: "polish-qwen3-4b-instruct-2507" })
-    ).toBe(false);
+    expect(isPolishModelEvent(qwenId, qwenId)).toBe(true);
+    expect(isPolishModelEvent({ model_id: qwenId }, qwenId)).toBe(false);
   });
 
   test("uses stable English recovery copy without leaking transport errors", () => {
     expect(polishModelFailure("setup").message).toBe(
-      "Polish could not connect to its local model service. Reopen Echo and try again."
+      "Echo could not connect to its language model service. Reopen Echo and try again."
     );
     expect(polishModelFailure("download").message).toBe(
-      "The Polish model download failed. Check your connection and retry."
+      "The language model download failed. Check your connection and storage, then retry."
     );
   });
 
@@ -106,6 +119,7 @@ describe("Polish model state", () => {
     let refreshCount = 0;
 
     handlePolishDownloadComplete({
+      modelId: qwenId,
       payload: "polish-qwen3-4b-instruct-2507",
       refreshStatus: () => {
         refreshCount += 1;
@@ -119,11 +133,12 @@ describe("Polish model state", () => {
     expect(refreshCount).toBe(1);
   });
 
-  test("returns to downloading when verification falls back to real bytes", () => {
+  test("displays the real download progress", () => {
     const progress: PolishModelProgress[] = [];
     const received: PolishStatus[] = [];
 
     handlePolishDownloadProgress({
+      modelId: qwenId,
       payload: {
         downloaded: 924_000_000,
         model_id: "polish-qwen3-4b-instruct-2507",
@@ -148,6 +163,7 @@ describe("Polish model state", () => {
     const received: PolishStatus[] = [];
 
     handlePolishVerificationProgress({
+      modelId: qwenId,
       payload: {
         downloaded: 1_173_721_811,
         model_id: "polish-qwen3-4b-instruct-2507",
@@ -171,6 +187,7 @@ describe("Polish model state", () => {
     const progress: PolishModelProgress[] = [];
     const received: PolishStatus[] = [];
     const ports = {
+      modelId: qwenId,
       setProgress: (nextProgress: PolishModelProgress) =>
         progress.push(nextProgress),
       statusSynchronizer: {
@@ -227,7 +244,7 @@ describe("Polish model state", () => {
       statusSynchronizer: synchronizer,
     });
 
-    expect(progress).toEqual([{ percentage: 0, phase: "download" }, undefined]);
+    expect(progress).toEqual([undefined]);
     expect(received).toEqual([
       { message: "Downloading Polish model", state: "downloading" },
       { message: "Polish ready", state: "ready" },
@@ -274,7 +291,7 @@ describe("Polish model state", () => {
     });
   });
 
-  test("preserves the backend repair reason when a command rejects", async () => {
+  test("refreshes the backend reason and rethrows when a command rejects", async () => {
     const received: PolishStatus[] = [];
     const synchronizer = createPolishStatusSynchronizer({
       isStopped: () => false,
@@ -286,11 +303,16 @@ describe("Polish model state", () => {
       setStatus: (status) => received.push(status),
     });
 
-    await runPolishModelCommand({
-      invokeCommand: () => Promise.reject(new Error("transport error")),
-      setProgress: () => undefined,
-      statusSynchronizer: synchronizer,
-    });
+    await expect(
+      runPolishModelCommand({
+        invokeCommand: () =>
+          Promise.reject(
+            "Wait for the current language model operation to finish."
+          ),
+        setProgress: () => undefined,
+        statusSynchronizer: synchronizer,
+      })
+    ).rejects.toBe("Wait for the current language model operation to finish.");
 
     expect(received).toEqual([
       { message: "Downloading Polish model", state: "downloading" },
@@ -306,11 +328,13 @@ describe("Polish model state", () => {
       setStatus: (status) => received.push(status),
     });
 
-    await runPolishModelCommand({
-      invokeCommand: () => Promise.reject(new Error("transport error")),
-      setProgress: () => undefined,
-      statusSynchronizer: synchronizer,
-    });
+    await expect(
+      runPolishModelCommand({
+        invokeCommand: () => Promise.reject(new Error("transport error")),
+        setProgress: () => undefined,
+        statusSynchronizer: synchronizer,
+      })
+    ).rejects.toThrow("transport error");
 
     expect(received.at(-1)).toEqual(polishModelFailure("setup"));
   });
@@ -358,6 +382,7 @@ describe("Polish model state", () => {
 
     await synchronizer.refresh();
     handlePolishDownloadProgress({
+      modelId: qwenId,
       payload: {
         downloaded: 2_497_280_448,
         model_id: "polish-qwen3-4b-instruct-2507",
@@ -372,28 +397,6 @@ describe("Polish model state", () => {
     expect(received).toEqual([
       { message: "Loading Polish model", state: "loading" },
     ]);
-  });
-
-  /// A duplicate download returns at once and must not blank the running transfer's bar.
-  test("keeps the progress bar when the command returns to a running transfer", async () => {
-    const progress: Array<PolishModelProgress | undefined> = [];
-    const synchronizer = createPolishStatusSynchronizer({
-      isStopped: () => false,
-      readStatus: () =>
-        Promise.resolve({
-          message: "Downloading Polish model",
-          state: "downloading",
-        }),
-      setStatus: () => undefined,
-    });
-
-    await runPolishModelCommand({
-      invokeCommand: () => Promise.resolve(),
-      setProgress: (nextProgress) => progress.push(nextProgress),
-      statusSynchronizer: synchronizer,
-    });
-
-    expect(progress).toStrictEqual([{ percentage: 0, phase: "download" }]);
   });
 
   test("invalidates stale effect lifecycles without stopping the current one", () => {

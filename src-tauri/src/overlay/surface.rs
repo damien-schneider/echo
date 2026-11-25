@@ -7,7 +7,9 @@ use super::monitor::OverlayNotchGeometry;
 use crate::settings::{OverlayDockEdge, OverlayPosition};
 
 pub(super) const SURFACE_INSET: f64 = 4.0;
-const COMPACT_BAR: (f64, f64) = (38.0, 5.0);
+/// Mirrored by `.echo-island-morph::before` in island-morph.css.
+const COMPACT_BAR: (f64, f64) = (48.0, 8.0);
+pub(super) const FLOATING_DOCK_GAP: f64 = 10.0;
 /// Mirrored by `.echo-island-resident` in resident-island.css.
 pub(super) const TOOLBAR_THICKNESS: f64 = 40.0;
 const DOCK_PANEL: f64 = 176.0;
@@ -74,17 +76,26 @@ struct SurfaceInsets {
     top: f64,
 }
 
-fn surface_insets(placement: OverlayPlacement) -> SurfaceInsets {
+fn surface_insets(mode: RecordingOverlayMode, placement: OverlayPlacement) -> SurfaceInsets {
     let mut insets = SurfaceInsets {
         bottom: SURFACE_INSET,
         left: SURFACE_INSET,
         right: SURFACE_INSET,
         top: SURFACE_INSET,
     };
-    match placement.dock_edge {
-        OverlayDockEdge::Left if placement_is_side_docked(placement) => insets.left = 0.0,
-        OverlayDockEdge::Right if placement_is_side_docked(placement) => insets.right = 0.0,
-        _ => {}
+    if placement_is_side_docked(placement) {
+        match placement.dock_edge {
+            OverlayDockEdge::Left => insets.left = 0.0,
+            OverlayDockEdge::Right => insets.right = 0.0,
+            _ => {}
+        }
+    } else if overlay_mode_is_resident(mode) {
+        match placement.resolved_anchor() {
+            OverlayDockEdge::Bottom => insets.bottom = FLOATING_DOCK_GAP,
+            OverlayDockEdge::Left => insets.left = FLOATING_DOCK_GAP,
+            OverlayDockEdge::Right => insets.right = FLOATING_DOCK_GAP,
+            OverlayDockEdge::Top => insets.top = FLOATING_DOCK_GAP,
+        }
     }
     insets
 }
@@ -147,7 +158,7 @@ fn window_frame(request: SurfaceRequest) -> OverlayFrame {
 }
 
 fn island_content_box(window: OverlayFrame, request: SurfaceRequest) -> OverlayFrame {
-    let insets = surface_insets(request.placement);
+    let insets = surface_insets(request.mode, request.placement);
     let top = insets.top + notch_top_inset(request.placement, request.notch);
     OverlayFrame {
         height: (window.height - top - insets.bottom).max(0.0),

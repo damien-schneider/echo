@@ -1,10 +1,10 @@
-use super::model::{EngineType, ModelInfo, POLISH_MODEL_ID, POLISH_MODEL_NAME, VOXTRAL_MODEL_ID};
+mod language_models;
+
+use super::model::{EngineType, ModelInfo, VOXTRAL_MODEL_ID};
 use super::transcription_profiles::{transcription_profiles, TranscriptionProfileSpec};
+pub(crate) use language_models::{LanguageSupport, PolishModelSpec, POLISH_MODELS};
 use std::collections::HashMap;
 
-const POLISH_MODEL_URL: &str = "https://huggingface.co/lmstudio-community/Qwen3-4B-Instruct-2507-GGUF/resolve/4edb920b6f14e3b9284d4502a6485103d72cde05/Qwen3-4B-Instruct-2507-Q4_K_M.gguf";
-const POLISH_MODEL_SHA256: &str =
-    "8cdb57cbb880d313736a9bc4e3d3d2485f145b5e19cf33783746e753e82641fc";
 const VOXTRAL_MODEL_URL: &str = "https://huggingface.co/handy-computer/Voxtral-Mini-4B-Realtime-2602-gguf/resolve/7fd3d424fc558edca2c53808578b0541ef52a81a/Voxtral-Mini-4B-Realtime-2602-Q4_K_M.gguf";
 const VOXTRAL_MODEL_SHA256: &str =
     "39dc1f65539373a406edea7490505822d77c12edff521744678717eef4da4723";
@@ -63,23 +63,10 @@ pub(super) fn available_model_catalog() -> HashMap<String, ModelInfo> {
             engine_type: EngineType::Diarization,
         },
     );
-    models.insert(
-        POLISH_MODEL_ID.to_string(),
-        ModelInfo {
-            id: POLISH_MODEL_ID.to_string(),
-            name: POLISH_MODEL_NAME.to_string(),
-            description: "Private multilingual spelling and grammar correction".to_string(),
-            filename: "Qwen3-4B-Instruct-2507-Q4_K_M.gguf".to_string(),
-            url: Some(POLISH_MODEL_URL.to_string()),
-            size_mb: 2_497,
-            size_bytes: 2_497_280_448,
-            sha256: Some(POLISH_MODEL_SHA256.to_string()),
-            is_downloaded: false,
-            is_downloading: false,
-            partial_size: 0,
-            is_directory: false,
-            engine_type: EngineType::Polish,
-        },
+    models.extend(
+        POLISH_MODELS
+            .iter()
+            .map(|spec| (spec.id.to_string(), spec.model_info())),
     );
     models.insert(
         VOXTRAL_MODEL_ID.to_string(),
@@ -105,6 +92,41 @@ pub(super) fn available_model_catalog() -> HashMap<String, ModelInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::managers::model::POLISH_MODEL_ID;
+
+    #[test]
+    fn curated_language_models_are_downloadable_and_preserve_the_default_path() {
+        let catalog = available_model_catalog();
+        assert!(POLISH_MODELS.iter().map(|spec| spec.id).eq([
+            POLISH_MODEL_ID,
+            "polish-gemma-4-e2b-it",
+            "polish-minicpm5-2b",
+            "polish-ling-3-0-tiny",
+        ]));
+        assert_eq!(
+            catalog[POLISH_MODEL_ID].filename,
+            "Qwen3-4B-Instruct-2507-Q4_K_M.gguf"
+        );
+        assert_eq!(
+            catalog
+                .values()
+                .filter(|model| model.engine_type == EngineType::Polish)
+                .count(),
+            POLISH_MODELS.len()
+        );
+        for spec in POLISH_MODELS {
+            let model = &catalog[spec.id];
+            assert_eq!(model.engine_type, EngineType::Polish);
+            assert_eq!(model.size_bytes, spec.download_size_bytes);
+            assert!(model
+                .url
+                .as_ref()
+                .unwrap()
+                .ends_with(model.filename.as_str()));
+            assert!(model.sha256.is_some());
+            assert!(!model.is_downloaded);
+        }
+    }
 
     fn polish_model() -> ModelInfo {
         available_model_catalog().remove(POLISH_MODEL_ID).unwrap()

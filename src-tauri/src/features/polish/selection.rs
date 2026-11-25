@@ -128,7 +128,6 @@ pub(super) struct PolishTransactionPorts {
     pub(super) clipboard_access: Arc<tokio::sync::Mutex<()>>,
     pub(super) keyboard: Arc<dyn KeyboardPort>,
     pub(super) focus: Arc<dyn FocusPort>,
-    pub(super) inference: Arc<dyn InferencePort>,
     pub(super) cancellation: Arc<CancellationClock>,
 }
 
@@ -139,20 +138,6 @@ pub(super) struct PolishTransaction {
 impl PolishTransaction {
     pub(super) fn new(ports: PolishTransactionPorts) -> Self {
         Self { ports }
-    }
-
-    #[cfg(test)]
-    async fn run(&self, mode: SelectionMode, generation: u64) -> Result<PolishOutcome> {
-        let focused_application = self.focused_application();
-        let Some(text) = self.capture_text(mode, generation).await? else {
-            return Ok(PolishOutcome::NoSelection);
-        };
-        self.complete(
-            CapturedPolishInput::new(text, focused_application, mode)?,
-            generation,
-            &Instruction::Builtin(crate::settings::PolishLevel::default()),
-        )
-        .await
     }
 
     pub(super) fn focused_application(&self) -> Option<String> {
@@ -186,14 +171,15 @@ impl PolishTransaction {
         captured: CapturedPolishInput,
         generation: u64,
         instruction: &Instruction,
+        inference: &dyn InferencePort,
     ) -> Result<PolishOutcome> {
         self.ensure_current(generation)?;
-        if self.ports.inference.token_count(&captured.text).await? > MAX_POLISH_TOKENS {
+        if inference.token_count(&captured.text).await? > MAX_POLISH_TOKENS {
             anyhow::bail!("Selection exceeds {MAX_POLISH_TOKENS} tokens");
         }
         self.ensure_current(generation)?;
         let output = transform(
-            self.ports.inference.as_ref(),
+            inference,
             &captured.text,
             instruction,
             Framing::Selection,

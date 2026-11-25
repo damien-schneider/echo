@@ -30,13 +30,13 @@ fn hover_box_reaches_the_screen_edge_under_a_floating_dock() {
         let hover = surface_hover_box(compact, surface.window);
 
         assert_eq!(hover.x, surface.island.x - surface.window.x, "{edge:?}");
-        assert_eq!(hover.width, 38.0, "{edge:?}");
+        assert_eq!(hover.width, 48.0, "{edge:?}");
         if edge == OverlayDockEdge::Bottom {
             assert_eq!(hover.y, island_top);
             assert_eq!(hover.y + hover.height, surface.window.height);
         } else {
             assert_eq!(hover.y, 0.0);
-            assert_eq!(hover.height, island_top + 5.0);
+            assert_eq!(hover.height, island_top + 8.0);
         }
     }
 }

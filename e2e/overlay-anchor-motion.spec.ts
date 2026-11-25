@@ -59,8 +59,8 @@ test("keeps resident actions on one fixed layout while the shell reveals them", 
   const actions = page.locator(".echo-island-action");
 
   await expect(actions).toHaveCount(3);
-  await expect(morph).toHaveCSS("width", "38px");
-  await expect(morph).toHaveCSS("height", "5px");
+  await expect(morph).toHaveCSS("width", "48px");
+  await expect(morph).toHaveCSS("height", "8px");
 
   const trajectory = await page.evaluate(async () => {
     const actionElements = [
@@ -263,8 +263,8 @@ test("keeps every dock edge fixed: sides attached, top and bottom floating", asy
     } else {
       await expect(handle).toBeVisible();
       await expect(toolbar).toBeHidden();
-      await expect(morph).toHaveCSS("width", "38px");
-      await expect(morph).toHaveCSS("height", "5px");
+      await expect(morph).toHaveCSS("width", "48px");
+      await expect(morph).toHaveCSS("height", "8px");
     }
     const compact = await settledFrame(morph);
 
@@ -302,21 +302,21 @@ test("keeps every dock edge fixed: sides attached, top and bottom floating", asy
       expect(frameDrift(expanded, compact)).toBeLessThanOrEqual(1);
     } else if (anchor === "top") {
       expect(Math.abs(compact.y - expanded.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(expanded.y - 4)).toBeLessThanOrEqual(1);
+      expect(Math.abs(expanded.y - 10)).toBeLessThanOrEqual(1);
       expect(expanded.height - compact.height).toBeGreaterThan(20);
     } else {
       expect(
         Math.abs(compact.y + compact.height - (expanded.y + expanded.height))
       ).toBeLessThanOrEqual(1);
       expect(
-        Math.abs(620 - expanded.y - expanded.height - 4)
+        Math.abs(620 - expanded.y - expanded.height - 10)
       ).toBeLessThanOrEqual(1);
       expect(expanded.height - compact.height).toBeGreaterThan(20);
     }
   }
 });
 
-test("floats top and bottom docks centred, four pixels off their edge", async ({
+test("rests top and bottom docks centred, ten pixels off their edge", async ({
   page,
 }) => {
   await page.setViewportSize({ height: 620, width: 680 });
@@ -327,8 +327,8 @@ test("floats top and bottom docks centred, four pixels off their edge", async ({
 
   for (const anchor of ["top", "bottom"]) {
     await setOverlayAnchor(page, anchor);
-    await expect(morph).toHaveCSS("width", "38px");
-    await expect(morph).toHaveCSS("height", "5px");
+    await expect(morph).toHaveCSS("width", "48px");
+    await expect(morph).toHaveCSS("height", "8px");
     await expect(root).toHaveAttribute("data-anchor", anchor);
     await expect(root).toHaveAttribute("data-presentation", "docked");
     await expect
@@ -339,13 +339,13 @@ test("floats top and bottom docks centred, four pixels off their edge", async ({
         }
         return Math.round(anchor === "top" ? box.y : 620 - box.y - box.height);
       })
-      .toBe(4);
+      .toBe(10);
     const box = await morph.boundingBox();
     expect(box).not.toBeNull();
     if (!box) {
       continue;
     }
-    expect([Math.round(box.width), Math.round(box.height)]).toEqual([38, 5]);
+    expect([Math.round(box.width), Math.round(box.height)]).toEqual([48, 8]);
     expect(Math.abs(box.x + box.width / 2 - 340)).toBeLessThanOrEqual(1);
   }
 });

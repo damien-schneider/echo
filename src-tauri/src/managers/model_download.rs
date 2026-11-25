@@ -39,6 +39,31 @@ pub fn resumable_partial_mb(model: &ModelInfo) -> Option<u64> {
     resumes.then(|| model.partial_size.div_ceil(1_000_000))
 }
 
+#[derive(Debug)]
+pub(crate) enum DownloadFailure {
+    NoSpace { model: String, needed_mb: u64 },
+    Damaged { model: String },
+}
+
+impl std::fmt::Display for DownloadFailure {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoSpace { model, needed_mb } => write!(
+                formatter,
+                "Not enough storage to download {model}. Free at least {needed_mb} MB, then retry."
+            ),
+            Self::Damaged { model } => {
+                write!(
+                    formatter,
+                    "Downloaded model {model} failed integrity verification"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for DownloadFailure {}
+
 struct DownloadContext {
     model: ModelInfo,
     url: String,
@@ -71,6 +96,9 @@ impl ModelManager {
         }
         attempt.mark_transfer_started();
         let response = self.send_download_request(&context).await?;
+        if context.model.engine_type == EngineType::Polish {
+            self.check_model_download_space(&context, &response)?;
+        }
         self.write_download(&context, response).await?;
         self.install_download(&context)?;
         self.finish_download(model_id)?;
@@ -123,6 +151,33 @@ impl ModelManager {
             resume_from,
             total_size,
         })
+    }
+
+    fn check_model_download_space(
+        &self,
+        context: &DownloadContext,
+        response: &DownloadResponse,
+    ) -> Result<()> {
+        let needed = response.total_size.saturating_sub(response.resume_from);
+        let Ok(free) = fs4::available_space(&self.models_dir) else {
+            return Ok(());
+        };
+        let replaceable = if response.resume_from == 0 {
+            context
+                .paths
+                .partial
+                .metadata()
+                .map_or(0, |file| file.len())
+        } else {
+            0
+        };
+        if free.saturating_add(replaceable) < needed {
+            anyhow::bail!(DownloadFailure::NoSpace {
+                model: context.model.name.clone(),
+                needed_mb: (needed - free.saturating_add(replaceable)).div_ceil(1_000_000),
+            });
+        }
+        Ok(())
     }
 
     async fn write_download(

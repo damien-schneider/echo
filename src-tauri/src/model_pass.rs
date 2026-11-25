@@ -1,10 +1,12 @@
 use crate::features::polish::manager::PolishManager;
+use crate::settings::{get_settings, AppSettings};
 use anyhow::{Context, Result};
 use log::warn;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
+use tokio::time::{timeout_at, Instant};
 
 mod command;
 mod tools;
@@ -49,9 +51,10 @@ pub(crate) async fn run(app: &AppHandle, pass: ModelPass, spoken: Spoken<'_>) ->
     let Some(polish) = app.try_state::<Arc<PolishManager>>() else {
         return ModelPassOutcome::Unchanged;
     };
+    let deadline = Instant::now() + MODEL_PASS_BUDGET;
     let outcome = match pass {
-        ModelPass::Rewrite => rewritten(&polish, spoken.transcript).await,
-        ModelPass::Command => commanded(app, &polish, &spoken).await,
+        ModelPass::Rewrite => rewritten(&polish, spoken.transcript, deadline).await,
+        ModelPass::Command => commanded(app, &polish, &spoken, deadline).await,
     };
     outcome.unwrap_or_else(|error| {
         warn!("{pass:?} pass failed, the transcript stays as spoken: {error:#}");
@@ -59,8 +62,12 @@ pub(crate) async fn run(app: &AppHandle, pass: ModelPass, spoken: Spoken<'_>) ->
     })
 }
 
-async fn rewritten(polish: &PolishManager, transcript: &str) -> Result<ModelPassOutcome> {
-    let rewrite = tokio::time::timeout(MODEL_PASS_BUDGET, polish.rewrite_dictation(transcript))
+async fn rewritten(
+    polish: &PolishManager,
+    transcript: &str,
+    deadline: Instant,
+) -> Result<ModelPassOutcome> {
+    let rewrite = timeout_at(deadline, polish.rewrite_dictation(transcript))
         .await
         .context("Dictation rewrite timed out")??;
     let Some(rewrite) = rewrite else {
@@ -80,11 +87,15 @@ async fn commanded(
     app: &AppHandle,
     polish: &PolishManager,
     spoken: &Spoken<'_>,
+    deadline: Instant,
 ) -> Result<ModelPassOutcome> {
     let body = command::request_body(spoken.transcript);
-    let answer = tokio::time::timeout(MODEL_PASS_BUDGET, polish.complete_with_tools(&body))
+    let Some(answer) = timeout_at(deadline, polish.complete_with_tools(&body))
         .await
-        .context("Voice command timed out")??;
+        .context("Voice command timed out")??
+    else {
+        return rewritten(polish, spoken.transcript, deadline).await;
+    };
     let mut results = Vec::new();
     for voice_command in command::commands_in(&answer)? {
         // cancel only stops this task at its next await: a tool must not start past it
@@ -120,6 +131,13 @@ pub struct EnabledPasses {
 }
 
 impl EnabledPasses {
+    fn for_model(settings: &AppSettings, supports_voice_commands: bool) -> Self {
+        Self {
+            rewrite: settings.dictation_rewrite_prompt().is_some(),
+            voice_commands: settings.voice_commands && supports_voice_commands,
+        }
+    }
+
     fn any(self) -> bool {
         self.rewrite || self.voice_commands
     }
@@ -137,17 +155,13 @@ pub fn model_pass_for(target: DictationTarget, enabled: EnabledPasses) -> Option
 }
 
 fn enabled_passes(app: &AppHandle) -> EnabledPasses {
-    let model_is_downloaded = app
+    let Some(polish) = app
         .try_state::<Arc<PolishManager>>()
-        .is_some_and(|polish| polish.is_downloaded());
-    if !model_is_downloaded {
+        .filter(|polish| polish.is_downloaded())
+    else {
         return EnabledPasses::default();
-    }
-    let settings = crate::settings::get_settings(app);
-    EnabledPasses {
-        rewrite: settings.dictation_rewrite_prompt().is_some(),
-        voice_commands: settings.voice_commands,
-    }
+    };
+    EnabledPasses::for_model(&get_settings(app), polish.supports_voice_commands())
 }
 
 pub(crate) fn routed_model_pass(app: &AppHandle) -> Option<ModelPass> {
@@ -163,6 +177,7 @@ mod tests {
     use super::{
         model_pass_for, reply_among, DictationTarget, EnabledPasses, ModelPass, ToolResult,
     };
+    use crate::settings::{get_default_settings, AppSettings, PolishLevel, PromptRef};
 
     fn reply(display_message: &str, success: bool) -> ToolResult {
         ToolResult {
@@ -235,6 +250,25 @@ mod tests {
         assert_eq!(
             model_pass_for(DictationTarget::NoTextField, rewrite_only),
             Some(ModelPass::Rewrite)
+        );
+    }
+
+    #[test]
+    fn an_alternative_model_rewrites_no_field_dictation_with_voice_commands_enabled() {
+        let settings = AppSettings {
+            dictation_prompt: Some(PromptRef::Builtin(PolishLevel::default())),
+            voice_commands: true,
+            ..get_default_settings()
+        };
+
+        let target = DictationTarget::NoTextField;
+        assert_eq!(
+            model_pass_for(target, EnabledPasses::for_model(&settings, false)),
+            Some(ModelPass::Rewrite)
+        );
+        assert_eq!(
+            model_pass_for(target, EnabledPasses::for_model(&settings, true)),
+            Some(ModelPass::Command)
         );
     }
 

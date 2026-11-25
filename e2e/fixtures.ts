@@ -254,7 +254,17 @@ const setupCommandResponder = () => {
     ["plugin:macos-permissions|request_accessibility_permission", () => null],
     [
       "get_polish_status",
-      () => ({ message: state.polishStatus, state: state.polishStatus }),
+      () => ({
+        message: state.polishStatus,
+        model: {
+          download_size_mb: 2497,
+          id: "polish-qwen3-4b-instruct-2507",
+          name: "Qwen3 4B",
+          supports_thinking: false,
+          supports_voice_commands: true,
+        },
+        state: state.polishStatus,
+      }),
     ],
     [
       "chat_with_polish_model",

@@ -182,10 +182,14 @@ test("chat sends the selected reference and complete recent thread", async ({
 
   const payloads = await invokedCommandPayloads(page, "chat_with_polish_model");
   expect(payloads).toHaveLength(2);
-  expect(payloads[1]).toContain(selectedText);
-  expect(payloads[1]).toContain('"content":"What does this mean?"');
-  expect(payloads[1]).toContain('"content":"Qwen3 4B reply"');
-  expect(payloads[1]).toContain('"content":"In French"');
+  expect(JSON.parse(payloads[1] ?? "{}").messages).toEqual([
+    { content: "What does this mean?", role: "user" },
+    { content: "Qwen3 4B reply", role: "assistant" },
+    {
+      content: `<reference_text>\n${selectedText}\n</reference_text>\n\nIn French`,
+      role: "user",
+    },
+  ]);
 });
 
 test("a late chat surface event keeps selected terminal text attached", async ({

@@ -30,13 +30,12 @@ export type TranscriptionModelSize = z.infer<
   typeof TranscriptionModelSizeSchema
 >;
 
-export const ModelFootprintSchema = z
+const ModelFootprintSchema = z
   .object({
     download_size_mb: z.number().nonnegative(),
     memory_mb: z.number().nonnegative(),
   })
   .strict();
-export type ModelFootprint = z.infer<typeof ModelFootprintSchema>;
 
 export const TranscriptionProfileStatusSchema = ModelFootprintSchema.extend({
   description: z.string(),
@@ -64,6 +63,15 @@ const PolishStateSchema = z.enum([
 export const PolishStatusSchema = z
   .object({
     message: z.string(),
+    model: z
+      .object({
+        download_size_mb: z.number().nonnegative(),
+        id: z.string(),
+        name: z.string(),
+        supports_thinking: z.boolean(),
+        supports_voice_commands: z.boolean(),
+      })
+      .optional(),
     state: PolishStateSchema,
   })
   .strict();

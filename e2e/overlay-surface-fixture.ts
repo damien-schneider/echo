@@ -2,6 +2,7 @@
 export const setupOverlaySurface = () => {
   const state = window.__ECHO_TEST_STATE__;
   const INSET = 4;
+  const FLOATING_DOCK_GAP = 10;
   const params = new URLSearchParams(window.location.search);
   const placement = params.get("overlayPlacement");
   state.overlayAnchor =
@@ -28,7 +29,7 @@ export const setupOverlaySurface = () => {
       return { height: 228, width: 40 };
     }
     if (mode === "compact") {
-      return { height: 5, width: 38 };
+      return { height: 8, width: 48 };
     }
     return { height: 40, width: 176 };
   };
@@ -39,8 +40,14 @@ export const setupOverlaySurface = () => {
       : 0;
 
   const contentBox = (mode: string) => {
-    const edge = (anchor: string) =>
-      isSideDocked(mode) && anchorFor(mode) === anchor ? 0 : INSET;
+    const edge = (anchor: string) => {
+      if (isSideDocked(mode)) {
+        return anchorFor(mode) === anchor ? 0 : INSET;
+      }
+      return isResident(mode) && anchorFor(mode) === anchor
+        ? FLOATING_DOCK_GAP
+        : INSET;
+    };
     const top = edge("top") + notchInset(mode);
     return {
       height: window.innerHeight - top - edge("bottom"),

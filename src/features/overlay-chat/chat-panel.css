@@ -84,8 +84,8 @@
 }
 
 .echo-chat-composer [data-slot="textarea"] {
-  --padding-x: 0px;
-  --padding-y: 6px;
+  --padding-x: 14px;
+  --padding-y: 10px;
   --text-body: 14px;
   --leading-relaxed: 20px;
 }
@@ -101,11 +101,6 @@
 .echo-chat-action {
   --cui-button-height: var(--echo-chat-control);
   --cui-button-icon: 16px;
-  margin-block: var(--echo-chat-shell-inset);
-}
-
-.echo-chat-send {
-  margin-inline-end: var(--echo-chat-shell-inset);
 }
 
 .echo-chat-dictate {
@@ -132,6 +127,13 @@
   --cui-button-hover-foreground: #fff;
 }
 
+.echo-chat-model {
+  max-width: 160px;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgb(255 255 255 / 0.5);
+}
+
 .echo-chat-send,
 .echo-chat-cta {
   --cui-button-background: #fff;
@@ -147,6 +149,24 @@
 
 .echo-chat-dictate[aria-pressed="true"] {
   --cui-button-foreground: #fff;
+}
+
+.echo-chat-think {
+  --cui-button-height: var(--echo-chat-cta);
+  --cui-button-padding-inline: 10px;
+  --cui-button-font-size: 12px;
+  --cui-button-icon: 14px;
+  --cui-button-background: transparent;
+  --cui-button-foreground: rgb(255 255 255 / 0.68);
+  --cui-button-hover-foreground: #fff;
+  --cui-button-active-background: rgb(255 255 255 / 0.16);
+  --cui-button-active-hover-background: rgb(255 255 255 / 0.2);
+  --cui-button-active-foreground: #fff;
+}
+
+:where(:root:not([data-native-hover])) .echo-chat-think:hover:not(:disabled),
+.echo-chat-think[data-hovered]:not(:disabled) {
+  --cui-button-background: rgb(255 255 255 / 0.1);
 }
 
 :where(:root:not([data-native-hover])) .echo-chat-dictate:hover:not(:disabled),

@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use super::manager::PolishManager;
 use super::transform::{transform, Framing};
-use crate::managers::model::POLISH_MODEL_NAME;
 use crate::model_pass::MODEL_PASS_BUDGET;
 use crate::settings::get_settings;
 
@@ -19,21 +18,11 @@ impl PolishManager {
         let Some(prompt) = get_settings(&self.app).dictation_rewrite_prompt() else {
             return Ok(None);
         };
-        if !self.is_downloaded() {
-            anyhow::bail!(
-                "Download {POLISH_MODEL_NAME} in Settings → Models to rewrite dictations."
-            );
-        }
-        self.prepare()
+        let runtime = self
+            .prepared_runtime()
             .await
             .context("Failed to prepare the local model for the dictation rewrite")?;
-        let text = transform(
-            self.runtime.as_ref(),
-            text,
-            &prompt.instruction,
-            Framing::Speech,
-        )
-        .await?;
+        let text = transform(&*runtime, text, &prompt.instruction, Framing::Speech).await?;
         Ok(Some(DictationRewrite {
             text,
             prompt_name: prompt.name,

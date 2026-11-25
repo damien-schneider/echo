@@ -1,16 +1,14 @@
 export const polishStatusCopy = {
   downloading: {
-    description: "One-time 2.5 GB download. Polish stays offline afterward.",
+    description: "Polish runs offline when the download is complete.",
     title: "Downloading Polish",
   },
   loading: {
-    description:
-      "Loading 2.5 GB into memory. The first start can take a moment.",
+    description: "The first start can take a moment.",
     title: "Loading Polish",
   },
   not_downloaded: {
-    description:
-      "Download the 2.5 GB local proofreading model. It stays offline afterward.",
+    description: "Polish checks your selected text on this computer.",
     title: "Polish",
   },
   preparing: {

@@ -14,45 +14,46 @@ import { basename, dirname, join } from "node:path";
 import { promisify } from "node:util";
 import { z } from "zod";
 
-const releaseBase =
-  "https://github.com/ggml-org/llama.cpp/releases/download/b9974";
+// llama.cpp v1.0.0 delegates its release binaries to this build (nightly-tag.txt).
+const release = "b12359";
+const releaseBase = `https://github.com/ggml-org/llama.cpp/releases/download/${release}`;
 
 const artifacts = [
   {
     arch: "arm64",
-    filename: "llama-b9974-bin-macos-arm64.tar.gz",
+    filename: `llama-${release}-bin-macos-arm64.tar.gz`,
     platform: "darwin",
-    sha256: "e43c8fbb0891f61e5e0ae2a3432eeb5d1ce5d2aeda547b7d3bc570a3ea4d272a",
+    sha256: "82b00abc740160e1b9980e6cc79c117345fa34af058c80e6c0a69aa8ddccde75",
   },
   {
     arch: "x64",
-    filename: "llama-b9974-bin-macos-x64.tar.gz",
+    filename: `llama-${release}-bin-macos-x64.tar.gz`,
     platform: "darwin",
-    sha256: "f6eb2c60940b73dbe70287d31d9538c4f9a1499b582b487b5ca3c061387c7dbd",
+    sha256: "25320d529077ef5a3d16e7b5da26438f221d88c8c0930a32b0c79457f5eede56",
   },
   {
     arch: "arm64",
-    filename: "llama-b9974-bin-ubuntu-vulkan-arm64.tar.gz",
+    filename: `llama-${release}-bin-ubuntu-vulkan-arm64.tar.gz`,
     platform: "linux",
-    sha256: "e2d2476c1229c7b696696c26e849c3e8a241210b2bd9b810ddac1f02feebfef3",
+    sha256: "3f8ae812a58ac92e5a596ca9fbc988f52854d147c5a7fe1264dddc90c1d085b4",
   },
   {
     arch: "x64",
-    filename: "llama-b9974-bin-ubuntu-vulkan-x64.tar.gz",
+    filename: `llama-${release}-bin-ubuntu-vulkan-x64.tar.gz`,
     platform: "linux",
-    sha256: "6b5557b3093a908d72573e94741aeb5d20949f97565c87fad8274648ece970a5",
+    sha256: "19b60f00395a3f4954e46a5037695bc1d843404fc9d3124f82a612ecd8fbe9f0",
   },
   {
     arch: "arm64",
-    filename: "llama-b9974-bin-win-cpu-arm64.zip",
+    filename: `llama-${release}-bin-win-cpu-arm64.zip`,
     platform: "win32",
-    sha256: "b9173f3f2876bf18e4ea90cdd99fa919b2eaeef992809eb5189af4804ce57085",
+    sha256: "d27564c754478d2832789dfcebfc5ace018e36a224c41d810b7cbc1ba8243ec0",
   },
   {
     arch: "x64",
-    filename: "llama-b9974-bin-win-vulkan-x64.zip",
+    filename: `llama-${release}-bin-win-vulkan-x64.zip`,
     platform: "win32",
-    sha256: "184cc4ec85166a99588f723b6431963a3e6f4fa9f66fcce868d1c3cbeae44745",
+    sha256: "e8d18c6e4210cca87e7307c2ea78363ac8d158e4e1397358ec96ab70b53a0d5e",
   },
 ] satisfies ReadonlyArray<{
   platform: NodeJS.Platform;
@@ -224,15 +225,15 @@ const macRuntimeFiles = new Set([
   "LICENSE",
   "llama-server",
   "libllama-server-impl.dylib",
-  "libllama-common.0.dylib",
-  "libmtmd.0.dylib",
-  "libllama.0.dylib",
-  "libggml.0.dylib",
-  "libggml-cpu.0.dylib",
-  "libggml-blas.0.dylib",
-  "libggml-metal.0.dylib",
-  "libggml-rpc.0.dylib",
-  "libggml-base.0.dylib",
+  "libllama-common.1.dylib",
+  "libmtmd.1.dylib",
+  "libllama.1.dylib",
+  "libggml.1.dylib",
+  "libggml-cpu.1.dylib",
+  "libggml-blas.1.dylib",
+  "libggml-metal.1.dylib",
+  "libggml-rpc.1.dylib",
+  "libggml-base.1.dylib",
 ]);
 
 await downloadArchive();
@@ -246,5 +247,5 @@ await verifyRuntime();
 
 const executableHash = await sha256(outputServer);
 process.stdout.write(
-  `Prepared llama.cpp b9974 (${executableHash.slice(0, 12)})\n`
+  `Prepared llama.cpp ${release} (${executableHash.slice(0, 12)})\n`
 );

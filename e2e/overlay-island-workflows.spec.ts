@@ -105,7 +105,7 @@ test("missing Polish opens download progress, failure, and retry states", async 
     "polish-qwen3-4b-instruct-2507"
   );
   await expect(page.getByRole("alert")).toContainText(
-    "Check your connection and retry"
+    "Check your connection and storage, then retry"
   );
   await page.getByRole("button", { name: "Repair Polish" }).click();
   await expect

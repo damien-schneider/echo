@@ -1,40 +1,19 @@
-use crate::features::polish::manager::PolishManager;
+use crate::features::polish::manager::{language_model_message, PolishManager};
 use crate::managers::meeting::MeetingManager;
 use crate::managers::model::{
-    transcription_profile_id, ModelManager, TranscriptionProfileStatus, POLISH_MODEL_ID,
-    POLISH_MODEL_MEMORY_MB, POLISH_MODEL_NAME,
+    transcription_profile_id, EngineType, ModelManager, TranscriptionProfileStatus,
 };
 use crate::managers::transcription::TranscriptionManager;
 use crate::overlay::show_warning_overlay;
 use crate::settings::{self, TranscriptionModelSize};
-use serde::Serialize;
 use std::sync::Arc;
 use tauri::{AppHandle, State};
-
-#[derive(Debug, Serialize)]
-pub struct ModelFootprint {
-    download_size_mb: u64,
-    memory_mb: u64,
-}
 
 #[tauri::command]
 pub async fn get_transcription_profiles(
     model_manager: State<'_, Arc<ModelManager>>,
 ) -> Result<Vec<TranscriptionProfileStatus>, String> {
     Ok(model_manager.get_transcription_profile_statuses())
-}
-
-#[tauri::command]
-pub async fn get_polish_model_footprint(
-    model_manager: State<'_, Arc<ModelManager>>,
-) -> Result<ModelFootprint, String> {
-    let model = model_manager
-        .get_model_info(POLISH_MODEL_ID)
-        .ok_or_else(|| format!("{POLISH_MODEL_NAME} is missing from the model catalog"))?;
-    Ok(ModelFootprint {
-        download_size_mb: model.size_mb,
-        memory_mb: POLISH_MODEL_MEMORY_MB,
-    })
 }
 
 /// Offered from the notch when a dictation is blocked, so no settings page is needed first.
@@ -96,6 +75,7 @@ pub async fn select_transcription_model_size(
 /// A running meeting needs every model at its end.
 #[tauri::command]
 pub(crate) async fn delete_model(
+    model_manager: State<'_, Arc<ModelManager>>,
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
     polish_manager: State<'_, Arc<PolishManager>>,
     meeting_manager: State<'_, Arc<MeetingManager>>,
@@ -104,11 +84,14 @@ pub(crate) async fn delete_model(
     if meeting_manager.get_active_meeting().is_some() {
         return Err("Stop the meeting before deleting a model".to_string());
     }
-    if model_id == POLISH_MODEL_ID {
+    if model_manager
+        .get_model_info(&model_id)
+        .is_some_and(|model| model.engine_type == EngineType::Polish)
+    {
         return polish_manager
-            .delete_model()
+            .delete_model(&model_id)
             .await
-            .map_err(|error| format!("{error:#}"));
+            .map_err(|error| language_model_message(&error));
     }
     transcription_manager
         .delete_model(&model_id)

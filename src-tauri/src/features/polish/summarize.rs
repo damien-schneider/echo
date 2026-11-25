@@ -6,24 +6,19 @@ use std::sync::Arc;
 use super::manager::PolishManager;
 use super::runtime::PolishRuntime;
 use super::{BundledChatMessage, BundledChatRole};
-use crate::managers::model::POLISH_MODEL_NAME;
 
 impl PolishManager {
     /// One completion, no stream: the caller shows the summary when it is whole.
     pub(crate) async fn summarize(&self, system: &str, prompt: &str) -> Result<String> {
-        if !self.is_downloaded() {
-            anyhow::bail!(
-                "Download {POLISH_MODEL_NAME} in Settings → Models to summarize meetings."
-            );
-        }
-        self.prepare()
+        let runtime = self
+            .prepared_runtime()
             .await
             .context("Failed to prepare the local model for summarizing")?;
         let messages = [BundledChatMessage {
             content: prompt.to_owned(),
             role: BundledChatRole::User,
         }];
-        self.runtime.chat(system, &messages, &|_| {}).await
+        runtime.chat(system, &messages, &|_| {}).await
     }
 }
 

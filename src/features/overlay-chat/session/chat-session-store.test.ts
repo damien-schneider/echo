@@ -33,11 +33,12 @@ const startTurn = (
   question: string | null
 ): StreamingTurn => {
   const controller = new AbortController();
+  const handle = { controller, generation, thinking: false };
   const assistantId = `answer-${sessionOf(generation).messages.length}`;
   changeChatSession(generation, (current) =>
-    startedTurn(current, { assistantId, controller, question })
+    startedTurn(current, { assistantId, question, request: handle })
   );
-  return { assistantId, handle: { controller, generation } };
+  return { assistantId, handle };
 };
 
 const answer = (turn: StreamingTurn, text: string) =>
@@ -59,6 +60,7 @@ beforeEach(() => {
     dictation: "idle",
     dictationPreview: "",
     open: null,
+    thinking: false,
   });
 });
 
@@ -155,7 +157,7 @@ describe("switching prompt while an answer streams", () => {
     fail(first, null);
     changeChatSessionFromRequest(first.handle, () => ({ request: null }));
 
-    expect(sessionOf(1).request).toBe(second.handle.controller);
+    expect(sessionOf(1).request).toBe(second.handle);
     expect(sessionOf(1).error).toBe("");
     expect(sessionOf(1).messages).toHaveLength(2);
   });

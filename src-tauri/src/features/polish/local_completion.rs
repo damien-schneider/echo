@@ -2,19 +2,23 @@ use anyhow::{Context, Result};
 use std::sync::Arc;
 
 use super::manager::PolishManager;
-use crate::managers::model::POLISH_MODEL_NAME;
 
 impl PolishManager {
-    pub(crate) async fn complete_with_tools(&self, body: &serde_json::Value) -> Result<String> {
-        if !self.is_downloaded() {
-            anyhow::bail!(
-                "Download {POLISH_MODEL_NAME} in Settings → Models to run voice commands."
-            );
+    pub(crate) async fn complete_with_tools(
+        &self,
+        body: &serde_json::Value,
+    ) -> Result<Option<String>> {
+        if !self.supports_voice_commands() {
+            return Ok(None);
         }
-        self.prepare()
+        let runtime = self
+            .prepared_runtime()
             .await
             .context("Failed to prepare the local model for voice commands")?;
-        self.runtime.complete_with_tools(body).await
+        if !self.supports_voice_commands() {
+            return Ok(None);
+        }
+        runtime.complete_with_tools(body).await.map(Some)
     }
 
     /// Loading the weights while the user still speaks keeps the reload out of the paste delay.

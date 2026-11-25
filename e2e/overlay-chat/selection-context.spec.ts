@@ -59,9 +59,9 @@ test.describe("chat keeps the text selected in the user's app", () => {
     await test.step("Then Qwen3 4B answers about the selected text", async () => {
       await expect(page.getByText(ECHO_REPLY)).toBeVisible();
       const [request] = await chatRequests(page);
-      expect(request?.system).toContain(selectedText);
+      expect(request?.system).not.toContain(selectedText);
       expect(request?.messages.at(-1)).toEqual({
-        content: "What does this mean?",
+        content: `<reference_text>\n${selectedText}\n</reference_text>\n\nWhat does this mean?`,
         role: "user",
       });
     });
@@ -94,10 +94,10 @@ test.describe("chat keeps the text selected in the user's app", () => {
     await test.step("Then Qwen3 4B receives the newer selection with the thread", async () => {
       await expect.poll(async () => (await chatRequests(page)).length).toBe(2);
       const latest = (await chatRequests(page))[1];
-      expect(latest?.system).toContain("Churn fell to 2% in Q3.");
-      expect(latest?.system).not.toContain("Revenue grew 18%");
+      expect(JSON.stringify(latest)).not.toContain("Revenue grew 18%");
       expect(latest?.messages.at(-1)).toEqual({
-        content: "And this one?",
+        content:
+          "<reference_text>\nChurn fell to 2% in Q3.\n</reference_text>\n\nAnd this one?",
         role: "user",
       });
     });

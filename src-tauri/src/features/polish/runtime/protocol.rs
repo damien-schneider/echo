@@ -1,6 +1,11 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 
+use super::server_args::MAX_RESPONSE_TOKENS;
+
+// Reasoning shares max_tokens with the final answer; leave most of it for the answer.
+const CHAT_REASONING_BUDGET_TOKENS: usize = 512;
+
 #[derive(Deserialize)]
 struct ChatResponse {
     choices: Vec<ChatChoice>,
@@ -95,12 +100,60 @@ pub(super) struct TokenizeRequest<'a> {
 
 #[derive(Serialize)]
 pub(super) struct ChatRequest<'a> {
-    pub(super) model: &'static str,
-    pub(super) messages: &'a [ChatRequestMessage<'a>],
-    pub(super) stream: bool,
-    pub(super) temperature: f32,
-    pub(super) seed: u64,
-    pub(super) max_tokens: usize,
+    model: &'static str,
+    messages: &'a [ChatRequestMessage<'a>],
+    stream: bool,
+    temperature: f32,
+    seed: u64,
+    max_tokens: usize,
+    #[serde(flatten)]
+    thinking: Option<ThinkingRequest>,
+}
+
+impl<'a> ChatRequest<'a> {
+    pub(super) fn for_correction(messages: &'a [ChatRequestMessage<'a>]) -> Self {
+        Self::new(messages, 0.0, false)
+    }
+
+    pub(super) fn for_chat(messages: &'a [ChatRequestMessage<'a>], thinking: bool) -> Self {
+        let mut request = Self::new(messages, 0.2, true);
+        if thinking {
+            // Override `--reasoning off` only for interactive Think requests.
+            request.thinking = Some(ThinkingRequest {
+                chat_template_kwargs: ThinkingTemplateKwargs {
+                    enable_thinking: true,
+                },
+                // llama-server separates thoughts into reasoning_content in this format.
+                reasoning_format: "deepseek",
+                reasoning_budget_tokens: CHAT_REASONING_BUDGET_TOKENS,
+            });
+        }
+        request
+    }
+
+    fn new(messages: &'a [ChatRequestMessage<'a>], temperature: f32, stream: bool) -> Self {
+        Self {
+            model: "polish",
+            messages,
+            stream,
+            temperature,
+            seed: 0,
+            max_tokens: MAX_RESPONSE_TOKENS,
+            thinking: None,
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct ThinkingRequest {
+    chat_template_kwargs: ThinkingTemplateKwargs,
+    reasoning_format: &'static str,
+    reasoning_budget_tokens: usize,
+}
+
+#[derive(Serialize)]
+struct ThinkingTemplateKwargs {
+    enable_thinking: bool,
 }
 
 #[derive(Serialize)]
@@ -156,6 +209,27 @@ data: {"choices":[{"delta":{"role":"assistant"}}]}
             .unwrap();
 
         assert_eq!(text, "");
+    }
+
+    #[test]
+    fn streams_final_answer_without_reasoning() {
+        let mut decoder = ChatStreamDecoder::default();
+
+        let thoughts = decoder
+            .push(
+                br#"data: {"choices":[{"delta":{"reasoning_content":"Private reasoning"}}]}
+
+"#,
+            )
+            .unwrap();
+        let answer = decoder
+            .push(br#"data: {"choices":[{"delta":{"reasoning_content":"Also private","content":"Visible answer"}}]}
+
+"#)
+            .unwrap();
+
+        assert!(thoughts.is_empty());
+        assert_eq!(answer, "Visible answer");
     }
 
     #[test]

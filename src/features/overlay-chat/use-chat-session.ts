@@ -24,6 +24,7 @@ import {
   changeChatSessionFromRequest,
   chatEdgeFor,
   chatSessionFor,
+  chooseThinking,
   failedTurn,
   hearChatDictation,
   holdChatSession,
@@ -61,7 +62,7 @@ interface ChatSessionOptions {
   contextState: ChatContextEvent["state"];
   generation: number;
   isPromptReady: boolean;
-  modelState: PolishStatus["state"];
+  modelStatus: PolishStatus;
   prompt: ChatPrompt | null;
 }
 
@@ -71,12 +72,17 @@ export interface ChatSession {
   input: string;
   inputRef: RefObject<HTMLTextAreaElement | null>;
   isResponding: boolean;
+  isThinking: boolean;
   messages: ChatMessage[];
   restart: () => void;
   send: () => void;
   setInput: (value: string) => void;
   showError: (message: string) => void;
   stop: () => void;
+  thinkingMode: {
+    selected: boolean;
+    setSelected: (selected: boolean) => void;
+  } | null;
 }
 
 interface AssistantStreamOptions {
@@ -84,6 +90,7 @@ interface AssistantStreamOptions {
   context: ChatTextContext | null;
   handle: ChatRequestHandle;
   messages: ChatMessage[];
+  modelId?: string;
   prompt: ChatPrompt | null;
 }
 
@@ -106,9 +113,11 @@ const requestBundledResponse = async (options: AssistantStreamOptions) => {
   try {
     const answer = await abortable(
       invoke<string>("chat_with_polish_model", {
-        messages: promptMessages(options.messages),
+        messages: promptMessages(options.messages, options.context),
+        modelId: options.modelId,
         streamId: options.assistantId,
         system: buildChatSystemPrompt(options.context, options.prompt),
+        thinking: options.handle.thinking,
       }),
       signal
     );
@@ -124,7 +133,7 @@ const requestBundledResponse = async (options: AssistantStreamOptions) => {
 interface ChatTurnOptions {
   context: ChatTextContext | null;
   generation: number;
-  modelState: PolishStatus["state"];
+  modelStatus: PolishStatus;
   prompt: ChatPrompt | null;
   /// `null` runs the active prompt on the reference instead of asking.
   question: string | null;
@@ -133,22 +142,30 @@ interface ChatTurnOptions {
 /// Question and pending answer land before any await, so the panel never waits on IPC.
 const sendChatTurn = async (options: ChatTurnOptions) => {
   const question = options.question?.trim() ?? null;
-  const session = chatSessionFor(
-    useChatSessionStore.getState(),
-    options.generation
-  );
+  const store = useChatSessionStore.getState();
+  const session = chatSessionFor(store, options.generation);
   if (question === "" || session.request !== null) {
     return;
   }
-  const block = chatModelBlock(options.modelState);
+  const { model, state } = options.modelStatus;
+  const block = chatModelBlock(state, model?.name);
   if (block !== null) {
     changeChatSession(options.generation, () => ({ error: block }));
     return;
   }
   const assistantId = makeMessageId();
   const controller = new AbortController();
-  const handle = { controller, generation: options.generation };
-  const started = startedTurn(session, { assistantId, controller, question });
+  const handle = {
+    controller,
+    generation: options.generation,
+    thinking:
+      question !== null && model?.supports_thinking === true && store.thinking,
+  };
+  const started = startedTurn(session, {
+    assistantId,
+    question,
+    request: handle,
+  });
   changeChatSession(options.generation, () => started);
   try {
     await requestBundledResponse({
@@ -156,6 +173,7 @@ const sendChatTurn = async (options: ChatTurnOptions) => {
       context: options.context,
       handle,
       messages: started.messages,
+      modelId: model?.id,
       prompt: options.prompt,
     });
   } catch (caught) {
@@ -220,17 +238,19 @@ export const useChatSession = ({
   contextState,
   generation,
   isPromptReady,
-  modelState,
+  modelStatus,
   prompt,
 }: ChatSessionOptions): ChatSession => {
   const session = useChatSessionStore((store) =>
     chatSessionFor(store, generation)
   );
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const { model, state: modelState } = modelStatus;
+  const thinking = useChatSessionStore((store) => store.thinking);
   const change = (next: ChatSessionChange) =>
     changeChatSession(generation, next);
   const sendTurn = (question: string | null) =>
-    sendChatTurn({ context, generation, modelState, prompt, question });
+    sendChatTurn({ context, generation, modelStatus, prompt, question });
   const dictation = useSessionDictation(generation);
   usePromptAutoRun({
     canRun: !session.isQuestionPending && session.messages.length === 0,
@@ -252,6 +272,7 @@ export const useChatSession = ({
     input: session.input,
     inputRef,
     isResponding: session.request !== null,
+    isThinking: session.request?.thinking === true,
     messages: session.messages,
     restart: () => restartChatSession(generation),
     send: () => {
@@ -260,6 +281,9 @@ export const useChatSession = ({
     /// An edited handover is a draft again: it goes out when the user sends it.
     setInput: (input) => change(() => ({ input, isQuestionPending: false })),
     showError: (error) => change(() => ({ error })),
-    stop: () => session.request?.abort(),
+    stop: () => session.request?.controller.abort(),
+    thinkingMode: model?.supports_thinking
+      ? { selected: thinking, setSelected: chooseThinking }
+      : null,
   };
 };
